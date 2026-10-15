@@ -324,6 +324,8 @@ cmd_instalar() {
   chown 1000:1000 "$DIR/backups" 2>/dev/null || true
   crear_env
   instalar_apagado
+  # Asistente de la Raspberry actualizado (comando «gv»). `install` reemplaza el archivo sin tocar el proceso que lo esté usando.
+  [ -f "$DIR/start.sh" ] && install -m 755 "$DIR/start.sh" /usr/local/bin/gv 2>/dev/null || true
 
   # Actualización (GV_MODO=actualizar sobre una instalación existente): sin preguntas, con copia previa y conservando
   # el administrador y el acceso exterior ya configurados. La versión de la imagen sigue a la del instalador (si no, el .env

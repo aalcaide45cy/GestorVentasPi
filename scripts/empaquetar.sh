@@ -26,7 +26,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$SALIDA" "$TMP/paquete/scripts"
 
-cp instalador/docker-compose.yml instalador/LEEME.txt instalador/gestorventas.conf.ejemplo "$TMP/paquete/"
+cp instalador/docker-compose.yml instalador/LEEME.txt instalador/gestorventas.conf.ejemplo instalador/start.sh "$TMP/paquete/"
 mkdir -p "$TMP/paquete/tailscale"
 cp instalador/tailscale/serve.json "$TMP/paquete/tailscale/"
 cp instalador/scripts/*.sh "$TMP/paquete/scripts/"

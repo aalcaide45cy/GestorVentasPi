@@ -48,6 +48,7 @@ instalar_jq() {
 avisar_reinicio() {
   if [ -f /var/run/reboot-required ]; then
     aviso "El sistema indica que hace falta reiniciar la Raspberry."
+    if [ "${GV_AUTO:-0}" = "1" ]; then echo "(Actualización automática: no se reinicia sola; hazlo desde el menú cuando te venga bien.)"; return 0; fi
     si "¿Reiniciarla ahora?" && reiniciar_raspberry
   fi
 }
@@ -204,12 +205,88 @@ accion_tailscale() {
 
 accion_reiniciar_app() { hay_instalacion || { rojo "No hay instalación."; return 1; }; azul "Reiniciando la aplicación..."; dc restart && verde "Hecho."; }
 
+# ---------------------------------------------------------------- actualización automática
+SERVICIO_AUTO="gestorventas-autoupdate"
+INTERVALO_AUTO="${GV_INTERVALO:-600}"   # segundos entre comprobaciones (GitHub permite 60 consultas por hora sin clave)
+
+auto_activa() { systemctl is-active --quiet "$SERVICIO_AUTO.service" 2>/dev/null; }
+auto_estado_texto() {
+  if auto_activa; then printf '\033[32mACTIVA\033[0m (vigila GitHub cada %d min)' $((INTERVALO_AUTO / 60)); else printf '\033[33mDESACTIVADA\033[0m'; fi
+}
+
+# Proceso en segundo plano: cada cierto tiempo mira si hay una versión nueva; si la hay, espera a que GitHub la construya,
+# la instala y vuelve a vigilar. Al terminar una actualización se reinicia a sí mismo para cargar el asistente nuevo.
+vigilar() {
+  export GV_AUTO=1
+  echo "[$(date '+%F %T')] Vigilancia de actualizaciones iniciada (cada $((INTERVALO_AUTO / 60)) min)."
+  while true; do
+    if hay_instalacion && necesita_internet 2>/dev/null && instalar_jq >/dev/null 2>&1; then
+      local antes despues
+      antes="$(version_instalada)"
+      accion_actualizar 2>&1 | tr '\r' '\n' | sed '/^[[:space:]]*$/d' || true
+      despues="$(version_instalada)"
+      if [ "$antes" != "$despues" ]; then
+        echo "[$(date '+%F %T')] Actualizada de $antes a $despues."
+        exit 0   # systemd nos vuelve a arrancar con el asistente nuevo y seguimos a la escucha
+      fi
+    fi
+    sleep "$INTERVALO_AUTO"
+  done
+}
+
+auto_activar() {
+  hay_instalacion || { rojo "Todavía no hay nada instalado."; return 1; }
+  instalar_jq || return 1
+  cat > "/etc/systemd/system/$SERVICIO_AUTO.service" <<UNIT
+[Unit]
+Description=GestorVentasPi: actualización automática desde GitHub
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/gv vigilar
+Restart=always
+RestartSec=30
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now "$SERVICIO_AUTO.service" >/dev/null 2>&1 || { rojo "No se pudo activar el servicio."; return 1; }
+  verde "Actualización automática ACTIVADA. Cuando suba una versión nueva a GitHub se instalará sola (con copia previa)."
+}
+
+auto_desactivar() {
+  systemctl disable --now "$SERVICIO_AUTO.service" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/$SERVICIO_AUTO.service"
+  systemctl daemon-reload
+  verde "Actualización automática DESACTIVADA."
+}
+
+accion_auto() {
+  echo "Actualización automática: $(auto_estado_texto)"; echo
+  if auto_activa; then
+    echo "  1) Desactivar"
+    echo "  2) Ver el registro (últimas líneas)"
+    echo "  0) Volver"
+    local o; read -rp "Elige: " o
+    case "$o" in 1) auto_desactivar ;; 2) journalctl -u "$SERVICIO_AUTO" -n 40 --no-pager ;; esac
+  else
+    echo "Al activarla, un proceso en segundo plano vigilará GitHub y, cuando se suba una versión nueva, la descargará e instalará"
+    echo "sola (con copia de seguridad previa) y seguirá a la escucha de la siguiente. Sigue funcionando tras reiniciar la Raspberry."
+    si "¿Activarla?" && auto_activar
+  fi
+}
+
 # ---------------------------------------------------------------- menú
 menu() {
   while true; do
     clear
     azul "══════════════ GestorVentasPi · Asistente de la Raspberry ══════════════"
     if hay_instalacion; then echo "  Instalada: versión $(version_instalada)"; else echo "  Todavía sin instalar"; fi
+    echo "  Actualización automática: $(auto_estado_texto)"
     echo
     echo "   1) Instalar por primera vez"
     echo "   2) Actualizar a la última versión (espera a GitHub si la está construyendo)"
@@ -221,6 +298,7 @@ menu() {
     echo "   8) Reiniciar la aplicación"
     echo "   9) Reiniciar la Raspberry"
     echo "  10) Apagar la Raspberry"
+    echo "  11) Actualización automática (activar / desactivar)"
     echo "   0) Salir"
     echo
     local op; read -rp "Elige una opción: " op
@@ -235,6 +313,7 @@ menu() {
       8) accion_reiniciar_app; pausa ;;
       9) si "¿Reiniciar la Raspberry ahora?" && reiniciar_raspberry ;;
       10) si "¿Apagar la Raspberry ahora?" && apagar_raspberry ;;
+      11) accion_auto; pausa ;;
       0|q|Q) exit 0 ;;
       *) ;;
     esac
@@ -250,7 +329,9 @@ case "${1:-menu}" in
   copia) accion_copia ;;
   reiniciar) reiniciar_raspberry ;;
   apagar) apagar_raspberry ;;
+  vigilar) vigilar ;;
+  auto) accion_auto ;;
   menu|"") menu ;;
-  *) echo "Uso: gv [instalar|actualizar|estado|logs|copia|reiniciar|apagar]"; exit 1 ;;
+  *) echo "Uso: gv [instalar|actualizar|estado|logs|copia|reiniciar|apagar|auto]"; exit 1 ;;
 esac
 fi
