@@ -92,6 +92,14 @@ export default function GlobalSearch() {
       <form onSubmit={enviar} style={{ display: "flex", alignItems: "center", position: "relative", width: "100%" }}>
         <input
           type="text"
+          name="buscar-gv"
+          // Sin el desplegable de autocompletado del navegador (direcciones, nombres guardados...)
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-form-type="other"
+          data-lpignore="true"
           className="form-input"
           placeholder="Buscar expediente, matrícula, DNI..."
           value={query}
