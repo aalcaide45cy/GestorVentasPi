@@ -66,12 +66,12 @@ apagar_raspberry() {
 # ---------------------------------------------------------------- GitHub: versiones y progreso
 # Última etiqueta vX.Y.Z publicada en el repositorio (aunque su instalador aún se esté construyendo).
 ultima_etiqueta() {
-  curl -fsS "$API/git/matching-refs/tags/v" 2>/dev/null | jq -r '.[].ref' 2>/dev/null | sed 's#refs/tags/v##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
+  curl -fsS --max-time 25 "$API/git/matching-refs/tags/v" 2>/dev/null | jq -r '.[].ref' 2>/dev/null | sed 's#refs/tags/v##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
 }
 
 release_lista() { # ¿ya están publicados los archivos de esa versión?
   local j
-  j="$(curl -fsS "$API/releases/tags/v$1" 2>/dev/null)" || return 1
+  j="$(curl -fsS --max-time 25 "$API/releases/tags/v$1" 2>/dev/null)" || return 1
   [ -n "$j" ] || return 1
   jq -e --arg n "gestorventas-$1-pi-instalador.run" '[.assets[].name] | index($n) != null' <<<"$j" >/dev/null 2>&1
 }
@@ -82,7 +82,7 @@ esperar_construccion() {
   inicio="$(date +%s)"
   azul "GitHub está construyendo la versión $v. Espero aquí y se instalará sola al terminar (Ctrl+C para cancelar)."
   while ! release_lista "$v"; do
-    run="$(curl -fsS "$API/actions/runs?event=push&per_page=20" 2>/dev/null | jq -c --arg v "v$v" '[.workflow_runs[] | select(.head_branch == $v and .name == "Publicar versión")][0] // empty' 2>/dev/null)"
+    run="$(curl -fsS --max-time 25 "$API/actions/runs?event=push&per_page=20" 2>/dev/null | jq -c --arg v "v$v" '[.workflow_runs[] | select(.head_branch == $v and .name == "Publicar versión")][0] // empty' 2>/dev/null)"
     if [ -n "$run" ]; then
       id="$(jq -r '.id' <<<"$run")"; estado="$(jq -r '.status' <<<"$run")"; concl="$(jq -r '.conclusion // ""' <<<"$run")"
       if [ "$estado" = "completed" ] && [ "$concl" != "success" ]; then
@@ -90,7 +90,7 @@ esperar_construccion() {
         echo "Detalles: https://github.com/$REPO/actions/runs/$id"
         return 1
       fi
-      jobs="$(curl -fsS "$API/actions/runs/$id/jobs" 2>/dev/null)"
+      jobs="$(curl -fsS --max-time 25 "$API/actions/runs/$id/jobs" 2>/dev/null)"
       total="$(jq '[.jobs[].steps[]] | length' <<<"$jobs" 2>/dev/null || echo 0)"
       hechos="$(jq '[.jobs[].steps[] | select(.status == "completed")] | length' <<<"$jobs" 2>/dev/null || echo 0)"
       paso="$(jq -r '[.jobs[].steps[] | select(.status == "in_progress")][0].name // "preparando"' <<<"$jobs" 2>/dev/null)"
@@ -110,8 +110,8 @@ esperar_construccion() {
 descargar_instalador() {
   local v="$1" destino="$2" nombre="gestorventas-$1-pi-instalador.run" base="https://github.com/$REPO/releases/download/v$1"
   azul "Descargando $nombre (unos 150 MB)..."
-  curl -fL --progress-bar -o "$destino/$nombre" "$base/$nombre" || { rojo "No se pudo descargar."; return 1; }
-  if curl -fsSL -o "$destino/$nombre.sha256" "$base/$nombre.sha256" 2>/dev/null; then
+  curl -fL --connect-timeout 20 --speed-limit 2000 --speed-time 90 --retry 2 --progress-bar -o "$destino/$nombre" "$base/$nombre" || { rojo "No se pudo descargar."; return 1; }
+  if curl -fsSL --max-time 30 -o "$destino/$nombre.sha256" "$base/$nombre.sha256" 2>/dev/null; then
     (cd "$destino" && sha256sum -c "$nombre.sha256" >/dev/null 2>&1) || { rojo "La descarga está dañada (la huella no coincide). Vuelve a intentarlo."; return 1; }
     verde "Descarga comprobada."
   fi
@@ -145,7 +145,22 @@ accion_instalar() {
   avisar_reinicio
 }
 
+# Una sola actualización a la vez (menú, botón de la aplicación y actualización automática).
+bloquear_actualizacion() {
+  exec {GV_CERROJO}>/var/lock/gv-actualizar.lock 2>/dev/null || return 0
+  flock -n "$GV_CERROJO" || { aviso "Ya hay otra actualización en curso."; return 1; }
+}
+liberar_actualizacion() { [ -n "${GV_CERROJO:-}" ] && exec {GV_CERROJO}>&-; GV_CERROJO=""; }
+
 accion_actualizar() {
+  bloquear_actualizacion || return 1
+  accion_actualizar_interna
+  local codigo=$?
+  liberar_actualizacion
+  return $codigo
+}
+
+accion_actualizar_interna() {
   hay_instalacion || { rojo "Todavía no hay nada instalado. Usa antes «Instalar»."; return 1; }
   necesita_internet || return 1
   instalar_jq || return 1
@@ -163,7 +178,7 @@ accion_actualizar() {
   descargar_instalador "$nueva" /root/gv-descargas || return 1
   local run="$RUN_DESCARGADO"
   azul "Actualizando a la versión $nueva (se hace una copia de seguridad antes; tus datos no se tocan)..."
-  GV_MODO=actualizar bash "$run" || { rojo "La actualización ha fallado. Tus datos siguen intactos; la copia previa está en $DIR/backups."; return 1; }
+  GV_MODO=actualizar timeout 2400 bash "$run" || { rojo "La actualización ha fallado. Tus datos siguen intactos; la copia previa está en $DIR/backups."; return 1; }
   rm -f /root/gv-descargas/gestorventas-*-pi-instalador.run*
   verde "Listo. En el navegador pulsa Ctrl+F5 para cargar la versión nueva."
   avisar_reinicio
@@ -204,6 +219,20 @@ accion_tailscale() {
 }
 
 accion_reiniciar_app() { hay_instalacion || { rojo "No hay instalación."; return 1; }; azul "Reiniciando la aplicación..."; dc restart && verde "Hecho."; }
+
+# Lo ejecuta el servicio del sistema que atiende el botón «Actualizar» de la aplicación: deja el avance en la carpeta compartida
+# (control/actualizacion.log y control/actualizacion.estado) para que la aplicación lo muestre.
+actualizar_servicio() {
+  export GV_AUTO=1
+  local carpeta="$DIR/control" registro estado codigo
+  registro="$carpeta/actualizacion.log"; estado="$carpeta/actualizacion.estado"
+  mkdir -p "$carpeta"
+  : > "$registro"; echo "en-curso" > "$estado"; chmod 666 "$registro" "$estado" 2>/dev/null || true
+  accion_actualizar 2>&1 | tr '\r' '\n' | sed -u -e '/^[[:space:]]*$/d' -e 's/\x1b\[[0-9;]*m//g' >> "$registro"
+  codigo="${PIPESTATUS[0]}"
+  if [ "$codigo" -eq 0 ]; then echo "terminada" > "$estado"; else echo "fallida" > "$estado"; fi
+  return "$codigo"
+}
 
 # ---------------------------------------------------------------- actualización automática
 SERVICIO_AUTO="gestorventas-autoupdate"
@@ -330,6 +359,7 @@ case "${1:-menu}" in
   reiniciar) reiniciar_raspberry ;;
   apagar) apagar_raspberry ;;
   vigilar) vigilar ;;
+  actualizar-servicio) actualizar_servicio ;;
   auto) accion_auto ;;
   menu|"") menu ;;
   *) echo "Uso: gv [instalar|actualizar|estado|logs|copia|reiniciar|apagar|auto]"; exit 1 ;;

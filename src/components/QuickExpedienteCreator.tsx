@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import type { MarcaDto, ModeloDto, TipoVentaDto, VendedorDto } from "@/lib/dto";
+import type { ResultadoPedido } from "@/lib/servicios/documentos";
+import { BotonLeerPedido, leerPedidoDeFichero } from "./documentos/BotonLeerDocumento";
 import { mensajeDeError } from "./expedientes/comun";
+import PedidoRapidoModal, { type EleccionRapida } from "./PedidoRapidoModal";
 
 export interface MarcaConModelos extends MarcaDto {
   modelos: ModeloDto[];
@@ -52,6 +55,10 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
   const [cargandoTipo, setCargandoTipo] = useState<number | null>(null);
 
   const [vendedorId, setVendedorId] = useState<number>(currentUserId);
+  /** Pedido leído a la espera de decidir el cliente (se suelta en la zona general o sobre un botón de pago). */
+  const [pedido, setPedido] = useState<{ datos: ResultadoPedido; eleccion: EleccionRapida | null } | null>(null);
+  const [leyendoPedido, setLeyendoPedido] = useState(false);
+  const [sobre, setSobre] = useState<string | null>(null);
   const [desplegado, setDesplegado] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
@@ -96,6 +103,21 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
     }
   };
 
+  /** Pedido soltado sobre un botón de pago de un modelo: se lee y se pregunta por el cliente. */
+  const soltarPedido = async (fichero: File | undefined, eleccion: EleccionRapida) => {
+    setSobre(null);
+    if (!fichero) return;
+    setLeyendoPedido(true);
+    mostrar("Leyendo el pedido…");
+    try {
+      setPedido({ datos: await leerPedidoDeFichero(fichero), eleccion });
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se pudo leer el pedido.", "error");
+    } finally {
+      setLeyendoPedido(false);
+    }
+  };
+
   const marcasConModelos = marcas.filter((m) => m.modelos.length > 0);
   const vendedoresFiltrados = vendedores.filter((v) => v.nombre.toLowerCase().includes(busqueda.toLowerCase()));
 
@@ -108,7 +130,16 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
             key={tv.id_tipo_de_venta}
             type="button"
             onClick={() => crear(idModelo, nombreModelo, tv, estadoNombre)}
-            disabled={cargandoModelo !== null}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setSobre(`${idModelo ?? "VO"}-${tv.id_tipo_de_venta}`);
+            }}
+            onDragLeave={() => setSobre(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              void soltarPedido(e.dataTransfer.files[0], { idModelo, nombreModelo, tipo: tv, estadoNombre });
+            }}
+            disabled={cargandoModelo !== null || leyendoPedido}
             style={{
               fontSize: "0.75rem",
               padding: "8px 4px",
@@ -119,6 +150,8 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
               justifyContent: "center",
               gap: "4px",
               background: esteCargando ? "rgba(255, 255, 255, 0.2)" : tv.color || "#3b82f6",
+              outline: sobre === `${idModelo ?? "VO"}-${tv.id_tipo_de_venta}` ? "3px solid var(--text-primary)" : "none",
+              outlineOffset: "2px",
               color: "#ffffff",
               border: "1px solid rgba(255, 255, 255, 0.15)",
               borderRadius: "4px",
@@ -129,7 +162,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}
-            title={`Crear rápido ${nombreModelo} - ${tv.nombre_tipo_venta}`}
+            title={`Crear rápido ${nombreModelo} - ${tv.nombre_tipo_venta}. También puedes arrastrar aquí el pedido del cliente: se lee y se crea el expediente con su cliente.`}
             className="glass-panel-interactive"
           >
             {esteCargando && (
@@ -158,7 +191,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
         <div>
           <h3 style={{ fontSize: "1.2rem", marginBottom: "4px" }}>Acceso Rápido a Modelos</h3>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-            Crea expedientes de venta de forma instantánea pulsando en el método de pago bajo cada modelo.
+            Crea expedientes de venta de forma instantánea pulsando en el método de pago bajo cada modelo, o arrastrando el pedido del cliente sobre el modelo y pago que quieras.
           </p>
         </div>
 
@@ -294,6 +327,14 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
         </div>
       </div>
 
+      <div style={{ display: "flex" }}>
+        <BotonLeerPedido
+          etiqueta="Arrastra aquí el pedido de un cliente"
+          disabled={leyendoPedido}
+          alLeer={(r) => setPedido({ datos: r, eleccion: null })}
+        />
+      </div>
+
       <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", justifyContent: "center", width: "100%" }}>
         {marcasConModelos.map((marca) => (
           <div key={marca.id_marca} style={estiloTarjetaMarca}>
@@ -361,6 +402,22 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       </div>
 
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+
+      {pedido && (
+        <PedidoRapidoModal
+          pedido={pedido.datos}
+          eleccion={pedido.eleccion}
+          marcas={marcas}
+          tiposVenta={tiposVenta}
+          vendedorId={vendedorId}
+          alCerrar={() => setPedido(null)}
+          alTerminar={(mensaje) => {
+            setPedido(null);
+            mostrar(mensaje);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

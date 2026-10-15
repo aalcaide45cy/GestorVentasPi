@@ -202,9 +202,32 @@ PathExists=$DIR/control/apagar
 [Install]
 WantedBy=multi-user.target
 UNIT
+  # Botón «Actualizar» de la aplicación: deja control/actualizar y este servicio ejecuta el asistente (gv actualizar-servicio)
+  cat > /etc/systemd/system/gestorventas-actualizar.service <<UNIT
+[Unit]
+Description=Actualizar GestorVentasPi (solicitado desde la aplicación)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c 'rm -f $DIR/control/actualizar; exec /usr/local/bin/gv actualizar-servicio'
+UNIT
+  cat > /etc/systemd/system/gestorventas-actualizar.path <<UNIT
+[Unit]
+Description=Vigila la petición de actualización de GestorVentasPi
+
+[Path]
+PathExists=$DIR/control/actualizar
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  rm -f "$DIR/control/actualizar"
   systemctl daemon-reload
   systemctl enable --now gestorventas-apagar.path >/dev/null 2>&1 || return 0
   fijar_env APAGADO_HABILITADO 1
+  if systemctl enable --now gestorventas-actualizar.path >/dev/null 2>&1; then fijar_env ACTUALIZAR_HABILITADO 1; fi
 }
 
 dc() { (cd "$DIR" && docker compose "$@"); }
@@ -466,7 +489,8 @@ cmd_desinstalar() {
   necesita_root
   dc --profile tailscale --profile cloudflare down || true
   systemctl disable --now gestorventas-apagar.path >/dev/null 2>&1 || true
-  rm -f /etc/systemd/system/gestorventas-apagar.path /etc/systemd/system/gestorventas-apagar.service
+  systemctl disable --now gestorventas-actualizar.path >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/gestorventas-apagar.path /etc/systemd/system/gestorventas-apagar.service /etc/systemd/system/gestorventas-actualizar.path /etc/systemd/system/gestorventas-actualizar.service
   if [ "${1:-}" = "--borrar-datos" ]; then
     confirmar "Se BORRARÁN la base de datos y las copias de $DIR. ¿Seguro?" || { echo "Cancelado."; exit 1; }
     rm -rf "$DIR"

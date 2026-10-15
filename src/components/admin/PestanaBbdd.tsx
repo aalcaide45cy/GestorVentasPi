@@ -7,6 +7,7 @@ import { descargarTexto } from "@/lib/csv-expedientes";
 import { mensajeDeError } from "@/components/expedientes/comun";
 import type { AnalisisBbdd } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
+import PanelActualizar from "./PanelActualizar";
 import PanelMigracion from "./PanelMigracion";
 import PanelVaciar from "./PanelVaciar";
 import { estiloPanel } from "./utilidades";
@@ -100,6 +101,10 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
 
   return (
     <div className="glass-panel" style={{ ...estiloPanel, padding: "32px" }}>
+      <PanelActualizar />
+
+      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+
       <div>
         <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🗄️ Herramientas de Mantenimiento y Limpieza de BBDD</h3>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5" }}>

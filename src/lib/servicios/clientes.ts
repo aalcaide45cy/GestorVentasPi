@@ -171,3 +171,48 @@ export async function buscarClientes(ej: Ejecutor, q: string): Promise<ClienteDt
   });
   return filas.map(clienteDto);
 }
+
+export const esquemaCoincidencias = z.object({ dni: z.string().nullish(), nombre: z.string().nullish() });
+
+export interface CoincidenciaCliente {
+  id: number;
+  nombre: string | null;
+  dni: string | null;
+  /** true si coincide el DNI/NIE (lo más fiable); false si solo coincide el nombre. */
+  porDni: boolean;
+}
+
+const sinSeparadores = (t: string) => t.toUpperCase().replace(/[\s.-]/g, "");
+
+/**
+ * Clientes que podrían ser la misma persona que un pedido o documento: primero los que tienen el mismo DNI/NIE y después los que
+ * contienen todas las palabras del nombre (en cualquier orden). Máximo 8, solo clientes no eliminados.
+ */
+export async function buscarCoincidencias(ej: Ejecutor, entrada: z.infer<typeof esquemaCoincidencias>): Promise<CoincidenciaCliente[]> {
+  const dni = entrada.dni ? sinSeparadores(entrada.dni) : "";
+  const palabras = (entrada.nombre ?? "")
+    .split(/\s+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 2)
+    .slice(0, 5);
+  const resultado = new Map<number, CoincidenciaCliente>();
+
+  if (dni.length >= 5) {
+    const porDni = await ej
+      .select({ id: clientes.id, nombre: clientes.nombre, dni: clientes.dni })
+      .from(clientes)
+      .where(and(isNull(clientes.eliminadoEn), sql`upper(regexp_replace(${clientes.dni}, '[[:space:].-]', '', 'g')) = ${dni}`))
+      .limit(8);
+    for (const c of porDni) resultado.set(c.id, { ...c, porDni: true });
+  }
+  if (palabras.length > 0 && resultado.size < 8) {
+    const porNombre = await ej
+      .select({ id: clientes.id, nombre: clientes.nombre, dni: clientes.dni })
+      .from(clientes)
+      .where(and(isNull(clientes.eliminadoEn), ...palabras.map((p) => ilike(clientes.nombre, `%${escaparLike(p)}%`))))
+      .orderBy(asc(clientes.nombre))
+      .limit(8);
+    for (const c of porNombre) if (!resultado.has(c.id)) resultado.set(c.id, { ...c, porDni: false });
+  }
+  return [...resultado.values()].slice(0, 8);
+}

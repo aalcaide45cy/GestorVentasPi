@@ -28,6 +28,9 @@ async function leerFichero<T>(tipo: Tipo, f: File): Promise<T> {
   return json.data;
 }
 
+/** Lee un pedido (PDF o foto) en el servidor y devuelve sus datos; el fichero queda como adjunto pendiente. */
+export const leerPedidoDeFichero = (f: File): Promise<ResultadoPedido> => leerFichero<ResultadoPedido>("pedido", f);
+
 /** Cuadro para arrastrar un DNI o un pedido: se lee en este equipo y se devuelven los datos para rellenar la ficha. */
 function ZonaLeer<T>({ tipo, titulo, ayuda, icono, multiple, alLeer, disabled }: Props<T>) {
   const { mostrar } = useToast();
