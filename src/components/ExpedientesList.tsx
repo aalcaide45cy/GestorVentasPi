@@ -22,6 +22,8 @@ import { useEdicionFechas } from "./expedientes/useEdicionFechas";
 
 interface Props {
   expedientesIniciales: ExpedienteDto[];
+  /** Total de expedientes en la base de datos (si es mayor que los cargados, se avisa de que la lista está recortada). */
+  totalEnBd?: number;
   userRole: string;
   tiendas: TiendaDto[];
   vendedores: VendedorDto[];
@@ -136,6 +138,7 @@ function leerArchivo<T extends string | ArrayBuffer>(archivo: File, como: "texto
 /** Listado completo de expedientes con filtros, ordenación, paginación, selección masiva e importación/exportación. */
 export default function ExpedientesList({
   expedientesIniciales,
+  totalEnBd,
   userRole,
   tiendas,
   vendedores,
@@ -989,6 +992,12 @@ export default function ExpedientesList({
           </div>
         </div>
       </div>
+
+      {totalEnBd !== undefined && totalEnBd > expedientes.length && (
+        <div style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.9rem" }}>
+          ⚠️ Se muestran los {expedientes.length.toLocaleString("es-ES")} expedientes más recientes de {totalEnBd.toLocaleString("es-ES")}. Para localizar uno anterior usa el buscador global (arriba) o la ficha del cliente.
+        </div>
+      )}
 
       {/* TABLA */}
       <div className="glass-panel" style={{ padding: "8px" }}>

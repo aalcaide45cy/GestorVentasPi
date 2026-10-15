@@ -4,9 +4,10 @@ import { db } from "@/db";
 import { ajustes, clientes, estadoVehiculo, expedientes, marcas, modelos, tiendas, usuariosTiendas } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { actualizarCliente, crearCliente, eliminarClientes, esquemaCliente } from "./clientes";
+import { actualizarCliente, crearCliente, eliminarClientes, esquemaCliente, listarClientes } from "./clientes";
 import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./expedientes-escritura";
+import { generarInforme } from "./informes";
 import { listarExpedientes, obtenerExpediente, resumenPanel } from "./expedientes-lectura";
 
 beforeEach(reiniciarBd);
@@ -139,6 +140,23 @@ describe("actualizar y borrar expedientes", () => {
     const b = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));
     expect(await eliminarExpedientes(db, admin, [a.id_expediente, b.id_expediente])).toBe(2);
     expect(await listarExpedientes(db)).toHaveLength(0);
+    expect(await obtenerExpediente(db, a.id_expediente)).toBeNull();
+    expect((await resumenPanel(db)).total).toBe(0);
+    // la fila se conserva (borrado lógico)
+    expect(await db.select({ id: expedientes.idExpediente, en: expedientes.eliminadoEn }).from(expedientes)).toHaveLength(2);
+  });
+
+  it("un expediente eliminado deja de contar pero aparece en las estadísticas de eliminados", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const a = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { fecha_expediente: "2026-03-10" } }));
+    await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { fecha_expediente: "2026-03-11" } }));
+    await eliminarExpedientes(db, admin, [a.id_expediente]);
+    const informe = await generarInforme(db, { desde: "2026-03", hasta: "2026-03" });
+    expect(informe.totales.pedidosCartera).toBe(1);
+    expect(informe.eliminados.total).toBe(1);
+    // un expediente eliminado ya no se puede editar
+    const err = await esperarError(actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: a.id_expediente, expediente: { matricula: "X" } })));
+    expect(err.status).toBe(404);
   });
 
   it("con restringir_por_tienda el vendedor solo toca sus expedientes", async () => {
@@ -177,11 +195,13 @@ describe("clientes", () => {
     expect(cli?.telefonos).toHaveLength(0);
   });
 
-  it("al borrar un cliente sus expedientes quedan sin cliente", async () => {
+  it("al borrar un cliente (borrado lógico) sus expedientes conservan el cliente y siguen en estadísticas", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const exp = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Borrar" }, expediente: {} }));
     expect(await eliminarClientes(db, [exp.id_cliente as number])).toBe(1);
-    expect((await obtenerExpediente(db, exp.id_expediente))?.cliente).toBeNull();
+    expect((await obtenerExpediente(db, exp.id_expediente))?.cliente?.nombre).toBe("Borrar");
+    expect(await listarClientes(db)).toHaveLength(0);
+    expect((await resumenPanel(db)).total).toBe(1);
   });
 });
 

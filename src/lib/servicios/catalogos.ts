@@ -1,7 +1,7 @@
-import { asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { ajustes, estadoVehiculo, expedientes, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
+import { ajustes, estadoVehiculo, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { categoriaTipoVenta, claseEstado, idOpcional, textoOpcional } from "./comun";
 import { estadoDto, marcaDto, modeloDto, tiendaDto, tipoVentaDto } from "./mapeos";
@@ -102,11 +102,11 @@ export const esquemaAjuste = z.object({
 
 export async function leerCatalogos(ej: Ejecutor) {
   const [ms, mos, tvs, evs, ts] = await Promise.all([
-    ej.select().from(marcas).orderBy(asc(marcas.nombre)),
-    ej.select().from(modelos).orderBy(asc(modelos.nombreModelo)),
-    ej.select().from(tipoDeVenta).orderBy(asc(tipoDeVenta.orden), asc(tipoDeVenta.nombreTipoVenta)),
-    ej.select().from(estadoVehiculo).orderBy(asc(estadoVehiculo.nombreEstadoVehiculo)),
-    ej.select().from(tiendas).orderBy(asc(tiendas.nombre)),
+    ej.select().from(marcas).where(isNull(marcas.eliminadoEn)).orderBy(asc(marcas.nombre)),
+    ej.select().from(modelos).where(isNull(modelos.eliminadoEn)).orderBy(asc(modelos.nombreModelo)),
+    ej.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn)).orderBy(asc(tipoDeVenta.orden), asc(tipoDeVenta.nombreTipoVenta)),
+    ej.select().from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn)).orderBy(asc(estadoVehiculo.nombreEstadoVehiculo)),
+    ej.select().from(tiendas).where(isNull(tiendas.eliminadoEn)).orderBy(asc(tiendas.nombre)),
   ]);
   return {
     marcas: ms.map(marcaDto),
@@ -236,43 +236,32 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
   }
 }
 
-async function haySiExpedientes(ej: Ejecutor, columna: typeof expedientes.idModelo | typeof expedientes.idTipoDeVenta | typeof expedientes.idEstadoVehiculo | typeof expedientes.idTienda, ids: number[]): Promise<boolean> {
-  if (ids.length === 0) return false;
-  const [f] = await ej.select({ id: expedientes.idExpediente }).from(expedientes).where(inArray(columna, ids)).limit(1);
-  return !!f;
-}
-
+/**
+ * Borrado lógico: la fila se conserva (con `eliminado_en`) y desaparece de los selectores y listados de catálogo,
+ * pero los expedientes que la usan siguen apuntando a ella (nombre, estadísticas e histórico intactos).
+ */
 export async function eliminarCatalogo(ej: Ejecutor, e: EntradaEliminarCatalogo): Promise<string> {
+  const ahora = new Date();
   switch (e.tipo) {
     case "marca": {
       if (e.toggleActivo) {
         await ej.update(marcas).set({ activo: !!e.activo }).where(eq(marcas.idMarca, e.id));
         return "Estado de la marca actualizado";
       }
-      const ms = await ej.select({ id: modelos.idModelo }).from(modelos).where(eq(modelos.marcaId, e.id));
-      if (await haySiExpedientes(ej, expedientes.idModelo, ms.map((m) => m.id))) {
-        throw new HttpError(409, "No se puede eliminar la marca porque tiene expedientes asociados.");
-      }
-      await ej.delete(marcas).where(eq(marcas.idMarca, e.id));
+      await ej.transaction(async (tx) => {
+        await tx.update(modelos).set({ eliminadoEn: ahora }).where(and(eq(modelos.marcaId, e.id), isNull(modelos.eliminadoEn)));
+        await tx.update(marcas).set({ eliminadoEn: ahora }).where(eq(marcas.idMarca, e.id));
+      });
       return "Marca eliminada";
     }
     case "modelo":
-      if (await haySiExpedientes(ej, expedientes.idModelo, [e.id])) {
-        throw new HttpError(409, "No se puede eliminar el modelo porque tiene expedientes asociados.");
-      }
-      await ej.delete(modelos).where(eq(modelos.idModelo, e.id));
+      await ej.update(modelos).set({ eliminadoEn: ahora }).where(eq(modelos.idModelo, e.id));
       return "Modelo eliminado";
     case "tipo_venta":
-      if (await haySiExpedientes(ej, expedientes.idTipoDeVenta, [e.id])) {
-        throw new HttpError(409, "No se puede eliminar el tipo de venta porque tiene expedientes asociados.");
-      }
-      await ej.delete(tipoDeVenta).where(eq(tipoDeVenta.idTipoDeVenta, e.id));
+      await ej.update(tipoDeVenta).set({ eliminadoEn: ahora }).where(eq(tipoDeVenta.idTipoDeVenta, e.id));
       return "Tipo de venta eliminado";
     case "estado_vehiculo":
-      if (await haySiExpedientes(ej, expedientes.idEstadoVehiculo, [e.id])) {
-        throw new HttpError(409, "No se puede eliminar el estado porque tiene expedientes asociados.");
-      }
-      await ej.delete(estadoVehiculo).where(eq(estadoVehiculo.idEstadoVehiculo, e.id));
+      await ej.update(estadoVehiculo).set({ eliminadoEn: ahora }).where(eq(estadoVehiculo.idEstadoVehiculo, e.id));
       return "Estado de vehículo eliminado";
   }
 }
@@ -294,8 +283,5 @@ export async function actualizarTienda(ej: Ejecutor, e: z.infer<typeof esquemaTi
 }
 
 export async function eliminarTienda(ej: Ejecutor, idTienda: number): Promise<void> {
-  if (await haySiExpedientes(ej, expedientes.idTienda, [idTienda])) {
-    throw new HttpError(409, "No se puede eliminar la tienda porque tiene expedientes de venta registrados.");
-  }
-  await ej.delete(tiendas).where(eq(tiendas.idTienda, idTienda));
+  await ej.update(tiendas).set({ eliminadoEn: new Date() }).where(eq(tiendas.idTienda, idTienda));
 }

@@ -143,6 +143,18 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
             </Seccion>
           </div>
 
+          {informe.eliminados.total > 0 && (
+            <Seccion titulo={`🗑️ Expedientes eliminados del periodo (${informe.eliminados.total})`}>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 12px 0" }}>
+                Se conservan solo para estadística: no cuentan en matriculaciones, puntos ni comisiones.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "24px" }}>
+                <Barras datos={informe.eliminados.porFormaPago} />
+                <Barras datos={informe.eliminados.porVendedor} />
+              </div>
+            </Seccion>
+          )}
+
           <Seccion titulo="📈 Rendimiento Económico por Comercial">
             <div className="table-container">
               <table className="table-premium">

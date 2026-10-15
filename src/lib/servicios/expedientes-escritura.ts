@@ -1,4 +1,4 @@
-import { eq, ilike, inArray } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNull } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import {
   ajustes,
@@ -178,7 +178,7 @@ export async function actualizarExpedientes(
       const filas = await tx
         .update(expedientes)
         .set(set)
-        .where(inArray(expedientes.idExpediente, entrada.ids))
+        .where(and(inArray(expedientes.idExpediente, entrada.ids), isNull(expedientes.eliminadoEn)))
         .returning({ id: expedientes.idExpediente });
       return { valor: filas.length, idsDespues: entrada.ids };
     });
@@ -223,7 +223,7 @@ export async function actualizarExpedientes(
     const filas = await tx
       .update(expedientes)
       .set(set)
-      .where(eq(expedientes.idExpediente, entrada.id_expediente))
+      .where(and(eq(expedientes.idExpediente, entrada.id_expediente), isNull(expedientes.eliminadoEn)))
       .returning({ id: expedientes.idExpediente });
     return { valor: filas.length, idsDespues: [entrada.id_expediente] };
   });
@@ -231,12 +231,14 @@ export async function actualizarExpedientes(
   return { actualizados: 1, impactos: impactos(recalculos) };
 }
 
+/** Borrado lógico: el expediente se conserva con `eliminado_en` (no cuenta en listados, comisiones ni puntos). */
 export async function eliminarExpedientes(ej: Ejecutor, usuario: UsuarioActual, ids: number[]): Promise<number> {
   await comprobarAlcance(ej, usuario, ids);
   const { valor } = await conRecalculo(ej, ids, "Baja de expediente", async (tx) => {
     const filas = await tx
-      .delete(expedientes)
-      .where(inArray(expedientes.idExpediente, ids))
+      .update(expedientes)
+      .set({ eliminadoEn: new Date() })
+      .where(and(inArray(expedientes.idExpediente, ids), isNull(expedientes.eliminadoEn)))
       .returning({ id: expedientes.idExpediente });
     return { valor: filas.length, idsDespues: [] };
   });

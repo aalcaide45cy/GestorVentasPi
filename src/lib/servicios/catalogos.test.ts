@@ -1,22 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { HttpError } from "@/lib/auth/sesion";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { actualizarCatalogo, crearCatalogo, crearTienda, eliminarCatalogo, eliminarTienda, leerCatalogos } from "./catalogos";
 import { esquemaCrearExpediente } from "./expedientes";
+import { listarExpedientes } from "./expedientes-lectura";
 import { crearExpediente } from "./expedientes-escritura";
 
 beforeEach(reiniciarBd);
-
-async function codigoDeError(p: Promise<unknown>): Promise<number> {
-  try {
-    await p;
-  } catch (e) {
-    if (e instanceof HttpError) return e.status;
-    throw e;
-  }
-  throw new Error("Se esperaba un HttpError");
-}
 
 describe("tipos de venta (pagos)", () => {
   it("la semilla trae Contado, Crédito y Preference con su categoría (sin Renting)", async () => {
@@ -47,14 +37,18 @@ describe("tipos de venta (pagos)", () => {
     expect(e).toMatchObject({ color: "#ffffff", orden: 1 });
   });
 
-  it("se puede eliminar si no tiene expedientes y se rechaza (409) si los tiene", async () => {
+  it("eliminar un tipo de venta con expedientes lo archiva y los expedientes siguen asociados", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const { tiposVenta } = await leerCatalogos(db);
     const contado = tiposVenta.find((t) => t.nombre_tipo_venta === "Contado")!;
     const renting = tiposVenta.find((t) => t.nombre_tipo_venta === "Preference")!;
     await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: contado.id_tipo_de_venta } }));
 
-    expect(await codigoDeError(eliminarCatalogo(db, { tipo: "tipo_venta", id: contado.id_tipo_de_venta }))).toBe(409);
+    await eliminarCatalogo(db, { tipo: "tipo_venta", id: contado.id_tipo_de_venta });
+    expect((await leerCatalogos(db)).tiposVenta.some((t) => t.id_tipo_de_venta === contado.id_tipo_de_venta)).toBe(false);
+    const [exp] = await listarExpedientes(db);
+    expect(exp.id_tipo_de_venta).toBe(contado.id_tipo_de_venta);
+    expect(exp.tipoDeVenta?.nombre_tipo_venta).toBe("Contado");
     await eliminarCatalogo(db, { tipo: "tipo_venta", id: renting.id_tipo_de_venta });
     expect((await leerCatalogos(db)).tiposVenta.some((t) => t.nombre_tipo_venta === "Preference")).toBe(false);
   });
@@ -92,13 +86,18 @@ describe("marcas, modelos y tiendas", () => {
     expect(despues.modelos.some((m) => m.id_modelo === modelo.id_modelo)).toBe(false); // se borran con la marca
   });
 
-  it("no elimina una marca cuyos modelos tienen expedientes", async () => {
+  it("eliminar una marca o modelo con expedientes los archiva sin desasociar el expediente", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const marca = (await crearCatalogo(db, { tipo: "marca", nombre: "Kia" })) as { id_marca: number };
     const modelo = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Ceed" })) as { id_modelo: number };
     await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_modelo: modelo.id_modelo } }));
-    expect(await codigoDeError(eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca }))).toBe(409);
-    expect(await codigoDeError(eliminarCatalogo(db, { tipo: "modelo", id: modelo.id_modelo }))).toBe(409);
+    await eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca });
+    const cat = await leerCatalogos(db);
+    expect(cat.marcas.some((m) => m.id_marca === marca.id_marca)).toBe(false);
+    expect(cat.modelos.some((m) => m.id_modelo === modelo.id_modelo)).toBe(false);
+    const [exp] = await listarExpedientes(db);
+    expect(exp.id_modelo).toBe(modelo.id_modelo);
+    expect(exp.modelo?.nombre_modelo).toBe("Ceed");
   });
 
   it("desactivar una marca no la borra", async () => {
@@ -107,11 +106,13 @@ describe("marcas, modelos y tiendas", () => {
     expect((await leerCatalogos(db)).marcas.find((m) => m.id_marca === marca.id_marca)?.activo).toBe(false);
   });
 
-  it("no elimina una tienda con expedientes", async () => {
+  it("eliminar una tienda con expedientes la archiva sin desasociar el expediente", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const tienda = await crearTienda(db, { nombre: "Centro", ciudad: "Madrid" });
     await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tienda: tienda.id_tienda } }));
-    expect(await codigoDeError(eliminarTienda(db, tienda.id_tienda))).toBe(409);
+    await eliminarTienda(db, tienda.id_tienda);
+    expect((await leerCatalogos(db)).tiendas.some((t) => t.id_tienda === tienda.id_tienda)).toBe(false);
+    expect((await listarExpedientes(db))[0].id_tienda).toBe(tienda.id_tienda);
     const vacia = await crearTienda(db, { nombre: "Vacía" });
     await eliminarTienda(db, vacia.id_tienda);
   });

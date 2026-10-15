@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { ExpedienteDto } from "@/lib/dto";
 import type { Ejecutor } from "@/db";
@@ -130,9 +130,9 @@ async function resolverCliente(ej: Ejecutor, item: EntradaImportacionCsv["items"
   const dni = limpio(item.cliente_dni);
   const nacimiento = parseFechaFlexible(limpio(item.cliente_fecha_nacimiento));
 
-  let existente = dni ? (await ej.select().from(clientes).where(eq(clientes.dni, dni)).limit(1))[0] : undefined;
+  let existente = dni ? (await ej.select().from(clientes).where(and(isNull(clientes.eliminadoEn), eq(clientes.dni, dni))).limit(1))[0] : undefined;
   if (!existente) {
-    existente = (await ej.select().from(clientes).where(ilike(clientes.nombre, escaparLike(nombre))).limit(1))[0];
+    existente = (await ej.select().from(clientes).where(and(isNull(clientes.eliminadoEn), ilike(clientes.nombre, escaparLike(nombre)))).limit(1))[0];
   }
 
   let idCliente: number;
@@ -278,9 +278,9 @@ export async function importarExpedientesCsv(
       const nombreCliente = limpio(item.cliente_nombre) || "Desconocido";
 
       let duplicado = false;
-      if (vin) duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(eq(expedientes.vin, vin)).limit(1)).length > 0;
+      if (vin) duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, vin))).limit(1)).length > 0;
       if (!duplicado && matricula) {
-        duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(eq(expedientes.matricula, matricula)).limit(1)).length > 0;
+        duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.matricula, matricula))).limit(1)).length > 0;
       }
       if (duplicado) {
         omitidos++;
@@ -398,15 +398,18 @@ export async function verificarFilasExcel(
       resultados.push({ rowIdx: fila.rowIdx, status: "no_match" });
       continue;
     }
-    const coincidentes = await ej.select().from(clientes).where(ilike(clientes.nombre, escaparLike(nombre)));
+    const coincidentes = await ej.select().from(clientes).where(and(isNull(clientes.eliminadoEn), ilike(clientes.nombre, escaparLike(nombre))));
     if (coincidentes.length === 0) {
       resultados.push({ rowIdx: fila.rowIdx, status: "no_match" });
       continue;
     }
     const exps = await ej.query.expedientes.findMany({
-      where: inArray(
-        expedientes.idCliente,
-        coincidentes.map((c) => c.id),
+      where: and(
+        isNull(expedientes.eliminadoEn),
+        inArray(
+          expedientes.idCliente,
+          coincidentes.map((c) => c.id),
+        ),
       ),
       orderBy: [asc(expedientes.idExpediente)],
       with: { cliente: true, modelo: { with: { marca: true } } },
@@ -474,11 +477,11 @@ export async function procesarActualizacionesExcel(
       let duplicado = false;
       if (bastidor && bastidor !== exp.vin) {
         duplicado =
-          (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(eq(expedientes.vin, bastidor), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
+          (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, bastidor), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
       }
       if (!duplicado && matricula && matricula !== exp.matricula) {
         duplicado =
-          (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(eq(expedientes.matricula, matricula), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
+          (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.matricula, matricula), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
       }
       if (duplicado) {
         omitidos++;
@@ -631,8 +634,8 @@ export async function importarClientesCsv(
         idTienda = t?.idTienda ?? null;
       }
 
-      let existente = dni ? (await tx.select().from(clientes).where(eq(clientes.dni, dni)).limit(1))[0] : undefined;
-      if (!existente) existente = (await tx.select().from(clientes).where(ilike(clientes.nombre, escaparLike(nombre))).limit(1))[0];
+      let existente = dni ? (await tx.select().from(clientes).where(and(isNull(clientes.eliminadoEn), eq(clientes.dni, dni))).limit(1))[0] : undefined;
+      if (!existente) existente = (await tx.select().from(clientes).where(and(isNull(clientes.eliminadoEn), ilike(clientes.nombre, escaparLike(nombre)))).limit(1))[0];
 
       let idCliente: number;
       if (existente) {

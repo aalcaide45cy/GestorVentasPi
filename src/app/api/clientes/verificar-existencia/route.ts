@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, eq, ilike, isNull, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { clientes } from "@/db/schema";
@@ -25,7 +25,7 @@ export const POST = manejar(async (req: Request) => {
   const [c] = await db
     .select({ id: clientes.id, nombre: clientes.nombre, dni: clientes.dni })
     .from(clientes)
-    .where(or(...condiciones))
+    .where(and(isNull(clientes.eliminadoEn), or(...condiciones)))
     .limit(1);
   return NextResponse.json(c ? { exists: true, cliente: c } : { exists: false });
 });

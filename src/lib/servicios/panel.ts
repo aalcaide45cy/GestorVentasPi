@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { expedientes, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
 import type { ExpedienteDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
@@ -19,17 +19,18 @@ export interface DatosPanel {
 export async function cargarDatosPanel(ej: Ejecutor): Promise<DatosPanel> {
   const [filasRecientes, ts, tvs, ms, vendedores] = await Promise.all([
     ej.query.expedientes.findMany({
+      where: isNull(expedientes.eliminadoEn),
       orderBy: [desc(expedientes.idExpediente)],
       limit: 5,
       with: relacionesExpediente,
     }),
-    ej.select().from(tiendas).orderBy(asc(tiendas.nombre)),
-    ej.select().from(tipoDeVenta).orderBy(asc(tipoDeVenta.orden), asc(tipoDeVenta.nombreTipoVenta)),
+    ej.select().from(tiendas).where(isNull(tiendas.eliminadoEn)).orderBy(asc(tiendas.nombre)),
+    ej.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn)).orderBy(asc(tipoDeVenta.orden), asc(tipoDeVenta.nombreTipoVenta)),
     ej.query.marcas.findMany({
-      where: eq(marcas.accesoRapido, true),
+      where: and(eq(marcas.accesoRapido, true), isNull(marcas.eliminadoEn)),
       with: {
         modelos: {
-          where: eq(modelos.accesoRapido, true),
+          where: and(eq(modelos.accesoRapido, true), isNull(modelos.eliminadoEn)),
           orderBy: [asc(modelos.ordenAccesoRapido), asc(modelos.nombreModelo)],
         },
       },

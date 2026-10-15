@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import {
@@ -235,7 +235,7 @@ export async function cotejo(ej: Ejecutor, idUsuario: number, mes: string): Prom
   const lineas = await ej.select().from(commissionLiquidationLines).where(eq(commissionLiquidationLines.idLiquidation, liq.idLiquidation));
   const items = lineas.length ? await ej.select().from(commissionLiquidationLineItems).where(inArray(commissionLiquidationLineItems.idLine, lineas.map((l) => l.idLine))) : [];
   const ids = lineas.flatMap((l) => (l.idExpediente ? [l.idExpediente] : []));
-  const exps = ids.length ? await ej.select().from(expedientes).where(inArray(expedientes.idExpediente, ids)) : [];
+  const exps = ids.length ? await ej.select().from(expedientes).where(and(inArray(expedientes.idExpediente, ids), isNull(expedientes.eliminadoEn))) : [];
   const filas: FilaCotejo[] = [];
   for (const l of lineas) {
     const e = exps.find((x) => x.idExpediente === l.idExpediente);
@@ -272,7 +272,7 @@ export const esquemaMarcarCobro = z.object({
 /** Marca o desmarca la casilla «cobrado» de un concepto de un expediente. */
 export async function marcarCobro(ej: Ejecutor, entrada: z.infer<typeof esquemaMarcarCobro>): Promise<void> {
   const { idExpediente, concepto, cobrado } = entrada;
-  const [e] = await ej.select().from(expedientes).where(eq(expedientes.idExpediente, idExpediente));
+  const [e] = await ej.select().from(expedientes).where(and(eq(expedientes.idExpediente, idExpediente), isNull(expedientes.eliminadoEn)));
   if (!e) throw new HttpError(404, "Expediente no encontrado");
   const set: Partial<typeof expedientes.$inferInsert> = {};
   if (concepto === "coche") set.comisionCocheCobrada = cobrado;

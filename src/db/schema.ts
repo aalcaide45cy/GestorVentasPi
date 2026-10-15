@@ -26,6 +26,8 @@ export const tiendas = pgTable("tiendas", {
   idTienda: serial("id_tienda").primaryKey(),
   nombre: text("nombre").notNull(),
   ciudad: varchar("ciudad", { length: 255 }),
+  /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
+  eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });
 
 export const marcas = pgTable("marcas", {
@@ -34,6 +36,8 @@ export const marcas = pgTable("marcas", {
   activo: boolean("activo").default(true),
   accesoRapido: boolean("acceso_rapido").default(false),
   sistemaComisiones: boolean("sistema_comisiones").notNull().default(false),
+  /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
+  eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });
 
 export const modelos = pgTable(
@@ -44,6 +48,8 @@ export const modelos = pgTable(
     nombreModelo: text("nombre_modelo").notNull(),
     accesoRapido: boolean("acceso_rapido").default(false),
     ordenAccesoRapido: integer("orden_acceso_rapido").default(0),
+    /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
   (t) => [index("modelos_marca_idx").on(t.marcaId)],
 );
@@ -55,6 +61,8 @@ export const tipoDeVenta = pgTable("tipo_de_venta", {
   orden: integer("orden").notNull().default(0),
   /** CONTADO | CREDITO | PREFERENCE | RENTING */
   categoria: varchar("categoria", { length: 20 }).notNull().default("CONTADO"),
+  /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
+  eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });
 
 export const estadoVehiculo = pgTable("estado_vehiculo", {
@@ -65,6 +73,8 @@ export const estadoVehiculo = pgTable("estado_vehiculo", {
   clase: varchar("clase", { length: 2 }).notNull().default("VN"),
   /** USADO | KM0 | DEMO | BUYBACK … */
   subtipoVo: varchar("subtipo_vo", { length: 30 }),
+  /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
+  eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });
 
 export const ajustes = pgTable("ajustes", {
@@ -147,6 +157,8 @@ export const clientes = pgTable(
     nombre: varchar("nombre", { length: 255 }),
     fechaDeNacimiento: date("fecha_de_nacimiento"),
     tiendaId: integer("tienda_id").references(() => tiendas.idTienda),
+    /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
   (t) => [index("clientes_dni_idx").on(t.dni), index("clientes_nombre_lower_idx").on(sql`lower(${t.nombre})`)],
 );
@@ -225,6 +237,8 @@ export const expedientes = pgTable(
     comisionCocheReal: doublePrecision("comision_coche_real"),
     comisionFinanciacionReal: doublePrecision("comision_financiacion_real"),
     conceptosAdicionales: text("conceptos_adicionales"),
+    /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
   (t) => [
     index("expedientes_usuario_idx").on(t.idUsuario),

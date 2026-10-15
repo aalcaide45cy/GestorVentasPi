@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { clientes, emailsClientes, expedientes, telefonosClientes } from "@/db/schema";
@@ -56,7 +56,7 @@ export async function buscarPorDni(ej: Ejecutor, dni: string, excluirId?: number
   const [c] = await ej
     .select()
     .from(clientes)
-    .where(excluirId ? and(eq(clientes.dni, dni), ne(clientes.id, excluirId)) : eq(clientes.dni, dni))
+    .where(and(isNull(clientes.eliminadoEn), excluirId ? and(eq(clientes.dni, dni), ne(clientes.id, excluirId)) : eq(clientes.dni, dni)))
     .limit(1);
   return c ?? null;
 }
@@ -89,7 +89,7 @@ export async function crearCliente(
 /** Actualiza datos y sustituye por completo correos y teléfonos. 409 si el DNI es de otro cliente. */
 export async function actualizarCliente(ej: Ejecutor, id: number, entrada: EntradaCliente): Promise<void> {
   await ej.transaction(async (tx) => {
-    const [existe] = await tx.select({ id: clientes.id }).from(clientes).where(eq(clientes.id, id));
+    const [existe] = await tx.select({ id: clientes.id }).from(clientes).where(and(eq(clientes.id, id), isNull(clientes.eliminadoEn)));
     if (!existe) throw new HttpError(404, "Cliente no encontrado");
     if (entrada.dni && (await buscarPorDni(tx, entrada.dni, id))) {
       throw new HttpError(409, "Ya existe otro cliente registrado con este DNI/NIE.");
@@ -109,28 +109,32 @@ export async function actualizarCliente(ej: Ejecutor, id: number, entrada: Entra
   });
 }
 
-/** Borra clientes; sus expedientes quedan sin cliente (como en el original). */
+/**
+ * Borrado lógico de clientes: se conservan la fila, sus datos de contacto y el vínculo de sus expedientes
+ * (que siguen contando en estadísticas); solo dejan de aparecer en listados y búsquedas.
+ */
 export async function eliminarClientes(ej: Ejecutor, ids: number[]): Promise<number> {
-  return ej.transaction(async (tx) => {
-    await tx.update(expedientes).set({ idCliente: null }).where(inArray(expedientes.idCliente, ids));
-    const borrados = await tx.delete(clientes).where(inArray(clientes.id, ids)).returning({ id: clientes.id });
-    return borrados.length;
-  });
+  const filas = await ej
+    .update(clientes)
+    .set({ eliminadoEn: new Date() })
+    .where(and(inArray(clientes.id, ids), isNull(clientes.eliminadoEn)))
+    .returning({ id: clientes.id });
+  return filas.length;
 }
 
 export async function listarClientes(ej: Ejecutor): Promise<(ClienteDto & { num_expedientes: number })[]> {
-  const filas = await ej.query.clientes.findMany({ with: conContactos, orderBy: [asc(clientes.nombre)] });
+  const filas = await ej.query.clientes.findMany({ where: isNull(clientes.eliminadoEn), with: conContactos, orderBy: [asc(clientes.nombre)] });
   const cuentas = await ej
     .select({ id: expedientes.idCliente, n: count() })
     .from(expedientes)
-    .where(sql`${expedientes.idCliente} is not null`)
+    .where(and(isNull(expedientes.eliminadoEn), sql`${expedientes.idCliente} is not null`))
     .groupBy(expedientes.idCliente);
   const mapa = new Map(cuentas.map((c) => [c.id, c.n]));
   return filas.map((c) => ({ ...clienteDto(c), num_expedientes: mapa.get(c.id) ?? 0 }));
 }
 
 export async function obtenerCliente(ej: Ejecutor, id: number): Promise<ClienteDto | null> {
-  const c = await ej.query.clientes.findFirst({ where: eq(clientes.id, id), with: conContactos });
+  const c = await ej.query.clientes.findFirst({ where: and(eq(clientes.id, id), isNull(clientes.eliminadoEn)), with: conContactos });
   return c ? clienteDto(c) : null;
 }
 
@@ -138,7 +142,7 @@ export async function obtenerCliente(ej: Ejecutor, id: number): Promise<ClienteD
 export async function buscarClientes(ej: Ejecutor, q: string): Promise<ClienteDto[]> {
   const patron = `%${escaparLike(q.trim())}%`;
   const filas = await ej.query.clientes.findMany({
-    where: or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron)),
+    where: and(isNull(clientes.eliminadoEn), or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron))),
     with: conContactos,
     orderBy: [asc(clientes.nombre)],
     limit: 10,

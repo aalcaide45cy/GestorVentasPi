@@ -1,9 +1,9 @@
-import { and, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { estadoVehiculo, expedientes, marcas, modelos, tipoDeVenta, usuarios } from "@/db/schema";
 import type { Centimos, Centesimas } from "@/lib/comisiones";
-import { calcularVendedorMes } from "./liquidaciones";
+import { calcularVendedorMes, cargarExpedientesMotor } from "./liquidaciones";
 
 export const esquemaInforme = z.object({
   desde: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
@@ -37,6 +37,8 @@ export interface Informe {
   porFormaPago: Distribucion[];
   matriculados: { id: number; matricula: string | null; fecha: string; vendedor: string | null; modelo: string | null; marca: string | null; tipoVenta: string | null }[];
   cartera: { id: number; fechaPedido: string | null; vendedor: string | null; modelo: string | null; marca: string | null; tipoVenta: string | null }[];
+  /** Expedientes con borrado lógico del periodo: no cuentan en comisiones, pero se conservan para estadística. */
+  eliminados: { total: number; porFormaPago: Distribucion[]; porVendedor: Distribucion[] };
   avisos: string[];
 }
 
@@ -82,6 +84,7 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
     .leftJoin(estadoVehiculo, eq(estadoVehiculo.idEstadoVehiculo, expedientes.idEstadoVehiculo))
     .where(
       and(
+        isNull(expedientes.eliminadoEn),
         idVendedor ? eq(expedientes.idUsuario, idVendedor) : undefined,
         filtro.idMarca ? eq(modelos.marcaId, filtro.idMarca) : undefined,
         or(
@@ -103,6 +106,24 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
     return [...m].map(([nombre, total]) => ({ nombre, total })).sort((a, b) => b.total - a.total);
   };
 
+  const filasEliminadas = await ej
+    .select({ vendedor: usuarios.nombre, tipo: tipoDeVenta.nombreTipoVenta })
+    .from(expedientes)
+    .leftJoin(usuarios, eq(usuarios.idUsuario, expedientes.idUsuario))
+    .leftJoin(modelos, eq(modelos.idModelo, expedientes.idModelo))
+    .leftJoin(tipoDeVenta, eq(tipoDeVenta.idTipoDeVenta, expedientes.idTipoDeVenta))
+    .where(
+      and(
+        isNotNull(expedientes.eliminadoEn),
+        idVendedor ? eq(expedientes.idUsuario, idVendedor) : undefined,
+        filtro.idMarca ? eq(modelos.marcaId, filtro.idMarca) : undefined,
+        or(
+          and(gte(expedientes.fechaMatriculacion, inicio), lte(expedientes.fechaMatriculacion, finMes)),
+          and(gte(expedientes.fechaExpediente, inicio), lte(expedientes.fechaExpediente, finMes)),
+        ),
+      ),
+    );
+
   // Motor: un cálculo por vendedor y mes
   const vendedoresIds = idVendedor
     ? [idVendedor]
@@ -119,8 +140,9 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
     let n = 0;
     let tramos = 0;
     let nMeses = 0;
+    const expedientesMotor = await cargarExpedientesMotor(ej, id);
     for (const mes of meses) {
-      const r = await calcularVendedorMes(ej, id, mes);
+      const r = await calcularVendedorMes(ej, id, mes, expedientesMotor);
       if (!r || r.idPlan === null) continue;
       if (r.lineas.length === 0) continue;
       p += r.puntosMes;
@@ -157,6 +179,11 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
     porFormaPago: conteo(matriculadosFilas.map((x) => x.tipo ?? "Sin definir")),
     matriculados: matriculadosFilas.map((x) => ({ id: x.e.idExpediente, matricula: x.e.matricula, fecha: fechaCuenta(x) as string, vendedor: x.vendedor, modelo: x.modelo, marca: x.marca, tipoVenta: x.tipo })).sort((a, b) => a.fecha.localeCompare(b.fecha)),
     cartera: carteraFilas.map((x) => ({ id: x.e.idExpediente, fechaPedido: x.e.fechaExpediente, vendedor: x.vendedor, modelo: x.modelo, marca: x.marca, tipoVenta: x.tipo })),
+    eliminados: {
+      total: filasEliminadas.length,
+      porFormaPago: conteo(filasEliminadas.map((x) => x.tipo ?? "Sin definir")),
+      porVendedor: conteo(filasEliminadas.map((x) => x.vendedor ?? "Sin vendedor")),
+    },
     avisos,
   };
 }

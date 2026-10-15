@@ -1,4 +1,4 @@
-import { desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { clientes, expedientes, marcas, modelos } from "@/db/schema";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
@@ -21,6 +21,8 @@ async function idsCoincidentes(ej: Ejecutor, q: string, limite?: number): Promis
     .leftJoin(modelos, eq(modelos.idModelo, expedientes.idModelo))
     .leftJoin(marcas, eq(marcas.idMarca, modelos.marcaId))
     .where(
+      and(
+        isNull(expedientes.eliminadoEn),
       or(
         ilike(expedientes.matricula, patron),
         ilike(expedientes.vin, patron),
@@ -29,6 +31,7 @@ async function idsCoincidentes(ej: Ejecutor, q: string, limite?: number): Promis
         ilike(modelos.nombreModelo, patron),
         ilike(marcas.nombre, patron),
         sql`${expedientes.idExpediente}::text like ${patron}`,
+      ),
       ),
     )
     .orderBy(desc(expedientes.idExpediente));
@@ -43,7 +46,7 @@ export async function sugerencias(ej: Ejecutor, q: string): Promise<SugerenciasB
   const cs = await ej
     .select()
     .from(clientes)
-    .where(or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron)))
+    .where(and(isNull(clientes.eliminadoEn), or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron))))
     .limit(5);
 
   const ids = await idsCoincidentes(ej, q, 5);
@@ -83,7 +86,7 @@ export async function resultadosBusqueda(
   if (!q.trim()) return { clientes: [], expedientes: [] };
   const patron = `%${escaparLike(q.trim())}%`;
   const cs = await ej.query.clientes.findMany({
-    where: or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron)),
+    where: and(isNull(clientes.eliminadoEn), or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron))),
     with: { emails: true, telefonos: true },
     limit: 50,
   });

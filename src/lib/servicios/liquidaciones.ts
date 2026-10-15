@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import {
   commissionBonusRules,
@@ -144,7 +144,7 @@ async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined):
     .leftJoin(estadoVehiculo, eq(expedientes.idEstadoVehiculo, estadoVehiculo.idEstadoVehiculo))
     .leftJoin(tipoDeVenta, eq(expedientes.idTipoDeVenta, tipoDeVenta.idTipoDeVenta))
     .leftJoin(modelos, eq(expedientes.idModelo, modelos.idModelo))
-    .where(condicion);
+    .where(condicion ? and(condicion, isNull(expedientes.eliminadoEn)) : isNull(expedientes.eliminadoEn));
   return filas.flatMap(({ e, clase, subtipo, cat, marca }) => e.idUsuario === null ? [] : [{
     id: e.idExpediente,
     idVendedor: e.idUsuario,
@@ -180,11 +180,12 @@ async function cargarVendedor(ej: Ejecutor, idVendedor: number): Promise<Vendedo
 }
 
 /** Cálculo sin guardar (vista previa, informes). */
-export async function calcularVendedorMes(ej: Ejecutor, idVendedor: number, mes: string): Promise<ResultadoMes | null> {
+/** `expedientesPrecargados` evita releer los expedientes del vendedor en cada mes (informes de varios meses). */
+export async function calcularVendedorMes(ej: Ejecutor, idVendedor: number, mes: string, expedientesPrecargados?: ExpedienteMotor[]): Promise<ResultadoMes | null> {
   const vendedor = await cargarVendedor(ej, idVendedor);
   if (!vendedor) return null;
   const plan = await planDelMes(ej, mes);
-  return calcularMes(plan, vendedor, mes, await cargarExpedientesMotor(ej, idVendedor));
+  return calcularMes(plan, vendedor, mes, expedientesPrecargados ?? (await cargarExpedientesMotor(ej, idVendedor)));
 }
 
 /* ------------------------------------------------------------------ */

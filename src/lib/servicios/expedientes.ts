@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { expedientes } from "@/db/schema";
@@ -102,7 +102,7 @@ const relaciones = {
 type FilaExpediente = NonNullable<Awaited<ReturnType<typeof leerFila>>>;
 
 export function leerFila(ej: Ejecutor, id: number) {
-  return ej.query.expedientes.findFirst({ where: eq(expedientes.idExpediente, id), with: relaciones });
+  return ej.query.expedientes.findFirst({ where: and(eq(expedientes.idExpediente, id), isNull(expedientes.eliminadoEn)), with: relaciones });
 }
 
 export const relacionesExpediente = relaciones;

@@ -5,7 +5,7 @@ import ExpedientesList from "@/components/ExpedientesList";
 import { esRolActivo, puedeCrearExpedientes } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
 import { leerAjustes, leerCatalogos } from "@/lib/servicios/catalogos";
-import { listarExpedientes } from "@/lib/servicios/expedientes-lectura";
+import { LIMITE_LISTA_EXPEDIENTES, contarExpedientes, listarExpedientes } from "@/lib/servicios/expedientes-lectura";
 import { listarVendedores } from "@/lib/servicios/usuarios";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +14,9 @@ export default async function ExpedientesPage() {
   const user = await getCurrentUser();
   if (!user || !esRolActivo(user.rol)) redirect("/dashboard");
 
-  const [expedientes, catalogos, vendedores, ajustes] = await Promise.all([
-    listarExpedientes(db),
+  const [expedientes, totalEnBd, catalogos, vendedores, ajustes] = await Promise.all([
+    listarExpedientes(db, { limite: LIMITE_LISTA_EXPEDIENTES }),
+    contarExpedientes(db),
     leerCatalogos(db),
     listarVendedores(db),
     leerAjustes(db),
@@ -42,6 +43,7 @@ export default async function ExpedientesPage() {
 
       <ExpedientesList
         expedientesIniciales={expedientes}
+        totalEnBd={totalEnBd}
         userRole={user.rol}
         tiendas={catalogos.tiendas}
         vendedores={vendedores}

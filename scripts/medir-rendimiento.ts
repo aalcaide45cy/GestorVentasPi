@@ -7,7 +7,7 @@ import * as schema from "../src/db/schema";
 import { sembrar } from "../src/db/semilla";
 import { hashPassword, verificarPassword } from "../src/lib/auth/password";
 import { cargarDatosPanel } from "../src/lib/servicios/panel";
-import { listarExpedientes, resumenPanel } from "../src/lib/servicios/expedientes-lectura";
+import { LIMITE_LISTA_EXPEDIENTES, listarExpedientes, resumenPanel } from "../src/lib/servicios/expedientes-lectura";
 import { listarClientes } from "../src/lib/servicios/clientes";
 import { calcularVendedorMes, conRecalculo, recalcularMes } from "../src/lib/servicios/liquidaciones";
 import { guardarPlan } from "../src/lib/servicios/planes";
@@ -27,8 +27,9 @@ const OBJETIVOS_MS: Record<string, number> = {
   "Informe de 12 meses": 5000,
 };
 
-const N_EXP = 5000;
-const N_CLI = 3000;
+/** Volumen configurable para pruebas de carga: `N_EXP=100000 N_CLI=20000 npx tsx scripts/medir-rendimiento.ts`. */
+const N_EXP = Number(process.env.N_EXP) > 0 ? Number(process.env.N_EXP) : 5000;
+const N_CLI = Number(process.env.N_CLI) > 0 ? Number(process.env.N_CLI) : 3000;
 
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL ?? "";
@@ -107,7 +108,7 @@ async function main(): Promise<void> {
   await medir("Dashboard (datos del panel)", async () => {
     await Promise.all([resumenPanel(db as never), cargarDatosPanel(db as never)]);
   });
-  await medir("Listado de expedientes (5.000)", () => listarExpedientes(db as never, { limite: N_EXP }));
+  await medir("Listado de expedientes (5.000)", () => listarExpedientes(db as never, { limite: LIMITE_LISTA_EXPEDIENTES }));
   await medir("Clientes (3.000)", () => listarClientes(db as never));
   await medir("Calcular una liquidación mensual", () => db.transaction((tx) => recalcularMes(tx as never, v0, mesTest, "medición")));
   await medir("Cálculo del mes sin guardar", () => calcularVendedorMes(db as never, v0, mesTest));
@@ -119,6 +120,27 @@ async function main(): Promise<void> {
       return { valor: 0, idsDespues: [e0.id] };
     }),
   );
+  // Tamaño de lo que viaja al navegador al abrir las listas (hoy se envían completas y se pagina en el cliente)
+  const todos = await listarExpedientes(db as never, { limite: N_EXP });
+  const mbExp = JSON.stringify(todos).length / 1048576;
+  const mbCli = JSON.stringify(await listarClientes(db as never)).length / 1048576;
+  console.log(`
+Carga inicial de listas: expedientes ${mbExp.toFixed(1)} MB (${todos.length}), clientes ${mbCli.toFixed(1)} MB`);
+
+  // Concurrencia: 20 ediciones simultáneas de expedientes del mismo vendedor (cerrojo por vendedor y mes)
+  const ids = (await db.select({ id: schema.expedientes.idExpediente }).from(schema.expedientes).where((await import("drizzle-orm")).eq(schema.expedientes.idUsuario, v0)).limit(20)).map((x) => x.id);
+  const t0 = performance.now();
+  const rs = await Promise.allSettled(
+    ids.map((id) =>
+      conRecalculo(db as never, [id], "concurrencia", async (tx) => {
+        await (tx as typeof db).update(schema.expedientes).set({ matricula: `C${id}` }).where((await import("drizzle-orm")).eq(schema.expedientes.idExpediente, id));
+        return { valor: 0, idsDespues: [id] };
+      }),
+    ),
+  );
+  const fallos = rs.filter((r) => r.status === "rejected").length;
+  console.log(`Concurrencia: ${ids.length} ediciones simultáneas en ${Math.round(performance.now() - t0)} ms, fallos: ${fallos}`);
+
   const hash = await hashPassword("ClaveDePrueba-2026!");
   await medir("Inicio de sesión (hash de contraseña)", () => verificarPassword(hash, "ClaveDePrueba-2026!"));
   await medir("Informe de 12 meses", () => generarInforme(db as never, { desde: `${anio}-01`, hasta: `${anio}-12` }), 1);
