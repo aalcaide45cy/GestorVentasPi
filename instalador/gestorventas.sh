@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 # GestorVentasPi — instalador y gestor.
 # Como archivo instalador (.run) incluye el paquete al final; ya instalado se usa con subcomandos:
-#   ./gestorventas.sh --estado | --logs | --actualizar | --restaurar fichero.dump | --desinstalar [--borrar-datos]
-# Variables útiles (modo no interactivo): GV_DIR, GV_SI=1, GV_ADMIN_NOMBRE, GV_ADMIN_EMAIL, GV_ADMIN_PASSWORD,
-# GV_ACCESO=tailscale|cloudflare|ninguno, GV_BIND=0.0.0.0, GV_APP_IMAGE, GV_APP_VERSION.
+#   ./gestorventas.sh --estado | --logs | --actualizar | --restaurar fichero.dump | --tailscale [clave] | --desinstalar [--borrar-datos]
+#
+# INSTALACIÓN DESATENDIDA (Raspberry Pi): copia a la tarjeta SD, junto a este archivo, un «gestorventas.conf»
+# (plantilla: gestorventas.conf.ejemplo) y ejecuta una sola orden:  sudo bash gestorventas-…-instalador.run
+# El archivo de configuración se busca en: $GV_CONF, junto a este archivo, /boot/firmware, /boot y el directorio actual.
+#
+# Variables (también valen como variables de entorno): GV_DIR, GV_SI=1 (no preguntar), GV_ADMIN_NOMBRE, GV_ADMIN_EMAIL,
+# GV_ADMIN_PASSWORD (temporal: se obliga a cambiarla), GV_ACCESO=tailscale|cloudflare|ninguno, GV_TS_AUTHKEY,
+# GV_TS_HOSTNAME, GV_ACCESO_LAN=si|no, GV_BIND, GV_PORT, GV_COOKIE_SECURE, GV_APP_IMAGE, GV_APP_VERSION.
 set -euo pipefail
 
 VERSION="@@VERSION@@"
 DIR="${GV_DIR:-/opt/gestorventas}"
 APP_IMAGE_POR_DEFECTO="ghcr.io/aalcaide45cy/gestorventaspi"
+CONF_USADO=""
 
 rojo() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 verde() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -32,6 +39,49 @@ confirmar() { # confirmar "texto" -> 0 si sí
 
 necesita_root() { [ "$(id -u)" -eq 0 ] || fallar "Ejecuta este comando con sudo."; }
 
+# ---------------------------------------------------------------- configuración desatendida
+# Lee gestorventas.conf (CLAVE=VALOR, sin ejecutar nada). Las variables de entorno ya definidas tienen prioridad.
+cargar_conf() {
+  local candidato linea clave valor
+  local -a candidatos=()
+  [ -n "${GV_CONF:-}" ] && candidatos+=("$GV_CONF")
+  candidatos+=("$(dirname "$0")/gestorventas.conf" "/boot/firmware/gestorventas.conf" "/boot/gestorventas.conf" "./gestorventas.conf")
+  for candidato in "${candidatos[@]}"; do
+    [ -f "$candidato" ] || continue
+    CONF_USADO="$candidato"
+    azul "Usando la configuración de $candidato"
+    while IFS= read -r linea || [ -n "$linea" ]; do
+      linea="${linea%$'\r'}"                                    # archivos guardados desde Windows
+      case "$linea" in ''|'#'*) continue ;; esac
+      clave="${linea%%=*}"; valor="${linea#*=}"
+      valor="${valor#\"}"; valor="${valor%\"}"; valor="${valor#\'}"; valor="${valor%\'}"
+      case "$clave" in
+        GV_ADMIN_NOMBRE|GV_ADMIN_EMAIL|GV_ADMIN_PASSWORD|GV_ACCESO|GV_TS_AUTHKEY|GV_TS_HOSTNAME|GV_ACCESO_LAN|GV_BIND|GV_PORT|GV_COOKIE_SECURE|GV_DIR)
+          [ -z "${!clave:-}" ] && [ -n "$valor" ] && export "$clave=$valor" ;;
+      esac
+    done < "$candidato"
+    # Con archivo de configuración no se pregunta nada
+    : "${GV_SI:=1}"; export GV_SI
+    [ -z "${GV_DIR:-}" ] || DIR="$GV_DIR"
+    break
+  done
+  # Acceso desde la red local: por defecto sí (http://IP:3000). La cookie de sesión solo puede ser «Secure» si todo va por HTTPS.
+  if [ "${GV_ACCESO_LAN:-si}" = "si" ] && [ -n "$CONF_USADO" ]; then
+    : "${GV_BIND:=0.0.0.0}"; export GV_BIND
+    : "${GV_COOKIE_SECURE:=false}"; export GV_COOKIE_SECURE
+  fi
+  # Con una clave de Tailscale y sin otra indicación, el acceso exterior es Tailscale
+  if [ -z "${GV_ACCESO:-}" ] && [ -n "${GV_TS_AUTHKEY:-}" ]; then GV_ACCESO="tailscale"; export GV_ACCESO; fi
+  return 0
+}
+
+# Quita del archivo de configuración los secretos ya usados (la clave de Tailscale y la contraseña temporal)
+limpiar_conf() {
+  [ -n "$CONF_USADO" ] && [ -w "$CONF_USADO" ] || return 0
+  sed -i -e 's/^GV_TS_AUTHKEY=.*/GV_TS_AUTHKEY=/' -e 's/^GV_ADMIN_PASSWORD=.*/GV_ADMIN_PASSWORD=/' "$CONF_USADO" 2>/dev/null || true
+  printf '\n# Instalado el %s. La clave de Tailscale y la contraseña temporal ya se han usado y se han borrado de este archivo.\n' "$(date '+%Y-%m-%d %H:%M')" >> "$CONF_USADO" 2>/dev/null || true
+}
+
 # ---------------------------------------------------------------- comprobaciones
 detectar_arquitectura() {
   case "$(uname -m)" in
@@ -53,9 +103,18 @@ instalar_docker() {
   fi
   confirmar "¿Instalo Docker con el método oficial (get.docker.com)?" || fallar "Sin Docker no se puede continuar."
   command -v curl >/dev/null 2>&1 || { apt-get update -y && apt-get install -y curl ca-certificates; }
-  curl -fsSL https://get.docker.com | sh
+  if ! curl -fsSL https://get.docker.com | sh; then
+    aviso "El método oficial ha fallado: pruebo con los paquetes de la distribución."
+    apt-get update -y && { apt-get install -y docker.io docker-compose-v2 || apt-get install -y docker.io docker-compose-plugin || apt-get install -y docker.io docker-compose; } || true
+  fi
   systemctl enable --now docker 2>/dev/null || true
   hay_docker || fallar "No se pudo instalar Docker con Compose."
+}
+
+# En una Raspberry Pi hace falta la memoria «cgroup» para limitar la RAM de los contenedores; Raspberry Pi OS ya la trae.
+aviso_cgroup() {
+  [ -f /sys/fs/cgroup/cgroup.controllers ] && grep -q memory /sys/fs/cgroup/cgroup.controllers 2>/dev/null && return 0
+  aviso "El sistema no tiene activado el control de memoria de los contenedores: la aplicación funciona, pero sin límite de RAM."
 }
 
 # ---------------------------------------------------------------- .env
@@ -102,6 +161,8 @@ TUNNEL_MODE=ninguno
 TRUST_PROXY=false
 PUBLIC_URL=
 CLOUDFLARE_TUNNEL_TOKEN=
+TS_AUTHKEY=
+TS_HOSTNAME=${GV_TS_HOSTNAME:-gestorventas}
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 DB_MEM_LIMIT=$db_mem
@@ -130,26 +191,52 @@ esperar_sano() {
   return 1
 }
 
+# Imagen disponible: se descarga solo si no está ya en el equipo (admite instalar sin internet con las imágenes incluidas)
+asegurar_imagen() {
+  docker image inspect "$1" >/dev/null 2>&1 && return 0
+  azul "Descargando $1..."
+  docker pull "$1"
+}
+
 # ---------------------------------------------------------------- acceso exterior
+# Nombre público (DNSName) del contenedor de Tailscale, vacío si todavía no está conectado
+tailscale_dns() {
+  dc exec -T tailscale tailscale status --json 2>/dev/null \
+    | awk '/"BackendState"/ {estado=$0} /"DNSName"/ && !visto {dns=$0; visto=1} END {if (estado ~ /Running/) print dns}' \
+    | sed 's/.*: *"//; s/\.\{0,1\}",\{0,1\}$//'
+}
+
+# Tailscale dentro de Docker. Con GV_TS_AUTHKEY se conecta solo; sin ella se muestra un enlace para aprobar el equipo.
 acceso_tailscale() {
-  if ! command -v tailscale >/dev/null 2>&1; then
-    azul "Instalando Tailscale (instalador oficial)..."
-    curl -fsSL https://tailscale.com/install.sh | sh
+  local clave="${1:-${GV_TS_AUTHKEY:-}}" i dns enlace ya_aviso_funnel=0
+  fijar_env TS_AUTHKEY "$clave"
+  fijar_env TS_HOSTNAME "${GV_TS_HOSTNAME:-$(grep '^TS_HOSTNAME=' "$DIR/.env" | cut -d= -f2)}"
+  asegurar_imagen tailscale/tailscale:stable
+  azul "Arrancando Tailscale (contenedor)..."
+  dc --profile tailscale up -d tailscale
+  local limite=60; [ -z "$clave" ] && limite=240        # 4 s por vuelta: ~4 min con clave, ~16 min si hay que aprobar con un enlace
+  for i in $(seq 1 "$limite"); do
+    dns="$(tailscale_dns || true)"
+    [ -n "$dns" ] && break
+    enlace="$(dc logs --tail=80 tailscale 2>&1 | grep -o 'https://login.tailscale.com/a/[A-Za-z0-9]*' | tail -1 || true)"
+    if [ -n "$enlace" ] && [ -z "$clave" ]; then
+      [ "${enlace_mostrado:-}" = "$enlace" ] || { aviso "Para conectar Tailscale abre este enlace en cualquier navegador e inicia sesión:"; echo "  $enlace"; enlace_mostrado="$enlace"; }
+    fi
+    if [ "$ya_aviso_funnel" = "0" ] && dc logs --tail=80 tailscale 2>&1 | grep -qi 'funnel.*not.*enabled\|funnel.*disabled'; then
+      aviso "Falta activar HTTPS y Funnel en el panel de Tailscale (https://login.tailscale.com/admin/dns y /admin/acls)."
+      ya_aviso_funnel=1
+    fi
+    sleep 4
+  done
+  if [ -z "$dns" ]; then
+    aviso "Tailscale no ha llegado a conectarse. Revisa: $DIR/gestorventas.sh --logs tailscale  (después: sudo $DIR/gestorventas.sh --tailscale)"
+    return 0
   fi
-  azul "Inicia sesión en Tailscale con tu cuenta (se mostrará un enlace):"
-  tailscale up
-  azul "Publicando la aplicación con Tailscale Funnel (necesitas haber activado HTTPS y Funnel en el panel de Tailscale)..."
-  tailscale funnel --bg "$(grep '^APP_PORT=' "$DIR/.env" | cut -d= -f2)" || aviso "No se pudo activar Funnel: revisa que HTTPS y Funnel estén habilitados para este equipo en el panel de Tailscale."
-  local dns
-  dns="$(tailscale status --json 2>/dev/null | grep -o '"DNSName": *"[^"]*"' | head -1 | sed 's/.*: *"//; s/\.\?"$//')"
-  if [ -n "$dns" ]; then
-    fijar_env PUBLIC_URL "https://$dns"
-    fijar_env TUNNEL_MODE tailscale
-    fijar_env TRUST_PROXY true
-    verde "URL pública: https://$dns"
-  else
-    aviso "No pude leer el nombre público. Pon PUBLIC_URL a mano en $DIR/.env."
-  fi
+  fijar_env TS_AUTHKEY ""                                # la clave ya no hace falta: el estado queda guardado
+  fijar_env PUBLIC_URL "https://$dns"
+  fijar_env TUNNEL_MODE tailscale
+  fijar_env TRUST_PROXY true
+  verde "URL pública: https://$dns"
 }
 
 acceso_cloudflare() {
@@ -164,13 +251,41 @@ acceso_cloudflare() {
   (cd "$DIR" && docker compose --profile cloudflare up -d)
 }
 
+# Resumen con las direcciones (sin secretos), también en la partición de arranque para leerlo desde otro equipo
+escribir_acceso() {
+  local bind port ip pub nombre f
+  bind="$(grep '^BIND_ADDRESS=' "$DIR/.env" | cut -d= -f2)"; port="$(grep '^APP_PORT=' "$DIR/.env" | cut -d= -f2)"
+  pub="$(grep '^PUBLIC_URL=' "$DIR/.env" | cut -d= -f2)"
+  ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"; nombre="$(hostname 2>/dev/null || true)"
+  f="$DIR/ACCESO-GESTORVENTAS.txt"
+  {
+    echo "GestorVentasPi $VERSION — instalado el $(date '+%Y-%m-%d %H:%M')"
+    echo
+    if [ "$bind" = "0.0.0.0" ]; then
+      echo "Desde la red de casa:   http://${ip:-IP}:$port    o    http://${nombre:-raspberrypi}.local:$port"
+    else
+      echo "Solo en este equipo:    http://127.0.0.1:$port"
+    fi
+    [ -n "$pub" ] && echo "Desde cualquier sitio:  $pub"
+    echo
+    echo "Primer acceso: entra con el correo del administrador y la contraseña temporal; la aplicación te pedirá"
+    echo "cambiarla y activar el doble factor (QR con una app como Google Authenticator). Guarda los códigos de recuperación."
+  } > "$f"
+  chmod 644 "$f"
+  for b in /boot/firmware /boot; do
+    if [ -d "$b" ] && [ -w "$b" ] && mountpoint -q "$b" 2>/dev/null; then cp "$f" "$b/ACCESO-GESTORVENTAS.txt" 2>/dev/null || true; break; fi
+  done
+}
+
 # ---------------------------------------------------------------- subcomandos
 cmd_instalar() {
   necesita_root
+  cargar_conf
   detectar_arquitectura
   azul "GestorVentasPi $VERSION — arquitectura $ARQ, RAM $(ram_mb) MB, disco libre $(disco_libre_mb) MB"
   [ "$(disco_libre_mb)" -ge 2048 ] || aviso "Hay menos de 2 GB libres en disco."
   hay_docker || instalar_docker
+  aviso_cgroup
 
   mkdir -p "$DIR"
   extraer_paquete "$DIR"
@@ -178,28 +293,39 @@ cmd_instalar() {
   chown 1000:1000 "$DIR/backups" 2>/dev/null || true
   crear_env
 
+  # Imágenes incluidas en el instalador (la de la aplicación) y el resto desde internet
   if [ -d "$DIR/imagenes" ]; then
     azul "Cargando imágenes incluidas en el instalador..."
     for f in "$DIR"/imagenes/*"$ARQ"*.tar; do [ -f "$f" ] && docker load -i "$f"; done
-  else
-    azul "Descargando imágenes..."
-    dc pull db
-    # Si la imagen de la app ya está en este equipo (p. ej. construida en local) no se vuelve a descargar
-    # shellcheck disable=SC1091
-    . "$DIR/.env"
-    docker image inspect "$APP_IMAGE:$APP_VERSION" >/dev/null 2>&1 || dc pull app
   fi
+  # shellcheck disable=SC1091
+  . "$DIR/.env"
+  asegurar_imagen "$APP_IMAGE:$APP_VERSION"
+  asegurar_imagen postgres:16-bookworm
 
   dc up -d
   esperar_sano || exit 1
 
-  local nombre email pass
+  local nombre email pass salida
   nombre="${GV_ADMIN_NOMBRE:-$(preguntar "Nombre del administrador" "Administrador")}"
   email="${GV_ADMIN_EMAIL:-$(preguntar "Correo del administrador" "")}"
   [ -n "$email" ] || fallar "Hace falta un correo para el administrador."
   if [ -n "${GV_ADMIN_PASSWORD:-}" ]; then
+    # Contraseña indicada en el archivo de configuración: se trata como temporal (cambio obligatorio en el primer acceso)
     pass="$GV_ADMIN_PASSWORD"
-    dc exec -T -e ADMIN_PASSWORD="$pass" app node dist/scripts/crear-admin.cjs "$nombre" "$email" || aviso "No se creó el administrador (¿ya existe?). Puedes crearlo después con ./scripts/crear-admin.sh"
+    dc exec -T -e ADMIN_PASSWORD="$pass" -e ADMIN_FORZAR_CAMBIO=1 app node dist/scripts/crear-admin.cjs "$nombre" "$email" || aviso "No se creó el administrador (¿ya existe, o la contraseña tiene menos de 12 caracteres?). Puedes crearlo después con ./scripts/crear-admin.sh"
+  elif [ "${GV_SI:-0}" = "1" ]; then
+    # Desatendido y sin contraseña: la aplicación genera una temporal que se guarda en un archivo protegido
+    if salida="$(dc exec -T app node dist/scripts/crear-admin.cjs "$nombre" "$email" 2>&1)"; then
+      echo "$salida"
+      pass="$(printf '%s\n' "$salida" | sed -n 's/^Contraseña temporal: //p' | head -1)"
+      if [ -n "$pass" ]; then
+        umask 077; printf 'Administrador: %s\nContraseña temporal: %s\n(Se obliga a cambiarla en el primer acceso. Borra este archivo cuando la hayas cambiado.)\n' "$email" "$pass" > "$DIR/CREDENCIAL-ADMIN.txt"
+        aviso "CONTRASEÑA TEMPORAL del administrador (también en $DIR/CREDENCIAL-ADMIN.txt): $pass"
+      fi
+    else
+      echo "$salida"; aviso "No se creó el administrador (¿ya existe?). Puedes crearlo después con ./scripts/crear-admin.sh"
+    fi
   else
     dc exec app node dist/scripts/crear-admin.cjs "$nombre" "$email" || aviso "No se creó el administrador (¿ya existe?). Puedes crearlo después con ./scripts/crear-admin.sh"
   fi
@@ -207,7 +333,7 @@ cmd_instalar() {
   local acceso="${GV_ACCESO:-}"
   if [ -z "$acceso" ]; then
     echo; azul "¿Cómo quieres acceder desde fuera de casa?"
-    echo "  [1] Tailscale Funnel (recomendado, sin dominio ni abrir puertos)"
+    echo "  [1] Tailscale Funnel (recomendado, sin dominio ni abrir puertos; va dentro de Docker)"
     echo "  [2] Cloudflare Tunnel (si tienes un dominio en Cloudflare)"
     echo "  [3] Ninguno (solo red local)"
     case "$(preguntar "Elige" "1")" in 1) acceso="tailscale" ;; 2) acceso="cloudflare" ;; *) acceso="ninguno" ;; esac
@@ -215,7 +341,7 @@ cmd_instalar() {
   case "$acceso" in
     tailscale) acceso_tailscale ;;
     cloudflare) acceso_cloudflare ;;
-    *) azul "Sin acceso exterior (puedes configurarlo después con la guía)." ;;
+    *) azul "Sin acceso exterior (puedes configurarlo después con: sudo $DIR/gestorventas.sh --tailscale)." ;;
   esac
   dc up -d --force-recreate app
   esperar_sano || exit 1
@@ -223,14 +349,12 @@ cmd_instalar() {
   # Copia del gestor sin el paquete incrustado
   awk '/^__PAYLOAD_BELOW__$/ {exit} {print}' "$0" > "$DIR/gestorventas.sh" 2>/dev/null || true
   chmod +x "$DIR/gestorventas.sh" "$DIR"/scripts/*.sh 2>/dev/null || true
+  escribir_acceso
+  limpiar_conf
 
   echo
   verde "✔ Instalación terminada."
-  local bind port ip; bind="$(grep '^BIND_ADDRESS=' "$DIR/.env" | cut -d= -f2)"; port="$(grep '^APP_PORT=' "$DIR/.env" | cut -d= -f2)"
-  ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
-  [ "$bind" = "0.0.0.0" ] && echo "  Red local:     http://${ip:-IP}:$port" || echo "  En este equipo: http://127.0.0.1:$port"
-  local pub; pub="$(grep '^PUBLIC_URL=' "$DIR/.env" | cut -d= -f2)"
-  [ -n "$pub" ] && echo "  URL pública:   $pub"
+  sed 's/^/  /' "$DIR/ACCESO-GESTORVENTAS.txt"
   echo "  Copias:        $DIR/backups"
   echo "  Gestión:       $DIR/gestorventas.sh --estado | --logs | --actualizar | --restaurar fichero.dump"
   aviso "  IMPORTANTE: guarda una copia de $DIR/.env (al menos APP_SECRET) en un lugar seguro; sin él no se puede restaurar el 2FA."
@@ -241,9 +365,20 @@ cmd_estado() {
   dc ps
   local puerto; puerto="$(grep '^APP_PORT=' "$DIR/.env" | cut -d= -f2)"
   curl -fsS "http://127.0.0.1:${puerto}/api/salud" && echo || rojo "La aplicación no responde."
+  [ -f "$DIR/ACCESO-GESTORVENTAS.txt" ] && { echo; cat "$DIR/ACCESO-GESTORVENTAS.txt"; }
 }
 
 cmd_logs() { dc logs -f --tail=200 "${@:-app}"; }
+
+cmd_tailscale() {
+  necesita_root
+  [ -f "$DIR/.env" ] || fallar "No hay instalación en $DIR."
+  acceso_tailscale "${1:-}"
+  dc up -d --force-recreate app
+  esperar_sano || exit 1
+  escribir_acceso
+  cat "$DIR/ACCESO-GESTORVENTAS.txt"
+}
 
 copia_antes_de_actualizar() {
   mkdir -p "$DIR/backups"
@@ -276,7 +411,7 @@ cmd_restaurar() {
 
 cmd_desinstalar() {
   necesita_root
-  dc down || true
+  dc --profile tailscale --profile cloudflare down || true
   if [ "${1:-}" = "--borrar-datos" ]; then
     confirmar "Se BORRARÁN la base de datos y las copias de $DIR. ¿Seguro?" || { echo "Cancelado."; exit 1; }
     rm -rf "$DIR"
@@ -298,8 +433,10 @@ uso() {
   cat <<EOF
 GestorVentasPi $VERSION
   sudo $0                      Instala (o repara) la aplicación en $DIR
-  $0 --estado                  Muestra el estado
-  $0 --logs [servicio]         Sigue el registro
+                               (con un gestorventas.conf al lado o en /boot/firmware se instala sin preguntar nada)
+  $0 --estado                  Muestra el estado y las direcciones de acceso
+  $0 --logs [servicio]         Sigue el registro (app, db, tailscale)
+  sudo $0 --tailscale [clave]  (Re)conecta Tailscale; sin clave muestra un enlace para aprobar el equipo
   sudo $0 --actualizar [ver]   Copia previa + nueva versión de la app (sin tocar los datos)
   sudo $0 --restaurar FICHERO  Restaura una copia .dump
   sudo $0 --desinstalar [--borrar-datos]
@@ -310,6 +447,7 @@ case "${1:---instalar}" in
   --instalar|instalar) cmd_instalar ;;
   --estado) cmd_estado ;;
   --logs) shift; cmd_logs "$@" ;;
+  --tailscale) shift; cmd_tailscale "${1:-}" ;;
   --actualizar) shift; cmd_actualizar "${1:-latest}" ;;
   --restaurar) shift; cmd_restaurar "${1:-}" ;;
   --desinstalar) shift; cmd_desinstalar "${1:-}" ;;

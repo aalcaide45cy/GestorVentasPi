@@ -89,3 +89,29 @@ jobs:
             GV_ADMIN_NOMBRE="Admin CI" GV_ADMIN_EMAIL=ci@prueba.test GV_ADMIN_PASSWORD='ClaveDeCI-2026-larga!' \
             ./dist-instalador/gestorventas-0.0.0-ci-instalador.run
           curl -fsS http://127.0.0.1:3000/api/salud
+      - name: Instalación desatendida con archivo de configuración (como en la Raspberry) y contraseña temporal generada
+        run: |
+          sudo /opt/gestorventas/gestorventas.sh --desinstalar --borrar-datos <<< "s" || true
+          sudo rm -rf /opt/gestorventas
+          mkdir -p /tmp/sd
+          cp dist-instalador/gestorventas-0.0.0-ci-instalador.run /tmp/sd/
+          cat > /tmp/sd/gestorventas.conf <<'EOF'
+          GV_ADMIN_NOMBRE=Admin Desatendido
+          GV_ADMIN_EMAIL=desatendido@prueba.test
+          GV_ADMIN_PASSWORD=
+          GV_TS_AUTHKEY=clave-secreta-de-prueba
+          GV_ACCESO=ninguno
+          GV_ACCESO_LAN=si
+          EOF
+          sudo env GV_APP_IMAGE=gestorventaspi GV_APP_VERSION=local bash /tmp/sd/gestorventas-0.0.0-ci-instalador.run
+          # la aplicación responde también por la IP de la red (escucha en 0.0.0.0)
+          IP="$(hostname -I | awk '{print $1}')"
+          curl -fsS "http://$IP:3000/api/salud"
+          # contraseña temporal guardada con permisos restringidos y acceso resumido
+          sudo test "$(stat -c %a /opt/gestorventas/CREDENCIAL-ADMIN.txt)" = "600"
+          sudo grep -q "Contraseña temporal" /opt/gestorventas/CREDENCIAL-ADMIN.txt
+          grep -q "http://$IP:3000" /opt/gestorventas/ACCESO-GESTORVENTAS.txt
+          # los secretos usados se han borrado del archivo de configuración
+          grep -q '^GV_TS_AUTHKEY=$' /tmp/sd/gestorventas.conf
+          # el compose es válido con el perfil de Tailscale
+          cd /opt/gestorventas && sudo docker compose --profile tailscale config --quiet

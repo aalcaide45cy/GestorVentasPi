@@ -1,0 +1,31 @@
+# GestorVentasPi — configuración para instalar SIN preguntar nada.
+#
+# Cómo usarlo (Raspberry Pi):
+#   1. Copia este archivo a la tarjeta SD (partición «bootfs») con el nombre  gestorventas.conf
+#      junto al archivo  gestorventas-X.Y.Z-pi-instalador.run
+#   2. Rellena los valores de abajo (las líneas que empiezan por # se ignoran).
+#   3. Arranca la Raspberry, entra por SSH y ejecuta UNA orden:
+#        sudo bash /boot/firmware/gestorventas-X.Y.Z-pi-instalador.run
+#
+# Al terminar, el instalador BORRA de este archivo la clave de Tailscale y la contraseña temporal.
+
+# --- Administrador (obligatorio) --------------------------------------------------------------
+GV_ADMIN_NOMBRE=Alfonso
+GV_ADMIN_EMAIL=
+# Contraseña TEMPORAL (mínimo 12 caracteres). En el primer acceso la aplicación obliga a cambiarla y a activar el doble
+# factor. Si la dejas vacía, se genera una aleatoria que se muestra al terminar y se guarda en /opt/gestorventas/CREDENCIAL-ADMIN.txt
+GV_ADMIN_PASSWORD=
+
+# --- Acceso desde internet con Tailscale (dentro de Docker) -----------------------------------
+# Clave de autenticación: https://login.tailscale.com/admin/settings/keys → «Generate auth key» (puedes marcar «One-off»).
+# Si la dejas vacía, el instalador muestra un ENLACE para aprobar el equipo desde cualquier navegador.
+# Antes, en el panel de Tailscale, activa «HTTPS Certificates» (DNS) y «Funnel» (Access controls).
+GV_TS_AUTHKEY=
+GV_TS_HOSTNAME=gestorventas
+# tailscale (por defecto si hay clave) | cloudflare | ninguno
+GV_ACCESO=tailscale
+
+# --- Red local ----------------------------------------------------------------------------------
+# si: la aplicación también se abre en http://IP-DE-LA-RASPBERRY:3000 dentro de tu red (cookie sin «Secure»).
+# no: solo se entra por la dirección HTTPS de Tailscale.
+GV_ACCESO_LAN=si

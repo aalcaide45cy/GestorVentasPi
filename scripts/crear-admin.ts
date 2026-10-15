@@ -3,19 +3,21 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { usuarios } from "../src/db/schema";
-import { hashPassword, validarPassword } from "../src/lib/auth/password";
+import { generarPasswordTemporal, hashPassword, validarPassword } from "../src/lib/auth/password";
 
 /**
  * Crea un administrador. Uso:
  *   npm run crear-admin -- "Nombre Apellidos" correo@dominio.com
- * La contraseña se toma de la variable ADMIN_PASSWORD o se pide por terminal.
+ * La contraseña se toma de la variable ADMIN_PASSWORD o se pide por terminal. Sin terminal ni variable (instalación
+ * desatendida) se genera una contraseña temporal aleatoria que se muestra una sola vez.
+ * ADMIN_FORZAR_CAMBIO=1 obliga a cambiarla en el primer acceso (siempre con la temporal).
  */
-async function pedirPassword(): Promise<string> {
+async function pedirPassword(): Promise<{ clave: string; temporal: boolean }> {
   const desdeEntorno = process.env.ADMIN_PASSWORD;
-  if (desdeEntorno) return desdeEntorno;
-  if (!process.stdin.isTTY) throw new Error("Define ADMIN_PASSWORD o ejecuta el script en una terminal interactiva.");
+  if (desdeEntorno) return { clave: desdeEntorno, temporal: false };
+  if (!process.stdin.isTTY) return { clave: generarPasswordTemporal(), temporal: true };
   process.stdout.write("Contraseña (mínimo 12 caracteres): ");
-  return new Promise((resolve) => {
+  return new Promise<{ clave: string; temporal: boolean }>((resolve) => {
     let texto = "";
     process.stdin.setRawMode(true);
     process.stdin.resume();
@@ -27,7 +29,7 @@ async function pedirPassword(): Promise<string> {
           process.stdin.pause();
           process.stdin.removeListener("data", alDato);
           process.stdout.write("\n");
-          resolve(texto);
+          resolve({ clave: texto, temporal: false });
           return;
         }
         if (ch === "\u0003") process.exit(130);
@@ -44,7 +46,7 @@ async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Falta DATABASE_URL");
 
-  const password = await pedirPassword();
+  const { clave: password, temporal } = await pedirPassword();
   const error = validarPassword(password);
   if (error) throw new Error(error);
 
@@ -57,12 +59,13 @@ async function main(): Promise<void> {
     await db.insert(usuarios).values({
       loginEmail: login,
       passwordHash: await hashPassword(password),
-      debeCambiarPassword: false,
+      debeCambiarPassword: temporal || process.env.ADMIN_FORZAR_CAMBIO === "1",
       nombre: nombre.trim(),
       rol: "administrador",
       fechaDeRegistro: new Date().toISOString().slice(0, 10),
     });
     console.log(`Administrador creado: ${login}`);
+    if (temporal) console.log(`Contraseña temporal: ${password}`);
   } finally {
     await pool.end();
   }

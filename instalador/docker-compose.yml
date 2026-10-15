@@ -1,5 +1,6 @@
 # GestorVentasPi — compose de PRODUCCIÓN (lo instala el instalador en /opt/gestorventas).
-# Dos contenedores: base de datos y aplicación. La base de datos NO publica puertos.
+# Contenedores: base de datos y aplicación (siempre) y, opcionalmente, Tailscale o Cloudflare para el acceso exterior.
+# La base de datos NO publica puertos.
 name: gestorventas
 
 services:
@@ -61,6 +62,34 @@ services:
     tmpfs:
       - /tmp
       - /app/.next/cache
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [interna]
+
+  # Acceso desde internet con Tailscale Funnel, todo dentro de Docker (sin instalar nada en el sistema):
+  #   docker compose --profile tailscale up -d
+  # Necesita TS_AUTHKEY (clave de autenticación creada en el panel de Tailscale; solo se usa la primera vez: el estado
+  # queda en ./data/tailscale). Publica la aplicación en https://<TS_HOSTNAME>.<tu-red>.ts.net con certificado propio.
+  # Modo «userspace»: no necesita /dev/net/tun ni privilegios.
+  tailscale:
+    image: tailscale/tailscale:stable
+    profiles: ["tailscale"]
+    restart: unless-stopped
+    hostname: ${TS_HOSTNAME:-gestorventas}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_HOSTNAME: ${TS_HOSTNAME:-gestorventas}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_ENABLE_HEALTH_CHECK: "true"
+      TS_LOCAL_ADDR_PORT: 127.0.0.1:9002
+    volumes:
+      - ./data/tailscale:/var/lib/tailscale
+      - ./tailscale/serve.json:/config/serve.json:ro
+    depends_on:
+      - app
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }

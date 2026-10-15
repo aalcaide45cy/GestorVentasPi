@@ -38,10 +38,11 @@ jobs:
             ghcr.io/aalcaide45cy/gestorventaspi:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Instaladores (online y offline)
+      - name: Instaladores (online, offline y para Raspberry Pi)
         run: |
           ./scripts/empaquetar.sh "${{ steps.v.outputs.version }}"
           ./scripts/empaquetar.sh "${{ steps.v.outputs.version }}" --offline
+          ./scripts/empaquetar.sh "${{ steps.v.outputs.version }}" --pi
       - uses: softprops/action-gh-release@v2
         with:
           files: dist-instalador/*
