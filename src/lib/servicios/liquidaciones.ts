@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import {
   commissionBonusRules,
@@ -28,6 +28,7 @@ import {
 import {
   apuntesDeSincronizacion,
   calcularMes,
+  mesesAfectados,
   seleccionarPlan,
   type CategoriaVenta,
   type Clase,
@@ -127,16 +128,26 @@ export async function planDelMes(ej: Ejecutor, mes: string): Promise<PlanMotor |
 
 /** Expedientes de un vendedor en el formato del motor. */
 export async function cargarExpedientesMotor(ej: Ejecutor, idVendedor: number): Promise<ExpedienteMotor[]> {
+  return cargarExpedientesDonde(ej, eq(expedientes.idUsuario, idVendedor));
+}
+
+/** Expedientes (con vendedor) por identificador, en el formato del motor. */
+export async function cargarExpedientesMotorPorIds(ej: Ejecutor, ids: number[]): Promise<ExpedienteMotor[]> {
+  if (ids.length === 0) return [];
+  return cargarExpedientesDonde(ej, inArray(expedientes.idExpediente, ids));
+}
+
+async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined): Promise<ExpedienteMotor[]> {
   const filas = await ej
     .select({ e: expedientes, clase: estadoVehiculo.clase, subtipo: estadoVehiculo.subtipoVo, cat: tipoDeVenta.categoria, marca: modelos.marcaId })
     .from(expedientes)
     .leftJoin(estadoVehiculo, eq(expedientes.idEstadoVehiculo, estadoVehiculo.idEstadoVehiculo))
     .leftJoin(tipoDeVenta, eq(expedientes.idTipoDeVenta, tipoDeVenta.idTipoDeVenta))
     .leftJoin(modelos, eq(expedientes.idModelo, modelos.idModelo))
-    .where(eq(expedientes.idUsuario, idVendedor));
-  return filas.map(({ e, clase, subtipo, cat, marca }) => ({
+    .where(condicion);
+  return filas.flatMap(({ e, clase, subtipo, cat, marca }) => e.idUsuario === null ? [] : [{
     id: e.idExpediente,
-    idVendedor,
+    idVendedor: e.idUsuario,
     clase: (clase === "VO" ? "VO" : "VN") as Clase,
     subtipoVO: subtipo ?? null,
     idMarca: marca ?? null,
@@ -159,7 +170,7 @@ export async function cargarExpedientesMotor(ej: Ejecutor, idVendedor: number): 
       evento: c.evento,
       cobrado: c.cobrado,
     })),
-  }));
+  } satisfies ExpedienteMotor]);
 }
 
 async function cargarVendedor(ej: Ejecutor, idVendedor: number): Promise<VendedorMotor | null> {
@@ -432,4 +443,31 @@ export async function recalcularAfectados(tx: Ejecutor, afectados: VendedorMes[]
   const res: ResumenRecalculo[] = [];
   for (const a of afectados) res.push(await recalcularMes(tx, a.idVendedor, a.mes, motivo));
   return res;
+}
+
+/**
+ * Ejecuta un cambio de expedientes y recalcula, en la misma transacción, todos los (vendedor, mes)
+ * afectados antes y después, incluidos los meses cerrados (12.9).
+ * `idsDespues` puede incluir ids nuevos (altas); los borrados simplemente ya no existen después.
+ */
+export async function conRecalculo<T>(
+  ej: Ejecutor,
+  idsAntes: number[],
+  motivo: string,
+  accion: (tx: Ejecutor) => Promise<{ valor: T; idsDespues: number[] }>,
+): Promise<{ valor: T; recalculos: ResumenRecalculo[] }> {
+  return ej.transaction(async (tx) => {
+    const antes = await cargarExpedientesMotorPorIds(tx, idsAntes);
+    const { valor, idsDespues } = await accion(tx);
+    const despues = await cargarExpedientesMotorPorIds(tx, idsDespues);
+    const mapaDespues = new Map(despues.map((e) => [e.id, e]));
+    const mapaAntes = new Map(antes.map((e) => [e.id, e]));
+    const claves = new Map<string, VendedorMes>();
+    for (const id of new Set([...mapaAntes.keys(), ...mapaDespues.keys()])) {
+      for (const a of mesesAfectados(mapaAntes.get(id) ?? null, mapaDespues.get(id) ?? null)) claves.set(`${a.idVendedor}|${a.mes}`, a);
+    }
+    const afectados = [...claves.values()].sort((a, b) => a.idVendedor - b.idVendedor || a.mes.localeCompare(b.mes));
+    const recalculos = await recalcularAfectados(tx, afectados, motivo);
+    return { valor, recalculos };
+  });
 }

@@ -43,6 +43,7 @@ export const PUT = manejar(async (req: Request) => {
         entrada.modo === "lote"
           ? `${r.actualizados} expedientes actualizados correctamente`
           : "Expediente actualizado correctamente",
+      impactos: r.impactos,
     },
     { status: 200 },
   );

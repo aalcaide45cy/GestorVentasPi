@@ -28,6 +28,11 @@ function expediente(parcial: Partial<ExpedienteDto> = {}): ExpedienteDto {
     comision_financiacion_cobrada: false,
     comision_preference_cobrada: false,
     comision_bonus_cobrada: false,
+    puntos: null,
+    id_promocion: null,
+    comision_coche_manual: null,
+    comision_financiacion_manual: null,
+    conceptos_especiales: [],
     cliente: {
       id: 1,
       cliente_id: "c1",

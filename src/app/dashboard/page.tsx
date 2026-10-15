@@ -7,6 +7,8 @@ import { getCurrentUser } from "@/lib/auth/sesion";
 import { formatDate } from "@/lib/date-utils";
 import { resumenPanel } from "@/lib/servicios/expedientes-lectura";
 import { cargarDatosPanel } from "@/lib/servicios/panel";
+import { calcularVendedorMes } from "@/lib/servicios/liquidaciones";
+import { etiquetaTramo, euros, nombreMes, puntos } from "@/lib/formato";
 
 export const dynamic = "force-dynamic";
 
@@ -94,12 +96,29 @@ export default async function DashboardPage() {
 }
 
 async function PanelActivo({ userId, tiendaPredeterminadaId }: { userId: number; tiendaPredeterminadaId: number | null }) {
-  const [resumen, datos] = await Promise.all([resumenPanel(db), cargarDatosPanel(db)]);
+  const mesIso = new Date().toISOString().slice(0, 7);
+  const [resumen, datos, motor] = await Promise.all([resumenPanel(db), cargarDatosPanel(db), calcularVendedorMes(db, userId, mesIso)]);
+  const hayPlan = motor !== null && motor.idPlan !== null;
 
   return (
     <>
       {/* Métricas clave */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
+        <div className="glass-panel-interactive" style={estiloTarjeta}>
+          <div style={estiloCabeceraTarjeta}>
+            <span style={estiloEtiqueta}>OBJETIVO DEL MES</span>
+            <Icono color="var(--warning)">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="2" />
+            </Icono>
+          </div>
+          <h2 style={estiloNumero}>{hayPlan ? `${puntos(motor.puntosMes)} / ${puntos(motor.objetivoX)}` : "—"}</h2>
+          <p style={estiloPie}>
+            {hayPlan ? `Tramo ${etiquetaTramo(motor.tramo)} · comisión estimada ${euros(motor.neto)}` : `Sin plan de comisionamiento para ${nombreMes(mesIso)}`}
+          </p>
+        </div>
+
         <div className="glass-panel-interactive" style={estiloTarjeta}>
           <div style={estiloCabeceraTarjeta}>
             <span style={estiloEtiqueta}>MES ACTUAL</span>
