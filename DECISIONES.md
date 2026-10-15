@@ -60,4 +60,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 | 15/10/2026 | F6 | `APP_IMAGE`/`APP_VERSION` en `.env` permiten usar una imagen local; el instalador solo descarga la de la app si no está ya en el equipo | Pruebas sin registro y reinstalaciones | No |
 | 15/10/2026 | F6 | Tailscale Funnel: `tailscale funnel --bg <puerto>`; URL tomada de `tailscale status --json` | [No verificado] la sintaxis puede variar; el instalador avisa si falla | Sí |
 | 15/10/2026 | F6 | `esbuild` fijado en `^0.28.2` como devDependency | Compatible con el peer de vite 8 (vitest 5) | No |
+| 15/10/2026 | F8 | Los usuarios de Clerk no traen correo ni contraseña: se asocian por nombre a las cuentas actuales; los que no coinciden se crean como cuentas **bloqueadas** sin acceso (para conservar sus expedientes) | No se pueden crear accesos sin credenciales | Sí |
+| 15/10/2026 | F8 | La conversión sustituye los datos operativos (catálogos, clientes, expedientes, comisiones) y conserva las cuentas de acceso; así es repetible sin duplicar | 12.13 «no duplica al ejecutarla dos veces» | No |
+| 15/10/2026 | F8 | Cada liquidación antigua (por plan) se reparte por vendedor (por nombre en sus líneas) y su mes es el del inicio del plan; la penalización va al vendedor con más líneas | La app antigua no guardaba vendedor ni mes en la cabecera | Sí |
+| 15/10/2026 | F8 | `min_aplicar` ≤ 1 de la antigua pasa a 0 (sin mínimo); las reglas de financiación genéricas y los bonus «manual» se ignoran con aviso | No existen en el modelo nuevo | No |
 

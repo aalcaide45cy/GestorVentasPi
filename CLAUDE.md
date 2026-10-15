@@ -48,7 +48,9 @@ El plan por fases y sus **criterios de aceptación** están en `docs/informe/16-
 - Tests: `npm test`
 - Tipos y lint: `npm run typecheck && npm run lint`
 - Migraciones: `npm run db:generate` / `npm run db:migrate`
-- Construir imagen: `docker buildx build --platform linux/amd64,linux/arm64 …` (ver sección 14)
+- Construir imagen: `docker build -t gestorventaspi:local .` (multi-arquitectura la hace GitHub Actions, ver `.github/workflows/`)
+- Instalador: `./scripts/empaquetar.sh [versión] [--offline]` · scripts de administración: `npm run build:scripts`
+- Rendimiento: `npx tsx scripts/medir-rendimiento.ts` (solo contra una BD `*_test`)
 
 ## 6. Entorno del propietario (datos útiles)
 - Propietario: Alfonso (Madrid), vendedor de coches Renault/Dacia y desarrollador. Habla **español**.

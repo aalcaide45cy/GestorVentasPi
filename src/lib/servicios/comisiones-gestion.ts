@@ -14,7 +14,7 @@ import {
   usuarios,
 } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
-import { planDelMes, recalcularMes, type ResumenRecalculo } from "./liquidaciones";
+import { calcularVendedorMes, planDelMes, recalcularMes, type ResumenRecalculo, type SnapshotLiquidacion } from "./liquidaciones";
 
 /* ------------------------------------------------------------------ */
 /* Liquidaciones                                                       */
@@ -284,3 +284,92 @@ export async function marcarCobro(ej: Ejecutor, entrada: z.infer<typeof esquemaM
   await ej.update(expedientes).set(set).where(eq(expedientes.idExpediente, idExpediente));
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Comparar con la liquidación antigua (12.14)                          */
+/* ------------------------------------------------------------------ */
+
+export interface FilaComparacion {
+  idExpediente: number | null;
+  puntosAntes: number;
+  puntosAhora: number;
+  importeAntes: number;
+  importeAhora: number;
+  diferencia: number;
+}
+
+export interface Comparacion {
+  mes: string;
+  idUsuario: number;
+  totalAntes: number;
+  totalAhora: number;
+  puntosAntes: number;
+  puntosAhora: number;
+  tramoAntes: number;
+  tramoAhora: number;
+  filas: FilaComparacion[];
+  /** Únicas razones por las que puede haber diferencias (12.14); cualquier otra es un fallo a investigar. */
+  explicaciones: string[];
+}
+
+export const DIFERENCIAS_EXPLICABLES = [
+  "Demo, KM0 y usado ahora son VO (antes «demo» contaba como VN).",
+  "Un coche con 0 puntos ya no se convierte en 1.",
+  "Un VO cuenta solo por la fecha de cobro.",
+  "Ya no hay mínimo de matriculaciones (antes, si no se llegaba, todo el mes valía 0).",
+  "Las promociones se agrupan por promoción (antes por número de cupo, con otra fecha).",
+  "Financiación y bonus se pagan una sola vez, en el mes de su evento.",
+];
+
+/** Calcula un mes con el motor nuevo y lo pone junto a la liquidación antigua importada (o a su primera versión guardada). */
+export async function compararConAntigua(ej: Ejecutor, idLiquidation: number): Promise<Comparacion> {
+  const [liq] = await ej.select().from(commissionLiquidations).where(eq(commissionLiquidations.idLiquidation, idLiquidation));
+  if (!liq) throw new HttpError(404, "Liquidación no encontrada");
+
+  let antigua: SnapshotLiquidacion | null = null;
+  if (liq.origen === "importada_antigua") {
+    const d = await leerLiquidacion(ej, idLiquidation);
+    antigua = d
+      ? {
+          idPlan: liq.idPlan, mes: liq.mes, objetivoX: liq.objetivoX, puntosMes: liq.puntosMes, tramo: liq.tramo, tasaIntervencion: [], avisos: [], bruto: liq.bruto, penalizacion: liq.penalizacion, neto: liq.neto, mesPago: liq.mesPago,
+          lineas: d.lineas.map((l) => ({ idExpediente: l.idExpediente, clase: l.clase, mesComputo: l.mesComputo, cuenta: l.cuenta, unidades: l.unidades, puntos: l.puntos, importe: l.importe, conceptos: [] })),
+        }
+      : null;
+  } else {
+    const versiones = await ej.select().from(commissionLiquidationVersions).where(eq(commissionLiquidationVersions.idLiquidation, idLiquidation)).orderBy(asc(commissionLiquidationVersions.id));
+    const v = versiones.find((x) => (x.snapshot as { origen?: string }).origen === "importada_antigua");
+    if (v) antigua = v.snapshot as SnapshotLiquidacion;
+  }
+  if (!antigua) throw new HttpError(404, "Esta liquidación no procede de la aplicación antigua ni guarda su versión original");
+
+  const nuevo = await calcularVendedorMes(ej, liq.idUsuario, liq.mes);
+  const filas = new Map<number | null, FilaComparacion>();
+  const fila = (id: number | null): FilaComparacion => {
+    let f = filas.get(id);
+    if (!f) filas.set(id, (f = { idExpediente: id, puntosAntes: 0, puntosAhora: 0, importeAntes: 0, importeAhora: 0, diferencia: 0 }));
+    return f;
+  };
+  for (const l of antigua.lineas) {
+    const f = fila(l.idExpediente);
+    f.puntosAntes += l.puntos;
+    f.importeAntes += l.importe;
+  }
+  for (const l of nuevo?.lineas ?? []) {
+    const f = fila(l.idExpediente);
+    f.puntosAhora += l.puntos;
+    f.importeAhora += l.importe;
+  }
+  const lista = [...filas.values()].map((f) => ({ ...f, diferencia: f.importeAhora - f.importeAntes })).sort((a, b) => (a.idExpediente ?? 0) - (b.idExpediente ?? 0));
+  return {
+    mes: liq.mes,
+    idUsuario: liq.idUsuario,
+    totalAntes: antigua.neto,
+    totalAhora: nuevo?.neto ?? 0,
+    puntosAntes: antigua.puntosMes,
+    puntosAhora: nuevo?.puntosMes ?? 0,
+    tramoAntes: antigua.tramo,
+    tramoAhora: nuevo?.tramo ?? 0,
+    filas: lista,
+    explicaciones: DIFERENCIAS_EXPLICABLES,
+  };
+}

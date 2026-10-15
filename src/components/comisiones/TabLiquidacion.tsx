@@ -6,7 +6,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { codigoExpediente } from "@/lib/date-utils";
 import { euros, eurosConSigno, etiquetaTramo, nombreMes, puntos } from "@/lib/formato";
-import type { LiquidacionResumen, PrevisionMes } from "@/lib/servicios/comisiones-gestion";
+import type { Comparacion, LiquidacionResumen, PrevisionMes } from "@/lib/servicios/comisiones-gestion";
 import { llamar, textoError } from "./api";
 import { BotonMini, Seccion } from "./campos";
 import type { PropsPestana } from "./tipos";
@@ -38,6 +38,7 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [prevision, setPrevision] = useState<PrevisionMes[]>([]);
   const [libro, setLibro] = useState<Apunte[] | null>(null);
+  const [comparacion, setComparacion] = useState<Comparacion | null>(null);
   const nombreV = (id: number) => cat.vendedores.find((v) => v.id === id)?.nombre ?? `Usuario ${id}`;
 
   const { datos: liqs, recargar: cargar } = useCarga<LiquidacionResumen[]>(`/api/comisiones/liquidaciones?plan=${plan.idPlan}`, []);
@@ -68,6 +69,14 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
     try {
       await llamar("/api/comisiones/liquidaciones", { method: "PATCH", cuerpo: { id, estado } });
       cargar();
+    } catch (e) {
+      mostrarToast(textoError(e), "error");
+    }
+  };
+
+  const comparar = async (id: number) => {
+    try {
+      setComparacion((await llamar<Comparacion>(`/api/comisiones/comparar?id=${id}`)).data);
     } catch (e) {
       mostrarToast(textoError(e), "error");
     }
@@ -111,9 +120,7 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
           <button type="button" className="btn btn-primary" disabled={trabajando} onClick={calcular}>
             {trabajando ? "Calculando…" : "Calcular / Recalcular Liquidación"}
           </button>
-          <button type="button" className="btn btn-secondary" disabled title="Se activará al importar las liquidaciones antiguas (F8)">
-            Comparar con liquidación antigua
-          </button>
+          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>«Comparar» aparece en las liquidaciones importadas de la aplicación antigua.</span>
         </div>
       </Seccion>
 
@@ -156,6 +163,7 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
                     <BotonMini onClick={() => abrir(l.idLiquidation)}>Desglose</BotonMini>
                     <BotonMini onClick={() => verLibro(l.idUsuario, l.mes)}>Libro</BotonMini>
                     <BotonMini onClick={() => verPrevision(l.idUsuario)}>Nómina</BotonMini>
+                    {(l.origen === "importada_antigua" || l.version > 1) && <BotonMini onClick={() => comparar(l.idLiquidation)}>Comparar con la antigua</BotonMini>}
                     {l.estado === "calculada" && <BotonMini onClick={() => cambiarEstado(l.idLiquidation, "revisada")}>Marcar revisada</BotonMini>}
                     {l.estado !== "cerrada" && <BotonMini onClick={() => cambiarEstado(l.idLiquidation, "cerrada")}>Cerrar</BotonMini>}
                   </td>
@@ -235,6 +243,84 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
             </table>
           </div>
         </Seccion>
+      )}
+
+      {comparacion && (
+        <Modal
+          titulo={`Comparar con liquidación antigua · ${nombreMes(comparacion.mes)}`}
+          ancho="900px"
+          pie={
+            <button type="button" className="btn btn-secondary" onClick={() => setComparacion(null)}>
+              Cerrar
+            </button>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "65vh", overflowY: "auto" }}>
+            <table className="table-premium table-compact">
+              <thead>
+                <tr>
+                  <th />
+                  <th style={{ textAlign: "right" }}>Antigua</th>
+                  <th style={{ textAlign: "right" }}>Motor nuevo</th>
+                  <th style={{ textAlign: "right" }}>Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Total neto</td>
+                  <td style={{ textAlign: "right" }}>{euros(comparacion.totalAntes)}</td>
+                  <td style={{ textAlign: "right" }}>{euros(comparacion.totalAhora)}</td>
+                  <td style={{ textAlign: "right", fontWeight: 700 }}>{eurosConSigno(comparacion.totalAhora - comparacion.totalAntes)}</td>
+                </tr>
+                <tr>
+                  <td>Puntos del mes</td>
+                  <td style={{ textAlign: "right" }}>{puntos(comparacion.puntosAntes)}</td>
+                  <td style={{ textAlign: "right" }}>{puntos(comparacion.puntosAhora)}</td>
+                  <td style={{ textAlign: "right" }}>{puntos(comparacion.puntosAhora - comparacion.puntosAntes)}</td>
+                </tr>
+                <tr>
+                  <td>Tramo</td>
+                  <td style={{ textAlign: "right" }}>{etiquetaTramo(comparacion.tramoAntes)}</td>
+                  <td style={{ textAlign: "right" }}>{etiquetaTramo(comparacion.tramoAhora)}</td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+            <table className="table-premium table-compact">
+              <thead>
+                <tr>
+                  <th>Expediente</th>
+                  <th style={{ textAlign: "right" }}>Puntos antes</th>
+                  <th style={{ textAlign: "right" }}>Puntos ahora</th>
+                  <th style={{ textAlign: "right" }}>Importe antes</th>
+                  <th style={{ textAlign: "right" }}>Importe ahora</th>
+                  <th style={{ textAlign: "right" }}>Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparacion.filas.map((f, i) => (
+                  <tr key={i}>
+                    <td>{f.idExpediente ? codigoExpediente(f.idExpediente) : "—"}</td>
+                    <td style={{ textAlign: "right" }}>{puntos(f.puntosAntes)}</td>
+                    <td style={{ textAlign: "right" }}>{puntos(f.puntosAhora)}</td>
+                    <td style={{ textAlign: "right" }}>{euros(f.importeAntes)}</td>
+                    <td style={{ textAlign: "right" }}>{euros(f.importeAhora)}</td>
+                    <td style={{ textAlign: "right", color: f.diferencia === 0 ? undefined : "var(--warning)" }}>{eurosConSigno(f.diferencia)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+              <b>Las diferencias solo pueden explicarse por:</b>
+              <ul style={{ margin: "6px 0 0", paddingLeft: "20px" }}>
+                {comparacion.explicaciones.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+              Cualquier otra diferencia es un fallo a investigar (del motor nuevo o del antiguo).
+            </div>
+          </div>
+        </Modal>
       )}
 
       {detalle && (
