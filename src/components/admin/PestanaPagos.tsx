@@ -16,6 +16,7 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
   const [nombre, setNombre] = useState("");
   const [color, setColor] = useState("#3b82f6");
   const [ordenNuevo, setOrdenNuevo] = useState(0);
+  const [requiereNuevo, setRequiereNuevo] = useState(false);
   const [ordenes, setOrdenes] = useState<Record<number, number>>({});
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState("");
@@ -28,13 +29,14 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
   const crear = async (ev: FormEvent) => {
     ev.preventDefault();
     const ok = await ejecutar(async () => {
-      const n = await llamar<TipoVentaDto>("/api/admin/catalogos", "POST", { tipo: "tipo_venta", nombre_tipo_venta: nombre, color, orden: ordenNuevo }, "Error al crear el tipo de venta");
+      const n = await llamar<TipoVentaDto>("/api/admin/catalogos", "POST", { tipo: "tipo_venta", nombre_tipo_venta: nombre, color, orden: ordenNuevo, requiere_rci_al_matricular: requiereNuevo }, "Error al crear el tipo de venta");
       setTipos((prev) => [...prev, n]);
     }, "Tipo de venta creado con éxito");
     if (ok) {
       setNombre("");
       setColor("#3b82f6");
       setOrdenNuevo(0);
+      setRequiereNuevo(false);
     }
   };
 
@@ -52,6 +54,19 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
       setTipos((prev) => prev.map((t) => (t.id_tipo_de_venta === editando ? n : t)));
     }, "Tipo de venta actualizado correctamente");
     if (ok) setEditando(null);
+  };
+
+  /** Cambia «Requerido al matricular» al momento (los demás datos del tipo no se tocan). */
+  const cambiarRequiere = async (t: TipoVentaDto, requiere: boolean) => {
+    await ejecutar(async () => {
+      const n = await llamar<TipoVentaDto>(
+        "/api/admin/catalogos",
+        "PUT",
+        { tipo: "tipo_venta", id: t.id_tipo_de_venta, nombre_tipo_venta: t.nombre_tipo_venta, color: t.color ?? "#3b82f6", orden: t.orden, categoria: t.categoria, requiere_rci_al_matricular: requiere },
+        "Error al guardar el ajuste",
+      );
+      setTipos((prev) => prev.map((x) => (x.id_tipo_de_venta === t.id_tipo_de_venta ? n : x)));
+    }, requiere ? `«${t.nombre_tipo_venta}»: ahora exige fecha RCI para matricular` : `«${t.nombre_tipo_venta}»: ya no exige fecha RCI para matricular`);
   };
 
   const guardarOrdenes = async () => {
@@ -95,6 +110,12 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
           <label style={{ fontSize: "0.85rem", fontWeight: 600 }}>Orden Dashboard:</label>
           <input type="number" className="form-input" value={ordenNuevo} onChange={(e) => setOrdenNuevo(Number(e.target.value))} style={{ width: "80px", padding: "6px" }} min={0} />
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input type="checkbox" id="chkRequiereRciNuevo" checked={requiereNuevo} onChange={(e) => setRequiereNuevo(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+          <label htmlFor="chkRequiereRciNuevo" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }} title="Si lo marcas, los expedientes con este pago no se podrán matricular sin fecha RCI">
+            Requerido al matricular
+          </label>
+        </div>
         <button type="submit" className="btn btn-primary" disabled={cargando}>
           + Crear Tipo Pago
         </button>
@@ -106,6 +127,7 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
             <tr>
               <Cabecera etiqueta="Nombre Tipo Venta" campo="nombre" orden={orden} />
               <th>Color Asignado</th>
+              <th title="Si es Sí, un expediente con este tipo de pago no se puede matricular sin fecha RCI (fecha de contratación de la financiera), que se tiene en cuenta en las comisiones">Requerido al Matricular</th>
               <Cabecera etiqueta="Orden Dashboard" campo="orden" orden={orden} ancho="180px" />
               <th>Acciones</th>
             </tr>
@@ -130,6 +152,12 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
                     <span style={{ backgroundColor: t.color || "#3b82f6", display: "inline-block", width: "16px", height: "16px", borderRadius: "50%", border: "1px solid var(--border-light)" }}></span>
                     <span style={{ fontSize: "0.85rem", fontFamily: "monospace" }}>{t.color || "#3b82f6"}</span>
                   </div>
+                </td>
+                <td>
+                  <select className="form-select" value={t.requiere_rci_al_matricular ? "si" : "no"} onChange={(e) => void cambiarRequiere(t, e.target.value === "si")} disabled={cargando} style={{ width: "90px", padding: "4px 8px", fontSize: "0.85rem", fontWeight: 700, color: t.requiere_rci_al_matricular ? "var(--warning)" : "var(--text-secondary)" }} title="¿Exige fecha RCI para poder matricular?">
+                    <option value="si">Sí</option>
+                    <option value="no">No</option>
+                  </select>
                 </td>
                 <td>
                   <input

@@ -6,6 +6,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import type { ExpedienteDto } from "@/lib/dto";
 import { hoyIsoCliente } from "@/lib/date-utils";
+import VisorAdjuntos from "@/components/documentos/VisorAdjuntos";
 import { mensajeDeError, type CampoFecha } from "./comun";
 
 interface Pendiente {
@@ -14,7 +15,7 @@ interface Pendiente {
   nombre: string;
 }
 
-type Cambios = Partial<Pick<ExpedienteDto, CampoFecha | "matricula">>;
+type Cambios = Partial<Pick<ExpedienteDto, CampoFecha | "matricula" | "vin">>;
 
 /**
  * Edición y borrado inline de fechas con sus modales (lápiz y papelera).
@@ -31,13 +32,20 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
   const [borrando, setBorrando] = useState<Pendiente | null>(null);
   const [fecha, setFecha] = useState("");
   const [matricula, setMatricula] = useState("");
+  const [vin, setVin] = useState("");
+  /** Fecha RCI que se pide al matricular cuando el tipo de pago la exige y el expediente aún no la tiene. */
+  const [fechaRciObligatoria, setFechaRciObligatoria] = useState("");
   const [ocupado, setOcupado] = useState(false);
 
   const abrirEditar = (expediente: ExpedienteDto, campo: CampoFecha, nombre: string) => {
     setFecha(expediente[campo] || hoyIsoCliente());
     setMatricula(expediente.matricula || "");
+    setVin(expediente.vin || "");
+    setFechaRciObligatoria("");
     setEditando({ expediente, campo, nombre });
   };
+
+  const exigeRci = (e: ExpedienteDto): boolean => !!e.tipoDeVenta?.requiere_rci_al_matricular && !e.fecha_rci;
 
   const abrirBorrar = (expediente: ExpedienteDto, campo: CampoFecha, nombre: string) => {
     setBorrando({ expediente, campo, nombre });
@@ -57,11 +65,21 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
     if (!editando) return;
     const { expediente, campo, nombre } = editando;
     const cambios: Cambios = { [campo]: fecha || null };
+    if (campo === "fecha_afectacion") {
+      // El bastidor es opcional: solo se envía si se ha escrito algo distinto
+      const nuevo = vin.trim().toUpperCase();
+      if (nuevo && nuevo !== (expediente.vin ?? "")) cambios.vin = nuevo;
+    }
     if (campo === "fecha_matriculacion") {
       cambios.matricula = matricula || null;
-      // Al matricular, si no es contado y no hay fecha RCI, se rellena con la misma fecha.
-      const esContado = (expediente.tipoDeVenta?.nombre_tipo_venta ?? "").toLowerCase().includes("contado");
-      if (!esContado && !expediente.fecha_rci) cambios.fecha_rci = fecha || null;
+      // Los pagos marcados «Requerido al matricular» (crédito, preference...) no se pueden matricular sin fecha RCI
+      if (fecha && exigeRci(expediente)) {
+        if (!fechaRciObligatoria) {
+          mostrar(`Los pagos «${expediente.tipoDeVenta?.nombre_tipo_venta}» exigen la fecha RCI (contratación de la financiera) para matricular.`, "error");
+          return;
+        }
+        cambios.fecha_rci = fechaRciObligatoria;
+      }
     }
     setOcupado(true);
     try {
@@ -114,6 +132,24 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
             <label className="form-label">Selecciona Fecha</label>
             <input type="date" className="form-input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
           </div>
+          {editando.campo === "fecha_afectacion" && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Número de bastidor (VIN) (Opcional)</label>
+              <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} placeholder="17 caracteres, ej. VF1RJA00000000000" maxLength={17} style={{ fontFamily: "monospace" }} />
+            </div>
+          )}
+          {editando.campo === "fecha_rci" && (
+            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "12px" }}>
+              <VisorAdjuntos idExpediente={editando.expediente.id_expediente} titulo="📎 Documentos de la financiación (RCI)" />
+            </div>
+          )}
+          {editando.campo === "fecha_matriculacion" && exigeRci(editando.expediente) && (
+            <div className="form-group" style={{ marginBottom: 0, padding: "12px", border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)" }}>
+              <label className="form-label">Fecha RCI * (obligatoria: pago «{editando.expediente.tipoDeVenta?.nombre_tipo_venta}»)</label>
+              <input type="date" className="form-input" value={fechaRciObligatoria} onChange={(e) => setFechaRciObligatoria(e.target.value)} />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Fecha de contratación de la financiera. Se tiene en cuenta para la tasa de intervención y las comisiones.</span>
+            </div>
+          )}
           {editando.campo === "fecha_matriculacion" && (
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Matrícula (Opcional)</label>

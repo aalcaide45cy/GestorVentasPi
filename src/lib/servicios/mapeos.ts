@@ -72,6 +72,7 @@ export function tipoVentaDto(t: typeof tipoDeVenta.$inferSelect): TipoVentaDto {
     color: t.color,
     orden: t.orden,
     categoria: t.categoria,
+    requiere_rci_al_matricular: t.requiereRciAlMatricular,
   };
 }
 

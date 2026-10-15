@@ -44,7 +44,7 @@ function expediente(parcial: Partial<ExpedienteDto> = {}): ExpedienteDto {
       telefonos: [{ telefono: "600", tipo_telefono: null }],
     },
     modelo: { id_modelo: 1, marca_id: 1, nombre_modelo: "Clio", acceso_rapido: true, orden_acceso_rapido: 2, marca: { id_marca: 1, nombre: "Renault", activo: true, acceso_rapido: true, sistema_comisiones: true } },
-    tipoDeVenta: { id_tipo_de_venta: 1, nombre_tipo_venta: "Contado", color: "#3b82f6", orden: 0, categoria: "CONTADO" },
+    tipoDeVenta: { id_tipo_de_venta: 1, nombre_tipo_venta: "Contado", color: "#3b82f6", orden: 0, categoria: "CONTADO", requiere_rci_al_matricular: false },
     estadoVehiculo: { id_estado_vehiculo: 1, nombre_estado_vehiculo: "Nuevo", predeterminado: true, clase: "VN", subtipo_vo: null },
     usuario: { id_usuario: 1, nombre: "Vendedor Uno" },
     ...parcial,

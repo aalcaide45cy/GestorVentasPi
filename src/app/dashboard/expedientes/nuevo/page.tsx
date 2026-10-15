@@ -35,8 +35,8 @@ export default async function NuevoExpedientePage() {
       <NuevoExpedienteForm
         marcas={catalogos.marcas.map((m) => ({ id: m.id_marca, nombre: m.nombre }))}
         modelosPorMarca={modelosPorMarca}
-        tiposVenta={catalogos.tiposVenta.map((t) => ({ id: t.id_tipo_de_venta, nombre: t.nombre_tipo_venta }))}
-        estadosVehiculo={catalogos.estados.map((e) => ({ id: e.id_estado_vehiculo, nombre: e.nombre_estado_vehiculo }))}
+        tiposVenta={catalogos.tiposVenta.map((t) => ({ id: t.id_tipo_de_venta, nombre: t.nombre_tipo_venta, requiereRci: t.requiere_rci_al_matricular }))}
+        estadosVehiculo={catalogos.estados.map((e) => ({ id: e.id_estado_vehiculo, nombre: e.nombre_estado_vehiculo, clase: e.clase }))}
         tiendas={tiendas.map((t) => ({ id: t.id_tienda, nombre: t.nombre, ciudad: t.ciudad }))}
       />
     </div>

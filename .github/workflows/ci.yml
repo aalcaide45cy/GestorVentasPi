@@ -116,3 +116,12 @@ jobs:
           grep -q '^GV_TS_AUTHKEY=$' /tmp/sd/gestorventas.conf
           # el compose es válido con el perfil de Tailscale
           cd /opt/gestorventas && sudo docker compose --profile tailscale config --quiet
+          # actualización sin preguntas sobre la instalación existente (lo que usa el asistente start.sh)
+          cd "$GITHUB_WORKSPACE"
+          sudo env GV_APP_IMAGE=gestorventaspi GV_APP_VERSION=local GV_MODO=actualizar bash /tmp/sd/gestorventas-0.0.0-ci-instalador.run | tee /tmp/actualizacion.log
+          grep -q "Actualizada a la versión" /tmp/actualizacion.log
+          sudo ls /opt/gestorventas/backups | grep -q _previa.dump
+          IP="$(hostname -I | awk '{print $1}')"
+          curl -fsS "http://$IP:3000/api/salud"
+          # el asistente tiene sintaxis válida
+          bash -n instalador/start.sh

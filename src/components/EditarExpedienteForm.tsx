@@ -16,6 +16,10 @@ import { eurosConSigno, nombreMes } from "@/lib/formato";
 interface Opcion {
   id: number;
   nombre: string;
+  /** Tipos de pago: exige fecha RCI para matricular. */
+  requiereRci?: boolean;
+  /** Estados del vehículo: VN o VO. */
+  clase?: string;
 }
 
 interface Tienda extends Opcion {
@@ -239,6 +243,11 @@ export default function EditarExpedienteForm({
   /* ---- Guardado del expediente ---- */
   const guardar = async (): Promise<boolean> => {
     setError(null);
+    const faltaRci = rciObligatoria();
+    if (faltaRci) {
+      setError(faltaRci);
+      return false;
+    }
     try {
       const cliente = await guardarCliente();
       const cuerpo: Record<string, unknown> = {
@@ -353,6 +362,16 @@ export default function EditarExpedienteForm({
       {control}
     </div>
   );
+  /** En un VN la facturación acompaña a la matriculación mientras esté vacía o igual a ella (si se cambia a mano, se respeta). */
+  const cambiarMatriculacion = (v: string) => {
+    const esVn = estadosVehiculo.find((x) => x.id === Number(estado))?.clase === "VN";
+    if (esVn && (fFact === "" || fFact === fMat)) setFFact(v);
+    setFMat(v);
+  };
+  const rciObligatoria = (): string | null => {
+    const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
+    return fMat && !fRci && t?.requiereRci ? `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder matricular. Indica primero la Fecha RCI.` : null;
+  };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
   const titulo = (color: string, icono: React.ReactNode, texto: string) => (
     <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
@@ -659,8 +678,8 @@ export default function EditarExpedienteForm({
               {campo("Fecha Expediente", fecha(fExp, setFExp))}
               {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
               {campo("Fecha RCI (Financiación)", fecha(fRci, setFRci))}
-              {campo("Fecha Matriculación", fecha(fMat, setFMat))}
-              {campo("Fecha Facturación (VO)", fecha(fFact, setFFact))}
+              {campo("Fecha Matriculación", fecha(fMat, cambiarMatriculacion))}
+              {campo("Fecha Facturación (en un VN es la de matriculación; si la cambias, manda ella para comisionar)", fecha(fFact, setFFact))}
 
               <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "12px", background: "rgba(255, 255, 255, 0.02)", padding: "16px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -707,7 +726,7 @@ export default function EditarExpedienteForm({
         <BloqueComisionamiento
           valor={com}
           onChange={setCom}
-          mesCierre={fMat ? fMat.slice(0, 7) : fExp ? fExp.slice(0, 7) : null}
+          mesCierre={fFact ? fFact.slice(0, 7) : fMat ? fMat.slice(0, 7) : fExp ? fExp.slice(0, 7) : null}
           contexto={{
             id_expediente: expediente.id_expediente,
             id_usuario: vendedor ? Number(vendedor) : null,
@@ -718,6 +737,7 @@ export default function EditarExpedienteForm({
             fecha_afectacion: fAfect || null,
             fecha_rci: fRci || null,
             fecha_matriculacion: fMat || null,
+            fecha_facturacion: fFact || null,
             fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
             cobrado_otra_fecha: cobradoOtraFecha,
           }}

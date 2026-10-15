@@ -5,6 +5,7 @@ import {
   clientes,
   estadoVehiculo,
   expedientes,
+  tipoDeVenta,
   usuariosTiendas,
   type ConceptoEspecial,
 } from "@/db/schema";
@@ -83,6 +84,10 @@ export async function crearExpediente(
 
     const e = entrada.expediente;
     const idTienda = e.id_tienda ?? (await tiendaUnica(tx, usuario.idUsuario));
+    const idEstado = await resolverEstado(tx, e.id_estado_vehiculo, e.estado_nombre);
+    const [tipoVenta] = e.id_tipo_de_venta ? await tx.select().from(tipoDeVenta).where(eq(tipoDeVenta.idTipoDeVenta, e.id_tipo_de_venta)) : [];
+    if (e.fecha_matriculacion && !e.fecha_rci && tipoVenta?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipoVenta.nombreTipoVenta));
+    const [estadoNuevo] = idEstado ? await tx.select().from(estadoVehiculo).where(eq(estadoVehiculo.idEstadoVehiculo, idEstado)) : [];
     const [nuevo] = await tx
       .insert(expedientes)
       .values({
@@ -95,11 +100,12 @@ export async function crearExpediente(
         fechaMatriculacion: e.fecha_matriculacion ?? null,
         fechaEntrega: e.fecha_entrega ?? null,
         fechaRci: e.fecha_rci ?? null,
-        fechaFacturacion: e.fecha_facturacion ?? null,
+        // En un VN la facturación es, por defecto, la de matriculación
+        fechaFacturacion: e.fecha_facturacion ?? (estadoNuevo?.clase === "VN" ? (e.fecha_matriculacion ?? null) : null),
         matricula: e.matricula ?? null,
         vin: e.vin ?? null,
         idTipoDeVenta: e.id_tipo_de_venta ?? null,
-        idEstadoVehiculo: await resolverEstado(tx, e.id_estado_vehiculo, e.estado_nombre),
+        idEstadoVehiculo: idEstado,
         cobradoOtraFecha: e.cobrado_otra_fecha ?? false,
         fechaCobrado: e.fecha_cobrado ?? null,
       })
@@ -152,6 +158,47 @@ function fusionar(destino: CamposActualizables, origen: CamposActualizables): vo
   }
 }
 
+/** Mensaje cuando un tipo de pago exige fecha RCI y se intenta matricular sin ella. */
+function avisoRciObligatoria(nombreTipo: string, idExpediente?: number): string {
+  return `${idExpediente ? `Expediente ${idExpediente}: ` : ""}los pagos «${nombreTipo}» exigen la fecha RCI (fecha de contratación de la financiera) para poder matricular. Indica primero la F. RCI.`;
+}
+
+/**
+ * Reglas de fechas al escribir expedientes (antes de aplicar los cambios):
+ * 1. Si el tipo de pago exige fecha RCI («Requerido al matricular»), no se puede poner fecha de matriculación sin ella.
+ * 2. En un VN la fecha de facturación acompaña a la de matriculación mientras no se haya cambiado a mano (vacía o igual a la
+ *    matriculación anterior); si el vendedor la fija a otra fecha, se respeta y es la que cuenta para comisionar.
+ * Devuelve las facturaciones que hay que fijar después de aplicar el cambio, agrupadas por valor.
+ */
+async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizables): Promise<{ ids: number[]; fecha: string | null }[]> {
+  const toca = set.fechaMatriculacion !== undefined || set.fechaRci !== undefined || set.idTipoDeVenta !== undefined || set.idEstadoVehiculo !== undefined;
+  if (!toca || ids.length === 0) return [];
+  const filas = await tx
+    .select({ id: expedientes.idExpediente, mat: expedientes.fechaMatriculacion, rci: expedientes.fechaRci, fact: expedientes.fechaFacturacion, tipo: expedientes.idTipoDeVenta, estado: expedientes.idEstadoVehiculo })
+    .from(expedientes)
+    .where(and(inArray(expedientes.idExpediente, ids), isNull(expedientes.eliminadoEn)));
+  const tipos = new Map((await tx.select().from(tipoDeVenta)).map((t) => [t.idTipoDeVenta, t]));
+  const clases = new Map((await tx.select().from(estadoVehiculo)).map((e) => [e.idEstadoVehiculo, e.clase]));
+  const grupos = new Map<string | null, number[]>();
+  for (const f of filas) {
+    const mat = set.fechaMatriculacion !== undefined ? set.fechaMatriculacion : f.mat;
+    const rci = set.fechaRci !== undefined ? set.fechaRci : f.rci;
+    const tipo = tipos.get(set.idTipoDeVenta !== undefined ? (set.idTipoDeVenta ?? -1) : (f.tipo ?? -1));
+    if (mat && !rci && tipo?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipo.nombreTipoVenta, ids.length > 1 ? f.id : undefined));
+    const clase = clases.get(set.idEstadoVehiculo !== undefined ? (set.idEstadoVehiculo ?? -1) : (f.estado ?? -1));
+    const manual = set.fechaFacturacion !== undefined && set.fechaFacturacion !== f.fact;
+    if (clase === "VN" && !manual && (f.fact === null || f.fact === f.mat) && (mat ?? null) !== f.fact) {
+      const clave = mat ?? null;
+      grupos.set(clave, [...(grupos.get(clave) ?? []), f.id]);
+    }
+  }
+  return [...grupos].map(([fecha, idsGrupo]) => ({ ids: idsGrupo, fecha }));
+}
+
+async function aplicarFacturaciones(tx: Ejecutor, grupos: { ids: number[]; fecha: string | null }[]): Promise<void> {
+  for (const g of grupos) await tx.update(expedientes).set({ fechaFacturacion: g.fecha }).where(inArray(expedientes.idExpediente, g.ids));
+}
+
 /** Actualiza un expediente (solo los campos recibidos) o un lote (los campos vacíos no se tocan). */
 export async function actualizarExpedientes(
   ej: Ejecutor,
@@ -175,11 +222,13 @@ export async function actualizarExpedientes(
     if (Object.keys(set).length === 0) throw new HttpError(400, "No se seleccionaron datos para modificar");
     await comprobarAlcance(ej, usuario, entrada.ids);
     const { valor, recalculos } = await conRecalculo(ej, entrada.ids, "Edición de expedientes en lote", async (tx) => {
+      const facturaciones = await prepararFechas(tx, entrada.ids, set);
       const filas = await tx
         .update(expedientes)
         .set(set)
         .where(and(inArray(expedientes.idExpediente, entrada.ids), isNull(expedientes.eliminadoEn)))
         .returning({ id: expedientes.idExpediente });
+      await aplicarFacturaciones(tx, facturaciones);
       return { valor: filas.length, idsDespues: entrada.ids };
     });
     return { actualizados: valor, impactos: impactos(recalculos) };
@@ -220,11 +269,13 @@ export async function actualizarExpedientes(
   if (Object.keys(set).length === 0) throw new HttpError(400, "No hay datos que actualizar");
   await comprobarAlcance(ej, usuario, [entrada.id_expediente]);
   const { valor, recalculos } = await conRecalculo(ej, [entrada.id_expediente], "Edición de expediente", async (tx) => {
+    const facturaciones = await prepararFechas(tx, [entrada.id_expediente], set);
     const filas = await tx
       .update(expedientes)
       .set(set)
       .where(and(eq(expedientes.idExpediente, entrada.id_expediente), isNull(expedientes.eliminadoEn)))
       .returning({ id: expedientes.idExpediente });
+    await aplicarFacturaciones(tx, facturaciones);
     return { valor: filas.length, idsDespues: [entrada.id_expediente] };
   });
   if (valor === 0) throw new HttpError(404, "Expediente no encontrado");

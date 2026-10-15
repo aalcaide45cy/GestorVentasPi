@@ -32,6 +32,7 @@ export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
     color: color.optional(),
     orden: z.coerce.number().int().optional(),
     categoria: z.enum(CATEGORIAS).optional(),
+    requiere_rci_al_matricular: z.boolean().optional(),
   }),
   z.object({
     tipo: z.literal("estado_vehiculo"),
@@ -65,6 +66,7 @@ export const esquemaActualizarCatalogo = z.discriminatedUnion("tipo", [
     color: color.optional(),
     orden: z.coerce.number().int().optional(),
     categoria: z.enum(CATEGORIAS).optional(),
+    requiere_rci_al_matricular: z.boolean().optional(),
   }),
   z.object({
     tipo: z.literal("estado_vehiculo"),
@@ -160,6 +162,7 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
           color: e.color ?? "#3b82f6",
           orden: e.orden ?? 0,
           categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta),
+          requiereRciAlMatricular: e.requiere_rci_al_matricular ?? ["CREDITO", "PREFERENCE", "RENTING"].includes(e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta)),
         })
         .returning();
       return tipoVentaDto(n);
@@ -208,7 +211,7 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
     case "tipo_venta": {
       const [n] = await ej
         .update(tipoDeVenta)
-        .set({ nombreTipoVenta: e.nombre_tipo_venta, color: e.color, orden: e.orden, categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta) })
+        .set({ nombreTipoVenta: e.nombre_tipo_venta, color: e.color, orden: e.orden, categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta), requiereRciAlMatricular: e.requiere_rci_al_matricular })
         .where(eq(tipoDeVenta.idTipoDeVenta, e.id))
         .returning();
       if (!n) throw new HttpError(404, "Tipo de venta no encontrado");

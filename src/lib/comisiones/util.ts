@@ -50,3 +50,12 @@ export function etiquetaTramo(tramo: number): string {
 export function sumar(importes: Centimos[]): Centimos {
   return importes.reduce((a, b) => a + b, 0);
 }
+
+/**
+ * Fecha que hace contar a un coche (12.3, paso 1): en VO, o si se cobra en otra fecha, la de cobro; en VN, la de facturación
+ * (por defecto igual a la de matriculación; si el vendedor la cambia a mano, manda ella) y, sin facturación, la de matriculación.
+ */
+export function fechaQueCuenta(e: { clase: string; cobradoOtraFecha: boolean; fechaCobro: Fecha | null; fechaMatriculacion: Fecha | null; fechaFacturacion?: Fecha | null }): { fecha: Fecha | null; usaCobro: boolean } {
+  const usaCobro = e.clase === "VO" || e.cobradoOtraFecha;
+  return { fecha: usaCobro ? e.fechaCobro : (e.fechaFacturacion ?? e.fechaMatriculacion), usaCobro };
+}

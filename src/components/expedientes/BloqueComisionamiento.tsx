@@ -32,6 +32,8 @@ export interface ContextoSimulacion {
   fecha_afectacion: string | null;
   fecha_rci: string | null;
   fecha_matriculacion: string | null;
+  /** En un VN cuenta la facturación (por defecto igual a la matriculación). */
+  fecha_facturacion: string | null;
   fecha_cobrado: string | null;
   cobrado_otra_fecha: boolean;
 }
@@ -73,7 +75,7 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
   const [error, setError] = useState<string | null>(null);
 
   const usaCobro = contexto.cobrado_otra_fecha;
-  const fechaCuenta = usaCobro ? contexto.fecha_cobrado : contexto.fecha_matriculacion;
+  const fechaCuenta = usaCobro ? contexto.fecha_cobrado : (contexto.fecha_facturacion ?? contexto.fecha_matriculacion);
   const mes = fechaCuenta ? fechaCuenta.slice(0, 7) : mesCierre;
 
   useEffect(() => {
@@ -104,6 +106,7 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           fecha_afectacion: contexto.fecha_afectacion,
           fecha_rci: contexto.fecha_rci,
           fecha_matriculacion: contexto.fecha_matriculacion,
+          fecha_facturacion: contexto.fecha_facturacion,
           fecha_cobrado: contexto.fecha_cobrado,
           cobrado_otra_fecha: contexto.cobrado_otra_fecha,
           puntos: valor.puntos,

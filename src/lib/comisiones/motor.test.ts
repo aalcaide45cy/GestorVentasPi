@@ -524,3 +524,15 @@ describe("plan, simulador y avisos", () => {
     expect(simularExpediente(p, V, exp(2), []).aviso).toContain("matriculación");
   });
 });
+
+describe("VN: el mes de comisionado es el de la facturación", () => {
+  it("sin facturación cuenta la matriculación; con facturación en agosto cuenta en agosto aunque matricule en septiembre", () => {
+    const vendedor = { id: 1, tipo: "VN" as const, patronVo: null };
+    const mat = exp(1, { fechaMatriculacion: "2026-09-10" });
+    const fac = exp(2, { fechaMatriculacion: "2026-09-10", fechaFacturacion: "2026-08-28" });
+    const septiembre = calcularMes(plan(), vendedor, "2026-09", [mat, fac]);
+    const agosto = calcularMes(plan(), vendedor, "2026-08", [mat, fac]);
+    expect(septiembre.lineas.filter((l) => l.cuenta).map((l) => l.idExpediente)).toEqual([1]);
+    expect(agosto.lineas.filter((l) => l.cuenta).map((l) => l.idExpediente)).toEqual([2]);
+  });
+});

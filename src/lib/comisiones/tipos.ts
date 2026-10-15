@@ -37,6 +37,11 @@ export interface ExpedienteMotor {
   fechaAfectacion: Fecha | null;
   fechaRci: Fecha | null;
   fechaMatriculacion: Fecha | null;
+  /**
+   * Fecha de facturación. En un VN es el punto de comisionado: el coche cuenta en el mes de su facturación (que por defecto es
+   * la de matriculación, pero se puede cambiar a mano). Sin facturación, cuenta la matriculación.
+   */
+  fechaFacturacion?: Fecha | null;
   /** `fecha_cobrado` del expediente. */
   fechaCobro: Fecha | null;
   cobradoOtraFecha: boolean;

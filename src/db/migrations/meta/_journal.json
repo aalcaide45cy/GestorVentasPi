@@ -64,6 +64,13 @@
       "when": 1792085849428,
       "tag": "0008_indices_busqueda",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792101263183,
+      "tag": "0009_requiere_rci_al_matricular",
+      "breakpoints": true
     }
   ]
 }

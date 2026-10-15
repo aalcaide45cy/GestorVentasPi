@@ -18,7 +18,7 @@ import type {
   TasaMarcaResultado,
   VendedorMotor,
 } from "./tipos";
-import { enteroValido, etiquetaTramo, floorDiv, limitar, mesDe, mesEnRango, sumarMeses } from "./util";
+import { enteroValido, etiquetaTramo, fechaQueCuenta, floorDiv, limitar, mesDe, mesEnRango, sumarMeses } from "./util";
 
 const FINANCIADAS: CategoriaVenta[] = ["CREDITO", "PREFERENCE", "RENTING"];
 const PUNTOS_DEFECTO: Centesimas = 100;
@@ -35,15 +35,14 @@ interface Info {
 
 /** Evento principal del coche (12.3, paso 1). */
 function infoDe(e: ExpedienteMotor): Info {
-  const usaCobro = e.clase === "VO" || e.cobradoOtraFecha;
-  const fecha = usaCobro ? e.fechaCobro : e.fechaMatriculacion;
+  const { fecha, usaCobro } = fechaQueCuenta(e);
   const mes = mesDe(fecha);
   return {
     e,
     mesComputo: mes,
     fechaComputo: mes ? fecha : null,
     eventoLibro: usaCobro ? "COBRO" : "MATRICULACION",
-    falta: mes ? null : usaCobro ? "falta fecha de cobro" : "falta fecha de matriculación",
+    falta: mes ? null : usaCobro ? "falta fecha de cobro" : "falta fecha de facturación o de matriculación",
   };
 }
 

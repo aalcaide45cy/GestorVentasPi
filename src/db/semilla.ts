@@ -11,9 +11,9 @@ const ESTADOS_INICIALES = [
 ] as const;
 
 const TIPOS_VENTA_INICIALES = [
-  { nombre: "Contado", categoria: "CONTADO", color: "#22c55e", orden: 1 },
-  { nombre: "Crédito", categoria: "CREDITO", color: "#3b82f6", orden: 2 },
-  { nombre: "Preference", categoria: "PREFERENCE", color: "#a855f7", orden: 3 },
+  { nombre: "Contado", categoria: "CONTADO", color: "#22c55e", orden: 1, requiereRci: false },
+  { nombre: "Crédito", categoria: "CREDITO", color: "#3b82f6", orden: 2, requiereRci: true },
+  { nombre: "Preference", categoria: "PREFERENCE", color: "#a855f7", orden: 3, requiereRci: true },
 ] as const;
 
 /**
@@ -43,6 +43,7 @@ export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatab
           categoria: t.categoria,
           color: t.color,
           orden: t.orden,
+          requiereRciAlMatricular: t.requiereRci,
         })),
       );
     }

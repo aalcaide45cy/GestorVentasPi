@@ -145,7 +145,7 @@ function ultimoDiaDelMes(mes: string): string {
  */
 export async function cargarExpedientesMotor(ej: Ejecutor, idVendedor: number, rango?: RangoMeses): Promise<ExpedienteMotor[]> {
   const delRango = rango
-    ? [expedientes.fechaExpediente, expedientes.fechaAfectacion, expedientes.fechaRci, expedientes.fechaMatriculacion, expedientes.fechaCobrado].map((c) => between(c, `${rango.desde}-01`, ultimoDiaDelMes(rango.hasta)))
+    ? [expedientes.fechaExpediente, expedientes.fechaAfectacion, expedientes.fechaRci, expedientes.fechaMatriculacion, expedientes.fechaFacturacion, expedientes.fechaCobrado].map((c) => between(c, `${rango.desde}-01`, ultimoDiaDelMes(rango.hasta)))
     : null;
   return cargarExpedientesDonde(ej, delRango ? and(eq(expedientes.idUsuario, idVendedor), or(...delRango)) : eq(expedientes.idUsuario, idVendedor));
 }
@@ -176,6 +176,7 @@ async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined):
     fechaAfectacion: e.fechaAfectacion,
     fechaRci: e.fechaRci,
     fechaMatriculacion: e.fechaMatriculacion,
+    fechaFacturacion: e.fechaFacturacion,
     fechaCobro: e.fechaCobrado,
     cobradoOtraFecha: e.cobradoOtraFecha,
     puntos: e.puntos,

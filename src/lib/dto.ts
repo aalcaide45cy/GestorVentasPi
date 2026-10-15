@@ -51,6 +51,8 @@ export interface TipoVentaDto {
   color: string | null;
   orden: number;
   categoria: string;
+  /** Exige fecha RCI para poder matricular (crédito y preference por defecto). */
+  requiere_rci_al_matricular: boolean;
 }
 
 export interface EstadoVehiculoDto {

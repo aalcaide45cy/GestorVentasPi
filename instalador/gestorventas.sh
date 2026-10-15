@@ -325,6 +325,14 @@ cmd_instalar() {
   crear_env
   instalar_apagado
 
+  # Actualización (GV_MODO=actualizar sobre una instalación existente): sin preguntas, con copia previa y conservando
+  # el administrador y el acceso exterior ya configurados. La versión de la imagen sigue a la del instalador (si no, el .env
+  # antiguo dejaría la aplicación en la versión anterior).
+  local actualizando=0
+  [ "${GV_MODO:-}" = "actualizar" ] && [ -f "$DIR/.env" ] && actualizando=1
+  [ -n "${GV_APP_VERSION:-}" ] || fijar_env APP_VERSION "$VERSION"
+  if [ "$actualizando" = 1 ]; then copia_antes_de_actualizar; fi
+
   # Imágenes incluidas en el instalador (la de la aplicación) y el resto desde internet
   if [ -d "$DIR/imagenes" ]; then
     azul "Cargando imágenes incluidas en el instalador..."
@@ -337,6 +345,17 @@ cmd_instalar() {
 
   dc up -d
   esperar_sano || exit 1
+
+  if [ "$actualizando" = 1 ]; then
+    if docker ps -a --format '{{.Names}}' | grep -q 'gestorventas-tailscale'; then dc --profile tailscale up -d; fi
+    dc up -d --force-recreate app
+    esperar_sano || exit 1
+    awk '/^__PAYLOAD_BELOW__$/ {exit} {print}' "$0" > "$DIR/gestorventas.sh" 2>/dev/null || true
+    chmod +x "$DIR/gestorventas.sh" "$DIR"/scripts/*.sh 2>/dev/null || true
+    escribir_acceso
+    echo; verde "✔ Actualizada a la versión $VERSION. Tus datos, el administrador y el acceso exterior no se han tocado."
+    return 0
+  fi
 
   local nombre email pass salida
   nombre="${GV_ADMIN_NOMBRE:-$(preguntar "Nombre del administrador" "Administrador")}"

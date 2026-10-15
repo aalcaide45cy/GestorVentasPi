@@ -62,6 +62,8 @@ export const tipoDeVenta = pgTable("tipo_de_venta", {
   orden: integer("orden").notNull().default(0),
   /** CONTADO | CREDITO | PREFERENCE | RENTING */
   categoria: varchar("categoria", { length: 20 }).notNull().default("CONTADO"),
+  /** Si es true, un expediente de este tipo no puede matricularse sin fecha RCI (fecha de contratación de la financiera). */
+  requiereRciAlMatricular: boolean("requiere_rci_al_matricular").notNull().default(false),
   /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
   eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });

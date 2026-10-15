@@ -1,11 +1,10 @@
 import { calcularMes } from "./motor";
 import type { ApuntePuntos, Centimos, ExpedienteMotor, LineaExpediente, Mes, PlanMotor, ResultadoMes, VendedorMotor } from "./tipos";
-import { mesDe } from "./util";
+import { fechaQueCuenta, mesDe } from "./util";
 
 /** Meses en los que un expediente genera algo: pedido, afectación, RCI y mes de cómputo. */
 export function mesesDeExpediente(e: ExpedienteMotor): Mes[] {
-  const usaCobro = e.clase === "VO" || e.cobradoOtraFecha;
-  const meses = [e.fechaExpediente, e.fechaAfectacion, e.fechaRci, usaCobro ? e.fechaCobro : e.fechaMatriculacion, e.fechaCobro].map(mesDe);
+  const meses = [e.fechaExpediente, e.fechaAfectacion, e.fechaRci, fechaQueCuenta(e).fecha, e.fechaCobro].map(mesDe);
   return [...new Set(meses.filter((m): m is Mes => m !== null))].sort();
 }
 
@@ -50,10 +49,10 @@ export function simularExpediente(
   expedienteEditado: ExpedienteMotor,
   restoExpedientes: ExpedienteMotor[],
 ): Simulacion {
-  const usaCobro = expedienteEditado.clase === "VO" || expedienteEditado.cobradoOtraFecha;
-  const mes = mesDe(usaCobro ? expedienteEditado.fechaCobro : expedienteEditado.fechaMatriculacion);
+  const { fecha, usaCobro } = fechaQueCuenta(expedienteEditado);
+  const mes = mesDe(fecha);
   if (!mes) {
-    return { mes: null, resultado: null, linea: null, aviso: usaCobro ? "Falta la fecha de cobro: el coche aún no cuenta en ningún mes" : "Falta la fecha de matriculación: el coche aún no cuenta en ningún mes" };
+    return { mes: null, resultado: null, linea: null, aviso: usaCobro ? "Falta la fecha de cobro: el coche aún no cuenta en ningún mes" : "Falta la fecha de facturación (o de matriculación): el coche aún no cuenta en ningún mes" };
   }
   const otros = restoExpedientes.filter((x) => x.id !== expedienteEditado.id);
   const resultado = calcularMes(plan, vendedor, mes, [...otros, expedienteEditado]);

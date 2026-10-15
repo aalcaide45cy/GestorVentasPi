@@ -558,7 +558,7 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
     await ins(tiendas, datos.tiendas.map((t) => ({ idTienda: num(t.id_tienda), nombre: str(t.nombre) ?? "Tienda", ciudad: str(t.ciudad) })));
     await ins(marcas, datos.marcas.map((m) => ({ idMarca: num(m.id_marca), nombre: str(m.nombre) ?? "Marca", activo: bool(m.activo, true), accesoRapido: bool(m.acceso_rapido), sistemaComisiones: bool(m.sistema_comisiones) })));
     await ins(modelos, datos.modelos.map((m) => ({ idModelo: num(m.id_modelo), marcaId: numNull(m.marca_id), nombreModelo: str(m.nombre_modelo) ?? "Modelo", accesoRapido: bool(m.acceso_rapido), ordenAccesoRapido: num(m.orden_acceso_rapido) })));
-    await ins(tipoDeVenta, datos.tiposVenta.map((t) => ({ idTipoDeVenta: num(t.id_tipo_de_venta), nombreTipoVenta: str(t.nombre_tipo_venta) ?? "Tipo", color: str(t.color) ?? "#3b82f6", orden: num(t.orden), categoria: String(t.categoria) })));
+    await ins(tipoDeVenta, datos.tiposVenta.map((t) => ({ idTipoDeVenta: num(t.id_tipo_de_venta), nombreTipoVenta: str(t.nombre_tipo_venta) ?? "Tipo", color: str(t.color) ?? "#3b82f6", orden: num(t.orden), categoria: String(t.categoria), requiereRciAlMatricular: ["CREDITO", "PREFERENCE", "RENTING"].includes(String(t.categoria)) })));
     await ins(estadoVehiculo, datos.estados.map((e) => ({ idEstadoVehiculo: num(e.id_estado_vehiculo), nombreEstadoVehiculo: str(e.nombre_estado_vehiculo) ?? "Estado", predeterminado: bool(e.predeterminado), clase: String(e.clase), subtipoVo: (e.subtipo_vo as string | null) ?? null })));
     }
     if (sel.has("clientes")) {

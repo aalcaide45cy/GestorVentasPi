@@ -225,7 +225,7 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     let nota: string | null = "No hay ningún expediente con esta matrícula.";
     if (propio) {
       estado = "otro_mes";
-      nota = `El expediente existe (matriculado ${propio.fechaMat ?? "sin fecha"}) pero no genera comisión en ${mes}. Revisa la fecha de matriculación o la casilla «contabiliza en otro mes».`;
+      nota = `El expediente existe (matriculado ${propio.fechaMat ?? "sin fecha"}) pero no genera comisión en ${mes}. Revisa la fecha de facturación (en un VN es la que cuenta) o la casilla «contabiliza en otro mes».`;
     } else if (ajeno) nota = "La matrícula pertenece a un expediente de otro vendedor.";
     filas.push(
       construir({

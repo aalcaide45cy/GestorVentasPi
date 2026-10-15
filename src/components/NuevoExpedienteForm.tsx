@@ -13,6 +13,10 @@ import { mensajeDeError } from "./expedientes/comun";
 interface Opcion {
   id: number;
   nombre: string;
+  /** Tipos de pago: exige fecha RCI para matricular. */
+  requiereRci?: boolean;
+  /** Estados del vehículo: VN o VO. */
+  clase?: string;
 }
 
 interface Tienda extends Opcion {
@@ -202,6 +206,11 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
 
   /* ---- Guardado ---- */
   const guardar = async (cliente: ClienteDto | null, crearNuevo = false) => {
+    const faltaRci = rciObligatoria();
+    if (faltaRci) {
+      setError(faltaRci);
+      return;
+    }
     setCargando(true);
     setError(null);
     try {
@@ -309,6 +318,16 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
       {control}
     </div>
   );
+  /** En un VN la facturación acompaña a la matriculación mientras esté vacía o igual a ella (si se cambia a mano, se respeta). */
+  const cambiarMatriculacion = (v: string) => {
+    const esVn = estadosVehiculo.find((x) => x.id === Number(estado))?.clase === "VN";
+    if (esVn && (fFact === "" || fFact === fMat)) setFFact(v);
+    setFMat(v);
+  };
+  const rciObligatoria = (): string | null => {
+    const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
+    return fMat && !fRci && t?.requiereRci ? `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder matricular. Indica primero la Fecha RCI.` : null;
+  };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
   const titulo = (color: string, icono: React.ReactNode, texto: string) => (
     <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
@@ -538,8 +557,8 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               {campo("Fecha Expediente", fecha(fExp, setFExp))}
               {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
               {campo("Fecha RCI (Financiación)", fecha(fRci, setFRci))}
-              {campo("Fecha Matriculación", fecha(fMat, setFMat))}
-              {campo("Fecha Facturación (VO)", fecha(fFact, setFFact))}
+              {campo("Fecha Matriculación", fecha(fMat, cambiarMatriculacion))}
+              {campo("Fecha Facturación (en un VN es la de matriculación; si la cambias, manda ella para comisionar)", fecha(fFact, setFFact))}
               {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
             </div>
           </div>
