@@ -107,6 +107,7 @@ jobs:
           # la aplicación responde también por la IP de la red (escucha en 0.0.0.0)
           IP="$(hostname -I | awk '{print $1}')"
           curl -fsS "http://$IP:3000/api/salud"
+          sudo ls -la /opt/gestorventas; sudo stat -c "%a" /opt/gestorventas/CREDENCIAL-ADMIN.txt; cat /tmp/sd/gestorventas.conf | sed "s/^/CONF> /"; sudo cat /opt/gestorventas/ACCESO-GESTORVENTAS.txt
           # contraseña temporal guardada con permisos restringidos y acceso resumido
           test "$(sudo stat -c %a /opt/gestorventas/CREDENCIAL-ADMIN.txt)" = "600"
           sudo grep -q "Contraseña temporal" /opt/gestorventas/CREDENCIAL-ADMIN.txt
