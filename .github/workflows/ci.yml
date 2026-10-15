@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "fase/**"]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: gestor
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: gestorventas
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gestor -d gestorventas"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://gestor:ci-password@127.0.0.1:5432/gestorventas
+      APP_SECRET: secreto-solo-para-ci-0123456789abcdef0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Cliente de PostgreSQL 16 (pg_dump / pg_restore para las pruebas de copias)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  imagen:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Compilar la imagen para amd64 y comprobar que arranca
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: gestorventaspi:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Arranque de humo (amd64) con /api/salud
+        run: |
+          docker network create gv-ci
+          docker run -d --name db --network gv-ci -e POSTGRES_USER=gestor -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=gestorventas postgres:16-bookworm
+          for i in $(seq 1 30); do docker exec db pg_isready -U gestor -d gestorventas && break; sleep 2; done
+          docker run -d --name app --network gv-ci -p 3000:3000 \
+            -e DATABASE_URL=postgres://gestor:ci@db:5432/gestorventas \
+            -e APP_SECRET=secreto-solo-para-ci-0123456789abcdef0123456789abcdef \
+            -e COOKIE_SECURE=false gestorventaspi:ci
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:3000/api/salud && exit 0; sleep 3; done
+          docker logs app
+          exit 1
+      - name: Compilar para arm64 bajo QEMU (comprobación de humo, sin publicar)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  instalador:
+    runs-on: ubuntu-24.04
+    needs: imagen
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generar el instalador
+        run: ./scripts/empaquetar.sh 0.0.0-ci
+      - name: Instalar en un Debian limpio (sin acceso exterior) y comprobar la salud
+        run: |
+          docker build -t gestorventaspi:local .
+          sudo mkdir -p /opt/gestorventas
+          sudo env GV_SI=1 GV_ACCESO=ninguno GV_APP_IMAGE=gestorventaspi GV_APP_VERSION=local GV_COOKIE_SECURE=false \
+            GV_ADMIN_NOMBRE="Admin CI" GV_ADMIN_EMAIL=ci@prueba.test GV_ADMIN_PASSWORD='ClaveDeCI-2026-larga!' \
+            ./dist-instalador/gestorventas-0.0.0-ci-instalador.run
+          curl -fsS http://127.0.0.1:3000/api/salud

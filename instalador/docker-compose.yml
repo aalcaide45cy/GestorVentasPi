@@ -1,0 +1,76 @@
+# GestorVentasPi — compose de PRODUCCIÓN (lo instala el instalador en /opt/gestorventas).
+# Dos contenedores: base de datos y aplicación. La base de datos NO publica puertos.
+name: gestorventas
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ:-Europe/Madrid}
+    command: >
+      postgres -c shared_buffers=${PG_SHARED_BUFFERS:-384MB}
+               -c effective_cache_size=${PG_CACHE:-2GB}
+               -c work_mem=16MB -c maintenance_work_mem=128MB
+               -c max_connections=40 -c checkpoint_timeout=15min -c max_wal_size=1GB
+               -c log_min_duration_statement=500
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: ${DB_MEM_LIMIT:-1500m}
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [interna]
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/aalcaide45cy/gestorventaspi}:${APP_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=768
+      BACKUP_DIR: /backups
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    volumes:
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    mem_limit: ${APP_MEM_LIMIT:-1024m}
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    networks: [interna]
+
+  # Solo con TUNNEL_MODE=cloudflare:  docker compose --profile cloudflare up -d
+  # [No verificado] Comprobar el comando y la imagen contra la documentación oficial de Cloudflare.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["cloudflare"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
+    networks: [interna]
+
+networks:
+  interna: {}

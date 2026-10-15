@@ -9,13 +9,18 @@ import { sembrar } from "./semilla";
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Falta DATABASE_URL");
-  const pool = new Pool({ connectionString: url, max: 1 });
+  const pool = new Pool({ connectionString: url, max: 2 });
+  // Cerrojo de Postgres: si arrancan dos contenedores a la vez, solo uno migra y el otro espera.
+  const cerrojo = await pool.connect();
   try {
+    await cerrojo.query("select pg_advisory_lock(727274)");
     const db = drizzle(pool);
     await migrate(db, { migrationsFolder: path.join(process.cwd(), "src", "db", "migrations") });
     await sembrar(db);
     console.log("Migraciones y semilla aplicadas.");
   } finally {
+    await cerrojo.query("select pg_advisory_unlock(727274)").catch(() => undefined);
+    cerrojo.release();
     await pool.end();
   }
 }

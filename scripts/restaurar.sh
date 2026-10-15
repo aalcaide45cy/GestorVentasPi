@@ -41,7 +41,7 @@ docker compose exec -T db pg_restore --clean --if-exists --no-owner --no-privile
 
 echo "4/4 Aplicando migraciones pendientes y cerrando sesiones..."
 docker compose up -d app
-docker compose exec -T app npm run --silent db:migrate
+docker compose exec -T app node dist/src/db/migrar.cjs
 docker compose exec -T db psql -U "$BD_USUARIO" -d "$BD_NOMBRE" -c "TRUNCATE TABLE sesiones, login_intentos;"
 
 echo "Hecho. Copia previa guardada en: $PREVIA"
