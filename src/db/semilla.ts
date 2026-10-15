@@ -22,7 +22,7 @@ const TIPOS_VENTA_INICIALES = [
  * elementos que el administrador haya renombrado o borrado a propósito.
  * No crea usuarios (el primer administrador se crea con `npm run crear-admin`).
  */
-export async function sembrar(db: NodePgDatabase): Promise<void> {
+export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatabase<S>): Promise<void> {
   await db.transaction(async (tx) => {
     const [{ n: nEstados }] = await tx.select({ n: count() }).from(estadoVehiculo);
     if (nEstados === 0) {
