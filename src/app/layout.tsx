@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import GlobalModalKeyboardHandler from "@/components/GlobalModalKeyboardHandler";
 
@@ -14,10 +15,8 @@ const SCRIPT_TEMA =
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
-      </head>
       <body>
+        <Script id="script-tema" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
         <GlobalModalKeyboardHandler />
         {children}
       </body>
