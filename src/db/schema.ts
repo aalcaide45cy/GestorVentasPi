@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
   date,
@@ -84,6 +85,8 @@ export const usuarios = pgTable(
     debeCambiarPassword: boolean("debe_cambiar_password").notNull().default(true),
     totpSecretoCifrado: text("totp_secreto_cifrado"),
     totpActivo: boolean("totp_activo").notNull().default(false),
+    /** Último contador TOTP aceptado: impide reutilizar el mismo código (5.4). */
+    totpUltimoContador: bigint("totp_ultimo_contador", { mode: "number" }),
     intentosFallidos: integer("intentos_fallidos").notNull().default(0),
     bloqueadoHasta: timestamp("bloqueado_hasta", { withTimezone: true }),
     ultimoAcceso: timestamp("ultimo_acceso", { withTimezone: true }),
@@ -292,6 +295,20 @@ export const sesiones = pgTable(
     index("sesiones_usuario_idx").on(t.idUsuario),
     index("sesiones_caduca_idx").on(t.caducaEn),
   ],
+);
+
+/** Códigos de recuperación del segundo factor: de un solo uso y guardados solo como hash. */
+export const codigosRecuperacion = pgTable(
+  "codigos_recuperacion",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    codigoHash: text("codigo_hash").notNull(),
+    usadoEn: timestamp("usado_en", { withTimezone: true }),
+  },
+  (t) => [index("codigos_recuperacion_usuario_idx").on(t.idUsuario)],
 );
 
 export const loginIntentos = pgTable(

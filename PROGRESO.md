@@ -32,6 +32,19 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 
 **Notas de diseño**: la lista de expedientes filtra por defecto por el vendedor actual (como la original); el diseño de referencia está en `referencia/gestorVentas-original/src/components/ExpedientesList.tsx`; no usar heredocs en Bash para escribir archivos con comillas (usar la herramienta Write).
 
+## F2 — Autenticación completa (EN CURSO, rama `fase/F2-autenticacion`)
+
+**Hecho (con tests)**: TOTP RFC 6238 (`src/lib/auth/totp.ts`), cifrado AES-256-GCM con `APP_SECRET` (`cifrado.ts`), códigos de recuperación (`recuperacion.ts`), servicio `src/lib/servicios/autenticacion.ts` (login con límite de intentos y bloqueo progresivo, activar/verificar 2FA, cambiar contraseña, resetear 2FA, limpieza), sesiones parciales y rotación (`sesion.ts`), rutas `/api/auth/{login,verificar-2fa,2fa/preparar,2fa/activar,cambiar-password}` y `/api/admin/usuarios/seguridad`. Migración `0001` (columna `totp_ultimo_contador`, tabla `codigos_recuperacion`).
+
+**Falta (en este orden)**
+1. Páginas: `/login` con paso 2FA y código de recuperación, `/cuenta/activar-2fa` (QR + códigos), `/cuenta/cambiar-password`; el layout de `/dashboard` debe redirigir a ellas (2FA primero, luego cambio de contraseña) y mantener la pantalla «Cuenta Suspendida».
+2. Botones «Restablecer 2FA» y «Cerrar sesiones» en `AdminUsuariosList`.
+3. Cabeceras de seguridad (HSTS, nosniff, X-Frame-Options, Referrer-Policy, CSP) en `next.config.ts`; `/cuenta` en el proxy.
+4. Scripts `scripts/reset-2fa.ts` + envoltorios `crear-admin.sh` / `reset-2fa.sh`; `npm run reset-2fa`.
+5. Tests de rutas/sesión parcial, lint, build, prueba en navegador, DECISIONES.md, commit, fusionar a main y seguir con F3 (motor de comisiones, leer `docs/informe/12-motor-comisiones.md` y anexo A).
+
+**Pendiente del propietario**: crear su administrador real con `npm run crear-admin -- "Nombre" correo` y luego borrar `admin@admin.com` (contraseña 1234, solo desarrollo; con F2 pedirá activar el 2FA).
+
 ## F1 — Base sin Clerk y sin comisiones
 
 **Hecho**
