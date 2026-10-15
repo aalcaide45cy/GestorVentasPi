@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 import type { ClienteDto } from "@/lib/dto";
 import { hoyIsoCliente } from "@/lib/date-utils";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
-import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import { BotonLeerDni, BotonLeerPedido, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import { mensajeDeError } from "./expedientes/comun";
 
 interface Opcion {
@@ -74,6 +74,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
   const [vin, setVin] = useState("");
   // Documentos leídos (DNI, pedido) y aún sin vincular: se vinculan al guardar el expediente
   const [pendientes, setPendientes] = useState<number[]>([]);
+  const [nombresPend, setNombresPend] = useState<Record<number, string>>({});
   const [avisoLectura, setAvisoLectura] = useState<string | null>(null);
 
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
@@ -368,13 +369,30 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
                   if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
                   if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
                   setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
+                  setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(r.adjuntos.map((a) => [a.id, a.nombre])) }));
                   setAvisoLectura(r.datos.avisos[0] ?? null);
                   mostrar("DNI leído: revisa los datos antes de guardar.");
                 }}
               />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {pendientes.length > 0 ? `${pendientes.length} documento(s) adjuntos se guardarán con el expediente.` : "Sube la foto o el PDF del DNI: se rellenan los datos y se guarda la foto del cliente."}
-              </span>
+              <ZonaDocumentosVarios
+                disabled={cargando}
+                alSubir={(docs) => {
+                  setPendientes((prev) => [...prev, ...docs.map((d) => d.id)]);
+                  setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(docs.map((d) => [d.id, d.nombre])) }));
+                }}
+              />
+              <div style={{ flexBasis: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <ListaPendientes
+                  docs={pendientes.map((id) => ({ id, nombre: nombresPend[id] ?? `Documento ${id}` }))}
+                  alQuitar={(id) => {
+                    void fetch(`/api/adjuntos?id=${id}`, { method: "DELETE", credentials: "same-origin" });
+                    setPendientes((prev) => prev.filter((x) => x !== id));
+                  }}
+                />
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                {pendientes.length > 0 ? `${pendientes.length} documento(s) adjuntos se guardarán con el expediente.` : "Arrastra el DNI (rellena los datos y guarda la foto del cliente), el pedido o documentos varios."}
+                </span>
+              </div>
             </div>
             {avisoLectura && <div style={{ color: "var(--warning)", fontSize: "0.85rem", marginBottom: "16px" }}>⚠️ {avisoLectura}</div>}
 
@@ -490,6 +508,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
                   if (d.telefono && rellenos(telefonos).length === 0) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
                   if (d.email && rellenos(emails).length === 0) setEmails([{ valor: d.email, tipo: "Principal" }]);
                   setPendientes((prev) => [...prev, r.adjunto.id]);
+                  setNombresPend((prev) => ({ ...prev, [r.adjunto.id]: r.adjunto.nombre }));
                   setAvisoLectura(d.avisos[0] ?? null);
                   mostrar("Pedido leído: revisa los datos antes de guardar.");
                 }}

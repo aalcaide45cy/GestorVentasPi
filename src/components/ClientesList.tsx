@@ -9,7 +9,9 @@ import { construirCsvClientes, interpretarCsvClientes } from "@/lib/csv-clientes
 import { descargarTexto } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
 import type { ClienteDto, ExpedienteDto, TiendaDto } from "@/lib/dto";
-import { BotonLeerDni, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import { BotonLeerDni, BotonLeerPedido, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
+import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import NombreConFoto from "./documentos/FotoCliente";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import { BadgeEstado, BadgeTipoVenta, mensajeDeError } from "./expedientes/comun";
@@ -80,6 +82,8 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [duplicado, setDuplicado] = useState<ClienteDto | null>(null);
   // Documentos leídos con el lector de DNI y aún sin vincular al cliente (se vinculan al guardar)
   const [pendientes, setPendientes] = useState<number[]>([]);
+  /** Nombres de los documentos pendientes (para mostrarlos mientras el cliente aún no está guardado). */
+  const [nombresPend, setNombresPend] = useState<Record<number, string>>({});
   const [fotoPendiente, setFotoPendiente] = useState<number | null>(null);
   /** Se incrementa para que la lista de documentos del modal se vuelva a pedir al servidor. */
   const [refrescoAdjuntos, setRefrescoAdjuntos] = useState(0);
@@ -165,6 +169,53 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     } finally {
       setCargando(false);
     }
+  };
+
+  /** Guarda al momento los documentos si el cliente ya existe; si es un alta, quedan pendientes hasta guardar. */
+  const registrarDocumentos = (docs: { id: number; nombre: string }[], fotoId: number | null = null) => {
+    const ids = docs.map((d) => d.id);
+    if (formulario === "editar" && seleccionado) {
+      const idCliente = seleccionado.id;
+      void vincularAdjuntos(ids, { idCliente })
+        .then(() => {
+          setRefrescoAdjuntos((n) => n + 1);
+          if (fotoId) setClientes((prev) => prev.map((x) => (x.id === idCliente ? { ...x, foto_id: fotoId } : x)));
+        })
+        .catch((e: unknown) => mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos.", "error"));
+      return;
+    }
+    setPendientes((prev) => [...prev, ...ids]);
+    setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(docs.map((d) => [d.id, d.nombre])) }));
+    if (fotoId) setFotoPendiente(fotoId);
+  };
+
+  const anadirPendientes = (docs: AdjuntoDto[]) => registrarDocumentos(docs.map((d) => ({ id: d.id, nombre: d.nombre })));
+
+  const quitarPendiente = async (id: number) => {
+    try {
+      await fetch(`/api/adjuntos?id=${id}`, { method: "DELETE", credentials: "same-origin" });
+    } catch {
+      /* si falla, el borrado de pendientes antiguos lo hace el servidor */
+    }
+    setPendientes((prev) => prev.filter((x) => x !== id));
+  };
+
+  const alLeerDni = (r: ResultadoDni) => {
+    if (r.datos.dni) setDni(r.datos.dni);
+    if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
+    if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
+    registrarDocumentos(r.adjuntos.map((a) => ({ id: a.id, nombre: a.nombre })), r.fotoId);
+    mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos antes de guardar.");
+  };
+
+  const alLeerPedido = (r: ResultadoPedido) => {
+    const d = r.datos;
+    if (d.dni && !dni.trim()) setDni(d.dni);
+    if (d.cliente && !nombre.trim()) setNombre(d.cliente);
+    if (d.telefono && telefonos.every((t) => !t.valor.trim())) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
+    if (d.email && emails.every((e) => !e.valor.trim())) setEmails([{ valor: d.email, tipo: "Principal" }]);
+    registrarDocumentos([{ id: r.adjunto.id, nombre: r.adjunto.nombre }]);
+    mostrar(d.avisos.length ? `Pedido leído. ${d.avisos[0]}` : "Pedido leído: revisa los datos antes de guardar.");
   };
 
   const enviarFormulario = async (ev: FormEvent) => {
@@ -647,32 +698,19 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       {formulario && (
         <Modal titulo={formulario === "editar" ? "Editar Cliente" : "Registrar Nuevo Cliente"} ancho="600px" tamanoTitulo="1.25rem">
           <form onSubmit={enviarFormulario} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-              <BotonLeerDni
-                disabled={cargando}
-                alLeer={(r) => {
-                  if (r.datos.dni) setDni(r.datos.dni);
-                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
-                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
-                  const ids = r.adjuntos.map((a) => a.id);
-                  if (formulario === "editar" && seleccionado) {
-                    // Cliente ya guardado: los documentos se guardan con él al momento y la lista del modal se actualiza
-                    const idCliente = seleccionado.id;
-                    void vincularAdjuntos(ids, { idCliente })
-                      .then(() => {
-                        setRefrescoAdjuntos((n) => n + 1);
-                        if (r.fotoId) setClientes((prev) => prev.map((c) => (c.id === idCliente ? { ...c, foto_id: r.fotoId } : c)));
-                      })
-                      .catch((e: unknown) => mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos.", "error"));
-                  } else {
-                    setPendientes((prev) => [...prev, ...ids]);
-                    if (r.fotoId) setFotoPendiente(r.fotoId);
-                  }
-                  mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos antes de guardar.");
-                }}
-              />
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <BotonLeerDni disabled={cargando} alLeer={alLeerDni} />
+                <BotonLeerPedido disabled={cargando} alLeer={alLeerPedido} />
+                {formulario !== "editar" && <ZonaDocumentosVarios disabled={cargando} alSubir={anadirPendientes} />}
+              </div>
+              <ListaPendientes docs={pendientes.map((id) => ({ id, nombre: nombresPend[id] ?? `Documento ${id}` }))} alQuitar={(id) => void quitarPendiente(id)} />
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {pendientes.length > 0 && formulario !== "editar" ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.` : "Sube la foto o el PDF del DNI y se rellenan los datos (se lee en este equipo)."}
+                {formulario === "editar"
+                  ? "Los documentos que subas aquí se guardan al momento con este cliente."
+                  : pendientes.length > 0
+                    ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.`
+                    : "Arrastra el DNI (rellena los datos y guarda la foto), el pedido (rellena los datos) o documentos varios. Se lee en este equipo."}
               </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>

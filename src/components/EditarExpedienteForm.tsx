@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
-import { BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import { mensajeDeError } from "./expedientes/comun";
 import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
@@ -537,6 +537,25 @@ export default function EditarExpedienteForm({
                 )}
               </div>
             )}
+
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+              <BotonLeerDni
+                disabled={cargando}
+                alLeer={async (r) => {
+                  if (r.datos.dni) setDni(r.datos.dni);
+                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
+                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
+                  try {
+                    await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+                    setVersionAdjuntos((v) => v + 1);
+                  } catch (e) {
+                    mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
+                  }
+                  mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos y pulsa «Guardar Cambios».");
+                }}
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI y se rellenan los datos del cliente (no se guardan hasta que pulses «Guardar Cambios»); los documentos varios se suben en el cuadro «Documentos del expediente».</span>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
               {campo("DNI / NIE", <input type="text" className="form-input" value={dni} onChange={(e) => setDni(e.target.value)} placeholder="Ej. 12345678Z" />)}
