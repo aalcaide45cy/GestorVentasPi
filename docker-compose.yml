@@ -1,0 +1,21 @@
+# Compose de DESARROLLO: solo Postgres. La app se ejecuta con `npm run dev`.
+# (El compose de producción con el servicio "app" se añade en la fase F6.)
+services:
+  db:
+    image: postgres:16-bookworm
+    container_name: gestorventas-db
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Madrid
+      POSTGRES_USER: ${POSTGRES_USER:-gestor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-gestorventas}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
