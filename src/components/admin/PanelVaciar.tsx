@@ -6,7 +6,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 
 /** «Borrar todo»: deja la base de datos sin datos, como recién instalada (conserva las cuentas de acceso). */
-export default function PanelVaciar() {
+export default function PanelVaciar({ alTerminar }: { alTerminar?: () => void }) {
   const router = useRouter();
   const { mostrar } = useToast();
   const [confirmacion, setConfirmacion] = useState("");
@@ -21,6 +21,7 @@ export default function PanelVaciar() {
     try {
       const { data } = await llamar<{ copiaPrevia: string | null }>("/api/admin/vaciar", { method: "POST", cuerpo: { confirmacion, eliminarOtrosUsuarios: otrosUsuarios, catalogosPorDefecto: porDefecto } });
       setCopiaPrevia(data.copiaPrevia);
+      alTerminar?.();
       setConfirmacion("");
       mostrar("Base de datos vaciada.");
       router.refresh();

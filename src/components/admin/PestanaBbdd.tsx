@@ -25,6 +25,8 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
   const [limpiando, setLimpiando] = useState(false);
   const [analisis, setAnalisis] = useState<AnalisisBbdd | null>(null);
   const [mostrarCsv, setMostrarCsv] = useState(mostrarBotonesCsvInicial);
+  /** Se incrementa para que la lista de copias de seguridad se vuelva a leer (p. ej. tras crear la copia previa de un borrado). */
+  const [versionCopias, setVersionCopias] = useState(0);
 
   const analizar = async () => {
     setAnalizando(true);
@@ -142,7 +144,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
-      <PanelCopias />
+      <PanelCopias key={versionCopias} />
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
@@ -150,7 +152,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
-      <PanelVaciar />
+      <PanelVaciar alTerminar={() => setVersionCopias((n) => n + 1)} />
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
