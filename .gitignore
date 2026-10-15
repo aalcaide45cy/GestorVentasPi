@@ -1,0 +1,22 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+data/
+backups/
+*.dump
+*.log
+.DS_Store
+*.tsbuildinfo
+
+# Material del propietario que no se sube
+Notas.txt
+*.zip
+INFORME-GESTOR-VENTAS-PI.md
+next-env.d.ts
+
+.claude/settings.local.json

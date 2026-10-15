@@ -1,0 +1,325 @@
+## Anexo C — `globals.css` ORIGINAL (íntegro; referencia exacta de valores)
+
+> Es la **especificación de diseño**: el `globals.css` nuevo debe producir **el mismo resultado visual** (mismos valores de variables, clases, animaciones y comportamiento en tema claro/oscuro). Cambio permitido: sustituir la línea `@import` de Google Fonts por declaraciones `@font-face` con los `.woff2` locales de *Outfit* y *Plus Jakarta Sans* (`public/fonts`), manteniendo `--font-title` y `--font-body`.
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Paleta de Colores HSL Premium */
+  --primary-hue: 255;
+  --secondary-hue: 195;
+  --accent-hue: 335;
+  
+  --primary: hsl(var(--primary-hue), 85%, 62%);
+  --primary-hover: hsl(var(--primary-hue), 85%, 52%);
+  --secondary: hsl(var(--secondary-hue), 90%, 55%);
+  --accent: hsl(var(--accent-hue), 85%, 60%);
+  
+  /* Colores de Fondo y Superficie (Oscuro por defecto) */
+  --bg-app: hsl(230, 25%, 8%);
+  --bg-surface: hsl(230, 25%, 12%);
+  --bg-card: hsl(230, 25%, 12%);
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+  --bg-surface-glass: rgba(13, 16, 27, 0.65);
+  --bg-surface-hover: hsl(230, 25%, 16%);
+  --bg-surface-tint: rgba(255, 255, 255, 0.02);
+  --bg-input: rgba(255, 255, 255, 0.04);
+  --bg-input-focus: rgba(255, 255, 255, 0.08);
+  --bg-btn-secondary: rgba(255, 255, 255, 0.06);
+  --bg-btn-secondary-hover: rgba(255, 255, 255, 0.12);
+  
+  /* Colores de Estado */
+  --success: hsl(145, 80%, 45%);
+  --warning: hsl(40, 95%, 55%);
+  --danger: hsl(0, 85%, 60%);
+  --info: hsl(200, 85%, 55%);
+  
+  /* Colores de Texto */
+  --text-primary: hsl(220, 20%, 98%);
+  --text-secondary: hsl(220, 12%, 75%);
+  --text-muted: hsl(220, 10%, 55%);
+  
+  /* Bordes y Sombras */
+  --border-light: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(124, 58, 237, 0.5);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.35);
+  
+  /* Fuentes */
+  --font-title: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  
+  /* Bordes Redondeados */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 30px;
+  
+  /* Transiciones */
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-theme='light'] {
+  --bg-app: hsl(220, 30%, 96%);
+  --bg-surface: hsl(0, 0%, 100%);
+  --bg-card: hsl(0, 0%, 100%);
+  --bg-overlay: rgba(15, 23, 42, 0.35);
+  --bg-surface-glass: rgba(255, 255, 255, 0.85);
+  --bg-surface-hover: hsl(220, 20%, 93%);
+  --bg-surface-tint: rgba(0, 0, 0, 0.02);
+  --bg-input: rgba(0, 0, 0, 0.03);
+  --bg-input-focus: rgba(0, 0, 0, 0.06);
+  --bg-btn-secondary: rgba(0, 0, 0, 0.04);
+  --bg-btn-secondary-hover: rgba(0, 0, 0, 0.08);
+  
+  --text-primary: hsl(224, 71.4%, 4%);
+  --text-secondary: hsl(220, 10%, 35%);
+  --text-muted: hsl(220, 10%, 55%);
+  
+  --border-light: rgba(0, 0, 0, 0.08);
+  --border-focus: rgba(124, 58, 237, 0.3);
+  
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 15px rgba(124, 58, 237, 0.15);
+}
+
+/* Reset y Estilos Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title);
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: var(--transition);
+}
+a:hover {
+  color: var(--secondary);
+}
+
+/* Scrollbar Personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--bg-app);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Efectos de Fondo */
+.glow-bg {
+  position: fixed;
+  top: -10%;
+  left: -10%;
+  width: 120vw;
+  height: 120vh;
+  background: 
+    radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.12) 0%, transparent 45%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Componentes de Cristal (Glassmorphism) */
+.glass-panel {
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.glass-panel-interactive {
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+  cursor: pointer;
+}
+.glass-panel-interactive:hover {
+  transform: translateY(-4px);
+  border-color: rgba(124, 58, 237, 0.25);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+/* Elementos del Formulario */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-family: var(--font-title);
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  outline: none;
+  transition: var(--transition);
+}
+.form-input:focus, .form-select:focus {
+  border-color: var(--primary);
+  background: var(--bg-input-focus);
+  box-shadow: 0 0 0 3px var(--border-focus);
+}
+
+/* Forzar legibilidad de las opciones en los selectores en cualquier navegador */
+select, select option {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Botones con Micro-animación */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: var(--transition);
+  text-decoration: none;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), hsl(var(--primary-hue), 85%, 50%));
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5), var(--shadow-glow);
+  background: linear-gradient(135deg, var(--primary-hover), var(--primary));
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: var(--bg-btn-secondary);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+.btn-secondary:hover {
+  background: var(--bg-btn-secondary-hover);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Badges / Etiquetas de Roles y Estados */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  gap: 4px;
+}
+.badge-admin { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.2); }
+.badge-director { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.2); }
+.badge-zona { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+.badge-tienda { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.2); }
+.badge-vendedor { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.2); }
+.badge-invitado { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.2); }
+
+/* Tablas Premium */
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.table-premium {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.table-premium th {
+  background: var(--bg-surface-tint);
+  padding: 16px;
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-light);
+}
+.table-premium td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  transition: var(--transition);
+}
+.table-premium tr:hover td {
+  background: var(--bg-surface-tint);
+  color: var(--text-primary);
+}
+.table-premium tr:last-child td {
+  border-bottom: none;
+}
+
+.table-compact th,
+.table-compact td {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+```
+
+---
