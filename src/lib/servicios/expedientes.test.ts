@@ -194,9 +194,9 @@ describe("panel", () => {
     expect(r.total).toBe(2);
     expect(r.mesActual).toBe(1);
     expect(r.clientes).toBe(1);
-    expect(r.porTipoVenta).toHaveLength(4);
+    expect(r.porTipoVenta).toHaveLength(3);
     expect(r.porTipoVenta.find((t) => t.nombre === "Contado")?.cantidad).toBe(1);
-    expect(r.porTipoVenta.find((t) => t.nombre === "Renting")?.cantidad).toBe(0);
+    expect(r.porTipoVenta.find((t) => t.nombre === "Preference")?.cantidad).toBe(0);
   });
 });
 

@@ -19,10 +19,10 @@ async function codigoDeError(p: Promise<unknown>): Promise<number> {
 }
 
 describe("tipos de venta (pagos)", () => {
-  it("la semilla trae Contado, Crédito, Preference y Renting con su categoría", async () => {
+  it("la semilla trae Contado, Crédito y Preference con su categoría (sin Renting)", async () => {
     const { tiposVenta } = await leerCatalogos(db);
     const porNombre = Object.fromEntries(tiposVenta.map((t) => [t.nombre_tipo_venta, t.categoria]));
-    expect(porNombre).toMatchObject({ Contado: "CONTADO", Crédito: "CREDITO", Preference: "PREFERENCE", Renting: "RENTING" });
+    expect(porNombre).toEqual({ Contado: "CONTADO", Crédito: "CREDITO", Preference: "PREFERENCE" });
   });
 
   it("deduce la categoría del nombre al crear y al renombrar", async () => {
@@ -51,12 +51,12 @@ describe("tipos de venta (pagos)", () => {
     const admin = await crearUsuarioPrueba("administrador");
     const { tiposVenta } = await leerCatalogos(db);
     const contado = tiposVenta.find((t) => t.nombre_tipo_venta === "Contado")!;
-    const renting = tiposVenta.find((t) => t.nombre_tipo_venta === "Renting")!;
+    const renting = tiposVenta.find((t) => t.nombre_tipo_venta === "Preference")!;
     await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: contado.id_tipo_de_venta } }));
 
     expect(await codigoDeError(eliminarCatalogo(db, { tipo: "tipo_venta", id: contado.id_tipo_de_venta }))).toBe(409);
     await eliminarCatalogo(db, { tipo: "tipo_venta", id: renting.id_tipo_de_venta });
-    expect((await leerCatalogos(db)).tiposVenta.some((t) => t.nombre_tipo_venta === "Renting")).toBe(false);
+    expect((await leerCatalogos(db)).tiposVenta.some((t) => t.nombre_tipo_venta === "Preference")).toBe(false);
   });
 });
 

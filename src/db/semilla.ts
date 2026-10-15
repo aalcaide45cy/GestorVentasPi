@@ -14,7 +14,6 @@ const TIPOS_VENTA_INICIALES = [
   { nombre: "Contado", categoria: "CONTADO", color: "#22c55e", orden: 1 },
   { nombre: "Crédito", categoria: "CREDITO", color: "#3b82f6", orden: 2 },
   { nombre: "Preference", categoria: "PREFERENCE", color: "#a855f7", orden: 3 },
-  { nombre: "Renting", categoria: "RENTING", color: "#f59e0b", orden: 4 },
 ] as const;
 
 /**

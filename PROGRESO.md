@@ -32,6 +32,26 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 
 **Notas de diseño**: la lista de expedientes filtra por defecto por el vendedor actual (como la original); el diseño de referencia está en `referencia/gestorVentas-original/src/components/ExpedientesList.tsx`; no usar heredocs en Bash para escribir archivos con comillas (usar la herramienta Write).
 
+## F1 — Base sin Clerk y sin comisiones
+
+**Hecho**
+- Expedientes: lista (filtros, orden, paginación, selección masiva, columnas, importar/exportar CSV y Excel), alta y edición (sin bloques de comisiones, que llegan en F4), resumen mensual solo con recuentos.
+- Clientes, búsqueda general, perfil («Mis Datos»), log de importaciones con corrección rápida.
+- Configuración: usuarios (alta con contraseña temporal), marcas, modelos, tiendas, pagos, estados, ajustes y BBDD (limpieza de huérfanos).
+- Copia JSON (formato 2.0) de exportar/restaurar; limpieza de BBDD. Comisiones e Informes son marcadores hasta F4.
+- Renting retirado de la semilla (el propietario ya lo había quitado en Configuración).
+
+**Cómo probarlo**
+```
+docker compose up -d db
+npm run dev      # http://localhost:3000  (usuario de desarrollo admin@admin.com, se elimina en F2)
+npm test ; npm run typecheck ; npm run lint ; npm run build
+```
+
+**Resultado**: 67 tests, typecheck, lint y build en verde; pantallas revisadas en el navegador.
+
+**Pendiente del propietario**: nada.
+
 ## F0 — Preparación
 
 **Hecho**
