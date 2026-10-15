@@ -1,0 +1,147 @@
+import { randomUUID } from "node:crypto";
+import { and, asc, count, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { z } from "zod";
+import type { Ejecutor } from "@/db";
+import { clientes, emailsClientes, expedientes, telefonosClientes } from "@/db/schema";
+import type { ClienteDto } from "@/lib/dto";
+import { HttpError } from "@/lib/auth/sesion";
+import { escaparLike, fechaOpcional, idOpcional, textoOpcional } from "./comun";
+import { clienteDto } from "./mapeos";
+
+export const esquemaEmail = z.object({
+  email: z.string().trim().min(1).max(255),
+  tipo: z.string().trim().max(100).optional().nullable(),
+  tipo_email: z.string().trim().max(100).optional().nullable(),
+});
+
+export const esquemaTelefono = z.object({
+  telefono: z.string().trim().min(1).max(50),
+  tipo: z.string().trim().max(100).optional().nullable(),
+  tipo_telefono: z.string().trim().max(100).optional().nullable(),
+});
+
+export const esquemaCliente = z.object({
+  id: idOpcional.optional(),
+  dni: textoOpcional(50).optional(),
+  nombre: z.string().trim().min(1, "Nombre es un campo obligatorio").max(255),
+  fecha_de_nacimiento: fechaOpcional.optional(),
+  tienda_id: idOpcional.optional(),
+  emails: z.array(esquemaEmail).max(50).optional(),
+  telefonos: z.array(esquemaTelefono).max(50).optional(),
+});
+export type EntradaCliente = z.infer<typeof esquemaCliente>;
+
+const conContactos = { emails: true, telefonos: true } as const;
+
+async function insertarContactos(tx: Ejecutor, idCliente: number, c: EntradaCliente): Promise<void> {
+  const emails = (c.emails ?? []).filter((e) => e.email.length > 0);
+  if (emails.length > 0) {
+    await tx.insert(emailsClientes).values(
+      emails.map((e) => ({ idCliente, email: e.email, tipoEmail: e.tipo ?? e.tipo_email ?? "Principal" })),
+    );
+  }
+  const telefonos = (c.telefonos ?? []).filter((t) => t.telefono.length > 0);
+  if (telefonos.length > 0) {
+    await tx.insert(telefonosClientes).values(
+      telefonos.map((t) => ({
+        idCliente,
+        telefono: t.telefono,
+        tipoTelefono: t.tipo ?? t.tipo_telefono ?? "Principal",
+      })),
+    );
+  }
+}
+
+export async function buscarPorDni(ej: Ejecutor, dni: string, excluirId?: number) {
+  const [c] = await ej
+    .select()
+    .from(clientes)
+    .where(excluirId ? and(eq(clientes.dni, dni), ne(clientes.id, excluirId)) : eq(clientes.dni, dni))
+    .limit(1);
+  return c ?? null;
+}
+
+/** Crea un cliente con sus contactos. 409 si el DNI ya existe. */
+export async function crearCliente(
+  ej: Ejecutor,
+  entrada: EntradaCliente,
+  tiendaPorDefecto: number | null,
+): Promise<ClienteDto> {
+  return ej.transaction(async (tx) => {
+    if (entrada.dni && (await buscarPorDni(tx, entrada.dni))) {
+      throw new HttpError(409, "Ya existe un cliente registrado con este DNI/NIE.");
+    }
+    const [nuevo] = await tx
+      .insert(clientes)
+      .values({
+        clienteId: randomUUID(),
+        dni: entrada.dni ?? null,
+        nombre: entrada.nombre,
+        fechaDeNacimiento: entrada.fecha_de_nacimiento ?? null,
+        tiendaId: entrada.tienda_id ?? tiendaPorDefecto,
+      })
+      .returning();
+    await insertarContactos(tx, nuevo.id, entrada);
+    return clienteDto(nuevo);
+  });
+}
+
+/** Actualiza datos y sustituye por completo correos y teléfonos. 409 si el DNI es de otro cliente. */
+export async function actualizarCliente(ej: Ejecutor, id: number, entrada: EntradaCliente): Promise<void> {
+  await ej.transaction(async (tx) => {
+    const [existe] = await tx.select({ id: clientes.id }).from(clientes).where(eq(clientes.id, id));
+    if (!existe) throw new HttpError(404, "Cliente no encontrado");
+    if (entrada.dni && (await buscarPorDni(tx, entrada.dni, id))) {
+      throw new HttpError(409, "Ya existe otro cliente registrado con este DNI/NIE.");
+    }
+    await tx
+      .update(clientes)
+      .set({
+        dni: entrada.dni ?? null,
+        nombre: entrada.nombre,
+        fechaDeNacimiento: entrada.fecha_de_nacimiento ?? null,
+        tiendaId: entrada.tienda_id ?? null,
+      })
+      .where(eq(clientes.id, id));
+    await tx.delete(emailsClientes).where(eq(emailsClientes.idCliente, id));
+    await tx.delete(telefonosClientes).where(eq(telefonosClientes.idCliente, id));
+    await insertarContactos(tx, id, entrada);
+  });
+}
+
+/** Borra clientes; sus expedientes quedan sin cliente (como en el original). */
+export async function eliminarClientes(ej: Ejecutor, ids: number[]): Promise<number> {
+  return ej.transaction(async (tx) => {
+    await tx.update(expedientes).set({ idCliente: null }).where(inArray(expedientes.idCliente, ids));
+    const borrados = await tx.delete(clientes).where(inArray(clientes.id, ids)).returning({ id: clientes.id });
+    return borrados.length;
+  });
+}
+
+export async function listarClientes(ej: Ejecutor): Promise<(ClienteDto & { num_expedientes: number })[]> {
+  const filas = await ej.query.clientes.findMany({ with: conContactos, orderBy: [asc(clientes.nombre)] });
+  const cuentas = await ej
+    .select({ id: expedientes.idCliente, n: count() })
+    .from(expedientes)
+    .where(sql`${expedientes.idCliente} is not null`)
+    .groupBy(expedientes.idCliente);
+  const mapa = new Map(cuentas.map((c) => [c.id, c.n]));
+  return filas.map((c) => ({ ...clienteDto(c), num_expedientes: mapa.get(c.id) ?? 0 }));
+}
+
+export async function obtenerCliente(ej: Ejecutor, id: number): Promise<ClienteDto | null> {
+  const c = await ej.query.clientes.findFirst({ where: eq(clientes.id, id), with: conContactos });
+  return c ? clienteDto(c) : null;
+}
+
+/** Autocompletado por nombre o DNI (máx. 10 resultados). */
+export async function buscarClientes(ej: Ejecutor, q: string): Promise<ClienteDto[]> {
+  const patron = `%${escaparLike(q.trim())}%`;
+  const filas = await ej.query.clientes.findMany({
+    where: or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron)),
+    with: conContactos,
+    orderBy: [asc(clientes.nombre)],
+    limit: 10,
+  });
+  return filas.map(clienteDto);
+}
