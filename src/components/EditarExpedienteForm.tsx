@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import { useToast } from "@/components/Toast";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
+import { BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import { mensajeDeError } from "./expedientes/comun";
 import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
@@ -43,6 +46,8 @@ export default function EditarExpedienteForm({
   usuarios,
 }: Props) {
   const router = useRouter();
+  const { mostrar } = useToast();
+  const [versionAdjuntos, setVersionAdjuntos] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -537,6 +542,11 @@ export default function EditarExpedienteForm({
             </div>
           </div>
 
+          {/* DOCUMENTOS DEL EXPEDIENTE */}
+          <div className="glass-panel" style={{ padding: "32px" }}>
+            <VisorAdjuntos key={versionAdjuntos} idExpediente={expediente.id_expediente} titulo="📎 Documentos del expediente (DNI, pedido, PDF…)" />
+          </div>
+
           {/* DETALLES DEL VEHÍCULO Y EXPEDIENTE */}
           <div className="glass-panel" style={{ padding: "32px" }}>
             {titulo(
@@ -547,6 +557,36 @@ export default function EditarExpedienteForm({
               </>,
               "Detalles de la Venta y Vehículo",
             )}
+
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+              <BotonLeerPedido
+                disabled={cargando}
+                alLeer={async (r) => {
+                  const d = r.datos;
+                  if (d.vin) setVin(d.vin);
+                  if (d.matricula) setMatricula(d.matricula);
+                  if (d.fechaExpediente) setFExp(d.fechaExpediente);
+                  if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
+                  if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
+                  if (d.idModelo) {
+                    const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
+                    if (marcaDe) {
+                      setMarca(Number(marcaDe[0]));
+                      setModelo(d.idModelo);
+                    }
+                  }
+                  if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
+                  try {
+                    await vincularAdjuntos([r.adjunto.id], { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+                    setVersionAdjuntos((v) => v + 1);
+                  } catch (e) {
+                    mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.", "error");
+                  }
+                  mostrar("Pedido leído: revisa los datos y pulsa «Guardar Cambios».");
+                }}
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido y se rellenan los campos que reconozca (no se guarda nada hasta que pulses «Guardar Cambios»).</span>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
               {campo(

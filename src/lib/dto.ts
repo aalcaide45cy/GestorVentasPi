@@ -22,6 +22,8 @@ export interface ClienteDto {
   nombre: string | null;
   fecha_de_nacimiento: string | null;
   tienda_id: number | null;
+  /** Adjunto con la foto del cliente (se ve al pasar el ratón), si se ha leído su DNI. */
+  foto_id?: number | null;
   emails: EmailDto[];
   telefonos: TelefonoDto[];
 }

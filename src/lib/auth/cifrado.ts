@@ -25,6 +25,21 @@ export function descifrar(cifrado: string, proposito = "cifrado-general"): strin
   return Buffer.concat([descifrador.update(Buffer.from(datos, "base64url")), descifrador.final()]).toString("utf8");
 }
 
+/** AES-256-GCM para ficheros. Formato binario: iv (12) + etiqueta (16) + datos cifrados. */
+export function cifrarBuffer(datos: Buffer, proposito = "ficheros"): Buffer {
+  const iv = randomBytes(12);
+  const cifrador = createCipheriv("aes-256-gcm", clave(proposito), iv);
+  const cifrado = Buffer.concat([cifrador.update(datos), cifrador.final()]);
+  return Buffer.concat([iv, cifrador.getAuthTag(), cifrado]);
+}
+
+export function descifrarBuffer(cifrado: Buffer, proposito = "ficheros"): Buffer {
+  if (cifrado.length < 29) throw new Error("Formato de fichero cifrado no válido.");
+  const descifrador = createDecipheriv("aes-256-gcm", clave(proposito), cifrado.subarray(0, 12));
+  descifrador.setAuthTag(cifrado.subarray(12, 28));
+  return Buffer.concat([descifrador.update(cifrado.subarray(28)), descifrador.final()]);
+}
+
 /** HMAC-SHA256 con clave derivada: para guardar códigos de recuperación sin poder leerlos. */
 export function huella(valor: string, proposito: string): string {
   return createHmac("sha256", clave(proposito)).update(valor).digest("hex");

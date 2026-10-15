@@ -39,7 +39,7 @@ export function tipoDeFichero(datos: Buffer): TipoOcr | null {
 
 /** Solo un reconocimiento a la vez: el OCR consume mucha memoria y CPU, sobre todo en la Raspberry Pi. */
 let cola: Promise<unknown> = Promise.resolve();
-function enCola<T>(tarea: () => Promise<T>): Promise<T> {
+export function enCola<T>(tarea: () => Promise<T>): Promise<T> {
   const siguiente = cola.then(tarea, tarea);
   cola = siguiente.catch(() => undefined);
   return siguiente;
@@ -49,16 +49,16 @@ function carpetaIdioma(): string {
   return path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "@tesseract.js-data", "spa", "4.0.0_best_int");
 }
 
-interface LineaOcr {
+export interface LineaOcr {
   texto: string;
   confianza: number;
 }
 
-async function ocrImagenes(imagenes: Buffer[]): Promise<LineaOcr[]> {
+export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string } = {}): Promise<LineaOcr[]> {
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("spa", 1, { langPath: carpetaIdioma(), gzip: true, cacheMethod: "none" });
   try {
-    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK, preserve_interword_spaces: "1" });
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK, preserve_interword_spaces: "1", ...(opciones.lista ? { tessedit_char_whitelist: opciones.lista } : {}) });
     const lineas: LineaOcr[] = [];
     for (const img of imagenes) {
       const { data } = await worker.recognize(img, {}, { blocks: true });
@@ -103,50 +103,71 @@ function lineasDePagina(items: ItemTexto[]): string[] {
     );
 }
 
-async function pdfjs_destruir(doc: { cleanup?: () => Promise<void> | void }): Promise<void> {
-  await doc.cleanup?.();
-}
-
-async function leerPdf(datos: Buffer, forzarOcr: boolean): Promise<ResultadoOcr> {
+async function abrirPdf(datos: Buffer) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs")).href;
-  let doc;
   try {
-    doc = await pdfjs.getDocument({ data: new Uint8Array(datos), useSystemFonts: false, standardFontDataUrl: `${path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts").replaceAll("\\", "/")}/`, verbosity: 0 }).promise;
+    return await pdfjs.getDocument({ data: new Uint8Array(datos), useSystemFonts: false, standardFontDataUrl: `${path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts").replaceAll("\\", "/")}/`, verbosity: 0 }).promise;
   } catch (e) {
     console.error("PDF no legible:", e instanceof Error ? e.message : e);
     throw new HttpError(400, "No se puede abrir el PDF (¿está dañado o protegido con contraseña?).");
   }
+}
+
+type DocumentoPdf = Awaited<ReturnType<typeof abrirPdf>>;
+
+/** Dibuja las páginas del PDF como imágenes PNG. */
+async function paginasComoImagenes(doc: DocumentoPdf, paginas: number): Promise<Buffer[]> {
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const imagenes: Buffer[] = [];
+  for (let n = 1; n <= paginas; n++) {
+    const pagina = await doc.getPage(n);
+    const vista = pagina.getViewport({ scale: ESCALA_RASTER });
+    const lienzo = createCanvas(Math.ceil(vista.width), Math.ceil(vista.height));
+    const ctx = lienzo.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+    await pagina.render({ canvas: lienzo as unknown as HTMLCanvasElement, canvasContext: ctx as unknown as CanvasRenderingContext2D, viewport: vista }).promise;
+    imagenes.push(lienzo.toBuffer("image/png"));
+  }
+  return imagenes;
+}
+
+async function textoDePaginas(doc: DocumentoPdf, paginas: number): Promise<string> {
+  const lineasTexto: string[] = [];
+  for (let n = 1; n <= paginas; n++) {
+    const pagina = await doc.getPage(n);
+    const contenido = await pagina.getTextContent();
+    lineasTexto.push(...lineasDePagina(contenido.items as unknown as ItemTexto[]));
+  }
+  return lineasTexto.join("\n");
+}
+
+/** Páginas de un PDF como imágenes (para leer un DNI o un pedido escaneado). */
+export async function imagenesDePdf(datos: Buffer): Promise<{ imagenes: Buffer[]; texto: string }> {
+  const doc = await abrirPdf(datos);
   try {
     const paginas = Math.min(doc.numPages, MAX_PAGINAS);
-    const lineasTexto: string[] = [];
-    for (let n = 1; n <= paginas; n++) {
-      const pagina = await doc.getPage(n);
-      const contenido = await pagina.getTextContent();
-      lineasTexto.push(...lineasDePagina(contenido.items as unknown as ItemTexto[]));
-    }
-    const texto = lineasTexto.join("\n");
+    const texto = await textoDePaginas(doc, paginas);
+    return { imagenes: await paginasComoImagenes(doc, paginas), texto };
+  } finally {
+    await doc.cleanup?.();
+  }
+}
+
+async function leerPdf(datos: Buffer, forzarOcr: boolean): Promise<ResultadoOcr> {
+  const doc = await abrirPdf(datos);
+  try {
+    const paginas = Math.min(doc.numPages, MAX_PAGINAS);
+    const texto = await textoDePaginas(doc, paginas);
     const filasTexto = filasDeTexto(texto);
     const aviso = doc.numPages > MAX_PAGINAS ? `El PDF tiene ${doc.numPages} páginas: solo se han leído las ${MAX_PAGINAS} primeras.` : null;
     if (!forzarOcr && filasTexto.length > 0) return { filas: filasTexto, texto, metodo: "texto-pdf", paginas, aviso };
-
     // Sin texto aprovechable: se dibuja cada página y se reconoce con OCR
-    const { createCanvas } = await import("@napi-rs/canvas");
-    const imagenes: Buffer[] = [];
-    for (let n = 1; n <= paginas; n++) {
-      const pagina = await doc.getPage(n);
-      const vista = pagina.getViewport({ scale: ESCALA_RASTER });
-      const lienzo = createCanvas(Math.ceil(vista.width), Math.ceil(vista.height));
-      const ctx = lienzo.getContext("2d");
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, lienzo.width, lienzo.height);
-      await pagina.render({ canvas: lienzo as unknown as HTMLCanvasElement, canvasContext: ctx as unknown as CanvasRenderingContext2D, viewport: vista }).promise;
-      imagenes.push(lienzo.toBuffer("image/png"));
-    }
-    const lineas = await ocrImagenes(imagenes);
+    const lineas = await ocrImagenes(await paginasComoImagenes(doc, paginas));
     return { ...resultadoDeLineas(lineas), metodo: "ocr", paginas, aviso };
   } finally {
-    await pdfjs_destruir(doc);
+    await doc.cleanup?.();
   }
 }
 
@@ -171,6 +192,32 @@ export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean 
       if (e instanceof HttpError) throw e;
       console.error("Error de OCR:", e instanceof Error ? e.message : e);
       throw new HttpError(500, "No se ha podido leer el fichero. Prueba con otra imagen o añade las filas a mano.");
+    }
+  });
+}
+
+/** Texto de un PDF (capa de texto si la hay; si no, OCR) o de una imagen. Sirve para pedidos y otros documentos. */
+export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo: "texto-pdf" | "ocr" }> {
+  if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  const tipo = tipoDeFichero(datos);
+  if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
+  return enCola(async () => {
+    try {
+      if (tipo === "imagen") return { texto: (await ocrImagenes([datos])).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      const doc = await abrirPdf(datos);
+      try {
+        const paginas = Math.min(doc.numPages, MAX_PAGINAS);
+        const texto = await textoDePaginas(doc, paginas);
+        if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
+        return { texto: (await ocrImagenes(await paginasComoImagenes(doc, paginas))).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      } finally {
+        await doc.cleanup?.();
+      }
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      console.error("Error de OCR:", e instanceof Error ? e.message : e);
+      throw new HttpError(500, "No se ha podido leer el documento. Prueba con otra imagen.");
     }
   });
 }

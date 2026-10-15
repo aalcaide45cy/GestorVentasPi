@@ -3,6 +3,7 @@ import {
   bigint,
   bigserial,
   boolean,
+  customType,
   date,
   doublePrecision,
   index,
@@ -157,6 +158,8 @@ export const clientes = pgTable(
     nombre: varchar("nombre", { length: 255 }),
     fechaDeNacimiento: date("fecha_de_nacimiento"),
     tiendaId: integer("tienda_id").references(() => tiendas.idTienda),
+    /** Adjunto (miniatura) con la cara del cliente, tomada del DNI. */
+    fotoAdjuntoId: integer("foto_adjunto_id"),
     /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
@@ -747,3 +750,45 @@ export const validacionesComision = pgTable(
   },
   (t) => [uniqueIndex("validaciones_comision_uq").on(t.idUsuario, t.mes, t.idExpediente)],
 );
+
+/* ------------------------------------------------------------------ */
+/* Adjuntos (DNI, pedidos, PDF…) con vista previa                       */
+/* ------------------------------------------------------------------ */
+
+const bytea = customType<{ data: Buffer; default: false }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+/** Metadatos de un fichero adjunto. El contenido (cifrado) vive aparte, en `adjuntos_datos`, para no cargarlo nunca por error. */
+export const adjuntos = pgTable(
+  "adjuntos",
+  {
+    id: serial("id").primaryKey(),
+    /** cliente | expediente | pendiente (subido pero aún no vinculado a un registro guardado) */
+    ambito: varchar("ambito", { length: 12 }).notNull(),
+    idCliente: integer("id_cliente").references(() => clientes.id),
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente),
+    /** dni_frente | dni_reverso | pedido | foto_cliente | otro */
+    tipo: varchar("tipo", { length: 20 }).notNull().default("otro"),
+    nombre: text("nombre").notNull(),
+    mime: varchar("mime", { length: 60 }).notNull(),
+    tamano: integer("tamano").notNull(),
+    tieneMiniatura: boolean("tiene_miniatura").notNull().default(false),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    /** Borrado lógico: el fichero se conserva pero deja de mostrarse. */
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
+  },
+  (t) => [index("adjuntos_cliente_idx").on(t.idCliente), index("adjuntos_expediente_idx").on(t.idExpediente)],
+);
+
+export const adjuntosDatos = pgTable("adjuntos_datos", {
+  idAdjunto: integer("id_adjunto")
+    .primaryKey()
+    .references(() => adjuntos.id, { onDelete: "cascade" }),
+  /** Contenido cifrado con AES-256-GCM (clave derivada de APP_SECRET). */
+  datos: bytea("datos").notNull(),
+  miniatura: bytea("miniatura"),
+});

@@ -517,7 +517,7 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
     const usuarioNuevo = (idAntiguo: number | null): number => (idAntiguo === null ? idAdmin : (datos.mapaUsuarios.get(idAntiguo) ?? idAdmin));
 
     // Vaciado de datos operativos (TRUNCATE no activa los disparadores de protección)
-    await tx.execute(sql.raw("truncate table rejillas, validaciones_comision, libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade"));
+    await tx.execute(sql.raw("truncate table adjuntos, rejillas, validaciones_comision, libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade"));
     await tx.delete(importacionesRegistros);
     await tx.delete(importacionesBloques);
     await tx.delete(expedientes);

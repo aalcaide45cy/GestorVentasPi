@@ -7,6 +7,7 @@ import { useToast } from "@/components/Toast";
 import type { ClienteDto } from "@/lib/dto";
 import { hoyIsoCliente } from "@/lib/date-utils";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
+import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import { mensajeDeError } from "./expedientes/comun";
 
 interface Opcion {
@@ -67,6 +68,9 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
   const [fEntrega, setFEntrega] = useState("");
   const [matricula, setMatricula] = useState("");
   const [vin, setVin] = useState("");
+  // Documentos leídos (DNI, pedido) y aún sin vincular: se vinculan al guardar el expediente
+  const [pendientes, setPendientes] = useState<number[]>([]);
+  const [avisoLectura, setAvisoLectura] = useState<string | null>(null);
 
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
 
@@ -236,6 +240,14 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
         }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar el expediente."));
+      const creado = ((await res.json().catch(() => ({}))) as { data?: { id_expediente?: number; id_cliente?: number | null } }).data;
+      if (creado?.id_expediente && pendientes.length > 0) {
+        try {
+          await vincularAdjuntos(pendientes, { idExpediente: creado.id_expediente, idCliente: creado.id_cliente ?? null });
+        } catch (e) {
+          mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos adjuntos.", "error");
+        }
+      }
       setGuardado(true);
       setTimeout(() => router.push("/dashboard/expedientes"), 2000);
     } catch (e) {
@@ -329,6 +341,24 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               "Datos del Cliente",
             )}
 
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+              <BotonLeerDni
+                disabled={cargando}
+                alLeer={(r) => {
+                  if (r.datos.dni) setDni(r.datos.dni);
+                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
+                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
+                  setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
+                  setAvisoLectura(r.datos.avisos[0] ?? null);
+                  mostrar("DNI leído: revisa los datos antes de guardar.");
+                }}
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                {pendientes.length > 0 ? `${pendientes.length} documento(s) adjuntos se guardarán con el expediente.` : "Sube la foto o el PDF del DNI: se rellenan los datos y se guarda la foto del cliente."}
+              </span>
+            </div>
+            {avisoLectura && <div style={{ color: "var(--warning)", fontSize: "0.85rem", marginBottom: "16px" }}>⚠️ {avisoLectura}</div>}
+
             {asignado ? (
               <div
                 className="glass-panel"
@@ -417,6 +447,34 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               </>,
               "Detalles de la Venta y Vehículo",
             )}
+
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+              <BotonLeerPedido
+                disabled={cargando}
+                alLeer={(r) => {
+                  const d = r.datos;
+                  if (d.vin) setVin(d.vin);
+                  if (d.matricula) setMatricula(d.matricula);
+                  if (d.fechaExpediente) setFExp(d.fechaExpediente);
+                  if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
+                  if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
+                  if (d.idModelo) {
+                    const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
+                    if (marcaDe) {
+                      setMarca(Number(marcaDe[0]));
+                      setModelo(d.idModelo);
+                    }
+                  }
+                  if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
+                  if (d.dni && !dni) setDni(d.dni);
+                  if (d.cliente && !nombre) setNombre(d.cliente);
+                  setPendientes((prev) => [...prev, r.adjunto.id]);
+                  setAvisoLectura(d.avisos[0] ?? null);
+                  mostrar("Pedido leído: revisa los datos antes de guardar.");
+                }}
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido (PDF o foto) y se rellenan bastidor, matrícula, modelo, forma de pago y fechas.</span>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
               {campo(

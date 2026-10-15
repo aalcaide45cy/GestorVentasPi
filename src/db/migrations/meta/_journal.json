@@ -50,6 +50,13 @@
       "when": 1792068252907,
       "tag": "0006_rejillas",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792069043184,
+      "tag": "0007_adjuntos",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,9 @@ import { construirCsvClientes, interpretarCsvClientes } from "@/lib/csv-clientes
 import { descargarTexto } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
 import type { ClienteDto, ExpedienteDto, TiendaDto } from "@/lib/dto";
+import { BotonLeerDni, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import NombreConFoto from "./documentos/FotoCliente";
+import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import { BadgeEstado, BadgeTipoVenta, mensajeDeError } from "./expedientes/comun";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 
@@ -73,6 +76,9 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
   const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
   const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
   const [duplicado, setDuplicado] = useState<ClienteDto | null>(null);
+  // Documentos leídos con el lector de DNI y aún sin vincular al cliente (se vinculan al guardar)
+  const [pendientes, setPendientes] = useState<number[]>([]);
+  const [fotoPendiente, setFotoPendiente] = useState<number | null>(null);
 
   const nombreTienda = (id: number | null) => tiendas.find((t) => t.id_tienda === id)?.nombre;
 
@@ -84,6 +90,8 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
     setTiendaId(tiendaPredeterminadaId ? String(tiendaPredeterminadaId) : "");
     setEmails([contactoVacio()]);
     setTelefonos([contactoVacio()]);
+    setPendientes([]);
+    setFotoPendiente(null);
     setFormulario("crear");
   };
 
@@ -95,6 +103,8 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
     setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
     setEmails(emailsDeCliente(c));
     setTelefonos(telefonosDeCliente(c));
+    setPendientes([]);
+    setFotoPendiente(null);
     setFormulario("editar");
   };
 
@@ -119,6 +129,14 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar cliente."));
       const datos = (await res.json()) as { data?: ClienteDto };
+      const idGuardado = esEdicion ? seleccionado?.id : datos.data?.id;
+      if (idGuardado && pendientes.length > 0) {
+        try {
+          await vincularAdjuntos(pendientes, { idCliente: idGuardado });
+        } catch (e) {
+          mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos.", "error");
+        }
+      }
 
       const emailsDto = emailsOk.map((e) => ({ email: e.valor.trim(), tipo_email: e.tipo }));
       const telefonosDto = telefonosOk.map((t) => ({ telefono: t.valor.trim(), tipo_telefono: t.tipo }));
@@ -126,13 +144,13 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
         setClientes((prev) =>
           prev.map((c) =>
             c.id === seleccionado.id
-              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto }
+              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
               : c,
           ),
         );
         mostrar("Cliente actualizado correctamente.");
       } else if (datos.data) {
-        setClientes((prev) => [{ ...datos.data!, emails: emailsDto, telefonos: telefonosDto, num_expedientes: 0 }, ...prev]);
+        setClientes((prev) => [{ ...datos.data!, emails: emailsDto, telefonos: telefonosDto, num_expedientes: 0, foto_id: fotoPendiente }, ...prev]);
         mostrar("Cliente registrado correctamente.");
       }
       setFormulario(null);
@@ -483,7 +501,9 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
                           />
                         </td>
                       )}
-                      <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>{c.nombre}</td>
+                      <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
+                        <NombreConFoto fotoId={c.foto_id}>{c.nombre}</NombreConFoto>
+                      </td>
                       <td>{c.dni || "N/D"}</td>
                       <td>{c.fecha_de_nacimiento ? formatDate(c.fecha_de_nacimiento) : "No indicada"}</td>
                       <td>
@@ -617,6 +637,22 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
       {formulario && (
         <Modal titulo={formulario === "editar" ? "Editar Cliente" : "Registrar Nuevo Cliente"} ancho="600px" tamanoTitulo="1.25rem">
           <form onSubmit={enviarFormulario} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+              <BotonLeerDni
+                disabled={cargando}
+                alLeer={(r) => {
+                  if (r.datos.dni) setDni(r.datos.dni);
+                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
+                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
+                  setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
+                  if (r.fotoId) setFotoPendiente(r.fotoId);
+                  mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos antes de guardar.");
+                }}
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                {pendientes.length > 0 ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.` : "Sube la foto o el PDF del DNI y se rellenan los datos (se lee en este equipo)."}
+              </span>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">DNI / NIE</label>
@@ -646,6 +682,7 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
             </div>
             <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
             <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
+            {formulario === "editar" && seleccionado && <VisorAdjuntos idCliente={seleccionado.id} />}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
               <button type="button" className="btn btn-secondary" onClick={() => setFormulario(null)} disabled={cargando}>
                 Cancelar

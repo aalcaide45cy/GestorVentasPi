@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NombreConFoto from "../documentos/FotoCliente";
 import type { ExpedienteDto } from "@/lib/dto";
 
 export type CampoFecha = "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion";
@@ -69,7 +70,7 @@ interface CeldaClienteProps {
 
 /** Nombre del cliente (solo nombre, sin DNI) o «Sin Cliente» con botón para asignar. */
 export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
-  if (exp.cliente?.nombre) return <>{exp.cliente.nombre}</>;
+  if (exp.cliente?.nombre) return <NombreConFoto fotoId={exp.cliente.foto_id}>{exp.cliente.nombre}</NombreConFoto>;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
