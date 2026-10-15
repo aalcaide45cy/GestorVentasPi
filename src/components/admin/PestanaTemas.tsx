@@ -11,8 +11,8 @@ declare global {
 }
 
 const OFICIALES: TemaColor[] = [
-  { id: TEMA_OSCURO, nombre: "Oscuro (original)", modo: "dark", p: 255, s: 195, a: 335, f: 230, g: 25 },
-  { id: TEMA_CLARO, nombre: "Claro (original)", modo: "light", p: 255, s: 195, a: 335, f: 220, g: 30 },
+  { id: TEMA_OSCURO, nombre: "Oscuro (original)", modo: "dark", p: 255, s: 195, a: 335, f: 230, g: 25, n: 8, v: 0 },
+  { id: TEMA_CLARO, nombre: "Claro (original)", modo: "light", p: 255, s: 195, a: 335, f: 220, g: 30, n: 96, v: 0 },
 ];
 
 function temaGuardado(): string {
@@ -23,17 +23,18 @@ function temaGuardado(): string {
   }
 }
 
-/** Pestaña «Tema»: 52 combinaciones de color (2 originales + 50 nuevas). Se guarda en este navegador. */
+/** Pestaña «Tema»: 152 combinaciones de color (2 originales + 150 nuevas, con distintos grados de claridad). Se guarda en este navegador. */
 export default function PestanaTemas() {
   const [actual, setActual] = useState(temaGuardado);
   const [filtro, setFiltro] = useState<"todos" | "dark" | "light">("todos");
+  const [variante, setVariante] = useState<"todas" | "0" | "1" | "2">("todas");
 
   const elegir = (id: string) => {
     window.__gvTema?.(id);
     setActual(id);
   };
 
-  const lista = [...OFICIALES, ...TEMAS].filter((t) => filtro === "todos" || t.modo === filtro);
+  const lista = [...OFICIALES, ...TEMAS].filter((t) => (filtro === "todos" || t.modo === filtro) && (variante === "todas" || String(t.v) === variante));
 
   return (
     <div className="glass-panel" style={{ ...estiloPanel, padding: "32px" }}>
@@ -48,6 +49,15 @@ export default function PestanaTemas() {
         {(["todos", "dark", "light"] as const).map((f) => (
           <button key={f} type="button" className={`btn ${filtro === f ? "btn-primary" : "btn-secondary"}`} onClick={() => setFiltro(f)} style={{ padding: "8px 16px", fontSize: "0.85rem" }} title={f === "todos" ? "Mostrar todos los temas" : f === "dark" ? "Solo los temas de fondo oscuro" : "Solo los temas de fondo claro"}>
             {f === "todos" ? "Todos" : f === "dark" ? "🌙 Oscuros" : "☀️ Claros"}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Intensidad del fondo:</span>
+        {([["todas", "Todas"], ["0", "Más intensos (muy oscuros / muy claros)"], ["1", "Intermedios"], ["2", "Suaves (menos oscuros / menos claros)"]] as const).map(([clave, texto]) => (
+          <button key={clave} type="button" className={`btn ${variante === clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setVariante(clave)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Filtra los temas por lo claro u oscuro que es su fondo">
+            {texto}
           </button>
         ))}
       </div>

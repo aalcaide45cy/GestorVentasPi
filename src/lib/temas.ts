@@ -13,6 +13,10 @@ export interface TemaColor {
   /** Tono y saturación (%) de los fondos. */
   f: number;
   g: number;
+  /** Claridad del fondo (%): oscuros 8 / 15 / 22 (cada vez menos oscuros); claros 96 / 90 / 84 (cada vez menos claros). */
+  n: number;
+  /** Variante: 0 = estándar, 1 = intermedia, 2 = suave (dark) o tintada (light). */
+  v: 0 | 1 | 2;
 }
 
 export const TEMA_OSCURO = "oscuro";
@@ -47,17 +51,22 @@ const FAMILIAS: [string, number, number, number, number, number][] = [
   ["Cereza", 345, 300, 190, 340, 26],
 ];
 
-export const TEMAS: TemaColor[] = [
-  ...FAMILIAS.map(([n, p, s, a, f, g]): TemaColor => ({ id: `${n.toLowerCase()}-oscuro`, nombre: `${n} oscuro`, modo: "dark", p, s, a, f, g })),
-  ...FAMILIAS.map(([n, p, s, a, f, g]): TemaColor => ({ id: `${n.toLowerCase()}-claro`, nombre: `${n} claro`, modo: "light", p, s, a, f, g })),
-].map((t) => ({ ...t, id: t.id.normalize("NFD").replace(/[̀-ͯ]/g, "") }));
+const NIVELES_OSCURO: [string, number][] = [["oscuro", 8], ["medio", 15], ["suave", 22]];
+const NIVELES_CLARO: [string, number][] = [["claro", 96], ["tenue", 90], ["tinte", 84]];
+const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+/** 25 familias × 6 variantes (3 oscuras y 3 claras) = 150 temas. */
+export const TEMAS: TemaColor[] = FAMILIAS.flatMap(([nombre, p, s, a, f, g]) => [
+  ...NIVELES_OSCURO.map(([sufijo, n], v): TemaColor => ({ id: sinAcentos(`${nombre.toLowerCase()}-${sufijo}`), nombre: `${nombre} ${sufijo}`, modo: "dark", p, s, a, f, g, n, v: v as 0 | 1 | 2 })),
+  ...NIVELES_CLARO.map(([sufijo, n], v): TemaColor => ({ id: sinAcentos(`${nombre.toLowerCase()}-${sufijo}`), nombre: `${nombre} ${sufijo}`, modo: "light", p, s, a, f, g, n, v: v as 0 | 1 | 2 })),
+]);
 
 /** Colores de muestra de un tema (para las tarjetas del selector). */
 export function muestraTema(t: TemaColor): { fondo: string; tarjeta: string; principal: string; secundario: string; acento: string; texto: string } {
   const oscuro = t.modo === "dark";
   return {
-    fondo: oscuro ? `hsl(${t.f}, ${t.g}%, 8%)` : `hsl(${t.f}, ${Math.round(t.g * 0.8)}%, 96%)`,
-    tarjeta: oscuro ? `hsl(${t.f}, ${t.g}%, 13%)` : "hsl(0, 0%, 100%)",
+    fondo: oscuro ? `hsl(${t.f}, ${t.g}%, ${t.n}%)` : `hsl(${t.f}, ${Math.round(t.g * 0.8)}%, ${t.n}%)`,
+    tarjeta: oscuro ? `hsl(${t.f}, ${t.g}%, ${t.n + 5}%)` : t.n >= 96 ? "hsl(0, 0%, 100%)" : `hsl(${t.f}, ${Math.round(t.g * 0.5)}%, ${Math.min(99, t.n + 7)}%)`,
     principal: `hsl(${t.p}, 85%, 62%)`,
     secundario: `hsl(${t.s}, 90%, 55%)`,
     acento: `hsl(${t.a}, 85%, 60%)`,
@@ -70,7 +79,7 @@ export function muestraTema(t: TemaColor): { fondo: string; tarjeta: string; pri
  * para cambiarlo desde la interfaz. La fórmula de colores vive solo aquí; la lista de temas se incrusta como datos.
  */
 export function scriptTema(): string {
-  const datos = JSON.stringify(TEMAS.map((t) => [t.id, t.modo === "dark" ? 0 : 1, t.p, t.s, t.a, t.f, t.g]));
+  const datos = JSON.stringify(TEMAS.map((t) => [t.id, t.modo === "dark" ? 0 : 1, t.p, t.s, t.a, t.f, t.g, t.n]));
   return `(function(){
 var T=${datos},R=document.documentElement,V=[];
 function rgb(h,s,l){s/=100;l/=100;var k=function(n){return(n+h/30)%12},a=s*Math.min(l,1-l),f=function(n){var x=k(n);return Math.round(255*(l-a*Math.max(-1,Math.min(x-3,9-x,1))))};return f(0)+', '+f(8)+', '+f(4)}
@@ -83,14 +92,16 @@ function ap(id){
  R.setAttribute('data-theme',claro?'light':'dark');
  try{localStorage.setItem('theme',claro?'light':'dark');localStorage.setItem('colorTheme',id)}catch(e){}
  if(!t)return;
- var p=t[2],s=t[3],a=t[4],f=t[5],g=t[6];
+ var p=t[2],s=t[3],a=t[4],f=t[5],g=t[6],n=t[7];
  poner('--primary-hue',p);poner('--secondary-hue',s);poner('--accent-hue',a);
  poner('--accent-rgb',rgb(p,85,62));poner('--secondary-rgb',rgb(s,90,55));
  if(claro){
-  poner('--bg-app','hsl('+f+', '+Math.round(g*0.8)+'%, 96%)');poner('--bg-surface-hover','hsl('+f+', '+Math.round(g*0.8)+'%, 93%)');
+  var gs=Math.round(g*0.8),gt=Math.round(g*0.5);
+  poner('--bg-app','hsl('+f+', '+gs+'%, '+n+'%)');poner('--bg-surface-hover','hsl('+f+', '+gs+'%, '+(n-3)+'%)');
+  if(n<96){var sf='hsl('+f+', '+gt+'%, '+Math.min(99,n+7)+'%)';poner('--bg-surface',sf);poner('--bg-card',sf);poner('--bg-surface-glass','hsla('+f+', '+gt+'%, '+Math.min(99,n+8)+'%, 0.85)')}
  }else{
-  poner('--bg-app','hsl('+f+', '+g+'%, 8%)');poner('--bg-surface','hsl('+f+', '+g+'%, 12%)');poner('--bg-card','hsl('+f+', '+g+'%, 12%)');
-  poner('--bg-surface-hover','hsl('+f+', '+g+'%, 16%)');poner('--bg-surface-glass','hsla('+f+', '+g+'%, 9%, 0.65)');
+  poner('--bg-app','hsl('+f+', '+g+'%, '+n+'%)');poner('--bg-surface','hsl('+f+', '+g+'%, '+(n+4)+'%)');poner('--bg-card','hsl('+f+', '+g+'%, '+(n+4)+'%)');
+  poner('--bg-surface-hover','hsl('+f+', '+g+'%, '+(n+8)+'%)');poner('--bg-surface-glass','hsla('+f+', '+g+'%, '+(n+1)+'%, 0.65)');
  }
 }
 window.__gvTema=ap;

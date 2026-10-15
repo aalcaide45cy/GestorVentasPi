@@ -28,10 +28,12 @@ function ejecutar(guardado: Record<string, string>) {
 }
 
 describe("temas de color", () => {
-  it("hay 50 temas con identificadores únicos", () => {
-    expect(TEMAS).toHaveLength(50);
-    expect(new Set(TEMAS.map((t) => t.id)).size).toBe(50);
-    expect(TEMAS.filter((t) => t.modo === "dark")).toHaveLength(25);
+  it("hay 150 temas con identificadores únicos, con variedad de claridad en oscuros y claros", () => {
+    expect(TEMAS).toHaveLength(150);
+    expect(new Set(TEMAS.map((t) => t.id)).size).toBe(150);
+    expect(TEMAS.filter((t) => t.modo === "dark")).toHaveLength(75);
+    expect(new Set(TEMAS.filter((t) => t.modo === "dark").map((t) => t.n))).toEqual(new Set([8, 15, 22]));
+    expect(new Set(TEMAS.filter((t) => t.modo === "light").map((t) => t.n))).toEqual(new Set([96, 90, 84]));
   });
 
   it("sin tema guardado deja el diseño original (sin variables propias)", () => {
@@ -56,6 +58,13 @@ describe("temas de color", () => {
     expect(r.estilos["--primary-hue"]).toBe("335");
     expect(r.almacen.theme).toBe("light");
     expect(r.almacen.colorTheme).toBe("rosa-claro");
+    // Un oscuro «suave» y un claro «tinte» cambian también las superficies
+    r.aplicar("violeta-suave");
+    expect(r.estilos["--bg-app"]).toBe("hsl(230, 25%, 22%)");
+    expect(r.estilos["--bg-surface"]).toBe("hsl(230, 25%, 26%)");
+    r.aplicar("violeta-tinte");
+    expect(r.atributos["data-theme"]).toBe("light");
+    expect(r.estilos["--bg-surface"]).toBe("hsl(230, 13%, 91%)");
     r.aplicar("oscuro");
     expect(r.atributos["data-theme"]).toBe("dark");
     expect(Object.keys(r.estilos)).toHaveLength(0);
