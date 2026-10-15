@@ -9,6 +9,8 @@ import { mensajeDeError } from "./expedientes/comun";
 
 interface Props {
   nombreInicial: string;
+  /** Correo con el que se inicia sesión (solo lectura). */
+  correoAcceso: string;
   rol: string;
   fechaRegistro: string;
   emailsIniciales: { email: string; tipo_email: string }[];
@@ -18,7 +20,7 @@ interface Props {
 }
 
 /** «Mis Datos»: nombre, contactos y tiendas del propio usuario. */
-export default function PerfilForm({ nombreInicial, rol, fechaRegistro, emailsIniciales, telefonosIniciales, todasLasTiendas, tiendasAsignadasIniciales }: Props) {
+export default function PerfilForm({ nombreInicial, correoAcceso, rol, fechaRegistro, emailsIniciales, telefonosIniciales, todasLasTiendas, tiendasAsignadasIniciales }: Props) {
   const router = useRouter();
   const [nombre, setNombre] = useState(nombreInicial);
   const [emails, setEmails] = useState<ContactoEdicion[]>(
@@ -102,6 +104,12 @@ export default function PerfilForm({ nombreInicial, rol, fechaRegistro, emailsIn
             <div className="form-group">
               <label className="form-label">Nombre Completo</label>
               <input type="text" className="form-input" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Correo de acceso (Lectura)</label>
+              <div style={{ padding: "12px 16px", color: "var(--text-secondary)", fontSize: "0.95rem", wordBreak: "break-all" }} title="Es el correo con el que inicias sesión. Para cambiarlo, pídeselo a un administrador">
+                {correoAcceso}
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Rol en el Sistema (Lectura)</label>

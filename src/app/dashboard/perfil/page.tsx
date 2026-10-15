@@ -23,6 +23,7 @@ export default async function PerfilPage() {
 
       <PerfilForm
         nombreInicial={perfil.nombre ?? ""}
+        correoAcceso={user.loginEmail}
         rol={perfil.rol ?? "invitado"}
         fechaRegistro={perfil.fecha_de_registro ?? ""}
         emailsIniciales={perfil.emails.map((e) => ({ email: e.email, tipo_email: e.tipo_email || "Principal" }))}
