@@ -94,6 +94,11 @@ export interface ExpedienteDto {
   comision_financiacion_cobrada: boolean;
   comision_preference_cobrada: boolean;
   comision_bonus_cobrada: boolean;
+  puntos: number | null;
+  id_promocion: number | null;
+  comision_coche_manual: number | null;
+  comision_financiacion_manual: number | null;
+  conceptos_especiales: { titulo: string; importe_centimos: number; descripcion: string; evento: "afectacion" | "matriculacion" | "cobro"; cobrado: boolean }[];
   cliente: ClienteDto | null;
   modelo: ModeloDto | null;
   tipoDeVenta: TipoVentaDto | null;

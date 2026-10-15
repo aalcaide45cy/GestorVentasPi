@@ -7,6 +7,8 @@ import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { mensajeDeError } from "./expedientes/comun";
+import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
+import { eurosConSigno, nombreMes } from "@/lib/formato";
 
 interface Opcion {
   id: number;
@@ -30,7 +32,7 @@ interface Props {
 const textoOVacio = (v: string) => v.trim() || null;
 const cadena = (n: number | null | undefined) => (n ? String(n) : "");
 
-/** «Editar Expediente»: cliente, vehículo y fechas. Los bloques de comisiones llegan en F4. */
+/** «Editar Expediente»: cliente, vehículo, fechas y comisionamiento. */
 export default function EditarExpedienteForm({
   expediente,
   marcas,
@@ -92,6 +94,9 @@ export default function EditarExpedienteForm({
   const [cobradoOtraFecha, setCobradoOtraFecha] = useState(expediente.cobrado_otra_fecha);
   const [fCobrado, setFCobrado] = useState(expediente.fecha_cobrado ?? "");
 
+  const [com, setCom] = useState<ComisionForm>(comisionInicial(expediente));
+  const comOriginal = useMemo(() => JSON.stringify(comisionInicial(expediente)), [expediente]);
+
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
 
   const rellenos = (lista: ContactoEdicion[]) => lista.filter((c) => c.valor.trim() !== "");
@@ -130,7 +135,8 @@ export default function EditarExpedienteForm({
       cobradoOtraFecha !== expediente.cobrado_otra_fecha ||
       fCobrado !== (expediente.fecha_cobrado ?? "") ||
       matricula !== (expediente.matricula ?? "") ||
-      vin !== (expediente.vin ?? "")
+      vin !== (expediente.vin ?? "") ||
+      JSON.stringify(com) !== comOriginal
     );
   };
 
@@ -245,6 +251,11 @@ export default function EditarExpedienteForm({
         vin: vin || null,
         cobrado_otra_fecha: cobradoOtraFecha,
         fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
+        puntos: com.puntos,
+        id_promocion: com.id_promocion,
+        comision_coche_manual: com.comision_coche_manual,
+        comision_financiacion_manual: com.comision_financiacion_manual,
+        conceptos_especiales: com.conceptos.filter((c) => c.titulo.trim() !== ""),
       };
       // El vendedor solo se envía si ha cambiado: el servidor decide quién puede reasignarlo
       if (vendedor !== cadena(expediente.id_usuario)) cuerpo.id_usuario = vendedor ? Number(vendedor) : null;
@@ -255,6 +266,11 @@ export default function EditarExpedienteForm({
         body: JSON.stringify({ id_expediente: expediente.id_expediente, id_cliente: cliente ? cliente.id : null, expediente: cuerpo }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar el expediente."));
+      const impactos = ((await res.json().catch(() => ({}))) as { impactos?: { mes: string; netoAnterior: number; netoNuevo: number; diferencia: number }[] }).impactos ?? [];
+      if (impactos.length > 0) {
+        setAviso(`Este cambio ha modificado meses ya cerrados: ${impactos.map((i) => `${nombreMes(i.mes)} ${eurosConSigno(i.diferencia)}`).join(", ")}. Se guardó la versión anterior.`);
+        setTimeout(() => setAviso(null), 8000);
+      }
       setExito(true);
       return true;
     } catch (e) {
@@ -647,6 +663,25 @@ export default function EditarExpedienteForm({
             </div>
           </div>
         </div>
+
+        <BloqueComisionamiento
+          valor={com}
+          onChange={setCom}
+          mesCierre={fMat ? fMat.slice(0, 7) : fExp ? fExp.slice(0, 7) : null}
+          contexto={{
+            id_expediente: expediente.id_expediente,
+            id_usuario: vendedor ? Number(vendedor) : null,
+            id_modelo: modelo || null,
+            id_tipo_de_venta: tipoVenta || null,
+            id_estado_vehiculo: estado || null,
+            fecha_expediente: fExp || null,
+            fecha_afectacion: fAfect || null,
+            fecha_rci: fRci || null,
+            fecha_matriculacion: fMat || null,
+            fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
+            cobrado_otra_fecha: cobradoOtraFecha,
+          }}
+        />
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "8px", flexWrap: "wrap" }}>
           {volver}
