@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import BotonesBackup from "@/components/BotonesBackup";
 import { ModalConfirmar } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { construirCsv, descargarTexto, interpretarCsvExpedientes } from "@/lib/csv-expedientes";
@@ -498,63 +499,6 @@ export default function ExpedientesList({
     else void ejecutarImportacionExcel(nuevas, nombreExcel);
   };
 
-  const exportarBackup = async () => {
-    setCargando(true);
-    try {
-      const res = await fetch("/api/admin/backup");
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al generar la copia de seguridad."));
-      const copia = (await res.json()) as Record<string, unknown>;
-      const conPreferencias = {
-        ...copia,
-        preferences: {
-          expDefaultPageSize: Number(leerLocal("exp-default-page-size") || "20"),
-          sidebarCollapsed: leerLocal("sidebar-collapsed") === "true",
-        },
-      };
-      descargarTexto(`backup_completo_${hoyIsoLocal()}.json`, JSON.stringify(conPreferencias, null, 2), "application/json");
-      mostrar("Copia de seguridad JSON exportada correctamente.");
-    } catch (e) {
-      mostrar(e instanceof Error ? e.message : "Error al exportar copia de seguridad.", "error");
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  const restaurarBackup = async (ev: ChangeEvent<HTMLInputElement>) => {
-    const archivo = ev.target.files?.[0];
-    const entrada = ev.target;
-    if (!archivo) return;
-    const ok = window.confirm(
-      "¡ATENCIÓN! Estás a punto de restaurar una copia de seguridad COMPLETA de la base de datos.\n\n" +
-        "Esto ELIMINARÁ permanentemente todos los datos existentes (tiendas, usuarios, clientes, comisiones, expedientes, etc.) e importará los registros del archivo.\n\n" +
-        "¿Estás completamente seguro de que deseas proceder?",
-    );
-    if (!ok) {
-      entrada.value = "";
-      return;
-    }
-    setCargando(true);
-    try {
-      const texto = await leerArchivo<string>(archivo, "texto");
-      if (!texto) throw new Error("Archivo vacío");
-      const copia = JSON.parse(texto) as { preferences?: { expDefaultPageSize?: unknown; sidebarCollapsed?: unknown } };
-      if (copia.preferences) {
-        if (typeof copia.preferences.expDefaultPageSize === "number") guardarLocal("exp-default-page-size", String(copia.preferences.expDefaultPageSize));
-        if (typeof copia.preferences.sidebarCollapsed === "boolean") guardarLocal("sidebar-collapsed", String(copia.preferences.sidebarCollapsed));
-      }
-      const res = await fetch("/api/admin/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: texto });
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al restaurar la copia de seguridad."));
-      const r = (await res.json()) as { message?: string };
-      mostrar(r.message ?? "Copia restaurada.");
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (e) {
-      mostrar(e instanceof Error ? e.message : "Error al procesar el archivo de copia de seguridad JSON.", "error");
-    } finally {
-      setCargando(false);
-      entrada.value = "";
-    }
-  };
-
   const eliminar = async (ids: number[]) => {
     setBorrando(true);
     try {
@@ -838,26 +782,7 @@ export default function ExpedientesList({
             </>
           )}
 
-          {esAdministrador && (
-            <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={exportarBackup}
-                style={{ padding: "8px 14px", fontSize: "0.85rem", backgroundColor: "rgba(124, 58, 237, 0.08)", border: "1px solid rgba(124, 58, 237, 0.2)", color: "var(--primary)", fontWeight: 500 }}
-                disabled={cargando}
-              >
-                💾 Exportar Backup (JSON)
-              </button>
-              <label
-                className="btn"
-                style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)", fontWeight: 500 }}
-              >
-                🔄 Restaurar Backup (JSON)
-                <input type="file" accept=".json" onChange={restaurarBackup} style={{ display: "none" }} disabled={cargando} />
-              </label>
-            </>
-          )}
+          {esAdministrador && <BotonesBackup deshabilitado={cargando} />}
         </div>
       </div>
 
