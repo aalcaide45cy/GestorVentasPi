@@ -51,3 +51,23 @@ export function escaparLike(texto: string): string {
 export function hoyIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/** Categoría de un tipo de venta deducida de su nombre (como hacía la aplicación original). */
+export function categoriaTipoVenta(nombre: string): "CONTADO" | "CREDITO" | "PREFERENCE" | "RENTING" {
+  const n = nombre.toLowerCase();
+  if (n.includes("pref")) return "PREFERENCE";
+  if (n.includes("rent")) return "RENTING";
+  if (n.includes("créd") || n.includes("cred") || n.includes("financ")) return "CREDITO";
+  return "CONTADO";
+}
+
+/** Clase (VN/VO) y subtipo VO de un estado deducidos de su nombre. */
+export function claseEstado(nombre: string): { clase: "VN" | "VO"; subtipo: string | null } {
+  const n = nombre.toLowerCase();
+  if (n === "nuevo") return { clase: "VN", subtipo: null };
+  if (n.includes("km0") || n.includes("km 0")) return { clase: "VO", subtipo: "KM0" };
+  if (n.includes("demo")) return { clase: "VO", subtipo: "DEMO" };
+  if (n.includes("buyback")) return { clase: "VO", subtipo: "BUYBACK" };
+  return { clase: "VO", subtipo: "USADO" };
+}
+

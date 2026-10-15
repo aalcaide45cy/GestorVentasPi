@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { ajustes, estadoVehiculo, expedientes, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
-import { idOpcional, textoOpcional } from "./comun";
+import { categoriaTipoVenta, claseEstado, idOpcional, textoOpcional } from "./comun";
 import { estadoDto, marcaDto, modeloDto, tiendaDto, tipoVentaDto } from "./mapeos";
 
 const nombre = z.string().trim().min(1, "El nombre es requerido").max(255);
@@ -159,7 +159,7 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
           nombreTipoVenta: e.nombre_tipo_venta,
           color: e.color ?? "#3b82f6",
           orden: e.orden ?? 0,
-          categoria: e.categoria ?? "CONTADO",
+          categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta),
         })
         .returning();
       return tipoVentaDto(n);
@@ -172,8 +172,8 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
           .values({
             nombreEstadoVehiculo: e.nombre_estado_vehiculo,
             predeterminado: !!e.predeterminado,
-            clase: e.clase ?? "VN",
-            subtipoVo: e.subtipo_vo ?? null,
+            clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
+            subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
           })
           .returning();
         return estadoDto(n);
@@ -208,7 +208,7 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
     case "tipo_venta": {
       const [n] = await ej
         .update(tipoDeVenta)
-        .set({ nombreTipoVenta: e.nombre_tipo_venta, color: e.color, orden: e.orden, categoria: e.categoria })
+        .set({ nombreTipoVenta: e.nombre_tipo_venta, color: e.color, orden: e.orden, categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta) })
         .where(eq(tipoDeVenta.idTipoDeVenta, e.id))
         .returning();
       if (!n) throw new HttpError(404, "Tipo de venta no encontrado");
@@ -225,8 +225,8 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
           .set({
             nombreEstadoVehiculo: e.nombre_estado_vehiculo,
             predeterminado: e.predeterminado,
-            clase: e.clase,
-            subtipoVo: e.subtipo_vo,
+            clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
+            subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
           })
           .where(eq(estadoVehiculo.idEstadoVehiculo, e.id))
           .returning();

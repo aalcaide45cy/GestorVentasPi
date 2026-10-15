@@ -17,7 +17,7 @@ import {
 } from "@/db/schema";
 import type { UsuarioActual } from "@/lib/auth/sesion";
 import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
-import { escaparLike, hoyIso } from "./comun";
+import { categoriaTipoVenta, claseEstado, escaparLike, hoyIso } from "./comun";
 
 /* ------------------------------------------------------------------ */
 /* Esquemas                                                            */
@@ -103,23 +103,6 @@ function pares(cadena: string): { valor: string; tipo: string }[] {
       return { valor: (valor ?? "").trim(), tipo: tipo ? tipo.trim() : "Principal" };
     })
     .filter((p) => p.valor.length > 0);
-}
-
-function categoriaTipoVenta(nombre: string): "CONTADO" | "CREDITO" | "PREFERENCE" | "RENTING" {
-  const n = nombre.toLowerCase();
-  if (n.includes("pref")) return "PREFERENCE";
-  if (n.includes("rent")) return "RENTING";
-  if (n.includes("créd") || n.includes("cred") || n.includes("financ")) return "CREDITO";
-  return "CONTADO";
-}
-
-function claseEstado(nombre: string): { clase: "VN" | "VO"; subtipo: string | null } {
-  const n = nombre.toLowerCase();
-  if (n === "nuevo") return { clase: "VN", subtipo: null };
-  if (n.includes("km0") || n.includes("km 0")) return { clase: "VO", subtipo: "KM0" };
-  if (n.includes("demo")) return { clase: "VO", subtipo: "DEMO" };
-  if (n.includes("buyback")) return { clase: "VO", subtipo: "BUYBACK" };
-  return { clase: "VO", subtipo: "USADO" };
 }
 
 async function tiendaUnica(ej: Ejecutor, idUsuario: number): Promise<number | null> {
