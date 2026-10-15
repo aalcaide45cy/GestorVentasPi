@@ -14,6 +14,8 @@ interface SidebarProps {
     nombre: string | null;
     rol?: string | null;
   };
+  /** Versión instalada (la del archivo de configuración del contenedor o, en desarrollo, la del paquete). */
+  version: string;
 }
 
 const iconoProps = {
@@ -71,7 +73,7 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavPro
   );
 }
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar({ user, version }: SidebarProps) {
   const [colapsadoGuardado, guardarColapsado] = usePreferencia("sidebar-collapsed");
   const isCollapsed = colapsadoGuardado === "true";
   const router = useRouter();
@@ -413,7 +415,7 @@ export default function Sidebar({ user }: SidebarProps) {
             overflow: "hidden",
           }}
         >
-          {isCollapsed ? "v1.0" : "GestorVentas v1.0.0"}
+          {isCollapsed ? `v${version.split(".").slice(0, 2).join(".")}` : `GestorVentas v${version}`}
         </div>
       </div>
     </aside>

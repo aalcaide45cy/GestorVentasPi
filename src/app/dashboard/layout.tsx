@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 import Sidebar from "@/components/Sidebar";
+import { versionDeLaApp } from "@/lib/version";
 import { ToastProvider } from "@/components/Toast";
 import { getCurrentUser } from "@/lib/auth/sesion";
 
@@ -76,7 +77,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-app)", position: "relative" }}>
         <div className="glow-bg"></div>
 
-        <Sidebar user={{ nombre: user.nombre, rol: user.rol }} />
+        <Sidebar user={{ nombre: user.nombre, rol: user.rol }} version={versionDeLaApp()} />
 
         <main
           style={{
