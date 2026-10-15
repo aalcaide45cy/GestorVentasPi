@@ -7,6 +7,7 @@ import { descargarTexto } from "@/lib/csv-expedientes";
 import { mensajeDeError } from "@/components/expedientes/comun";
 import type { AnalisisBbdd } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
+import PanelMigracion from "./PanelMigracion";
 import { estiloPanel } from "./utilidades";
 
 interface Props {
@@ -141,6 +142,10 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
       <PanelCopias />
+
+      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+
+      <PanelMigracion />
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
