@@ -1,9 +1,10 @@
 import { desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { clientes, expedientes, marcas, modelos } from "@/db/schema";
-import type { ExpedienteDto } from "@/lib/dto";
+import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
 import { escaparLike } from "./comun";
 import { aDto, relacionesExpediente } from "./expedientes";
+import { clienteDto } from "./mapeos";
 
 export interface SugerenciasBusqueda {
   clientes: { id: number; nombre: string | null; dni: string | null; label: string }[];
@@ -78,14 +79,14 @@ export async function sugerencias(ej: Ejecutor, q: string): Promise<SugerenciasB
 export async function resultadosBusqueda(
   ej: Ejecutor,
   q: string,
-): Promise<{ clientes: (typeof clientes.$inferSelect)[]; expedientes: ExpedienteDto[] }> {
+): Promise<{ clientes: ClienteDto[]; expedientes: ExpedienteDto[] }> {
   if (!q.trim()) return { clientes: [], expedientes: [] };
   const patron = `%${escaparLike(q.trim())}%`;
-  const cs = await ej
-    .select()
-    .from(clientes)
-    .where(or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron)))
-    .limit(50);
+  const cs = await ej.query.clientes.findMany({
+    where: or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron)),
+    with: { emails: true, telefonos: true },
+    limit: 50,
+  });
   const ids = await idsCoincidentes(ej, q, 100);
   const exps = ids.length
     ? await ej.query.expedientes.findMany({
@@ -94,5 +95,5 @@ export async function resultadosBusqueda(
         with: relacionesExpediente,
       })
     : [];
-  return { clientes: cs, expedientes: exps.map(aDto) };
+  return { clientes: cs.map(clienteDto), expedientes: exps.map(aDto) };
 }
