@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
+import type { ExpedienteDto } from "@/lib/dto";
 import type { Ejecutor } from "@/db";
 import {
   clientes,
@@ -17,6 +18,7 @@ import {
 } from "@/db/schema";
 import type { UsuarioActual } from "@/lib/auth/sesion";
 import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
+import { aDto, relacionesExpediente } from "./expedientes";
 import { categoriaTipoVenta, claseEstado, escaparLike, hoyIso } from "./comun";
 
 /* ------------------------------------------------------------------ */
@@ -690,6 +692,7 @@ export interface BloqueImportacionDto {
     matricula: string | null;
     bastidor: string | null;
     cambios: string | null;
+    expediente: ExpedienteDto | null;
   }[];
 }
 
@@ -698,6 +701,9 @@ export async function listarBloques(ej: Ejecutor): Promise<BloqueImportacionDto[
     orderBy: [desc(importacionesBloques.id)],
     with: { registros: true, usuario: { columns: { nombre: true } } },
   });
+  const idsExp = [...new Set(filas.flatMap((b) => b.registros.map((r) => r.idExpediente)).filter((i): i is number => i !== null))];
+  const exps = idsExp.length ? await ej.query.expedientes.findMany({ where: inArray(expedientes.idExpediente, idsExp), with: relacionesExpediente }) : [];
+  const mapa = new Map(exps.map((e) => [e.idExpediente, aDto(e)]));
   return filas.map((b) => ({
     id: b.id,
     fecha: b.fecha,
@@ -717,6 +723,7 @@ export async function listarBloques(ej: Ejecutor): Promise<BloqueImportacionDto[
         matricula: r.matricula,
         bastidor: r.bastidor,
         cambios: r.cambios,
+        expediente: r.idExpediente ? (mapa.get(r.idExpediente) ?? null) : null,
       })),
   }));
 }

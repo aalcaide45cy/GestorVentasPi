@@ -1,31 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { TAMANOS_PAGINA } from "@/components/expedientes/BarraPaginacion";
+import { usePreferencia } from "@/lib/preferencias";
 import { estiloPanel } from "./utilidades";
 
 /** Pestaña «Expedientes»: paginación por defecto de la lista (se guarda en el navegador). */
 export default function PestanaExpedientes() {
   const { mostrar } = useToast();
-  const [tamano, setTamano] = useState(20);
-
-  useEffect(() => {
-    try {
-      const guardado = Number(localStorage.getItem("exp-default-page-size"));
-      if (guardado > 0) setTamano(guardado);
-    } catch {
-      /* sin almacenamiento: se muestra el valor por defecto */
-    }
-  }, []);
+  const [guardado, guardar] = usePreferencia("exp-default-page-size");
+  const tamano = Number(guardado) > 0 ? Number(guardado) : 20;
 
   const elegir = (t: number) => {
-    setTamano(t);
-    try {
-      localStorage.setItem("exp-default-page-size", String(t));
-    } catch {
-      /* la preferencia no se recordará */
-    }
+    guardar(String(t));
     mostrar(`Paginación por defecto establecida en ${t} expedientes.`);
   };
 

@@ -141,8 +141,13 @@ export function interpretarCsvExpedientes(texto: string): RegistroImportacionCsv
   const cabecera = lineas[inicio];
   const delimitador = cabecera.includes(";") ? ";" : ",";
   const cabeceras = partirLinea(cabecera, delimitador).map((h) => h.replace(/^["']|["']$/g, "").toLowerCase());
-  // Se prueban los nombres por orden de preferencia (el primero que aparezca en alguna cabecera).
+  // Primero coincidencia exacta con algún nombre (por orden de preferencia) y, si no la hay, por
+  // fragmento: así «matricula» no se confunde con «f. matriculacion».
   const col = (nombres: string[]) => {
+    for (const n of nombres) {
+      const i = cabeceras.findIndex((h) => h === n);
+      if (i !== -1) return i;
+    }
     for (const n of nombres) {
       const i = cabeceras.findIndex((h) => h.includes(n));
       if (i !== -1) return i;

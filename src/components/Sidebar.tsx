@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import { usePreferencia } from "@/lib/preferencias";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
 
 interface SidebarProps {
@@ -59,36 +60,19 @@ function EnlaceNav({ href, titulo, colapsado, children }: EnlaceNavProps) {
 }
 
 export default function Sidebar({ user }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [colapsadoGuardado, guardarColapsado] = usePreferencia("sidebar-collapsed");
+  const isCollapsed = colapsadoGuardado === "true";
   const router = useRouter();
 
-  useEffect(() => {
-    setIsMounted(true);
-    try {
-      if (localStorage.getItem("sidebar-collapsed") === "true") setIsCollapsed(true);
-    } catch {
-      /* sin almacenamiento local */
-    }
-  }, []);
-
-  const toggleSidebar = () => {
-    const siguiente = !isCollapsed;
-    setIsCollapsed(siguiente);
-    try {
-      localStorage.setItem("sidebar-collapsed", String(siguiente));
-    } catch {
-      /* sin almacenamiento local */
-    }
-  };
+  const toggleSidebar = () => guardarColapsado(String(!isCollapsed));
 
   const rol = normalizarRol(user.rol);
   const isAdmin = esAdministrador(rol);
   const isVendedorOrUp = esRolActivo(rol);
   const inicial = (user.nombre ?? "?").trim().charAt(0).toUpperCase() || "?";
 
-  // Misma anchura que el servidor durante el SSR para evitar saltos de maquetación.
-  const asideWidth = !isMounted ? "280px" : isCollapsed ? "80px" : "280px";
+  // En el servidor y en el primer pintado vale expandida (la preferencia es null hasta hidratar).
+  const asideWidth = isCollapsed ? "80px" : "280px";
 
   const cerrarSesion = async () => {
     try {

@@ -50,6 +50,10 @@ export function interpretarCsvClientes(texto: string): RegistroClienteCsv[] {
   const cabeceras = partirLinea(lineas[inicio], delimitador).map((h) => h.replace(/^["']|["']$/g, "").toLowerCase());
   const indice = (nombres: string[]) => {
     for (const n of nombres) {
+      const i = cabeceras.findIndex((h) => h === n);
+      if (i !== -1) return i;
+    }
+    for (const n of nombres) {
       const i = cabeceras.findIndex((h) => h.includes(n));
       if (i !== -1) return i;
     }

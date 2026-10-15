@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { descargarTexto } from "@/lib/csv-expedientes";
@@ -22,7 +22,6 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
   const [limpiando, setLimpiando] = useState(false);
   const [analisis, setAnalisis] = useState<AnalisisBbdd | null>(null);
   const [mostrarCsv, setMostrarCsv] = useState(mostrarBotonesCsvInicial);
-  useEffect(() => setMostrarCsv(mostrarBotonesCsvInicial), [mostrarBotonesCsvInicial]);
 
   const analizar = async () => {
     setAnalizando(true);

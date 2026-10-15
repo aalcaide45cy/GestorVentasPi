@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ModalConfirmar } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, EnlaceEditar, FONDO_FECHA_A, FONDO_FECHA_B, mensajeDeError } from "./expedientes/comun";
+import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, mensajeDeError } from "./expedientes/comun";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
 import { useEdicionFechas } from "./expedientes/useEdicionFechas";
 
@@ -32,7 +32,12 @@ export default function RecentExpedientesTable({
   const [borrando, setBorrando] = useState(false);
   const [asignandoId, setAsignandoId] = useState<number | null>(null);
 
-  useEffect(() => setLista(initialExpedientes), [initialExpedientes]);
+  // Si el servidor entrega datos nuevos (router.refresh), se reemplazan los locales.
+  const [inicialesPrevios, setInicialesPrevios] = useState(initialExpedientes);
+  if (initialExpedientes !== inicialesPrevios) {
+    setInicialesPrevios(initialExpedientes);
+    setLista(initialExpedientes);
+  }
 
   const { abrirEditar, abrirBorrar, modales } = useEdicionFechas((id, cambios) =>
     setLista((prev) => prev.map((e) => (e.id_expediente === id ? { ...e, ...cambios } : e))),

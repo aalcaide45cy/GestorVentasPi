@@ -8,6 +8,7 @@ import { ModalConfirmar } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { construirCsv, descargarTexto, interpretarCsvExpedientes } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
+import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
@@ -119,20 +120,6 @@ const cajaMes: CSSProperties = {
 };
 const textoCaja: CSSProperties = { fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-light, #60a5fa)", textTransform: "uppercase", letterSpacing: "0.5px" };
 
-const leerLocal = (clave: string): string | null => {
-  try {
-    return localStorage.getItem(clave);
-  } catch {
-    return null;
-  }
-};
-const guardarLocal = (clave: string, valor: string) => {
-  try {
-    localStorage.setItem(clave, valor);
-  } catch {
-    /* sin almacenamiento: la preferencia no se recuerda */
-  }
-};
 
 const hoyIsoLocal = () => new Date().toISOString().split("T")[0];
 
@@ -161,7 +148,12 @@ export default function ExpedientesList({
   const esAdministrador = userRole === "administrador";
 
   const [expedientes, setExpedientes] = useState<ExpedienteDto[]>(expedientesIniciales);
-  useEffect(() => setExpedientes(expedientesIniciales), [expedientesIniciales]);
+  // Si el servidor entrega datos nuevos (router.refresh), se reemplazan los locales.
+  const [inicialesPrevios, setInicialesPrevios] = useState(expedientesIniciales);
+  if (expedientesIniciales !== inicialesPrevios) {
+    setInicialesPrevios(expedientesIniciales);
+    setExpedientes(expedientesIniciales);
+  }
 
   const [cargando, setCargando] = useState(false);
   const [borrando, setBorrando] = useState(false);
@@ -169,21 +161,20 @@ export default function ExpedientesList({
   const [confirmarBorradoMasivo, setConfirmarBorradoMasivo] = useState(false);
   const [asignandoId, setAsignandoId] = useState<number | null>(null);
 
-  // Preferencias del navegador (se leen tras montar para no romper la hidratación)
-  const [mostrarCobros, setMostrarCobros] = useState(false);
-  const [visibles, setVisibles] = useState<Visibles>(TODAS);
-  const [tamano, setTamano] = useState(20);
-  useEffect(() => {
-    setMostrarCobros(leerLocal("exp-show-cobro-status") === "true");
+  // Preferencias del navegador (null hasta hidratar; después el valor guardado)
+  const [cobrosGuardado, fijarCobros] = usePreferencia("exp-show-cobro-status");
+  const mostrarCobros = cobrosGuardado === "true";
+  const [columnasGuardadas, fijarColumnas] = usePreferencia("exp-visible-columns");
+  const visibles = useMemo<Visibles>(() => {
     try {
-      const guardado = leerLocal("exp-visible-columns");
-      if (guardado) setVisibles({ ...TODAS, ...(JSON.parse(guardado) as Partial<Visibles>) });
+      return columnasGuardadas ? { ...TODAS, ...(JSON.parse(columnasGuardadas) as Partial<Visibles>) } : TODAS;
     } catch {
-      /* preferencia corrupta: se usan todas */
+      return TODAS; // preferencia corrupta: se muestran todas
     }
-    const t = Number(leerLocal("exp-default-page-size"));
-    if (t > 0) setTamano(t);
-  }, []);
+  }, [columnasGuardadas]);
+  const [tamanoGuardado] = usePreferencia("exp-default-page-size");
+  const [tamanoElegido, setTamano] = useState<number | null>(null);
+  const tamano = tamanoElegido ?? (Number(tamanoGuardado) > 0 ? Number(tamanoGuardado) : 20);
 
   const [selectorColumnas, setSelectorColumnas] = useState(false);
   const [seleccionActiva, setSeleccionActiva] = useState(false);
@@ -319,7 +310,7 @@ export default function ExpedientesList({
   }, [filtrados, ordenCampo, ordenAsc]);
 
   useEffect(() => {
-    guardarLocal("visible_expediente_ids", JSON.stringify(ordenados.map((e) => e.id_expediente)));
+    guardarPreferencia("visible_expediente_ids", JSON.stringify(ordenados.map((e) => e.id_expediente)));
   }, [ordenados]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / tamano));
@@ -547,8 +538,7 @@ export default function ExpedientesList({
   const mostrarCol = (c: Columna) => visibles[c] !== false && (c !== "cobro" || mostrarCobros);
 
   const cambiarVisibles = (siguiente: Visibles) => {
-    setVisibles(siguiente);
-    guardarLocal("exp-visible-columns", JSON.stringify(siguiente));
+    fijarColumnas(JSON.stringify(siguiente));
   };
 
   const celdaFecha = (exp: ExpedienteDto, campo: CampoFecha, nombre: string, fondo: string) => (
@@ -637,8 +627,7 @@ export default function ExpedientesList({
               type="checkbox"
               checked={mostrarCobros}
               onChange={(e) => {
-                setMostrarCobros(e.target.checked);
-                guardarLocal("exp-show-cobro-status", String(e.target.checked));
+                fijarCobros(String(e.target.checked));
               }}
               style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }}
             />

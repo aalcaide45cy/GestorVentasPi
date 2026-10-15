@@ -1,30 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 type Tema = "light" | "dark";
 
-export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Tema>("dark");
+function leerTema(): Tema {
+  const actual = document.documentElement.getAttribute("data-theme");
+  if (actual === "light" || actual === "dark") return actual;
+  try {
+    const guardado = localStorage.getItem("theme");
+    if (guardado === "light" || guardado === "dark") return guardado;
+  } catch {
+    /* sin almacenamiento local */
+  }
+  return "dark";
+}
 
-  useEffect(() => {
-    // El tema inicial lo fija el script de la cabecera en el atributo del html.
-    const actual = document.documentElement.getAttribute("data-theme");
-    if (actual === "light" || actual === "dark") {
-      setTheme(actual);
-      return;
-    }
-    try {
-      const guardado = localStorage.getItem("theme");
-      if (guardado === "light" || guardado === "dark") setTheme(guardado);
-    } catch {
-      /* sin almacenamiento local */
-    }
-  }, []);
+function suscribirTema(avisar: () => void): () => void {
+  const observador = new MutationObserver(avisar);
+  observador.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observador.disconnect();
+}
+
+export default function ThemeToggle() {
+  // El tema inicial lo fija el script de la cabecera en el atributo del html; se observa su cambio.
+  const theme = useSyncExternalStore(suscribirTema, leerTema, () => "dark" as Tema);
 
   const alternar = () => {
     const siguiente: Tema = theme === "dark" ? "light" : "dark";
-    setTheme(siguiente);
     try {
       localStorage.setItem("theme", siguiente);
     } catch {

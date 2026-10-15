@@ -37,9 +37,13 @@ export default function GlobalSearch() {
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setQuery(searchParams.get("q") ?? "");
-  }, [searchParams]);
+  // La caja refleja la búsqueda de la URL cuando esta cambia (ajuste de estado durante el render).
+  const parametroQ = searchParams.get("q") ?? "";
+  const [parametroPrevio, setParametroPrevio] = useState(parametroQ);
+  if (parametroQ !== parametroPrevio) {
+    setParametroPrevio(parametroQ);
+    setQuery(parametroQ);
+  }
 
   useEffect(() => {
     function alPulsarFuera(event: MouseEvent) {
@@ -50,11 +54,7 @@ export default function GlobalSearch() {
   }, []);
 
   useEffect(() => {
-    if (query.trim().length < 2) {
-      setSuggestions(VACIAS);
-      setIsOpen(false);
-      return;
-    }
+    if (query.trim().length < 2) return;
     const controlador = new AbortController();
     const espera = setTimeout(async () => {
       setLoading(true);
@@ -83,7 +83,9 @@ export default function GlobalSearch() {
     router.push(`/dashboard/buscar?q=${encodeURIComponent(query.trim())}`);
   };
 
-  const total = suggestions.clientes.length + suggestions.expedientes.length;
+  const buscable = query.trim().length >= 2;
+  const sugerencias = buscable ? suggestions : VACIAS;
+  const total = sugerencias.clientes.length + sugerencias.expedientes.length;
 
   return (
     <div ref={containerRef} style={{ position: "relative", width: "320px" }}>
@@ -130,7 +132,7 @@ export default function GlobalSearch() {
         </button>
       </form>
 
-      {isOpen && (total > 0 || loading) && (
+      {isOpen && buscable && (total > 0 || loading) && (
         <div
           className="glass-panel"
           style={{
@@ -154,10 +156,10 @@ export default function GlobalSearch() {
             </div>
           )}
 
-          {!loading && suggestions.expedientes.length > 0 && (
+          {!loading && sugerencias.expedientes.length > 0 && (
             <div>
               <div style={cabeceraGrupo}>📄 Expedientes</div>
-              {suggestions.expedientes.map((exp) => (
+              {sugerencias.expedientes.map((exp) => (
                 <div
                   key={`exp-${exp.id_expediente}`}
                   onClick={() => {
@@ -175,10 +177,10 @@ export default function GlobalSearch() {
             </div>
           )}
 
-          {!loading && suggestions.clientes.length > 0 && (
-            <div style={{ marginTop: suggestions.expedientes.length > 0 ? "8px" : 0 }}>
+          {!loading && sugerencias.clientes.length > 0 && (
+            <div style={{ marginTop: sugerencias.expedientes.length > 0 ? "8px" : 0 }}>
               <div style={cabeceraGrupo}>👤 Clientes</div>
-              {suggestions.clientes.map((c) => (
+              {sugerencias.clientes.map((c) => (
                 <div
                   key={`cli-${c.id}`}
                   onClick={() => {

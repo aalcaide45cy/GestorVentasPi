@@ -231,7 +231,6 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
         if (fTienda === "global" ? c.tienda_id !== null : c.tienda_id !== Number(fTienda)) return false;
       }
       return true;
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientes, busqueda, fNombre, fDni, fFecha, fCorreo, fTelefono, fTienda, tiendas]);

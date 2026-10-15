@@ -169,7 +169,9 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
       fAfect !== "" || fRci !== "" || fMat !== "" || fFact !== "" || fEntrega !== "");
 
   const cambiosRef = useRef(hayCambios);
-  cambiosRef.current = hayCambios;
+  useEffect(() => {
+    cambiosRef.current = hayCambios;
+  });
   useEffect(() => {
     const antesDeSalir = (ev: BeforeUnloadEvent) => {
       if (cambiosRef.current()) {

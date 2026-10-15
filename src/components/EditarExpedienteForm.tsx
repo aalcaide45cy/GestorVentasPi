@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
+import { usePreferencia } from "@/lib/preferencias";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { mensajeDeError } from "./expedientes/comun";
 
@@ -49,21 +50,17 @@ export default function EditarExpedienteForm({
   const [destino, setDestino] = useState<string | null>(null);
 
   // Navegación anterior/siguiente según el orden visible en el listado
-  const [anteriorId, setAnteriorId] = useState<number | null>(null);
-  const [siguienteId, setSiguienteId] = useState<number | null>(null);
-  useEffect(() => {
+  const [idsVisibles] = usePreferencia("visible_expediente_ids");
+  const { anteriorId, siguienteId } = useMemo(() => {
     try {
-      const guardado = localStorage.getItem("visible_expediente_ids");
-      if (!guardado) return;
-      const ids = JSON.parse(guardado) as number[];
+      const ids = idsVisibles ? (JSON.parse(idsVisibles) as number[]) : [];
       const i = ids.indexOf(expediente.id_expediente);
-      if (i === -1) return;
-      setAnteriorId(i > 0 ? ids[i - 1] : null);
-      setSiguienteId(i < ids.length - 1 ? ids[i + 1] : null);
+      if (i === -1) return { anteriorId: null, siguienteId: null };
+      return { anteriorId: i > 0 ? ids[i - 1] : null, siguienteId: i < ids.length - 1 ? ids[i + 1] : null };
     } catch {
-      /* sin orden guardado: sin navegación */
+      return { anteriorId: null, siguienteId: null }; // sin orden guardado: sin navegación
     }
-  }, [expediente.id_expediente]);
+  }, [idsVisibles, expediente.id_expediente]);
 
   // Cliente
   const [asignado, setAsignado] = useState<ClienteDto | null>(expediente.cliente);
@@ -302,7 +299,9 @@ export default function EditarExpedienteForm({
   };
 
   const cambiosRef = useRef(hayCambios);
-  cambiosRef.current = hayCambios;
+  useEffect(() => {
+    cambiosRef.current = hayCambios;
+  });
   useEffect(() => {
     const antesDeSalir = (ev: BeforeUnloadEvent) => {
       if (cambiosRef.current()) {
