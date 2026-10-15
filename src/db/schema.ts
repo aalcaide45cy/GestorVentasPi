@@ -214,8 +214,7 @@ export const expedientes = pgTable(
 
     /* Motor nuevo (centésimas de punto / céntimos). Se usan a partir de F3. */
     puntos: integer("puntos"),
-    /** FK a promociones_puntos: se añade en la migración de F3. */
-    idPromocion: integer("id_promocion"),
+    idPromocion: integer("id_promocion").references(() => promocionesPuntos.id, { onDelete: "restrict" }),
     comisionCocheManual: integer("comision_coche_manual"),
     comisionFinanciacionManual: integer("comision_financiacion_manual"),
     conceptosEspeciales: jsonb("conceptos_especiales").$type<ConceptoEspecial[]>().notNull().default([]),
@@ -332,4 +331,300 @@ export const auditoria = pgTable("auditoria", {
   entidadId: text("entidad_id"),
   detalle: jsonb("detalle"),
   ip: inet("ip"),
+});
+
+/* ------------------------------------------------------------------ */
+/* Sistema de comisiones (F3). Importes en céntimos, puntos en centésimas */
+/* ------------------------------------------------------------------ */
+
+export const commissionPlans = pgTable("commission_plans", {
+  idPlan: serial("id_plan").primaryKey(),
+  nombre: text("nombre").notNull(),
+  fechaInicio: date("fecha_inicio").notNull(),
+  fechaFin: date("fecha_fin").notNull(),
+  /** borrador | activo | cerrado */
+  estado: varchar("estado", { length: 20 }).notNull().default("borrador"),
+  tramoMin: integer("tramo_min").notNull().default(-4),
+  tramoMax: integer("tramo_max").notNull().default(3),
+  puntosPorPedido: integer("puntos_por_pedido").notNull().default(0),
+  penalizacionImporte: integer("penalizacion_importe").notNull().default(0),
+  penalizacionTitulo: text("penalizacion_titulo"),
+  penalizacionDescripcion: text("penalizacion_descripcion"),
+  notas: text("notas"),
+});
+
+export const commissionPlanVendedores = pgTable(
+  "commission_plan_vendedores",
+  {
+    id: serial("id").primaryKey(),
+    idPlan: integer("id_plan")
+      .notNull()
+      .references(() => commissionPlans.idPlan, { onDelete: "cascade" }),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario),
+    objetivoBase: integer("objetivo_base").notNull().default(1300),
+    arrastre: integer("arrastre").notNull().default(0),
+  },
+  (t) => [uniqueIndex("commission_plan_vendedores_uq").on(t.idPlan, t.idUsuario)],
+);
+
+export const promocionesPuntos = pgTable("promociones_puntos", {
+  id: serial("id").primaryKey(),
+  idPlan: integer("id_plan")
+    .notNull()
+    .references(() => commissionPlans.idPlan, { onDelete: "cascade" }),
+  nombre: text("nombre").notNull(),
+  puntosEspeciales: integer("puntos_especiales").notNull(),
+  minimoUnidades: integer("minimo_unidades").notNull(),
+  puntosSiNoCumple: integer("puntos_si_no_cumple").notNull().default(100),
+});
+
+const refPlan = () =>
+  integer("id_plan")
+    .notNull()
+    .references(() => commissionPlans.idPlan, { onDelete: "cascade" });
+
+export const commissionPlanModelRates = pgTable(
+  "commission_plan_model_rates",
+  {
+    idRate: serial("id_rate").primaryKey(),
+    idPlan: refPlan(),
+    idModelo: integer("id_modelo")
+      .notNull()
+      .references(() => modelos.idModelo, { onDelete: "cascade" }),
+    tasaCumplida: boolean("tasa_cumplida").notNull(),
+    /** Mapa tramo → céntimos, p. ej. {"-4":15000,"0":20000}. */
+    importes: jsonb("importes").$type<Record<string, number>>().notNull().default({}),
+    activo: boolean("activo").notNull().default(true),
+    orden: integer("orden").notNull().default(0),
+  },
+  (t) => [uniqueIndex("commission_plan_model_rates_uq").on(t.idPlan, t.idModelo, t.tasaCumplida)],
+);
+
+export const commissionModelPoints = pgTable(
+  "commission_model_points",
+  {
+    id: serial("id").primaryKey(),
+    idPlan: refPlan(),
+    idModelo: integer("id_modelo")
+      .notNull()
+      .references(() => modelos.idModelo, { onDelete: "cascade" }),
+    puntos: integer("puntos").notNull(),
+  },
+  (t) => [uniqueIndex("commission_model_points_uq").on(t.idPlan, t.idModelo)],
+);
+
+export const commissionUsedRates = pgTable("commission_used_rates", {
+  idUsedRate: serial("id_used_rate").primaryKey(),
+  idPlan: refPlan(),
+  subtipo: varchar("subtipo", { length: 30 }).notNull(),
+  importePrimera: integer("importe_primera").notNull().default(0),
+  importeResto: integer("importe_resto").notNull().default(0),
+  minAplicar: integer("min_aplicar").notNull().default(0),
+  activo: boolean("activo").notNull().default(true),
+});
+
+export const commissionVoPatterns = pgTable("commission_vo_patterns", {
+  idVoPattern: serial("id_vo_pattern").primaryKey(),
+  idPlan: refPlan(),
+  nombre: text("nombre").notNull(),
+  aplicaAVn: boolean("aplica_a_vn").notNull().default(false),
+  activo: boolean("activo").notNull().default(true),
+  tiers: jsonb("tiers").$type<{ unidad: number; importe: number }[]>().notNull().default([]),
+});
+
+export const commissionFinanceRates = pgTable(
+  "commission_finance_rates",
+  {
+    idFinanceRate: serial("id_finance_rate").primaryKey(),
+    idPlan: refPlan(),
+    idMarca: integer("id_marca")
+      .notNull()
+      .references(() => marcas.idMarca, { onDelete: "cascade" }),
+    /** CREDITO | PREFERENCE | RENTING | CONTADO */
+    tipoFinanciacion: varchar("tipo_financiacion", { length: 20 }).notNull(),
+    importe: integer("importe").notNull().default(0),
+  },
+  (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion)],
+);
+
+export const commissionPreferenceRules = pgTable("commission_preference_rules", {
+  idPrefRule: serial("id_pref_rule").primaryKey(),
+  idPlan: refPlan(),
+  nombre: text("nombre"),
+  idMarca: integer("id_marca").references(() => marcas.idMarca, { onDelete: "cascade" }),
+  idModelo: integer("id_modelo").references(() => modelos.idModelo, { onDelete: "cascade" }),
+  tipoFinanciacion: varchar("tipo_financiacion", { length: 20 }),
+  importe: integer("importe").notNull().default(0),
+  activa: boolean("activa").notNull().default(true),
+});
+
+/** Columnas comunes de reglas y bonus (las penalizaciones son bonus con `es_penalizacion`). */
+const columnasRegla = () => ({
+  idPlan: refPlan(),
+  nombre: text("nombre").notNull(),
+  /** pedido | afectacion | matriculacion | cobro | credito | preference */
+  evento: varchar("evento", { length: 20 }).notNull(),
+  /** nuevo | usado | cualquiera */
+  tipoVehiculo: varchar("tipo_vehiculo", { length: 20 }).notNull().default("cualquiera"),
+  fechaInicio: date("fecha_inicio"),
+  fechaFin: date("fecha_fin"),
+  idMarca: integer("id_marca").references(() => marcas.idMarca, { onDelete: "cascade" }),
+  idModelo: integer("id_modelo").references(() => modelos.idModelo, { onDelete: "cascade" }),
+  /** cumplida | no_cumplida | indiferente */
+  tasaIntervencion: varchar("tasa_intervencion", { length: 20 }).notNull().default("indiferente"),
+  puntos: integer("puntos").notNull().default(0),
+  importe: integer("importe").notNull().default(0),
+  esPenalizacion: boolean("es_penalizacion").notNull().default(false),
+  ligarACredito: boolean("ligar_a_credito").notNull().default(false),
+  activa: boolean("activa").notNull().default(true),
+});
+
+export const commissionRules = pgTable("commission_rules", { idRule: serial("id_rule").primaryKey(), ...columnasRegla() });
+export const commissionBonusRules = pgTable("commission_bonus_rules", {
+  idBonusRule: serial("id_bonus_rule").primaryKey(),
+  ...columnasRegla(),
+});
+
+export const commissionBrandInterventionRates = pgTable(
+  "commission_brand_intervention_rates",
+  {
+    idInterventionRate: serial("id_intervention_rate").primaryKey(),
+    idPlan: refPlan(),
+    idMarca: integer("id_marca")
+      .notNull()
+      .references(() => marcas.idMarca, { onDelete: "cascade" }),
+    /** porcentaje | unidades */
+    tipoTasa: varchar("tipo_tasa", { length: 20 }).notNull().default("porcentaje"),
+    objetivo: integer("objetivo").notNull().default(70),
+    puntosDefecto: integer("puntos_defecto").notNull().default(100),
+  },
+  (t) => [uniqueIndex("commission_brand_intervention_rates_uq").on(t.idPlan, t.idMarca)],
+);
+
+export const commissionLiquidations = pgTable(
+  "commission_liquidations",
+  {
+    idLiquidation: serial("id_liquidation").primaryKey(),
+    idPlan: integer("id_plan")
+      .notNull()
+      .references(() => commissionPlans.idPlan, { onDelete: "restrict" }),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario),
+    mes: varchar("mes", { length: 7 }).notNull(),
+    /** borrador | calculada | revisada | cerrada */
+    estado: varchar("estado", { length: 20 }).notNull().default("calculada"),
+    version: integer("version").notNull().default(1),
+    objetivoX: integer("objetivo_x").notNull().default(0),
+    puntosMes: integer("puntos_mes").notNull().default(0),
+    tramo: integer("tramo").notNull().default(0),
+    tasaIntervencion: jsonb("tasa_intervencion").$type<unknown[]>().notNull().default([]),
+    avisos: jsonb("avisos").$type<string[]>().notNull().default([]),
+    bruto: integer("bruto").notNull().default(0),
+    penalizacion: integer("penalizacion").notNull().default(0),
+    neto: integer("neto").notNull().default(0),
+    mesPago: varchar("mes_pago", { length: 7 }).notNull(),
+    calculadaEn: timestamp("calculada_en", { withTimezone: true }).notNull().defaultNow(),
+    /** motor | importada_antigua */
+    origen: varchar("origen", { length: 30 }).notNull().default("motor"),
+  },
+  (t) => [uniqueIndex("commission_liquidations_uq").on(t.idPlan, t.idUsuario, t.mes)],
+);
+
+export const commissionLiquidationLines = pgTable(
+  "commission_liquidation_lines",
+  {
+    idLine: serial("id_line").primaryKey(),
+    idLiquidation: integer("id_liquidation")
+      .notNull()
+      .references(() => commissionLiquidations.idLiquidation, { onDelete: "cascade" }),
+    idExpediente: integer("id_expediente"),
+    clase: varchar("clase", { length: 2 }).notNull(),
+    mesComputo: varchar("mes_computo", { length: 7 }),
+    cuenta: boolean("cuenta").notNull().default(false),
+    unidades: integer("unidades").notNull().default(0),
+    puntos: integer("puntos").notNull().default(0),
+    importe: integer("importe").notNull().default(0),
+  },
+  (t) => [index("commission_liquidation_lines_liq_idx").on(t.idLiquidation)],
+);
+
+export const commissionLiquidationLineItems = pgTable(
+  "commission_liquidation_line_items",
+  {
+    idItem: serial("id_item").primaryKey(),
+    idLine: integer("id_line")
+      .notNull()
+      .references(() => commissionLiquidationLines.idLine, { onDelete: "cascade" }),
+    orden: integer("orden").notNull().default(0),
+    concepto: varchar("concepto", { length: 30 }).notNull(),
+    descripcion: text("descripcion").notNull(),
+    importe: integer("importe").notNull().default(0),
+    puntos: integer("puntos").notNull().default(0),
+    evento: varchar("evento", { length: 30 }),
+    mesEvento: varchar("mes_evento", { length: 7 }),
+    aviso: text("aviso"),
+  },
+  (t) => [index("commission_liquidation_line_items_line_idx").on(t.idLine)],
+);
+
+export const commissionLiquidationVersions = pgTable(
+  "commission_liquidation_versions",
+  {
+    id: serial("id").primaryKey(),
+    idLiquidation: integer("id_liquidation")
+      .notNull()
+      .references(() => commissionLiquidations.idLiquidation, { onDelete: "restrict" }),
+    version: integer("version").notNull(),
+    motivo: text("motivo").notNull(),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    snapshot: jsonb("snapshot").notNull(),
+    netoAnterior: integer("neto_anterior").notNull(),
+    netoNuevo: integer("neto_nuevo").notNull(),
+  },
+  (t) => [index("commission_liquidation_versions_liq_idx").on(t.idLiquidation)],
+);
+
+/** Registro de solo inserción: las correcciones son apuntes negativos. */
+export const libroPuntos = pgTable(
+  "libro_puntos",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario),
+    idExpediente: integer("id_expediente"),
+    /** PEDIDO | MATRICULACION | COBRO | REGLA | AJUSTE */
+    evento: varchar("evento", { length: 20 }).notNull(),
+    fecha: date("fecha").notNull(),
+    mes: varchar("mes", { length: 7 }).notNull(),
+    puntos: integer("puntos").notNull(),
+    regla: text("regla"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("libro_puntos_usuario_mes_idx").on(t.idUsuario, t.mes)],
+);
+
+export const pendientesCobro = pgTable("pendientes_cobro", {
+  id: serial("id").primaryKey(),
+  idUsuario: integer("id_usuario")
+    .notNull()
+    .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+  concepto: text("concepto").notNull(),
+  importe: integer("importe").notNull(),
+  fecha: date("fecha"),
+  mesNominaPrevisto: varchar("mes_nomina_previsto", { length: 7 }),
+  cobrado: boolean("cobrado").notNull().default(false),
+  fechaCobro: date("fecha_cobro"),
+  notas: text("notas"),
+});
+
+export const commissionPlanPending = pgTable("commission_plan_pending", {
+  id: serial("id").primaryKey(),
+  idPlan: refPlan(),
+  concepto: text("concepto").notNull(),
+  importe: integer("importe").notNull(),
+  mesOrigen: varchar("mes_origen", { length: 7 }),
 });

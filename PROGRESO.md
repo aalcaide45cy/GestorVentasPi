@@ -7,7 +7,7 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F0 Preparación | ✅ hecha (rama `fase/F0-preparacion`, pendiente de aprobación del propietario) | Ver detalle abajo |
 | F1 Base sin Clerk y sin comisiones | ⬜ pendiente | |
 | F2 Autenticación completa | ⬜ pendiente | |
-| F3 Motor de comisiones (sin interfaz) | ⬜ pendiente | |
+| F3 Motor de comisiones (sin interfaz) | ✅ hecha (rama `fase/F3-motor`) | Ver detalle abajo |
 | F4 Interfaz de comisiones | ⬜ pendiente | |
 | F5 Copias y Google Drive | ⬜ pendiente | |
 | F6 Empaquetado (imágenes, instalador, guía, túnel) | ⬜ pendiente | |
@@ -31,6 +31,18 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 4. Más tests (usuarios, catálogos, importaciones), lint, build, prueba manual en navegador, DECISIONES.md y parada con informe.
 
 **Notas de diseño**: la lista de expedientes filtra por defecto por el vendedor actual (como la original); el diseño de referencia está en `referencia/gestorVentas-original/src/components/ExpedientesList.tsx`; no usar heredocs en Bash para escribir archivos con comillas (usar la herramienta Write).
+
+## F3 — Motor de comisiones (sin interfaz)
+
+**Hecho**
+- `src/lib/comisiones/`: motor puro (`calcularMes`, `seleccionarPlan`, `simularExpediente`, `mesesAfectados`, `apuntesDeSincronizacion`), aritmética entera, un único motor para simulador, liquidación e informes.
+- Esquema 4.6 (migración `0002_comisiones`) y FK `expedientes.id_promocion`; disparadores de protección (`0003_proteccion_comisiones`): liquidaciones/líneas/conceptos solo con `app.recalculo`/`app.restauracion`; versiones y libro de puntos de solo inserción.
+- `src/lib/servicios/liquidaciones.ts`: carga plan y expedientes, `recalcularMes` (transaccional, idempotente, versiona meses revisados/cerrados), `sincronizarLibro`, `recalcularAfectados`.
+- Tests: T1–T28 en `motor.test.ts` y `liquidaciones.test.ts` (BD real). Cobertura del motor: 99 % líneas.
+
+**Cómo probarlo**: `npm test ; npm run typecheck ; npm run lint ; npm run build`
+
+**Pendiente / notas**: la copia JSON aún no incluye las tablas de comisiones (se aborda con las copias de F5). Llamar a `recalcularAfectados` desde crear/editar/borrar expediente se conecta en F4 junto a la interfaz.
 
 ## F2 — Autenticación completa (COMPLETA, fusionada a main)
 

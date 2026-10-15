@@ -39,3 +39,11 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 | 15/10/2026 | F2 | Un usuario sin 2FA activo no puede llamar a la API ni ver el panel (redirige a activar el 2FA) | 5.3: el 2FA es obligatorio | No |
 | 15/10/2026 | F2 | La limpieza de sesiones e intentos se ejecuta de forma oportunista tras un login (cada 6 h como mucho) hasta que haya planificador | No hay cron todavía | No |
 | 15/10/2026 | F2 | Los códigos de recuperación se guardan como HMAC con clave derivada de `APP_SECRET`; el secreto TOTP, cifrado con AES-256-GCM | 5.4 | No |
+| 15/10/2026 | F3 | «Ligar a crédito» se cumple si existe una regla activa de evento `credito` (no ligada) que pasaría los filtros para ese expediente, aceptando cualquier venta financiada | El Anexo A no define cómo se evalúa para ventas Preference | Sí |
+| 15/10/2026 | F3 | Preference: especificidad marca+modelo > solo modelo > solo marca > general; la regla de mejor especificidad con menor id | 12.3 solo ordena marca+modelo > marca > general | No |
+| 15/10/2026 | F3 | Un VO con comisión a mano ocupa su posición en el orden/contador por subtipo; sin tarifa de financiación para marca y tipo → línea con 0 € y aviso | 12.1: nunca excepción, aviso + 0 € | No |
+| 15/10/2026 | F3 | Avisos de «falta fecha» solo en los meses donde el expediente tiene otro evento (pedido, afectación, RCI) | Evitar ruido en todos los meses | No |
+| 15/10/2026 | F3 | Las tablas `commission_rules` y `commission_bonus_rules` se fusionan en el motor (ids de bonus + 1.000.000) | Mismas columnas; la clave del libro de puntos no debe colisionar | No |
+| 15/10/2026 | F3 | Versiones y libro rechazan UPDATE/DELETE siempre (12.9.5 contradice «salvo recálculo»; se aplica «siempre»); la restauración usa TRUNCATE | Coherencia con «solo inserción» | No |
+| 15/10/2026 | F3 | La liquidación se actualiza en sitio (mismo id) y se versiona solo si estaba revisada/cerrada/importada y su contenido cambia | Las FK de versiones impiden borrar la liquidación | No |
+
