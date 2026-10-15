@@ -1,5 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import sharp from "sharp";
 import { HttpError } from "@/lib/auth/sesion";
 import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
 
@@ -54,11 +55,11 @@ export interface LineaOcr {
   confianza: number;
 }
 
-export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string } = {}): Promise<LineaOcr[]> {
+export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico" } = {}): Promise<LineaOcr[]> {
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("spa", 1, { langPath: carpetaIdioma(), gzip: true, cacheMethod: "none" });
   try {
-    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK, preserve_interword_spaces: "1", ...(opciones.lista ? { tessedit_char_whitelist: opciones.lista } : {}) });
+    await worker.setParameters({ tessedit_pageseg_mode: opciones.psm === "disperso" ? PSM.SPARSE_TEXT : opciones.psm === "automatico" ? PSM.AUTO : PSM.SINGLE_BLOCK, preserve_interword_spaces: "1", ...(opciones.lista ? { tessedit_char_whitelist: opciones.lista } : {}) });
     const lineas: LineaOcr[] = [];
     for (const img of imagenes) {
       const { data } = await worker.recognize(img, {}, { blocks: true });
@@ -75,6 +76,32 @@ export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string
   } finally {
     await worker.terminate();
   }
+}
+
+/** Texto fiable reconocido: caracteres de las líneas con confianza suficiente (sirve para comparar giros). */
+const calidad = (lineas: LineaOcr[]): number => lineas.filter((l) => l.confianza >= 60).reduce((s, l) => s + l.texto.replace(/\s/g, "").length, 0);
+
+/**
+ * OCR de páginas que pueden venir giradas (un escáner o el móvil las dejan de lado o del revés): si el texto leído es
+ * pobre, se prueban los otros tres giros y se queda el que más texto fiable da.
+ */
+export async function ocrOrientado(imagenes: Buffer[]): Promise<LineaOcr[]> {
+  const todas: LineaOcr[] = [];
+  for (const img of imagenes) {
+    let mejor = await ocrImagenes([img]);
+    let puntos = calidad(mejor);
+    for (const giro of puntos >= 80 ? [] : [90, 270, 180]) {
+      const l = await ocrImagenes([await sharp(img, { failOn: "none" }).rotate(giro).png().toBuffer()]);
+      const p = calidad(l);
+      if (p > puntos) {
+        mejor = l;
+        puntos = p;
+      }
+      if (puntos >= 80) break;
+    }
+    todas.push(...mejor);
+  }
+  return todas;
 }
 
 interface ItemTexto {
@@ -164,7 +191,7 @@ async function leerPdf(datos: Buffer, forzarOcr: boolean): Promise<ResultadoOcr>
     const aviso = doc.numPages > MAX_PAGINAS ? `El PDF tiene ${doc.numPages} páginas: solo se han leído las ${MAX_PAGINAS} primeras.` : null;
     if (!forzarOcr && filasTexto.length > 0) return { filas: filasTexto, texto, metodo: "texto-pdf", paginas, aviso };
     // Sin texto aprovechable: se dibuja cada página y se reconoce con OCR
-    const lineas = await ocrImagenes(await paginasComoImagenes(doc, paginas));
+    const lineas = await ocrOrientado(await paginasComoImagenes(doc, paginas));
     return { ...resultadoDeLineas(lineas), metodo: "ocr", paginas, aviso };
   } finally {
     await doc.cleanup?.();
@@ -186,7 +213,7 @@ export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean 
   return enCola(async () => {
     try {
       if (tipo === "pdf") return await leerPdf(datos, opciones.forzarOcr ?? false);
-      const lineas = await ocrImagenes([datos]);
+      const lineas = await ocrOrientado([datos]);
       return { ...resultadoDeLineas(lineas), metodo: "ocr" as const, paginas: 1 };
     } catch (e) {
       if (e instanceof HttpError) throw e;
@@ -204,13 +231,13 @@ export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {
     try {
-      if (tipo === "imagen") return { texto: (await ocrImagenes([datos])).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      if (tipo === "imagen") return { texto: (await ocrOrientado([datos])).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       const doc = await abrirPdf(datos);
       try {
         const paginas = Math.min(doc.numPages, MAX_PAGINAS);
         const texto = await textoDePaginas(doc, paginas);
         if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
-        return { texto: (await ocrImagenes(await paginasComoImagenes(doc, paginas))).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        return { texto: (await ocrOrientado(await paginasComoImagenes(doc, paginas))).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       } finally {
         await doc.cleanup?.();
       }

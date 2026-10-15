@@ -468,6 +468,8 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
                   if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
                   if (d.dni && !dni) setDni(d.dni);
                   if (d.cliente && !nombre) setNombre(d.cliente);
+                  if (d.telefono && rellenos(telefonos).length === 0) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
+                  if (d.email && rellenos(emails).length === 0) setEmails([{ valor: d.email, tipo: "Principal" }]);
                   setPendientes((prev) => [...prev, r.adjunto.id]);
                   setAvisoLectura(d.avisos[0] ?? null);
                   mostrar("Pedido leído: revisa los datos antes de guardar.");

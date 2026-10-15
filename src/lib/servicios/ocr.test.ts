@@ -1,5 +1,6 @@
 import path from "node:path";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import sharp from "sharp";
 import { beforeAll, describe, expect, it } from "vitest";
 import { reconocerRejilla, tipoDeFichero } from "./ocr";
 
@@ -80,5 +81,13 @@ describe("OCR de la rejilla", () => {
     const r = await reconocerRejilla(pdfConTexto(LINEAS), { forzarOcr: true });
     expect(r.metodo).toBe("ocr");
     expect(r.filas.map((f) => f.matricula)).toEqual(["1234BCD", "5678FGH", "9012JKL"]);
+  });
+
+  it("lee una imagen girada (escaneada de lado o del revés)", { timeout: 180_000 }, async () => {
+    for (const giro of [90, 180, 270]) {
+      const girada = await sharp(imagenRejilla()).rotate(giro).png().toBuffer();
+      const r = await reconocerRejilla(girada);
+      expect(r.filas.map((f) => f.matricula)).toEqual(["1234BCD", "5678FGH", "9012JKL"]);
+    }
   });
 });

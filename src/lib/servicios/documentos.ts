@@ -1,25 +1,29 @@
 import sharp from "sharp";
 import type { Ejecutor } from "@/db";
-import { combinarDni, nombreCompleto, parsearAnverso, parsearMrz, type DatosDni } from "@/lib/documentos/dni";
+import { combinarDni, nombreCompleto, type DatosDni } from "@/lib/documentos/dni";
 import { parsearPedido, type DatosPedido } from "@/lib/documentos/pedido";
+import type { RegionFoto } from "@/lib/documentos/tarjetas";
 import { HttpError } from "@/lib/auth/sesion";
 import { guardarAdjunto, MAX_BYTES_ADJUNTO, detectarMime, type AdjuntoDto } from "./adjuntos";
 import { leerCatalogos } from "./catalogos";
-import { enCola, imagenesDePdf, ocrImagenes, textoDeDocumento } from "./ocr";
+import { leerTarjetasDeImagen, type TarjetaLeida } from "./dni-lectura";
+import { enCola, imagenesDePdf, textoDeDocumento } from "./ocr";
 
 /**
  * Lectura automática de documentos para rellenar fichas: el DNI (cliente y foto) y el pedido (expediente).
- * Nada se guarda en las fichas: se devuelven los datos para que el usuario los revise; el fichero queda como
- * adjunto «pendiente» y se vincula al registro cuando éste se guarda.
+ * Nada se guarda en las fichas: se devuelven los datos para que el usuario los revise; los ficheros quedan como
+ * adjuntos «pendientes» y se vinculan al registro cuando éste se guarda.
  */
 
 export interface ResultadoDni {
   datos: DatosDni & { nombreCompleto: string | null };
-  /** Adjuntos creados (pendientes de vincular). */
+  /** Adjuntos creados (pendientes de vincular): una imagen por cada cara de DNI encontrada. */
   adjuntos: AdjuntoDto[];
   /** Adjunto con la cara recortada del anverso, si se ha podido. */
   fotoId: number | null;
   lado: "anverso" | "reverso" | "desconocido";
+  /** Tarjetas encontradas en el fichero. */
+  tarjetas: number;
 }
 
 export interface ResultadoPedido {
@@ -28,95 +32,89 @@ export interface ResultadoPedido {
   metodo: "texto-pdf" | "ocr";
 }
 
-const ALFABETO_MRZ = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<";
-
-/** Imagen preparada para OCR: orientada, en grises, contrastada y con ancho suficiente. */
-async function prepararParaOcr(img: Buffer, ancho = 2200): Promise<Buffer> {
-  return sharp(img, { failOn: "none", limitInputPixels: 100_000_000 }).rotate().greyscale().normalise().resize({ width: ancho, withoutEnlargement: false }).png().toBuffer();
-}
-
 /**
- * Recorta la fotografía del titular del anverso del DNI español (a la izquierda). Es una región fija proporcional:
- * funciona si la foto del documento ocupa casi todo el encuadre. Devuelve JPEG de 300×380.
+ * Recorta la fotografía del titular del anverso. Con la región localizada se usa tal cual (con la proporción de una
+ * foto de carnet, anclada a la izquierda); sin ella no hay recorte. Devuelve JPEG de 300×380.
  */
-export async function recortarFotoDni(anverso: Buffer): Promise<Buffer | null> {
+export async function recortarFotoDni(anverso: Buffer, foto: RegionFoto | null): Promise<Buffer | null> {
+  if (!foto) return null;
   try {
-    const base = sharp(anverso, { failOn: "none", limitInputPixels: 100_000_000 }).rotate();
-    const { width, height } = await base.metadata();
-    if (!width || !height) return null;
-    // Si la tarjeta se fotografió en vertical, se endereza
-    const horizontal = width >= height ? base : sharp(await base.rotate(90).toBuffer());
-    const meta = width >= height ? { w: width, h: height } : { w: height, h: width };
-    const region = { left: Math.round(meta.w * 0.035), top: Math.round(meta.h * 0.2), width: Math.round(meta.w * 0.3), height: Math.round(meta.h * 0.62) };
-    return await horizontal.extract(region).resize(300, 380, { fit: "cover" }).jpeg({ quality: 85 }).toBuffer();
+    const { width: W, height: H } = await sharp(anverso, { failOn: "none" }).metadata();
+    if (!W || !H) return null;
+    const alto = Math.round(foto.alto * H);
+    const ancho = Math.min(Math.round(foto.ancho * W), Math.round(alto * 0.82));
+    const left = Math.max(0, Math.round(foto.x * W));
+    const top = Math.max(0, Math.round(foto.y * H));
+    return await sharp(anverso, { failOn: "none" })
+      .extract({ left, top, width: Math.min(ancho, W - left), height: Math.min(alto, H - top) })
+      .resize(300, 380, { fit: "cover" })
+      .jpeg({ quality: 85 })
+      .toBuffer();
   } catch {
     return null;
   }
 }
 
-async function imagenesDelFichero(datos: Buffer): Promise<{ imagenes: Buffer[]; textoPdf: string }> {
+/** Imágenes del fichero: él mismo si es una imagen, o sus páginas (hasta 4) si es un PDF escaneado. */
+async function imagenesDelFichero(datos: Buffer): Promise<Buffer[]> {
   const mime = detectarMime(datos);
   if (!mime) throw new HttpError(415, "Formato no admitido: sube una imagen (JPG, PNG, WebP) o un PDF.");
-  if (mime === "application/pdf") {
-    const { imagenes, texto } = await imagenesDePdf(datos);
-    return { imagenes: imagenes.slice(0, 2), textoPdf: texto };
-  }
-  return { imagenes: [datos], textoPdf: "" };
+  if (mime === "application/pdf") return (await imagenesDePdf(datos)).imagenes.slice(0, 4);
+  return [datos];
 }
 
-/** Lee un DNI (una cara por fichero; un PDF puede traer las dos) y devuelve nombre, número, fecha de nacimiento y foto. */
+/**
+ * Lee un DNI. Admite una foto, o una página escaneada con una o dos tarjetas (anverso y reverso, giradas o no), y un
+ * PDF de varias páginas. Cada cara se guarda como adjunto, se extraen nombre, DNI y fecha de nacimiento y se recorta la
+ * foto del titular.
+ */
 export async function leerDni(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer): Promise<ResultadoDni> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
   if (datos.length > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
 
-  const { imagenes } = await imagenesDelFichero(datos);
-  const lecturas = await enCola(async () => {
-    const res: { imagen: Buffer; mrz: DatosDni | null; anverso: DatosDni | null }[] = [];
-    for (const imagen of imagenes) {
-      try {
-        const lista = await prepararParaOcr(imagen);
-        const completo = (await ocrImagenes([lista])).map((l) => l.texto).join("\n");
-        // Zona legible por máquina: franja inferior del reverso, solo con el alfabeto permitido
-        const meta = await sharp(lista).metadata();
-        const alto = meta.height ?? 0;
-        const franja = await sharp(lista)
-          .extract({ left: 0, top: Math.round(alto * 0.55), width: meta.width ?? 1, height: Math.max(1, alto - Math.round(alto * 0.55)) })
-          .toBuffer();
-        const textoMrz = (await ocrImagenes([franja], { lista: ALFABETO_MRZ })).map((l) => l.texto).join("\n");
-        const mrz = parsearMrz(textoMrz) ?? parsearMrz(completo);
-        res.push({ imagen, mrz, anverso: parsearAnverso(completo) });
-      } catch (e) {
-        if (e instanceof HttpError) throw e;
-        console.error("Error leyendo el DNI:", e instanceof Error ? e.message : e);
-        throw new HttpError(500, "No se ha podido leer el DNI. Prueba con una foto más nítida, con buena luz y sin reflejos.");
+  const imagenes = await imagenesDelFichero(datos);
+  const tarjetas: TarjetaLeida[] = await enCola(async () => {
+    try {
+      const res: TarjetaLeida[] = [];
+      for (const imagen of imagenes) {
+        for (const t of await leerTarjetasDeImagen(imagen)) if (res.length < 4) res.push(t);
       }
+      return res;
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      console.error("Error leyendo el DNI:", e instanceof Error ? e.message : e);
+      throw new HttpError(500, "No se ha podido leer el DNI. Prueba con una imagen más nítida, con buena luz y sin reflejos.");
     }
-    return res;
   });
 
-  const combinado = combinarDni(...lecturas.flatMap((l) => [l.mrz, l.anverso]));
+  const combinado = combinarDni(...tarjetas.map((t) => t.datos));
   const hayDatos = !!(combinado.dni || combinado.nombre || combinado.apellidos || combinado.fechaNacimiento);
   const avisos = [...combinado.avisos];
-  if (!hayDatos) avisos.push("No se han podido leer datos del documento. Prueba con una foto más nítida.");
+  if (!hayDatos) avisos.push("No se han podido leer datos del documento (la imagen puede estar muy clara o borrosa). Los documentos quedan adjuntos para rellenar los datos a mano.");
 
-  // El primer fichero es el que se guarda como adjunto; su tipo depende de la cara leída
-  const principal = lecturas[0];
-  const esReverso = !!principal?.mrz;
-  const lado: ResultadoDni["lado"] = !principal ? "desconocido" : esReverso ? "reverso" : principal.anverso ? "anverso" : "desconocido";
-  const adjuntos: AdjuntoDto[] = [await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: esReverso ? "dni_reverso" : "dni_frente", creadoPor: idUsuario })];
-
-  // Foto del titular: del anverso (o del primer fichero si no se ha reconocido ninguna cara)
+  const adjuntos: AdjuntoDto[] = [];
   let fotoId: number | null = null;
-  const fuenteFoto = lecturas.find((l) => !l.mrz) ?? null;
-  if (fuenteFoto) {
-    const recorte = await recortarFotoDni(fuenteFoto.imagen);
-    if (recorte) {
-      const foto = await guardarAdjunto(ej, { datos: recorte, nombre: "foto-cliente.jpg", tipo: "foto_cliente", creadoPor: idUsuario, miniaturaPropia: recorte });
-      fotoId = foto.id;
-      adjuntos.push(foto);
+  const guardadas = tarjetas.length > 0 ? tarjetas : [];
+  let nAnverso = 0;
+  let nReverso = 0;
+  for (const t of guardadas) {
+    const esFrente = t.lado === "anverso";
+    const nombre = esFrente ? `dni-anverso${++nAnverso > 1 ? `-${nAnverso}` : ""}.jpg` : `dni-reverso${++nReverso > 1 ? `-${nReverso}` : ""}.jpg`;
+    adjuntos.push(await guardarAdjunto(ej, { datos: t.imagen, nombre, tipo: esFrente ? "dni_frente" : "dni_reverso", creadoPor: idUsuario }));
+    if (esFrente && fotoId === null) {
+      const recorte = await recortarFotoDni(t.imagen, t.foto);
+      if (recorte) {
+        const foto = await guardarAdjunto(ej, { datos: recorte, nombre: "foto-cliente.jpg", tipo: "foto_cliente", creadoPor: idUsuario, miniaturaPropia: recorte });
+        fotoId = foto.id;
+        adjuntos.push(foto);
+      }
     }
   }
-  return { datos: { ...combinado, avisos, nombreCompleto: nombreCompleto(combinado) }, adjuntos, fotoId, lado };
+  // Sin tarjetas reconocidas: el fichero original queda adjunto igualmente
+  if (adjuntos.length === 0) adjuntos.push(await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "dni_frente", creadoPor: idUsuario }));
+
+  const lado: ResultadoDni["lado"] = tarjetas.some((t) => t.lado === "anverso") ? "anverso" : tarjetas.some((t) => t.lado === "reverso") ? "reverso" : "desconocido";
+  return { datos: { ...combinado, avisos, nombreCompleto: nombreCompleto(combinado) }, adjuntos, fotoId, lado, tarjetas: tarjetas.length };
 }
 
 /** Lee un pedido (PDF o imagen) y propone los datos del expediente comparando con los catálogos. */

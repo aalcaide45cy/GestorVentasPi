@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { combinarDni, digitoControl, letraDni, nombreCompleto, parsearAnverso, parsearMrz, validarDni } from "./dni";
+import { combinarDni, digitoControl, letraDni, nombreCompleto, parsearAnverso, parsearFrente, parsearMrz, validarDni } from "./dni";
 
 /** Construye una MRZ TD1 válida con los dígitos de control calculados. */
 function mrz(opciones: { soporte: string; dni: string; nacimiento: string; sexo: string; caducidad: string; apellidos: string; nombre: string }): string {
@@ -60,5 +60,28 @@ describe("DNI", () => {
     const c = combinarDni(r, a);
     // el nombre sale del anverso (con tildes) y la fecha del reverso (con control)
     expect(c).toMatchObject({ dni: "12345678Z", apellidos: "García López", nombre: "Juan Antonio", fechaNacimiento: "1985-03-14", sexo: "M" });
+  });
+});
+
+describe("lectura tolerante al ruido del OCR", () => {
+  it("la zona legible se encuentra por contenido aunque el OCR añada caracteres", () => {
+    const buena = mrz({ soporte: "BAB123456", dni: "12345678Z", nacimiento: "850314", sexo: "M", caducidad: "320101", apellidos: "GARCIA<LOPEZ", nombre: "JUAN" });
+    const [l1, l2, l3] = buena.split("\n");
+    // Basura delante, un carácter extra al comienzo de la segunda línea y «<» pegados al final
+    const sucia = ["E FRANCISCO7CARMEN", l1, `1${l2}`, l3, "P"].join("\n");
+    const d = parsearMrz(sucia, new Date("2026-10-15"));
+    expect(d).toMatchObject({ dni: "12345678Z", fechaNacimiento: "1985-03-14", sexo: "M", nombre: "Juan" });
+  });
+
+  it("el anverso se lee con varias versiones de la imagen: voto por palabras y basura detrás del nombre", () => {
+    const v1 = "REINO DE ESPAÑA\nDNI 12345678Z\nGARCIA VIA\nGARCIA\nMARTA\nF ESP 23 05 1992\n13 05 2024 13 05 2034";
+    const v2 = "GARCIA LO ”\nGARCIA\nMARTA —\nNACIMIENTO 23 05 1992";
+    const v3 = "APELLIDOS\nGARCIA\nGARCIA\nNOMBRE\nMARTA";
+    const d = parsearFrente([v1, v2, v3]);
+    expect(d).toMatchObject({ dni: "12345678Z", apellidos: "Garcia Garcia", nombre: "Marta", fechaNacimiento: "1992-05-23" });
+  });
+
+  it("corrige la letra del DNI confundida por el OCR (7 por Z)", () => {
+    expect(parsearFrente(["DNI 123456787", "PEREZ\nRUIZ\nANA"])?.dni).toBe("12345678Z");
   });
 });
