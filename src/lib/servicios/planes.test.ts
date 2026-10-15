@@ -20,6 +20,8 @@ import { esquemaActualizarExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./expedientes-escritura";
 import { esquemaCrearExpediente } from "./expedientes";
 import { eliminarPlan, guardarPlan, leerPlan, listarPlanes } from "./planes";
+import { generarInforme } from "./informes";
+import { eliminarUsuario } from "./usuarios";
 
 beforeEach(reiniciarBd);
 
@@ -133,5 +135,32 @@ describe("pendientes, previsión de nómina y cotejo", () => {
     await marcarCobro(db, { idExpediente: e.id_expediente, concepto: "coche", cobrado: true });
     c = await cotejo(db, vend.idUsuario, "2026-07");
     expect(c).toMatchObject({ cobrado: 10000, pendiente: 0, ratio: 100 });
+  });
+});
+
+describe("auditoría: casos límite", () => {
+  it("el informe funciona en meses de 28, 30 y 31 días", async () => {
+    const { vend } = await base();
+    void vend;
+    for (const hasta of ["2026-02", "2026-04", "2026-07"]) {
+      const inf = await generarInforme(db, { desde: "2026-01", hasta });
+      expect(inf.meses.at(-1)).toBe(hasta);
+    }
+  });
+
+  it("no se elimina un usuario con historial de comisiones (409, no 500)", async () => {
+    const { admin, vend, modelo, vn } = await base();
+    await db.insert(expedientes).values({ idUsuario: vend.idUsuario, idModelo: modelo.idModelo, idEstadoVehiculo: vn.idEstadoVehiculo, fechaMatriculacion: "2026-07-10" });
+    await liquidar(db, { idPlan: 1, mes: "2026-07" });
+    await db.update(expedientes).set({ idUsuario: admin.idUsuario });
+    await expect(eliminarUsuario(db, admin, vend.idUsuario)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("recalcular el mismo mes a la vez no duplica la liquidación", async () => {
+    const { admin, vend, modelo, vn, plan } = await base();
+    await db.insert(expedientes).values({ idUsuario: vend.idUsuario, idModelo: modelo.idModelo, idEstadoVehiculo: vn.idEstadoVehiculo, fechaMatriculacion: "2026-07-10" });
+    void admin;
+    await Promise.all([1, 2, 3].map(() => liquidar(db, { idPlan: plan.idPlan, mes: "2026-07" })));
+    expect(await listarLiquidaciones(db, { idPlan: plan.idPlan })).toHaveLength(1);
   });
 });

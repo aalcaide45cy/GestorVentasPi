@@ -1,7 +1,7 @@
 import { asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { emailsUsuarios, expedientes, telefonosUsuarios, usuarios, usuariosTiendas } from "@/db/schema";
+import { commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, telefonosUsuarios, usuarios, usuariosTiendas } from "@/db/schema";
 import type { UsuarioAdminDto } from "@/lib/dto";
 import { generarPasswordTemporal, hashPassword } from "@/lib/auth/password";
 import { ROLES } from "@/lib/auth/permisos";
@@ -186,6 +186,13 @@ export async function eliminarUsuario(ej: Ejecutor, admin: UsuarioActual, id: nu
       409,
       "No se puede eliminar el usuario porque tiene expedientes registrados. Prueba bloqueando su cuenta para suspender su acceso.",
     );
+  }
+  // Comisiones: el libro de puntos, las liquidaciones y los objetivos de plan son históricos y no se borran con el usuario
+  const [libro] = await ej.select({ id: libroPuntos.id }).from(libroPuntos).where(eq(libroPuntos.idUsuario, id)).limit(1);
+  const [liq] = await ej.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id)).limit(1);
+  const [objetivo] = await ej.select({ id: commissionPlanVendedores.id }).from(commissionPlanVendedores).where(eq(commissionPlanVendedores.idUsuario, id)).limit(1);
+  if (libro || liq || objetivo) {
+    throw new HttpError(409, "No se puede eliminar el usuario porque tiene historial de comisiones (puntos, liquidaciones o planes). Bloquea su cuenta para suspender su acceso.");
   }
   const filas = await ej.delete(usuarios).where(eq(usuarios.idUsuario, id)).returning({ id: usuarios.idUsuario });
   if (filas.length === 0) throw new HttpError(404, "Usuario no encontrado");

@@ -59,7 +59,8 @@ function mesesEntre(desde: string, hasta: string): string[] {
 export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVendedor?: number): Promise<Informe> {
   const meses = mesesEntre(filtro.desde, filtro.hasta);
   const idVendedor = soloVendedor ?? filtro.idVendedor;
-  const finMes = `${meses[meses.length - 1]}-31`;
+  const [anioFin, mesFin] = meses[meses.length - 1].split("-").map(Number);
+  const finMes = `${meses[meses.length - 1]}-${String(new Date(Date.UTC(anioFin, mesFin, 0)).getUTCDate()).padStart(2, "0")}`;
   const inicio = `${meses[0]}-01`;
 
   const filasExp = await ej

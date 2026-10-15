@@ -323,6 +323,9 @@ export interface ResumenRecalculo {
  */
 export async function recalcularMes(tx: Ejecutor, idVendedor: number, mes: string, motivo: string): Promise<ResumenRecalculo> {
   await tx.execute(sql`select set_config('app.recalculo', 'on', true)`);
+  // Cerrojo por (vendedor, mes): dos ediciones simultáneas no pueden crear dos veces la misma liquidación
+  const [anioMes, numMes] = mes.split("-").map(Number);
+  await tx.execute(sql`select pg_advisory_xact_lock(${idVendedor}::int, ${anioMes * 12 + numMes}::int)`);
   const resultado = (await calcularVendedorMes(tx, idVendedor, mes)) as ResultadoMes | null;
   const resumen: ResumenRecalculo = { idVendedor, mes, idLiquidation: null, netoAnterior: null, netoNuevo: 0, version: null, versionGuardada: false, cambio: false, apuntesLibro: 0 };
   if (!resultado) return resumen;
