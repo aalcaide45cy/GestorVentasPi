@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { SECCIONES_V1, type SeccionV1 } from "@/lib/migracion-secciones";
 import type { Ejecutor } from "@/db";
 import {
   clientes,
@@ -486,7 +487,21 @@ export interface ResultadoMigracion {
   avisos: string[];
 }
 
-export const esquemaConvertirV1 = z.object({ copia: esquemaCopiaV1, confirmacion: z.string() });
+export { SECCIONES_V1, type SeccionV1 };
+
+export const esquemaConvertirV1 = z.object({
+  copia: esquemaCopiaV1,
+  confirmacion: z.string(),
+  secciones: z.array(z.enum(SECCIONES_V1)).min(1).default([...SECCIONES_V1]),
+});
+
+/** Dependencias entre partes: no se puede cargar una sin las que referencia. */
+export function comprobarSecciones(secciones: readonly SeccionV1[]): void {
+  const s = new Set(secciones);
+  if (s.has("expedientes") && !s.has("catalogos")) throw new HttpError(400, "Los expedientes necesitan los catálogos (tiendas, marcas, modelos, pagos y estados).");
+  if (s.has("comisiones") && !s.has("catalogos")) throw new HttpError(400, "Los planes de comisiones necesitan los catálogos (marcas y modelos).");
+  if (s.has("liquidaciones") && !s.has("comisiones")) throw new HttpError(400, "Las liquidaciones antiguas necesitan los planes de comisiones.");
+}
 
 const lotes = <T>(lista: T[], tamano = 500): T[][] => {
   const r: T[][] = [];
@@ -499,14 +514,18 @@ async function arreglarSecuencia(tx: Ejecutor, tabla: string, columna: string): 
 }
 
 /** Convierte y carga la copia antigua. Sustituye los datos operativos actuales; conserva las cuentas de acceso. */
-export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaConvertirV1>): Promise<ResultadoMigracion> {
+export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z.input<typeof esquemaConvertirV1>): Promise<ResultadoMigracion> {
   if (entrada.confirmacion.trim() !== "CONVERTIR") throw new HttpError(400, "Escribe CONVERTIR para confirmar");
+  const secciones = entrada.secciones ?? [...SECCIONES_V1];
+  comprobarSecciones(secciones);
+  const sel = new Set<SeccionV1>(secciones);
   return ej.transaction(async (tx) => {
     const actuales = (await tx.select({ id: usuarios.idUsuario, nombre: usuarios.nombre }).from(usuarios)).map((u) => ({ id: u.id, nombre: u.nombre }));
     const datos = transformarCopiaV1(entrada.copia, { actuales, idAdmin });
 
     // Cuentas nuevas (bloqueadas, sin acceso) para los usuarios antiguos sin equivalente
     const hashInutil = await hashPassword(randomBytes(24).toString("base64url"));
+    if (!sel.has("expedientes") && !sel.has("comisiones") && !sel.has("liquidaciones")) datos.usuariosNuevos.length = 0;
     for (const u of datos.usuariosNuevos) {
       const [c] = await tx
         .insert(usuarios)
@@ -535,20 +554,25 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
       for (const l of lotes(f)) await tx.insert(tabla).values(l as never);
     };
 
+    if (sel.has("catalogos")) {
     await ins(tiendas, datos.tiendas.map((t) => ({ idTienda: num(t.id_tienda), nombre: str(t.nombre) ?? "Tienda", ciudad: str(t.ciudad) })));
     await ins(marcas, datos.marcas.map((m) => ({ idMarca: num(m.id_marca), nombre: str(m.nombre) ?? "Marca", activo: bool(m.activo, true), accesoRapido: bool(m.acceso_rapido), sistemaComisiones: bool(m.sistema_comisiones) })));
     await ins(modelos, datos.modelos.map((m) => ({ idModelo: num(m.id_modelo), marcaId: numNull(m.marca_id), nombreModelo: str(m.nombre_modelo) ?? "Modelo", accesoRapido: bool(m.acceso_rapido), ordenAccesoRapido: num(m.orden_acceso_rapido) })));
     await ins(tipoDeVenta, datos.tiposVenta.map((t) => ({ idTipoDeVenta: num(t.id_tipo_de_venta), nombreTipoVenta: str(t.nombre_tipo_venta) ?? "Tipo", color: str(t.color) ?? "#3b82f6", orden: num(t.orden), categoria: String(t.categoria) })));
     await ins(estadoVehiculo, datos.estados.map((e) => ({ idEstadoVehiculo: num(e.id_estado_vehiculo), nombreEstadoVehiculo: str(e.nombre_estado_vehiculo) ?? "Estado", predeterminado: bool(e.predeterminado), clase: String(e.clase), subtipoVo: (e.subtipo_vo as string | null) ?? null })));
-    await ins(clientes, datos.clientes.map((c) => ({ id: num(c.id), clienteId: str(c.cliente_id) ?? `migrado-${num(c.id)}`, dni: str(c.dni), nombre: str(c.nombre), fechaDeNacimiento: fecha(c.fecha_de_nacimiento), tiendaId: numNull(c.tienda_id) })));
+    }
+    if (sel.has("clientes")) {
+    await ins(clientes, datos.clientes.map((c) => ({ id: num(c.id), clienteId: str(c.cliente_id) ?? `migrado-${num(c.id)}`, dni: str(c.dni), nombre: str(c.nombre), fechaDeNacimiento: fecha(c.fecha_de_nacimiento), tiendaId: sel.has("catalogos") ? numNull(c.tienda_id) : null })));
     await ins(emailsClientes, datos.emailsClientes.map((e) => ({ idEmailCliente: num(e.id_email_cliente), idCliente: numNull(e.id_cliente), email: str(e.email) ?? "", tipoEmail: str(e.tipo_email) })));
     await ins(telefonosClientes, datos.telefonosClientes.map((t) => ({ idTelefonoCliente: num(t.id_telefono_cliente), idCliente: numNull(t.id_cliente), telefono: str(t.telefono) ?? "", tipoTelefono: str(t.tipo_telefono) })));
-    await ins(usuariosTiendas, datos.usuariosTiendas.flatMap((u) => {
+    }
+    if (sel.has("catalogos")) await ins(usuariosTiendas, datos.usuariosTiendas.flatMap((u) => {
       const idNuevo = datos.mapaUsuarios.get(num(u.id_usuario));
       return idNuevo ? [{ idUsuarioTienda: num(u.id_usuario_tienda), idUsuario: idNuevo, idTienda: num(u.id_tienda) }] : [];
     }));
 
     // Planes y todo lo que cuelga de ellos (antes que los expedientes: las promociones los referencian)
+    if (sel.has("comisiones")) {
     await ins(commissionPlans, datos.planes.map((p) => ({ idPlan: num(p.id_plan), nombre: String(p.nombre), fechaInicio: String(p.fecha_inicio ?? "2000-01-01"), fechaFin: String(p.fecha_fin ?? "2000-01-31"), estado: String(p.estado), puntosPorPedido: 0, penalizacionImporte: num(p.penalizacion_importe), penalizacionTitulo: str(p.penalizacion_titulo), penalizacionDescripcion: str(p.penalizacion_descripcion), notas: str(p.notas) })));
     const vistos = new Set<string>();
     await ins(commissionPlanVendedores, datos.planVendedores.flatMap((v) => {
@@ -571,10 +595,12 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
     await ins(commissionBonusRules, datos.bonus.map(reglaDb));
     await ins(commissionBrandInterventionRates, datos.tasas.filter((t) => marcaExiste.has(num(t.id_marca))).map((t) => ({ idPlan: num(t.id_plan), idMarca: num(t.id_marca), tipoTasa: String(t.tipo_tasa), objetivo: num(t.objetivo), puntosDefecto: num(t.puntos_defecto) })));
 
-    await ins(expedientes, datos.expedientes.map((e) => ({
+    }
+    const expExiste = new Set(sel.has("expedientes") ? datos.expedientes.map((e) => num(e.id_expediente)) : []);
+    if (sel.has("expedientes")) await ins(expedientes, datos.expedientes.map((e) => ({
       idExpediente: num(e.id_expediente),
       idUsuario: usuarioNuevo(e._usuarioAntiguo),
-      idCliente: numNull(e.id_cliente),
+      idCliente: sel.has("clientes") ? numNull(e.id_cliente) : null,
       idModelo: numNull(e.id_modelo),
       idTienda: numNull(e.id_tienda),
       fechaExpediente: fecha(e.fecha_expediente),
@@ -596,7 +622,7 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
       comisionPreferenceCobrada: bool(e.comision_preference_cobrada),
       comisionBonusCobrada: bool(e.comision_bonus_cobrada),
       puntos: (e.puntos_nuevo as number | null) ?? null,
-      idPromocion: e.id_promocion_nuevo ?? null,
+      idPromocion: sel.has("comisiones") ? (e.id_promocion_nuevo ?? null) : null,
       comisionCocheManual: (e.manual_coche as number | null) ?? null,
       comisionFinanciacionManual: (e.manual_fin as number | null) ?? null,
       conceptosEspeciales: e.conceptos,
@@ -606,14 +632,15 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
       comisionFinanciacionReal: numNull(e.comision_financiacion_real),
       conceptosAdicionales: str(e.conceptos_adicionales),
     })));
+    if (sel.has("historial")) {
     await ins(importacionesBloques, datos.importBloques.map((b) => ({ id: num(b.id), fecha: str(b.fecha) ?? "", nombreArchivo: str(b.nombre_archivo) ?? "", tipoArchivo: str(b.tipo_archivo) ?? "", usuarioId: null, creados: num(b.creados), modificados: num(b.modificados), omitidos: num(b.omitidos) })));
-    const expExiste = new Set(datos.expedientes.map((e) => num(e.id_expediente)));
     await ins(importacionesRegistros, datos.importRegistros.map((r) => ({ id: num(r.id), bloqueId: num(r.bloque_id), idExpediente: numNull(r.id_expediente) && expExiste.has(num(r.id_expediente)) ? num(r.id_expediente) : null, tipoAccion: str(r.tipo_accion) ?? "", clienteNombre: str(r.cliente_nombre) ?? "", matricula: str(r.matricula), bastidor: str(r.bastidor), cambios: str(r.cambios) })));
+    }
 
     // Liquidaciones antiguas: cerradas y de solo lectura
     await tx.execute(sql`select set_config('app.recalculo', 'on', true)`);
     let nLiq = 0;
-    for (const l of datos.liquidaciones) {
+    for (const l of sel.has("liquidaciones") ? datos.liquidaciones : []) {
       const idUsuario = usuarioNuevo(l.usuarioAntiguo);
       const mes = String(l.cab.mes ?? "");
       if (!/^\d{4}-\d{2}$/.test(mes)) continue;
@@ -641,10 +668,10 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
     }
 
     return {
-      expedientes: datos.expedientes.length,
-      clientes: datos.clientes.length,
-      planes: datos.planes.length,
-      promociones: datos.promociones.length,
+      expedientes: sel.has("expedientes") ? datos.expedientes.length : 0,
+      clientes: sel.has("clientes") ? datos.clientes.length : 0,
+      planes: sel.has("comisiones") ? datos.planes.length : 0,
+      promociones: sel.has("comisiones") ? datos.promociones.length : 0,
       liquidaciones: nLiq,
       usuariosCreados: datos.usuariosNuevos.length,
       avisos: datos.avisos,

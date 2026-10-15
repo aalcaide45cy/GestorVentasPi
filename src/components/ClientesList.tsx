@@ -81,6 +81,8 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   // Documentos leídos con el lector de DNI y aún sin vincular al cliente (se vinculan al guardar)
   const [pendientes, setPendientes] = useState<number[]>([]);
   const [fotoPendiente, setFotoPendiente] = useState<number | null>(null);
+  /** Se incrementa para que la lista de documentos del modal se vuelva a pedir al servidor. */
+  const [refrescoAdjuntos, setRefrescoAdjuntos] = useState(0);
 
   const nombreTienda = (id: number | null) => tiendas.find((t) => t.id_tienda === id)?.nombre;
 
@@ -652,13 +654,25 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                   if (r.datos.dni) setDni(r.datos.dni);
                   if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
                   if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
-                  setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
-                  if (r.fotoId) setFotoPendiente(r.fotoId);
+                  const ids = r.adjuntos.map((a) => a.id);
+                  if (formulario === "editar" && seleccionado) {
+                    // Cliente ya guardado: los documentos se guardan con él al momento y la lista del modal se actualiza
+                    const idCliente = seleccionado.id;
+                    void vincularAdjuntos(ids, { idCliente })
+                      .then(() => {
+                        setRefrescoAdjuntos((n) => n + 1);
+                        if (r.fotoId) setClientes((prev) => prev.map((c) => (c.id === idCliente ? { ...c, foto_id: r.fotoId } : c)));
+                      })
+                      .catch((e: unknown) => mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos.", "error"));
+                  } else {
+                    setPendientes((prev) => [...prev, ...ids]);
+                    if (r.fotoId) setFotoPendiente(r.fotoId);
+                  }
                   mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos antes de guardar.");
                 }}
               />
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {pendientes.length > 0 ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.` : "Sube la foto o el PDF del DNI y se rellenan los datos (se lee en este equipo)."}
+                {pendientes.length > 0 && formulario !== "editar" ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.` : "Sube la foto o el PDF del DNI y se rellenan los datos (se lee en este equipo)."}
               </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -690,7 +704,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
             </div>
             <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
             <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
-            {formulario === "editar" && seleccionado && <VisorAdjuntos idCliente={seleccionado.id} />}
+            {formulario === "editar" && seleccionado && <VisorAdjuntos key={refrescoAdjuntos} idCliente={seleccionado.id} />}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
               <button type="button" className="btn btn-secondary" onClick={() => setFormulario(null)} disabled={cargando}>
                 Cancelar

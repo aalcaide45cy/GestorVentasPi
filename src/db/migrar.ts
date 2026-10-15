@@ -3,7 +3,7 @@ import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
-import { sembrar } from "./semilla";
+import { sembrar, sembrarCatalogoInicial } from "./semilla";
 
 /** Aplica las migraciones pendientes y la semilla. Uso: `npm run db:migrate`. */
 async function main(): Promise<void> {
@@ -17,6 +17,7 @@ async function main(): Promise<void> {
     const db = drizzle(pool);
     await migrate(db, { migrationsFolder: path.join(process.cwd(), "src", "db", "migrations") });
     await sembrar(db);
+    await sembrarCatalogoInicial(db);
     console.log("Migraciones y semilla aplicadas.");
   } finally {
     await cerrojo.query("select pg_advisory_unlock(727274)").catch(() => undefined);

@@ -25,6 +25,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    stop_grace_period: 60s
     mem_limit: ${DB_MEM_LIMIT:-1500m}
     logging:
       driver: json-file
@@ -42,10 +43,13 @@ services:
       NODE_ENV: production
       NODE_OPTIONS: --max-old-space-size=768
       BACKUP_DIR: /backups
+      APAGADO_DIR: /control
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000"
     volumes:
       - ./backups:/backups
+      # Carpeta compartida con el sistema: el botón «Apagar equipo» deja aquí un archivo que un servicio del sistema atiende
+      - ./control:/control
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

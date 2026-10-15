@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import BotonApagar from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { usePreferencia } from "@/lib/preferencias";
@@ -399,6 +400,8 @@ export default function Sidebar({ user }: SidebarProps) {
           </svg>
           {!isCollapsed && <span>Cerrar sesión</span>}
         </button>
+
+        {isAdmin && <BotonApagar colapsado={isCollapsed} />}
 
         <div
           style={{

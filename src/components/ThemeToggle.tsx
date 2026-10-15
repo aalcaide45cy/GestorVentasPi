@@ -28,12 +28,9 @@ export default function ThemeToggle() {
 
   const alternar = () => {
     const siguiente: Tema = theme === "dark" ? "light" : "dark";
-    try {
-      localStorage.setItem("theme", siguiente);
-    } catch {
-      /* sin almacenamiento local */
-    }
-    document.documentElement.setAttribute("data-theme", siguiente);
+    // El interruptor rápido vuelve a los temas originales (oscuro/claro); la paleta se elige en Configuración → Tema.
+    if (window.__gvTema) window.__gvTema(siguiente === "dark" ? "oscuro" : "claro");
+    else document.documentElement.setAttribute("data-theme", siguiente);
   };
 
   return (

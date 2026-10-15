@@ -35,6 +35,8 @@
 :root {
   /* Paleta de colores HSL */
   --primary-hue: 255;
+  --accent-rgb: 124, 58, 237;
+  --secondary-rgb: 6, 182, 212;
   --secondary-hue: 195;
   --accent-hue: 335;
 
@@ -69,11 +71,11 @@
 
   /* Bordes y sombras */
   --border-light: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(124, 58, 237, 0.5);
+  --border-focus: rgba(var(--accent-rgb), 0.5);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.35);
+  --shadow-glow: 0 0 20px rgba(var(--accent-rgb), 0.35);
 
   /* Fuentes */
   --font-title: 'Outfit', sans-serif;
@@ -107,12 +109,12 @@ html[data-theme='light'] {
   --text-muted: hsl(220, 10%, 55%);
 
   --border-light: rgba(0, 0, 0, 0.08);
-  --border-focus: rgba(124, 58, 237, 0.3);
+  --border-focus: rgba(var(--accent-rgb), 0.3);
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 0 15px rgba(124, 58, 237, 0.15);
+  --shadow-glow: 0 0 15px rgba(var(--accent-rgb), 0.15);
 }
 
 /* Reset y base */
@@ -172,8 +174,8 @@ a:hover {
   width: 120vw;
   height: 120vh;
   background:
-    radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.12) 0%, transparent 45%);
+    radial-gradient(circle at 10% 20%, rgba(var(--accent-rgb), 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(var(--secondary-rgb), 0.12) 0%, transparent 45%);
   z-index: -1;
   pointer-events: none;
 }
@@ -200,7 +202,7 @@ a:hover {
 }
 .glass-panel-interactive:hover {
   transform: translateY(-4px);
-  border-color: rgba(124, 58, 237, 0.25);
+  border-color: rgba(var(--accent-rgb), 0.25);
   box-shadow: var(--shadow-lg), var(--shadow-glow);
 }
 
@@ -263,11 +265,11 @@ select, select option {
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), hsl(var(--primary-hue), 85%, 50%));
   color: #fff;
-  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 4px 15px rgba(var(--accent-rgb), 0.3);
 }
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5), var(--shadow-glow);
+  box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.5), var(--shadow-glow);
   background: linear-gradient(135deg, var(--primary-hover), var(--primary));
 }
 .btn-primary:active {

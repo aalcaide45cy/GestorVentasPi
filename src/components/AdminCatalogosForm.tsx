@@ -8,6 +8,7 @@ import PestanaExpedientes from "./admin/PestanaExpedientes";
 import PestanaMarcas, { type MarcaConModelos } from "./admin/PestanaMarcas";
 import PestanaModelos from "./admin/PestanaModelos";
 import PestanaPagos from "./admin/PestanaPagos";
+import PestanaTemas from "./admin/PestanaTemas";
 import PestanaTiendas from "./admin/PestanaTiendas";
 
 interface Props {
@@ -19,7 +20,7 @@ interface Props {
   mostrarBotonesCsv: boolean;
 }
 
-type Pestana = "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "bbdd";
+type Pestana = "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "bbdd" | "temas";
 
 const PESTANAS: { clave: Pestana; etiqueta: string }[] = [
   { clave: "marcas", etiqueta: "🏷️ Marcas" },
@@ -29,6 +30,7 @@ const PESTANAS: { clave: Pestana; etiqueta: string }[] = [
   { clave: "estados", etiqueta: "🚗 Estados" },
   { clave: "expedientes", etiqueta: "📋 Expedientes" },
   { clave: "bbdd", etiqueta: "🗄️ BBDD" },
+  { clave: "temas", etiqueta: "🎨 Tema" },
 ];
 
 /** Catálogos y ajustes del sistema, en pestañas (solo administrador). */
@@ -63,6 +65,7 @@ export default function AdminCatalogosForm({
       {pestana === "pagos" && <PestanaPagos tipos={tipos} setTipos={setTipos} />}
       {pestana === "estados" && <PestanaEstados estados={estados} setEstados={setEstados} />}
       {pestana === "expedientes" && <PestanaExpedientes />}
+      {pestana === "temas" && <PestanaTemas />}
       {pestana === "bbdd" && <PestanaBbdd mostrarBotonesCsvInicial={mostrarBotonesCsv} />}
     </div>
   );

@@ -176,6 +176,37 @@ EOF
 }
 
 # ---------------------------------------------------------------- compose
+# Servicio del sistema que atiende el botón «Apagar equipo» de la aplicación (la app corre en un contenedor sin permisos sobre el sistema:
+# solo deja un archivo en $DIR/control y este servicio, fuera del contenedor, hace el apagado ordenado).
+instalar_apagado() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  mkdir -p "$DIR/control"
+  chown 1000:1000 "$DIR/control" 2>/dev/null || true
+  chmod 777 "$DIR/control"
+  rm -f "$DIR/control/apagar"
+  cat > /etc/systemd/system/gestorventas-apagar.service <<UNIT
+[Unit]
+Description=Apagar el equipo (solicitado desde GestorVentasPi)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'rm -f $DIR/control/apagar; sleep 3; systemctl poweroff'
+UNIT
+  cat > /etc/systemd/system/gestorventas-apagar.path <<UNIT
+[Unit]
+Description=Vigila la petición de apagado de GestorVentasPi
+
+[Path]
+PathExists=$DIR/control/apagar
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now gestorventas-apagar.path >/dev/null 2>&1 || return 0
+  fijar_env APAGADO_HABILITADO 1
+}
+
 dc() { (cd "$DIR" && docker compose "$@"); }
 
 esperar_sano() {
@@ -292,6 +323,7 @@ cmd_instalar() {
   mkdir -p "$DIR/data" "$DIR/backups"
   chown 1000:1000 "$DIR/backups" 2>/dev/null || true
   crear_env
+  instalar_apagado
 
   # Imágenes incluidas en el instalador (la de la aplicación) y el resto desde internet
   if [ -d "$DIR/imagenes" ]; then
@@ -412,6 +444,8 @@ cmd_restaurar() {
 cmd_desinstalar() {
   necesita_root
   dc --profile tailscale --profile cloudflare down || true
+  systemctl disable --now gestorventas-apagar.path >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/gestorventas-apagar.path /etc/systemd/system/gestorventas-apagar.service
   if [ "${1:-}" = "--borrar-datos" ]; then
     confirmar "Se BORRARÁN la base de datos y las copias de $DIR. ¿Seguro?" || { echo "Cancelado."; exit 1; }
     rm -rf "$DIR"

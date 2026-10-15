@@ -170,6 +170,23 @@ describe("conversión", () => {
     expect(bloqueadas.length).toBeLessThanOrEqual(2);
   });
 
+  it("permite elegir qué se importa: sin clientes ni comisiones los expedientes quedan sin cliente ni promoción", async () => {
+    const admin = await adminActual();
+    const r = await convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", secciones: ["catalogos", "expedientes"] });
+    expect(r).toMatchObject({ expedientes: 7, clientes: 0, planes: 0, liquidaciones: 0 });
+    const exps = await db.select().from(expedientes);
+    expect(exps).toHaveLength(7);
+    expect(exps.every((x) => x.idCliente === null && x.idPromocion === null)).toBe(true);
+    expect(await db.select().from(commissionPlans)).toHaveLength(0);
+    expect(await db.select().from(commissionLiquidations)).toHaveLength(0);
+  });
+
+  it("no deja elegir una parte sin aquello de lo que depende", async () => {
+    const admin = await adminActual();
+    await expect(convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", secciones: ["expedientes"] })).rejects.toMatchObject({ status: 400 });
+    await expect(convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", secciones: ["catalogos", "liquidaciones"] })).rejects.toMatchObject({ status: 400 });
+  });
+
   it("exige escribir CONVERTIR", async () => {
     const admin = await adminActual();
     await expect(convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "no" })).rejects.toMatchObject({ status: 400 });

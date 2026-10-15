@@ -1,6 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { ajustes, estadoVehiculo, tipoDeVenta } from "./schema";
+import { ajustes, estadoVehiculo, marcas, modelos, tipoDeVenta } from "./schema";
 
 const ESTADOS_INICIALES = [
   { nombre: "Nuevo", clase: "VN", subtipo: null, predeterminado: true },
@@ -50,6 +50,41 @@ export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatab
     const existente = await tx.select().from(ajustes).where(eq(ajustes.clave, "mostrar_botones_csv"));
     if (existente.length === 0) {
       await tx.insert(ajustes).values({ clave: "mostrar_botones_csv", valor: "true" });
+    }
+  });
+}
+
+interface MarcaInicial {
+  nombre: string;
+  /** Marca con sistema de comisiones y acceso rápido (Dacia y Renault); el resto va a «Resto de marcas». */
+  comisiones: boolean;
+  /** Modelos con su orden de acceso rápido (0 = sin acceso rápido). */
+  modelos: [string, number][];
+}
+
+const MARCAS_INICIALES: MarcaInicial[] = [
+  { nombre: "Dacia", comisiones: true, modelos: [["Sandero", 1], ["Sandero Stepway", 2], ["Jogger", 3], ["Duster", 4], ["Bigster", 5], ["Spring", 6]] },
+  {
+    nombre: "Renault",
+    comisiones: true,
+    modelos: [["Clio", 1], ["Clio CL6", 2], ["Captur", 3], ["Symbioz", 4], ["Arkana", 6], ["Austral", 6], ["Espace", 8], ["Rafale", 8], ["R5", 9], ["R4", 10], ["Twingo", 11], ["Scenic", 12], ["Megane E-Tech", 20]],
+  },
+  { nombre: "Hyundai", comisiones: false, modelos: [["i30", 0], ["Kona EV", 0], ["Tucson", 0]] },
+  { nombre: "Peugeot", comisiones: false, modelos: [["208", 0], ["3008", 0], ["5008", 0]] },
+  { nombre: "Toyota", comisiones: false, modelos: [["Corolla", 0], ["RAV4 Hybrid", 0], ["Yaris Cross", 0]] },
+];
+
+/**
+ * Marcas y modelos de partida (Dacia, Renault y algunas más). Solo se cargan si no hay ninguna marca; se llama al arrancar la
+ * aplicación y tras «Borrar todos los datos», no desde `sembrar` (así las pruebas siguen partiendo de un catálogo vacío).
+ */
+export async function sembrarCatalogoInicial<S extends Record<string, unknown>>(db: NodePgDatabase<S>): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [{ n }] = await tx.select({ n: count() }).from(marcas);
+    if (n > 0) return;
+    for (const m of MARCAS_INICIALES) {
+      const [marca] = await tx.insert(marcas).values({ nombre: m.nombre, activo: true, accesoRapido: m.comisiones, sistemaComisiones: m.comisiones }).returning({ id: marcas.idMarca });
+      await tx.insert(modelos).values(m.modelos.map(([nombre, orden]) => ({ marcaId: marca.id, nombreModelo: nombre, accesoRapido: orden > 0, ordenAccesoRapido: orden })));
     }
   });
 }

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import AyudaEmergente from "@/components/AyudaEmergente";
 import GlobalModalKeyboardHandler from "@/components/GlobalModalKeyboardHandler";
+import { scriptTema } from "@/lib/temas";
 
 export const metadata: Metadata = {
   title: "Gestor de Ventas | Concesionarios",
@@ -9,8 +11,7 @@ export const metadata: Metadata = {
     "Plataforma de seguimiento y control de expedientes de ventas, clientes y catálogo de vehículos.",
 };
 
-const SCRIPT_TEMA =
-  "(function(){try{var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})()";
+const SCRIPT_TEMA = scriptTema();
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <Script id="script-tema" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
         <GlobalModalKeyboardHandler />
+        <AyudaEmergente />
         {children}
       </body>
     </html>
