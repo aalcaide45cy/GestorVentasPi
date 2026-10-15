@@ -1,0 +1,208 @@
+"use client";
+
+import Link from "next/link";
+import type { ExpedienteDto } from "@/lib/dto";
+
+export type CampoFecha = "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion";
+
+/** Fondo alterno muy sutil de las columnas de fecha (8.4.6). */
+export const FONDO_FECHA_A = "rgba(128, 128, 128, 0.03)";
+export const FONDO_FECHA_B = "rgba(128, 128, 128, 0.09)";
+
+export function BadgeTipoVenta({ exp }: { exp: ExpedienteDto }) {
+  if (!exp.tipoDeVenta) return <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>;
+  return (
+    <span
+      className="badge"
+      style={{
+        fontSize: "0.7rem",
+        padding: "3px 8px",
+        backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
+        color: "#fff",
+      }}
+    >
+      {exp.tipoDeVenta.nombre_tipo_venta}
+    </span>
+  );
+}
+
+export function BadgeEstado({ exp }: { exp: ExpedienteDto }) {
+  if (!exp.estadoVehiculo) return <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>;
+  const esNuevo = exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === "nuevo";
+  return (
+    <span className={`badge badge-${esNuevo ? "tienda" : "vendedor"}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
+      {exp.estadoVehiculo.nombre_estado_vehiculo}
+    </span>
+  );
+}
+
+export function EnlaceEditar({ id }: { id: number }) {
+  return (
+    <Link
+      href={`/dashboard/expedientes/editar/${id}`}
+      title="Editar expediente"
+      style={{
+        width: "28px",
+        height: "28px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#f59e0b",
+        color: "#000",
+        borderRadius: "var(--radius-sm)",
+        fontSize: "0.85rem",
+        textDecoration: "none",
+        border: "none",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+        cursor: "pointer",
+      }}
+    >
+      ✏️
+    </Link>
+  );
+}
+
+interface CeldaClienteProps {
+  exp: ExpedienteDto;
+  alAsignar: (id: number) => void;
+}
+
+/** Nombre del cliente (solo nombre, sin DNI) o «Sin Cliente» con botón para asignar. */
+export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
+  if (exp.cliente?.nombre) return <>{exp.cliente.nombre}</>;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
+      <button
+        type="button"
+        title="Asignar Cliente"
+        onClick={() => alAsignar(exp.id_expediente)}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "2px 6px",
+          fontSize: "0.85rem",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--primary)",
+          borderRadius: "4px",
+          transition: "all 0.2s",
+        }}
+        className="glass-panel-interactive"
+      >
+        🔍
+      </button>
+    </div>
+  );
+}
+
+interface CeldaFechaProps {
+  exp: ExpedienteDto;
+  campo: CampoFecha;
+  nombre: string;
+  fondo?: string;
+  formatear: (v: string | null) => string;
+  /** Lista completa de expedientes: subraya la matriculación cobrada en otra fecha y muestra la matrícula. */
+  detalleMatricula?: boolean;
+  alEditar: (exp: ExpedienteDto, campo: CampoFecha, nombre: string) => void;
+  alBorrar: (exp: ExpedienteDto, campo: CampoFecha, nombre: string) => void;
+}
+
+/** Fecha centrada con lápiz (editar) y papelera (borrar, solo si hay fecha). */
+export function CeldaFecha({ exp, campo, nombre, fondo, formatear, detalleMatricula = false, alEditar, alBorrar }: CeldaFechaProps) {
+  const valor = exp[campo];
+  const cobradaOtraFecha = detalleMatricula && campo === "fecha_matriculacion" && exp.cobrado_otra_fecha;
+  return (
+    <td style={{ textAlign: "center", backgroundColor: fondo }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+          <span
+            style={{
+              fontSize: "0.85rem",
+              color: valor ? "var(--text-primary)" : "var(--text-muted)",
+              fontWeight: valor ? 500 : 400,
+              textDecoration: cobradaOtraFecha ? "underline" : "none",
+              cursor: cobradaOtraFecha ? "help" : "default",
+            }}
+            title={cobradaOtraFecha && exp.fecha_cobrado ? `Fecha Cobrado: ${formatear(exp.fecha_cobrado)}` : undefined}
+          >
+            {formatear(valor)}
+          </span>
+          <div style={{ display: "flex", gap: "4px" }}>
+            <button
+              type="button"
+              onClick={() => alEditar(exp, campo, nombre)}
+              style={{
+                border: "none",
+                background: "rgba(255, 255, 255, 0.05)",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                padding: "4px 6px",
+                borderRadius: "4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.2s",
+              }}
+              title={`Modificar fecha de ${nombre}`}
+              className="glass-panel-interactive"
+            >
+              ✏️
+            </button>
+            {valor && (
+              <button
+                type="button"
+                onClick={() => alBorrar(exp, campo, nombre)}
+                style={{
+                  border: "none",
+                  background: "rgba(239, 68, 68, 0.05)",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  padding: "4px 6px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s",
+                }}
+                title={`Eliminar fecha de ${nombre}`}
+                className="glass-panel-interactive"
+              >
+                🗑️
+              </button>
+            )}
+          </div>
+        </div>
+        {detalleMatricula && campo === "fecha_matriculacion" && exp.matricula && (
+          <div
+            style={{
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              color: "var(--text-secondary)",
+              background: "rgba(255, 255, 255, 0.05)",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              border: "1px solid var(--border-light)",
+              marginTop: "2px",
+              display: "inline-block",
+            }}
+          >
+            🚗 {exp.matricula}
+          </div>
+        )}
+      </div>
+    </td>
+  );
+}
+
+/** Mensaje del error devuelto por la API (`{ message }`) o texto por defecto. */
+export async function mensajeDeError(res: Response, porDefecto: string): Promise<string> {
+  try {
+    const datos = (await res.json()) as { message?: string };
+    return datos.message || porDefecto;
+  } catch {
+    return porDefecto;
+  }
+}

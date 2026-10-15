@@ -1,17 +1,24 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/sesion";
+import LoginForm from "./LoginForm";
 
-/** Marcador de posición: el inicio de sesión real llega en F1 (mínimo) y F2 (completo, con 2FA). */
-export default function LoginPendiente() {
+export default async function LoginPage() {
+  const usuario = await getCurrentUser();
+  if (usuario) redirect("/dashboard");
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div className="glow-bg" />
-      <main className="glass-panel" style={{ maxWidth: "420px", width: "100%", padding: "40px", textAlign: "center" }}>
-        <h1 style={{ fontSize: "1.6rem", marginBottom: "12px" }}>Iniciar sesión</h1>
-        <p style={{ color: "var(--text-secondary)", marginBottom: "24px" }}>
-          El inicio de sesión estará disponible en la siguiente fase.
-        </p>
-        <Link href="/" className="btn btn-secondary">Volver</Link>
-      </main>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 24px",
+        position: "relative",
+        background:
+          "radial-gradient(circle at top right, rgba(99, 102, 241, 0.15), transparent 40%), radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.1), transparent 40%)",
+      }}
+    >
+      <LoginForm />
     </div>
   );
 }

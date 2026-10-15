@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/sesion";
 
 const tarjeta = {
   padding: "20px",
@@ -8,7 +10,9 @@ const tarjeta = {
 const tituloTarjeta = { fontWeight: "bold", fontSize: "1.2rem", marginBottom: "8px" } as const;
 const textoTarjeta = { fontSize: "0.88rem", color: "var(--text-secondary)", lineHeight: "1.4" } as const;
 
-export default function Home() {
+export default async function Home() {
+  const usuario = await getCurrentUser();
+  if (usuario) redirect("/dashboard");
   return (
     <div
       style={{

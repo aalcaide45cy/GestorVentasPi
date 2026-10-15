@@ -1,5 +1,9 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import * as relations from "./relations";
+import * as schema from "./schema";
+
+export const esquemaCompleto = { ...schema, ...relations };
 
 const globalConPool = globalThis as unknown as { __pgPool?: Pool };
 
@@ -12,4 +16,7 @@ function crearPool(): Pool {
 export const pool: Pool = globalConPool.__pgPool ?? crearPool();
 if (process.env.NODE_ENV !== "production") globalConPool.__pgPool = pool;
 
-export const db = drizzle(pool);
+export const db = drizzle(pool, { schema: esquemaCompleto });
+export type Db = typeof db;
+/** Cliente de transacción o la propia conexión: las funciones de servicio aceptan ambos. */
+export type Ejecutor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];

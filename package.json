@@ -10,14 +10,17 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "tsx src/db/migrar.ts",
+    "crear-admin": "tsx scripts/crear-admin.ts"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
     "drizzle-orm": "^0.45.4",
     "next": "^16.2.6",
     "pg": "^8.23.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -27,9 +30,11 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "dotenv": "^18.0.8",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.6",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.4"
   }

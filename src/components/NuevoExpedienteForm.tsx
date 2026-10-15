@@ -1,0 +1,559 @@
+"use client";
+
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import Modal from "@/components/Modal";
+import { useToast } from "@/components/Toast";
+import type { ClienteDto } from "@/lib/dto";
+import { hoyIsoCliente } from "@/lib/date-utils";
+import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
+import { mensajeDeError } from "./expedientes/comun";
+
+interface Opcion {
+  id: number;
+  nombre: string;
+}
+
+interface Tienda extends Opcion {
+  ciudad: string | null;
+}
+
+interface Props {
+  marcas: Opcion[];
+  modelosPorMarca: Record<number, Opcion[]>;
+  tiposVenta: Opcion[];
+  estadosVehiculo: Opcion[];
+  tiendas: Tienda[];
+}
+
+const textoOVacio = (v: string) => v.trim() || null;
+
+/** «Crear Nuevo Expediente de Venta»: datos del cliente y del vehículo en una sola pantalla. */
+export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
+  const router = useRouter();
+  const { mostrar } = useToast();
+  const tiendaInicial = tiendas.length === 1 ? String(tiendas[0].id) : "";
+  const hoy = hoyIsoCliente();
+
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [guardado, setGuardado] = useState(false);
+
+  // Cliente
+  const [dni, setDni] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [tiendaId, setTiendaId] = useState(tiendaInicial);
+  const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
+  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
+
+  const [busqueda, setBusqueda] = useState("");
+  const [resultados, setResultados] = useState<ClienteDto[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [asignado, setAsignado] = useState<ClienteDto | null>(null);
+  const [duplicado, setDuplicado] = useState<ClienteDto | null>(null);
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Vehículo y expediente
+  const [marca, setMarca] = useState<number | "">("");
+  const [modelo, setModelo] = useState<number | "">("");
+  const [tipoVenta, setTipoVenta] = useState<number | "">("");
+  const [estado, setEstado] = useState<number | "">("");
+  const [fExp, setFExp] = useState(hoy);
+  const [fAfect, setFAfect] = useState("");
+  const [fRci, setFRci] = useState("");
+  const [fMat, setFMat] = useState("");
+  const [fFact, setFFact] = useState("");
+  const [fEntrega, setFEntrega] = useState("");
+  const [matricula, setMatricula] = useState("");
+  const [vin, setVin] = useState("");
+
+  const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
+
+  /* ---- Búsqueda de cliente existente ---- */
+  const buscarCliente = (valor: string) => {
+    setBusqueda(valor);
+    if (temporizador.current) clearTimeout(temporizador.current);
+    if (valor.trim().length < 2) {
+      setResultados([]);
+      return;
+    }
+    temporizador.current = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const res = await fetch(`/api/clientes/buscar?q=${encodeURIComponent(valor)}`);
+        if (res.ok) setResultados(((await res.json()) as { data?: ClienteDto[] }).data ?? []);
+      } finally {
+        setBuscando(false);
+      }
+    }, 250);
+  };
+
+  const elegirCliente = (c: ClienteDto) => {
+    setAsignado(c);
+    setDni(c.dni ?? "");
+    setNombre(c.nombre ?? "");
+    setFechaNacimiento(c.fecha_de_nacimiento ?? "");
+    setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
+    setEmails(emailsDeCliente(c));
+    setTelefonos(telefonosDeCliente(c));
+    setBusqueda("");
+    setResultados([]);
+  };
+
+  const desasignar = () => {
+    setAsignado(null);
+    setDni("");
+    setNombre("");
+    setFechaNacimiento("");
+    setTiendaId(tiendaInicial);
+    setEmails([contactoVacio()]);
+    setTelefonos([contactoVacio()]);
+  };
+
+  const rellenos = (lista: ContactoEdicion[]) => lista.filter((c) => c.valor.trim() !== "");
+
+  const clienteModificado = (): boolean => {
+    if (!asignado) return false;
+    if (dni !== (asignado.dni ?? "") || nombre !== (asignado.nombre ?? "") || fechaNacimiento !== (asignado.fecha_de_nacimiento ?? "")) return true;
+    if (tiendaId !== (asignado.tienda_id ? String(asignado.tienda_id) : "")) return true;
+    const mismos = (actual: ContactoEdicion[], original: ContactoEdicion[]) =>
+      actual.length === original.length && actual.every((c, i) => c.valor === original[i].valor && (c.tipo || "Principal") === (original[i].tipo || "Principal"));
+    return !mismos(rellenos(emails), asignado.emails.map((e) => ({ valor: e.email, tipo: e.tipo_email || "Principal" }))) ||
+      !mismos(rellenos(telefonos), asignado.telefonos.map((t) => ({ valor: t.telefono, tipo: t.tipo_telefono || "Principal" })));
+  };
+
+  const cuerpoCliente = (id?: number) => ({
+    ...(id ? { id } : {}),
+    dni: textoOVacio(dni),
+    nombre: nombre.trim(),
+    fecha_de_nacimiento: fechaNacimiento || null,
+    tienda_id: tiendaId ? Number(tiendaId) : null,
+    emails: rellenos(emails).map((e) => ({ email: e.valor.trim(), tipo: e.tipo })),
+    telefonos: rellenos(telefonos).map((t) => ({ telefono: t.valor.trim(), tipo: t.tipo })),
+  });
+
+  const guardarCambiosCliente = async () => {
+    if (!asignado) return;
+    setCargando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/clientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cuerpoCliente(asignado.id)),
+      });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar los datos del cliente."));
+      setAsignado({
+        ...asignado,
+        dni: textoOVacio(dni),
+        nombre: nombre.trim(),
+        fecha_de_nacimiento: fechaNacimiento || null,
+        tienda_id: tiendaId ? Number(tiendaId) : null,
+        emails: rellenos(emails).map((e) => ({ email: e.valor.trim(), tipo_email: e.tipo })),
+        telefonos: rellenos(telefonos).map((t) => ({ telefono: t.valor.trim(), tipo_telefono: t.tipo })),
+      });
+      mostrar("Datos del cliente actualizados correctamente.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ocurrió un error al guardar los cambios del cliente.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  /* ---- Cambios sin guardar ---- */
+  const hayCambios = () =>
+    !guardado &&
+    (dni !== "" || nombre !== "" || fechaNacimiento !== "" || tiendaId !== tiendaInicial || emails.some((e) => e.valor !== "") || telefonos.some((t) => t.valor !== "") ||
+      marca !== "" || modelo !== "" || tipoVenta !== "" || estado !== "" || matricula !== "" || vin !== "" || fExp !== hoy ||
+      fAfect !== "" || fRci !== "" || fMat !== "" || fFact !== "" || fEntrega !== "");
+
+  const cambiosRef = useRef(hayCambios);
+  useEffect(() => {
+    cambiosRef.current = hayCambios;
+  });
+  useEffect(() => {
+    const antesDeSalir = (ev: BeforeUnloadEvent) => {
+      if (cambiosRef.current()) {
+        ev.preventDefault();
+        ev.returnValue = "";
+      }
+    };
+    const alPulsarEnlace = (ev: MouseEvent) => {
+      const ancla = (ev.target as HTMLElement).closest("a");
+      if (ancla && ancla.href && ancla.host === window.location.host && cambiosRef.current()) {
+        if (!window.confirm("Tienes cambios sin guardar en el expediente. ¿Estás seguro de que deseas salir sin guardar?")) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      }
+    };
+    window.addEventListener("beforeunload", antesDeSalir);
+    document.addEventListener("click", alPulsarEnlace, true);
+    return () => {
+      window.removeEventListener("beforeunload", antesDeSalir);
+      document.removeEventListener("click", alPulsarEnlace, true);
+    };
+  }, []);
+
+  /* ---- Guardado ---- */
+  const guardar = async (cliente: ClienteDto | null, crearNuevo = false) => {
+    setCargando(true);
+    setError(null);
+    try {
+      let datosCliente: ReturnType<typeof cuerpoCliente> | null = null;
+      if (cliente) {
+        datosCliente = {
+          ...cuerpoCliente(cliente.id),
+          dni: cliente.dni || textoOVacio(dni),
+          nombre: cliente.nombre || nombre.trim(),
+        };
+      } else if (nombre.trim() && !crearNuevo && asignado) {
+        datosCliente = cuerpoCliente(asignado.id);
+      } else if (nombre.trim()) {
+        datosCliente = cuerpoCliente();
+      }
+
+      const res = await fetch("/api/expedientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cliente: datosCliente,
+          expediente: {
+            id_modelo: modelo || null,
+            id_tipo_de_venta: tipoVenta || null,
+            id_estado_vehiculo: estado || null,
+            id_tienda: tiendaId ? Number(tiendaId) : null,
+            fecha_expediente: fExp || null,
+            fecha_afectacion: fAfect || null,
+            fecha_rci: fRci || null,
+            fecha_matriculacion: fMat || null,
+            fecha_facturacion: fFact || null,
+            fecha_entrega: fEntrega || null,
+            matricula: matricula || null,
+            vin: vin || null,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar el expediente."));
+      setGuardado(true);
+      setTimeout(() => router.push("/dashboard/expedientes"), 2000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al guardar.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const enviar = async (ev: FormEvent) => {
+    ev.preventDefault();
+    setError(null);
+
+    const tieneDatosCliente = dni.trim() !== "" || fechaNacimiento.trim() !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0;
+    if (tieneDatosCliente && !nombre.trim()) {
+      setError("El Nombre Completo del cliente es obligatorio si deseas registrar o asociar un cliente.");
+      return;
+    }
+
+    if (nombre.trim() && !asignado) {
+      setCargando(true);
+      try {
+        const res = await fetch("/api/clientes/verificar-existencia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dni: textoOVacio(dni), nombre: nombre.trim() }),
+        });
+        if (res.ok) {
+          const r = (await res.json()) as { exists?: boolean; cliente?: ClienteDto };
+          if (r.exists && r.cliente) {
+            setDuplicado(r.cliente);
+            setCargando(false);
+            return;
+          }
+        }
+      } catch {
+        /* si falla la comprobación se continúa: la base de datos manda */
+      }
+    }
+    await guardar(asignado);
+  };
+
+  if (guardado) {
+    return (
+      <div className="glass-panel" style={{ padding: "40px", textAlign: "center", borderLeft: "4px solid var(--success)" }}>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: "16px" }}>
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
+        <h2 style={{ fontSize: "1.5rem", marginBottom: "8px" }}>¡Expediente Creado!</h2>
+        <p style={{ color: "var(--text-secondary)" }}>El expediente y los datos del cliente se han guardado con éxito. Redirigiendo...</p>
+      </div>
+    );
+  }
+
+  const campo = (etiqueta: string, control: React.ReactNode) => (
+    <div className="form-group">
+      <label className="form-label">{etiqueta}</label>
+      {control}
+    </div>
+  );
+  const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
+  const titulo = (color: string, icono: React.ReactNode, texto: string) => (
+    <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {icono}
+      </svg>
+      {texto}
+    </h2>
+  );
+
+  return (
+    <>
+      <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+        {error && (
+          <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
+            <strong style={{ display: "block", marginBottom: "4px" }}>Error:</strong>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "32px" }}>
+          {/* DATOS DEL CLIENTE */}
+          <div className="glass-panel" style={{ padding: "32px" }}>
+            {titulo(
+              "var(--primary)",
+              <>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </>,
+              "Datos del Cliente",
+            )}
+
+            {asignado ? (
+              <div
+                className="glass-panel"
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", marginBottom: "24px", background: "rgba(6, 182, 212, 0.05)", borderLeft: "4px solid var(--secondary)", flexWrap: "wrap", gap: "12px" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontSize: "1.5rem" }}>👤</span>
+                  <div>
+                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>Cliente Asociado: {asignado.nombre}</div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>DNI / NIE: {asignado.dni}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                  {clienteModificado() && (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={guardarCambiosCliente}
+                      disabled={cargando}
+                      style={{ padding: "8px 16px", fontSize: "0.85rem", backgroundColor: "var(--success)", color: "white", border: "none", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+                    >
+                      💾 Guardar Cambios de Cliente
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-secondary" onClick={desasignar} style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}>
+                    ❌ Desasignar Cliente
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="form-group" style={{ position: "relative", marginBottom: "24px" }}>
+                <label className="form-label">🔍 Buscar Cliente Existente (DNI o Nombre)</label>
+                <input type="text" className="form-input" placeholder="Escribe DNI o Nombre... (Ej. Juan)" value={busqueda} onChange={(e) => buscarCliente(e.target.value)} />
+                {buscando && <div style={{ position: "absolute", right: "16px", bottom: "12px", fontSize: "0.8rem", color: "var(--text-muted)" }}>Buscando...</div>}
+                {resultados.length > 0 && (
+                  <div
+                    className="glass-panel"
+                    style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-surface)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-lg)", zIndex: 99, maxHeight: "220px", overflowY: "auto", marginTop: "4px" }}
+                  >
+                    {resultados.map((c) => (
+                      <div
+                        key={c.id}
+                        onClick={() => elegirCliente(c)}
+                        className="glass-panel-interactive"
+                        style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-light)", borderRadius: 0, fontSize: "0.9rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{c.nombre}</span>
+                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "monospace" }}>{c.dni}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+              {campo("DNI / NIE", <input type="text" className="form-input" value={dni} onChange={(e) => setDni(e.target.value)} placeholder="Ej. 12345678Z" />)}
+              {campo("Nombre Completo *", <input type="text" className="form-input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" />)}
+              {campo("Fecha de Nacimiento", fecha(fechaNacimiento, setFechaNacimiento))}
+              {campo(
+                "Tienda",
+                <select className="form-select" value={tiendaId} onChange={(e) => setTiendaId(e.target.value)}>
+                  <option value="">Selecciona Tienda</option>
+                  {tiendas.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre} {t.ciudad ? `(${t.ciudad})` : ""}
+                    </option>
+                  ))}
+                </select>,
+              )}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "32px", marginTop: "16px" }}>
+              <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
+              <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
+            </div>
+          </div>
+
+          {/* DETALLES DE LA VENTA Y VEHÍCULO */}
+          <div className="glass-panel" style={{ padding: "32px" }}>
+            {titulo(
+              "var(--secondary)",
+              <>
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </>,
+              "Detalles de la Venta y Vehículo",
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+              {campo(
+                "Marca",
+                <select
+                  className="form-select"
+                  value={marca}
+                  onChange={(e) => {
+                    setMarca(e.target.value ? Number(e.target.value) : "");
+                    setModelo("");
+                  }}
+                >
+                  <option value="">Selecciona Marca</option>
+                  {marcas.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </select>,
+              )}
+              {campo(
+                "Modelo",
+                <select className="form-select" value={modelo} onChange={(e) => setModelo(e.target.value ? Number(e.target.value) : "")} disabled={!marca}>
+                  <option value="">Selecciona Modelo</option>
+                  {modelosDisponibles.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </select>,
+              )}
+              {campo(
+                "Tipo de Venta",
+                <select className="form-select" value={tipoVenta} onChange={(e) => setTipoVenta(e.target.value ? Number(e.target.value) : "")}>
+                  <option value="">Selecciona Tipo</option>
+                  {tiposVenta.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>,
+              )}
+              {campo(
+                "Estado de Vehículo",
+                <select className="form-select" value={estado} onChange={(e) => setEstado(e.target.value ? Number(e.target.value) : "")}>
+                  <option value="">Selecciona Estado</option>
+                  {estadosVehiculo.map((ev) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.nombre}
+                    </option>
+                  ))}
+                </select>,
+              )}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginTop: "16px" }}>
+              {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
+              {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
+              {campo("Fecha Expediente", fecha(fExp, setFExp))}
+              {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
+              {campo("Fecha RCI (Financiación)", fecha(fRci, setFRci))}
+              {campo("Fecha Matriculación", fecha(fMat, setFMat))}
+              {campo("Fecha Facturación (VO)", fecha(fFact, setFFact))}
+              {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "16px", marginTop: "8px" }}>
+          <button type="button" className="btn btn-secondary" onClick={() => router.back()} disabled={cargando}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={cargando}>
+            {cargando ? "Guardando..." : "Crear Expediente"}
+            {!cargando && (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </form>
+
+      {duplicado && (
+        <Modal
+          titulo={<span style={{ color: "var(--warning)" }}>⚠️ Cliente Ya Registrado</span>}
+          ancho="500px"
+          tamanoTitulo="1.4rem"
+        >
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5", textAlign: "center", margin: 0 }}>
+            Se ha encontrado un cliente existente en la base de datos que coincide con el DNI o Nombre ingresado:
+            <br />
+            <strong style={{ color: "var(--text-primary)" }}>{duplicado.nombre}</strong> {duplicado.dni ? `(${duplicado.dni})` : ""}
+            <br />
+            <br />
+            ¿Qué deseas hacer?
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={async () => {
+                const existente = duplicado;
+                setDuplicado(null);
+                setAsignado(existente);
+                setNombre(existente.nombre ?? "");
+                setDni(existente.dni ?? "");
+                await guardar(existente);
+              }}
+            >
+              🤝 Usar Cliente Existente
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={async () => {
+                setDuplicado(null);
+                await guardar(null, true);
+              }}
+            >
+              🆕 Crear Uno Nuevo de Todos Modos
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ width: "100%", justifyContent: "center", backgroundColor: "rgba(239, 68, 68, 0.1)", color: "var(--danger)", border: "1px solid rgba(239, 68, 68, 0.2)" }}
+              onClick={() => setDuplicado(null)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}

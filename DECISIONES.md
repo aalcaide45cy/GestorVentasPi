@@ -29,3 +29,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 | 15/10/2026 | F0 | `docker-compose.yml` de desarrollo solo con `db` (Postgres 16 publicado en 127.0.0.1:5432, datos en `./data/postgres`); el compose con `app` llega en F6 | Comando de desarrollo de CLAUDE.md: `docker compose up -d db && npm run dev` | No |
 | 15/10/2026 | F0 | Docker Desktop instalado con winget; requirió activar WSL2 y reiniciar | Entorno de Windows del propietario | No |
 | 15/10/2026 | F0 | Se versiona `referencia/` (app antigua, solo lectura) tal y como indica la sección 3.4 | Estructura de carpetas del informe | No |
+| 15/10/2026 | F1 | Semilla de tipos de pago: Contado, Crédito y Preference (sin Renting); la categoría RENTING sigue disponible | El propietario no usa Renting | No |
+| 15/10/2026 | F1 | La categoría del tipo de pago y la clase/subtipo del estado se deducen del nombre al crear o renombrar (como la original) | El formulario no los pide | No |
+| 15/10/2026 | F1 | Comisiones e Informes son marcadores hasta F4; el resumen mensual de Expedientes solo trae recuentos | Dependen del motor (F3/F4) | No |
+| 15/10/2026 | F1 | Copia JSON formato 2.0 propio; las copias 1.0 de la app antigua se rechazan y se convertirán en F8 | Sección 12.13 | No |
+| 15/10/2026 | F1 | Las preferencias del navegador se leen con `useSyncExternalStore` (sin errores de hidratación) | Reglas de React 19 del linter | No |

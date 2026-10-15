@@ -14,6 +14,44 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | ⬜ pendiente | |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
+## F1 — Base sin Clerk y sin comisiones (EN CURSO, rama `fase/F1-base`)
+
+**Hecho (commit `56d9a08` + cambios sin commitear)**
+- Esquema Drizzle (`src/db/schema.ts`, `relations.ts`), migración `0000`, semilla idempotente (`semilla.ts`), `npm run db:migrate`, `npm run crear-admin`.
+- Sesiones en BD + cookie, `proxy.ts` (CSRF por Origin, redirección a /login), permisos (`lib/auth/permisos.ts`), login/logout por API, página `/login`.
+- Servicios (`lib/servicios/`): clientes, expedientes (lectura/escritura), búsqueda, usuarios/perfil, catálogos/tiendas/ajustes, panel.
+- API: expedientes, clientes (+buscar, verificar-existencia), buscar, perfil, tienda-predeterminada, admin (usuarios, usuarios/rol, catalogos, tiendas, ajustes), salud.
+- UI: layout del dashboard (Sidebar, ThemeToggle, GlobalSearch, Toast, Modal), Dashboard, RecentExpedientesTable, QuickExpedienteCreator, componentes compartidos en `components/expedientes/`.
+- Tests (Vitest contra BD `gestorventas_test`): permisos, expedientes/clientes, fechas de importación.
+
+**Falta en F1**
+1. `ExpedientesList` (lista completa con filtros, columnas, paginación, bloqueos de selección/eliminación, edición masiva, CSV, Excel con SheetJS, JSON) y página `/dashboard/expedientes`.
+2. Páginas Nuevo/Editar expediente (sin bloque de comisionamiento), Clientes, Buscar, Perfil, Configuración (usuarios, catálogos, ajustes, BBDD), Log de importación; Comisiones e Informes quedan como marcador hasta F4.
+3. Servicios y rutas de importación (`/api/expedientes/import`, `importar-excel/verificar|procesar`, `/api/clientes/import`, `/api/importaciones`, `/api/admin/backup`, `/api/admin/db-cleanup`).
+4. Más tests (usuarios, catálogos, importaciones), lint, build, prueba manual en navegador, DECISIONES.md y parada con informe.
+
+**Notas de diseño**: la lista de expedientes filtra por defecto por el vendedor actual (como la original); el diseño de referencia está en `referencia/gestorVentas-original/src/components/ExpedientesList.tsx`; no usar heredocs en Bash para escribir archivos con comillas (usar la herramienta Write).
+
+## F1 — Base sin Clerk y sin comisiones
+
+**Hecho**
+- Expedientes: lista (filtros, orden, paginación, selección masiva, columnas, importar/exportar CSV y Excel), alta y edición (sin bloques de comisiones, que llegan en F4), resumen mensual solo con recuentos.
+- Clientes, búsqueda general, perfil («Mis Datos»), log de importaciones con corrección rápida.
+- Configuración: usuarios (alta con contraseña temporal), marcas, modelos, tiendas, pagos, estados, ajustes y BBDD (limpieza de huérfanos).
+- Copia JSON (formato 2.0) de exportar/restaurar; limpieza de BBDD. Comisiones e Informes son marcadores hasta F4.
+- Renting retirado de la semilla (el propietario ya lo había quitado en Configuración).
+
+**Cómo probarlo**
+```
+docker compose up -d db
+npm run dev      # http://localhost:3000  (usuario de desarrollo admin@admin.com, se elimina en F2)
+npm test ; npm run typecheck ; npm run lint ; npm run build
+```
+
+**Resultado**: 67 tests, typecheck, lint y build en verde; pantallas revisadas en el navegador.
+
+**Pendiente del propietario**: nada.
+
 ## F0 — Preparación
 
 **Hecho**
