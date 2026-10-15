@@ -1,0 +1,1 @@
+ALTER TABLE "expedientes" ADD COLUMN "fecha_rci" date;

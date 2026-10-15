@@ -1,0 +1,1 @@
+ALTER TABLE "commission_bonus_rules" ADD COLUMN "tipo_vehiculo" varchar(50) DEFAULT 'cualquiera' NOT NULL;

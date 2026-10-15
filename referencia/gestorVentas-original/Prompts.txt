@@ -1,0 +1,171 @@
+Los expedientes no se crean correctamente. Sale: Error:
+No transactions support in neon-http driver
+
+En el expediente, me sale Id Tienda. Quiero poder crear las tiendas, y luego aquí aparezca un desplegable para elegir.
+El usuario, si tiene un rol de vendedor para arriba, podrá seleccionar las tiendas en las que trabaja. Si solo tiene una tienda en la que trabaja, en expedientes, en el idTienda, quiero que aparezca esa tienda seleccionada por defecto cuando añade un expediente.
+
+Quiero que al ser administrador, poder crear, editar, eliminar:
+Marcas, modelos, clientes, expedientes, tipos de pago, etc.
+Si algún marca y modelo tienen un expediente creado, que no me deje eliminarlo para que no se pierda la conexión.
+
+El fondo se ve demasiado oscuro, haz que sea posible modo claro y modo oscuro.
+
+En los menus desplegables, se ve el fondo blanco y no se puede ver el texto del contenido que tiene el desplegable, por lo tanto, haz que las letras sean de color mas claro y el fondo del color oscuro, o aplica una coloración acorde al resto de la app.
+
+Quiero tener una sección de Marcas. Otra de Modelos. Los modelos irán asociados a las marcas como tiene que ser.
+
+Revisa si todo te parece bien o tienes alguna duda.
+
+
+
+Los expedientes no se crean correctamente. Sale: Error:
+No transactions support in neon-http driver
+
+En el expediente, me sale Id Tienda. Quiero poder crear las tiendas, y luego aquí aparezca un desplegable para elegir.
+El usuario, si tiene un rol de vendedor para arriba, podrá seleccionar las tiendas en las que trabaja. Si solo tiene una tienda en la que trabaja, en expedientes, en el idTienda, quiero que aparezca esa tienda seleccionada por defecto cuando añade un expediente.
+
+Quiero que al ser administrador, poder crear, editar, eliminar:
+Marcas, modelos, clientes, expedientes, tipos de pago, etc.
+Si algún marca y modelo tienen un expediente creado, que no me deje eliminarlo para que no se pierda la conexión.
+
+El fondo se ve demasiado oscuro, haz que sea posible modo claro y modo oscuro.
+
+En los menus desplegables, se ve el fondo blanco y no se puede ver el texto del contenido que tiene el desplegable, por lo tanto, haz que las letras sean de color mas claro y el fondo del color oscuro, o aplica una coloración acorde al resto de la app.
+
+Quiero tener una sección de Marcas. Otra de Modelos. Los modelos irán asociados a las marcas como tiene que ser.
+
+Revisa si todo te parece bien o tienes alguna duda.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+Quita el botón de Nuevo expediente de los botones laterales, pues se crearán desde la sección de expedientes. No tiene sentido tener este también.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En el dashboard, no se de donde sale el indicador de volumen ventas ni tasa de efectividad. 
+Sustituyelo por:
+Expedientes Creados en Mes Actual.
+Expedientes según tipo de pago, con el numero. Algo asi:
+Expedientes Contado (Coge el nombre según esté creado) = 3
+Expedientes Financiación Credito (Coge el nombre según esté creado) = 6
+Expedientes Financiación Preference (Coge el nombre según esté creado) = 3
+
+Ahora el expediente tiene asignado el cliente, desde la base de datos de cliente. En el expediente, se muestran los datos del cliente pero no deja modificarlos. Quiero que me permita editar los datos y tenga su propio guardado, es decir, si cambio los datos del cliente desde el expediente, que aparezca un botón de guardado y guarde los cambios en la base de datos de clientes.
+También, un cliente puede tener varios expedientes, pues ha podido comprar varios vehículos. Quiero que en el listado de clientes, aparezca el numero de expedientes que tiene. Y al hacer click en el botón del numero de expedientes, salga un modal que muestre el numero de expedientes que tiene. Por supuesto, desde ese modal, podré ir a editar ese expediente.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Quita el botón lateral Mis Datos. Esto se gesrionará mediante un botón tipo lapiz, donde muestra el nombre de usuario.
+En los usuarios, si es administrador, no se podrá suspender a un administrador. Y para eliminar, debe de salir un modal y que verifique su eliminación.
+Las marcas y modelos, tendrán un nuevo dato, booleano, llamado Acceso Rapido.
+
+En el dashboard, la sección que muestra los últimos expedientes, solo mostrará los últimos 5.
+También, en el dashboard, habrá una sección debajo de los últimos expedientes, la cual mostrará por secciones, las marcas que tengan activado Acceso Rapido.
+Luego, en cada sección según su marca, mostrará los modelos que tengan activado el Acceso Rapido.
+Debajo de cada modelo, habrá unos botones, que serán los tipos de pagos que hay. Estos, crearán un expediente rápido, estableciendo el tipo de pago según se haya pulsado el botón. Si se pulsa el botón de preference que hay debajo de un Renault Clio, se creará un expediente con el tipo de pago Preference. Tomará la fecha de creación la actual.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En la pestaña de configuración, quita Administración de Catálogos Maestros.
+También quiero que los botones aparezcan centrados en la pantalla.
+Los listados que se muestren, quiero que ocultes la columna de ID, no tiene sentido para el usuario.
+
+En el dashboard, los accesos rápidos que te dije me gustan, pero quiero que los organices como bloques en vertical.
+Sería por ejemplo una sección de la Marca Renault (si Renault tiene el Acceso Rapido activo)
+Debajo, en vertical, nombres de los modelos, y los botones de acceso rápido según su forma de pago, debajo del modelo.
+
+Otra sección a la derecha por ejemplo de la Marca Dacia (si Dacia tiene el Acceso Rapido activo)
+Debajo, en vertical, nombres de los modelos, y los botones de acceso rápido según su forma de pago, debajo del modelo.
+
+Los botones de acceso rápido según su forma de pago, que este uno al lado del otro en la misma linea, es decir, que si hay 3 formas de pago, que debajo del modelo, aparezcan los 3 botones correspondientes, uno al lado del otro.
+
+En el dashboard, como aparecen los últimos 5 expedientes, quiero poder editar, es decir, dar como un botón de lapiz, y que me lleve a ese expediente.
+
+En el menú de configuración, aparece la gestión de usuarios. Al ser un administrador, aparece el botón de suspender inhabilitado, quiero mejor que se oculte ese botón si es el administrador.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En la configuración, en Estados, quiero que cada estado tenga un booleano que pueda activar, como predeterminado.
+Al usar los botones de acceso rápido del dashboard, el estado del vehiculo siempre será el estado que tenga el predeterminado.
+En la configuración de Pagos, quiero poder asignar un color al tipo de pago. Este color, será el que tenga en la tabla que se muestran los expedientes. Ahora sale de color azul clarito. Luego, será según el color que yo haya establecido.
+
+En el dashboard, aparece un listado de los últimos 5 expedientes, en la lista, oculta la columna código pues no tiene sentido relevante.
+
+En el dashboard, los accesos directos a crear rápido el expediente, quiero que lo centres. Y quiero que añadas uno nuevo, a la derecha de los que estén activos, que ponga VO. El cual tendrá un botón por cada tipo de pago que haya. Estos, crearán un expediente rápido, según el tipo de venta que haya pulsado el botón y en estado de vehiculo, será usado.
+
+En los expedientes, no quiero que marca, modelo, tipo de venta ni estado de vehiculo, sean obligatorios. Es mas, no quiero que ningún campo sea obligatorio en los expedientes.
+En los clientes, solo quiero que sea obligatorio el nombre.
+
+Cuando se haga algún guardado, sale un mensaje verde, que lo que hace es desplazar las cosas hacia abajo a veces, y luego cuando desaparece, vuelve a desplazar las cosas de nuevo. Quiero que esos mensajes salgan en la parte superior de la pantalla y sean flotantes, ósea, que no afecten al contenido, pero siempre esté encima. Que salga unos segundos y ya.
+
+También quiero, que si estoy en la sección de expedientes, y quiero salir de ahí, pulsando algún otro botón o algo, verifique si he cambiado algo o no, para que me salga un mensaje de si quiero guardar cambios.
+
+También en expedientes quiero un campo para guardar el VIN (numero de bastidor del vehiculo)
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En expedientes, quiero tener un botón para eliminar el expediente. Quiero que al eliminar, antes, me salga un modal de confirmación.
+
+A veces, sale este error en la consola del navegador, cuando pulso en el botón lateral de Clientes:
+Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+
+En el dashboard, los accesos rapidos, quiero que el fondo de los botones de creación rápida de expedientes, corresponda al color asignado en su configuración.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En la pestaña de expedientes, en la tabla, oculta la columna de Expediente, pues muestra un código que no es relevante.
+En la columna de cliente, solo muestra el nombre. El DNI no lo muestres.
+Quiero que la columna de Fechas, sea F. Exp.
+Añade a la derecha de esta, una columna de F. Afect, F.Mat, F. Entrega. (como ves son títulos reducidos correspondientes a Fecha de Afectación, fecha matriculación, fecha entrega.
+Estas nuevas columnas, cada una de las filas de la tabla que se muestra, tendrán un botón de lapiz y otro de basura cada una de las columnas que te he dicho de añadir. Al dar al lapiz, se mostrará un modal para introducir la fecha. Ese modal tendrá la fecha actual escrita para que solo sea dar a aceptar o cancelar, según corresponda.
+El botón de la basura, volverá a eliminar la fecha de ese campo. Lógicamente, la eliminación debe de ser confirmada mediante un modal para ello.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+revisa todos los campos de fechas, pues quiero que sea, Dia/Mes/Año en toda la aplicación
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Centra los textos de la tabla de expediente, de las fechas.
+Varia un poco el color de cada columna, asi podre diferenciarlas fácilmente, solo con que una columna sea mas clarita y la otra mas oscura me vale.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En expedientes, quiero poder ordenar pinchando en el titulo de la columna.
+Cuando creo un expediente usando los accesos rapidos del dashboar, aparece un mensaje ¡Expediente rápido creado con éxito para Sandero (Contado)!. Quiero que este mensaje aparezca en la parte superior y central de la web, pero que no mueva ni desplace parte del contenido de la web, es decir, que esté como flotando.
+En la pestaña clientes, también quiero poder ordenar, pinchando en el titulo de la columna.
+
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Quiero que el buscador, aparezca como una lista desplegable mientras escribo y pinchar en ella, es posible?
+También quiero, que cuando realice la búsqueda, me aparecen los expedientes en Resultados de búsqueda. Pero no me deja acceder a ellos, ni ver detalles. Quiero que me muestre las mismas columnas que muestra en la pestaña de expedientes.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
