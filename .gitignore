@@ -20,3 +20,5 @@ INFORME-GESTOR-VENTAS-PI.md
 next-env.d.ts
 
 .claude/settings.local.json
+dist/
+dist-instalador/

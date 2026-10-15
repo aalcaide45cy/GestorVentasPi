@@ -1,0 +1,10 @@
+GestorVentasPi — carpeta instalada
+==================================
+  docker-compose.yml   Aplicación + base de datos (la BD no publica puertos)
+  .env                 Secretos. GUARDA UNA COPIA APARTE (al menos APP_SECRET).
+  data/postgres/       Datos de la BD (no copiar con la BD encendida: usa las copias .dump)
+  backups/             Copias .dump (automáticas y manuales)
+  scripts/             backup.sh, restaurar.sh, crear-admin.sh, reset-2fa.sh, reset-password.sh
+  gestorventas.sh      Gestor: --estado, --logs, --actualizar, --restaurar, --desinstalar
+
+Guía completa: GUIA-INSTALACION.md del repositorio.

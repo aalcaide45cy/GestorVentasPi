@@ -55,4 +55,9 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 | 15/10/2026 | F5 | Restaurar no activa `app.restauracion`: `pg_restore --clean` recrea tablas y disparadores después de cargar los datos | Los disparadores de solo lectura no se disparan durante la carga | No |
 | 15/10/2026 | F5 | La copia JSON (formato 2.0) vacía las tablas de comisiones al restaurar (no las incluye); las copias completas `.dump` sí conservan todo | Las FK de comisiones impiden borrar usuarios/expedientes | Sí |
 | 15/10/2026 | F5 | Si falla una copia automática se reintenta a los 30 min y el error se muestra en la pantalla de copias | 13.3 | No |
+| 15/10/2026 | F6 | Un único script `gestorventas.sh` es instalador (con el paquete incrustado) y gestor (copia sin paquete en `/opt/gestorventas`) | Cumple «un solo archivo» y los subcomandos de 14.7 | No |
+| 15/10/2026 | F6 | Los scripts de administración se ejecutan en la imagen como `node dist/scripts/*.cjs` (esbuild), no con `tsx` | La imagen final no lleva dependencias de desarrollo | No |
+| 15/10/2026 | F6 | `APP_IMAGE`/`APP_VERSION` en `.env` permiten usar una imagen local; el instalador solo descarga la de la app si no está ya en el equipo | Pruebas sin registro y reinstalaciones | No |
+| 15/10/2026 | F6 | Tailscale Funnel: `tailscale funnel --bg <puerto>`; URL tomada de `tailscale status --json` | [No verificado] la sintaxis puede variar; el instalador avisa si falla | Sí |
+| 15/10/2026 | F6 | `esbuild` fijado en `^0.28.2` como devDependency | Compatible con el peer de vite 8 (vitest 5) | No |
 
