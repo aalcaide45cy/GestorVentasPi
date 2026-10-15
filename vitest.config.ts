@@ -8,7 +8,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     environment: "node",
     globalSetup: ["./tests/global-setup.ts"],
-    env: { DATABASE_URL: urlPruebas },
+    env: { DATABASE_URL: urlPruebas, APP_SECRET: "secreto-solo-para-pruebas-0123456789abcdef0123456789" },
     fileParallelism: false,
     testTimeout: 20000,
   },

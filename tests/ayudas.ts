@@ -41,5 +41,6 @@ export async function crearUsuarioPrueba(rol: Rol, nombre = `Usuario ${rol}`): P
     tipoVendedor: u.tipoVendedor,
     tiendaPredeterminadaId: null,
     debeCambiarPassword: false,
+    totpActivo: false,
   };
 }

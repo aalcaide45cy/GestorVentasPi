@@ -34,3 +34,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 | 15/10/2026 | F1 | Comisiones e Informes son marcadores hasta F4; el resumen mensual de Expedientes solo trae recuentos | Dependen del motor (F3/F4) | No |
 | 15/10/2026 | F1 | Copia JSON formato 2.0 propio; las copias 1.0 de la app antigua se rechazan y se convertirán en F8 | Sección 12.13 | No |
 | 15/10/2026 | F1 | Las preferencias del navegador se leen con `useSyncExternalStore` (sin errores de hidratación) | Reglas de React 19 del linter | No |
+| 15/10/2026 | F2 | CSP con `'unsafe-inline'` para scripts y estilos (sin nonces); el resto restringido al propio origen | Next.js y el script del tema usan fragmentos en línea; los nonces obligarían a renderizar todo de forma dinámica | No |
+| 15/10/2026 | F2 | Bloqueo progresivo: tras 5 fallos en 24 h desde el último acceso correcto, 15 min; cada 5 fallos más duplica (tope 24 h). Claves: IP+correo e IP sola; el 2FA tiene su propia clave | Aproxima 5.6 de forma comprobable | No |
+| 15/10/2026 | F2 | Un usuario sin 2FA activo no puede llamar a la API ni ver el panel (redirige a activar el 2FA) | 5.3: el 2FA es obligatorio | No |
+| 15/10/2026 | F2 | La limpieza de sesiones e intentos se ejecuta de forma oportunista tras un login (cada 6 h como mucho) hasta que haya planificador | No hay cron todavía | No |
+| 15/10/2026 | F2 | Los códigos de recuperación se guardan como HMAC con clave derivada de `APP_SECRET`; el secreto TOTP, cifrado con AES-256-GCM | 5.4 | No |
