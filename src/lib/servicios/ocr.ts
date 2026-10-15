@@ -55,7 +55,7 @@ export interface LineaOcr {
   confianza: number;
 }
 
-export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico" } = {}): Promise<LineaOcr[]> {
+export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico"; confianzaMinima?: number } = {}): Promise<LineaOcr[]> {
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("spa", 1, { langPath: carpetaIdioma(), gzip: true, cacheMethod: "none" });
   try {
@@ -66,7 +66,9 @@ export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string
       for (const bloque of data.blocks ?? []) {
         for (const parrafo of bloque.paragraphs) {
           for (const l of parrafo.lines) {
-            const t = l.text.replace(/\s+/g, " ").trim();
+            // Con confianza mínima solo cuentan las palabras bien reconocidas: lo escrito a mano sale con poca confianza
+            const texto = opciones.confianzaMinima !== undefined && l.words?.length ? l.words.filter((w) => w.confidence >= (opciones.confianzaMinima as number)).map((w) => w.text).join(" ") : l.text;
+            const t = texto.replace(/\s+/g, " ").trim();
             if (t) lineas.push({ texto: t, confianza: Math.round(l.confidence) });
           }
         }
@@ -78,6 +80,31 @@ export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string
   }
 }
 
+/** Confianza mínima de una palabra para tomarla como texto impreso (el manuscrito suele quedar por debajo). */
+const CONFIANZA_IMPRESO = 62;
+
+/**
+ * Borra de la imagen la tinta de bolígrafo azul o roja oscura (apuntes a mano sobre la hoja impresa): son píxeles de
+ * color intenso y oscuro, que no aparecen en el texto impreso (negro) ni en los rellenos de las celdas (colores claros).
+ */
+export async function quitarTintaBoli(img: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(img, { failOn: "none" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const n = info.width * info.height;
+  for (let i = 0; i < n; i++) {
+    const r = data[i * 3];
+    const g = data[i * 3 + 1];
+    const b = data[i * 3 + 2];
+    const azul = b > 70 && b - r > 40 && b - g > 15 && r < 110;
+    const rojo = r > 110 && r - b > 70 && r - g > 70 && g < 110;
+    if (azul || rojo) {
+      data[i * 3] = 255;
+      data[i * 3 + 1] = 255;
+      data[i * 3 + 2] = 255;
+    }
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 3 } }).png().toBuffer();
+}
+
 /** Texto fiable reconocido: caracteres de las líneas con confianza suficiente (sirve para comparar giros). */
 const calidad = (lineas: LineaOcr[]): number => lineas.filter((l) => l.confianza >= 60).reduce((s, l) => s + l.texto.replace(/\s/g, "").length, 0);
 
@@ -85,19 +112,21 @@ const calidad = (lineas: LineaOcr[]): number => lineas.filter((l) => l.confianza
  * OCR de páginas que pueden venir giradas (un escáner o el móvil las dejan de lado o del revés): si el texto leído es
  * pobre, se prueban los otros tres giros y se queda el que más texto fiable da.
  */
-export async function ocrOrientado(imagenes: Buffer[]): Promise<LineaOcr[]> {
+export async function ocrOrientado(imagenes: Buffer[], opciones: { ignorarManuscrito?: boolean } = {}): Promise<LineaOcr[]> {
   const todas: LineaOcr[] = [];
-  for (const img of imagenes) {
-    let mejor = await ocrImagenes([img]);
+  const ocr = opciones.ignorarManuscrito ? { confianzaMinima: CONFIANZA_IMPRESO } : {};
+  for (const bruta of imagenes) {
+    const img = opciones.ignorarManuscrito ? await quitarTintaBoli(bruta) : bruta;
+    let mejor = await ocrImagenes([img], ocr);
     let puntos = calidad(mejor);
-    for (const giro of puntos >= 80 ? [] : [90, 270, 180]) {
-      const l = await ocrImagenes([await sharp(img, { failOn: "none" }).rotate(giro).png().toBuffer()]);
+    for (const giro of puntos >= 60 ? [] : [90, 270, 180]) {
+      const l = await ocrImagenes([await sharp(img, { failOn: "none" }).rotate(giro).png().toBuffer()], ocr);
       const p = calidad(l);
-      if (p > puntos) {
+      if (p > puntos * 1.3 + 10) {
         mejor = l;
         puntos = p;
       }
-      if (puntos >= 80) break;
+      if (puntos >= 60) break;
     }
     todas.push(...mejor);
   }
@@ -191,7 +220,7 @@ async function leerPdf(datos: Buffer, forzarOcr: boolean): Promise<ResultadoOcr>
     const aviso = doc.numPages > MAX_PAGINAS ? `El PDF tiene ${doc.numPages} páginas: solo se han leído las ${MAX_PAGINAS} primeras.` : null;
     if (!forzarOcr && filasTexto.length > 0) return { filas: filasTexto, texto, metodo: "texto-pdf", paginas, aviso };
     // Sin texto aprovechable: se dibuja cada página y se reconoce con OCR
-    const lineas = await ocrOrientado(await paginasComoImagenes(doc, paginas));
+    const lineas = await ocrOrientado(await paginasComoImagenes(doc, paginas), { ignorarManuscrito: true });
     return { ...resultadoDeLineas(lineas), metodo: "ocr", paginas, aviso };
   } finally {
     await doc.cleanup?.();
@@ -213,7 +242,7 @@ export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean 
   return enCola(async () => {
     try {
       if (tipo === "pdf") return await leerPdf(datos, opciones.forzarOcr ?? false);
-      const lineas = await ocrOrientado([datos]);
+      const lineas = await ocrOrientado([datos], { ignorarManuscrito: true });
       return { ...resultadoDeLineas(lineas), metodo: "ocr" as const, paginas: 1 };
     } catch (e) {
       if (e instanceof HttpError) throw e;

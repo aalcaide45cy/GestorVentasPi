@@ -2,7 +2,7 @@ import path from "node:path";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import sharp from "sharp";
 import { beforeAll, describe, expect, it } from "vitest";
-import { reconocerRejilla, tipoDeFichero } from "./ocr";
+import { quitarTintaBoli, reconocerRejilla, tipoDeFichero } from "./ocr";
 
 const LINEAS = ["REJILLA DE COMISIONES AGOSTO", "1234 BCD   JUAN PEREZ GARCIA   Credito   450,00", "5678 FGH   ANA RUIZ LOPEZ   Contado   300,00", "9012 JKL   LUIS MARTIN SANZ   Renting   1.250,50"];
 
@@ -89,5 +89,65 @@ describe("OCR de la rejilla", () => {
       const r = await reconocerRejilla(girada);
       expect(r.filas.map((f) => f.matricula)).toEqual(["1234BCD", "5678FGH", "9012JKL"]);
     }
+  });
+});
+
+describe("apuntes a bolígrafo en la rejilla", () => {
+  /** Rejilla impresa más un «apunte a mano» en azul (letra temblona) y garabatos negros al lado de las filas. */
+  function rejillaConBoli(): Buffer {
+    const lienzo = createCanvas(1500, 420);
+    const ctx = lienzo.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 1500, 420);
+    ctx.fillStyle = "#000000";
+    ctx.font = "40px Geist";
+    ["1234 BCD   JUAN PEREZ GARCIA   Credito   450,00", "5678 FGH   ANA RUIZ LOPEZ   Contado   300,00"].forEach((l, i) => ctx.fillText(l, 40, 70 + i * 90));
+    // Apunte a mano en azul con una matrícula inventada: no debe contar
+    ctx.fillStyle = "#1a2fb0";
+    ctx.font = "40px Geist";
+    let x = 40;
+    let semilla = 7;
+    for (const c of "9999 ZZZ  777,00") {
+      semilla = (semilla * 9301 + 49297) % 233280;
+      const giro = ((semilla / 233280) - 0.5) * 0.5;
+      ctx.save();
+      ctx.translate(x, 270 + ((semilla % 13) - 6));
+      ctx.rotate(giro);
+      ctx.fillText(c, 0, 0);
+      ctx.restore();
+      x += 28;
+    }
+    // Garabatos negros (tachones y rayas) junto a la segunda fila
+    ctx.strokeStyle = "#202020";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(1150 + i * 25, 120);
+      ctx.lineTo(1170 + i * 25, 180);
+      ctx.stroke();
+    }
+    return lienzo.toBuffer("image/png");
+  }
+
+  it("ignora lo escrito en azul y no inventa filas con los tachones", { timeout: 180_000 }, async () => {
+    const r = await reconocerRejilla(rejillaConBoli());
+    expect(r.filas.map((f) => f.matricula)).toEqual(["1234BCD", "5678FGH"]);
+    expect(r.filas.map((f) => f.importe)).toEqual([45000, 30000]);
+  });
+
+  it("quitarTintaBoli borra el azul oscuro y deja el negro y los rellenos claros", async () => {
+    const l = createCanvas(30, 10);
+    const ctx = l.getContext("2d");
+    ctx.fillStyle = "#1a2fb0";
+    ctx.fillRect(0, 0, 10, 10);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(10, 0, 10, 10);
+    ctx.fillStyle = "#cfe8f6"; // relleno azul claro de una celda
+    ctx.fillRect(20, 0, 10, 10);
+    const { data } = await sharp(await quitarTintaBoli(l.toBuffer("image/png"))).raw().toBuffer({ resolveWithObject: true });
+    const px = (x: number) => [data[x * 3], data[x * 3 + 1], data[x * 3 + 2]];
+    expect(px(5)).toEqual([255, 255, 255]);
+    expect(px(15)).toEqual([0, 0, 0]);
+    expect(px(25)).toEqual([207, 232, 246]);
   });
 });

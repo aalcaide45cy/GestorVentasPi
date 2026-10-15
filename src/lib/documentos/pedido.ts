@@ -195,12 +195,24 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   // Forma de pago por palabras clave de la primera hoja (promociones de financiación, renting…)
   let idTipoDeVenta: number | null = null;
   const porCategoria = (cat: string) => catalogo.tiposVenta.find((t) => t.categoria === cat)?.id ?? null;
-  if (/RENTING|ARRENDAMIENTO/.test(mayus)) idTipoDeVenta = porCategoria("RENTING");
-  else if (/PREFERENCE/.test(mayus)) idTipoDeVenta = porCategoria("PREFERENCE");
-  else if (/FINANCIA|CREDITO|PRESTAMO|\bRCI\b/.test(mayus)) idTipoDeVenta = porCategoria("CREDITO");
-  else if (/CONTADO|TRANSFERENCIA/.test(mayus)) idTipoDeVenta = porCategoria("CONTADO");
-  const porNombre = catalogo.tiposVenta.find((t) => t.nombre.length >= 4 && mayus.includes(sinAcentos(t.nombre)));
-  if (porNombre) idTipoDeVenta = porNombre.id;
+  // Un descuento o promoción de «crédito», «financiación» o «preference» indica que el expediente no es de contado: se
+  // cambia el tipo. Se miran solo las líneas de descuento (no el resto del pedido, que puede citar la financiación en
+  // otros contextos). Preference es más específico que crédito.
+  const lineasDescuento = lineas.filter((l) => /PROMOCION|\bDTO\b|DTO\.|DESCUENTO|BONIFICACION|AYUDA/.test(sinAcentos(l)));
+  const dto = sinAcentos(lineasDescuento.join("\n"));
+  if (/PREFERENCE/.test(dto)) idTipoDeVenta = porCategoria("PREFERENCE");
+  else if (/CREDITO|FINANCIA|\bRCI\b|PRESTAMO/.test(dto)) idTipoDeVenta = porCategoria("CREDITO");
+  else if (/RENTING|ARRENDAMIENTO/.test(dto)) idTipoDeVenta = porCategoria("RENTING");
+  if (idTipoDeVenta !== null) avisos.push("El pedido lleva un descuento de financiación: se ha cambiado el tipo de venta.");
+  // Documentos que no son un pedido de Renault: se buscan además las palabras clave en todo el texto
+  if (!estructura && idTipoDeVenta === null) {
+    if (/RENTING|ARRENDAMIENTO/.test(mayus)) idTipoDeVenta = porCategoria("RENTING");
+    else if (/PREFERENCE/.test(mayus)) idTipoDeVenta = porCategoria("PREFERENCE");
+    else if (/FINANCIA|CREDITO|PRESTAMO|\bRCI\b/.test(mayus)) idTipoDeVenta = porCategoria("CREDITO");
+    else if (/CONTADO|TRANSFERENCIA/.test(mayus)) idTipoDeVenta = porCategoria("CONTADO");
+    const porNombre = catalogo.tiposVenta.find((t) => t.nombre.length >= 4 && mayus.includes(sinAcentos(t.nombre)));
+    if (porNombre) idTipoDeVenta = porNombre.id;
+  }
 
   const hayAlgo = vin || matricula || dni || modelo || estructura;
   if (!hayAlgo) avisos.push("No se ha reconocido ningún dato útil en el documento.");

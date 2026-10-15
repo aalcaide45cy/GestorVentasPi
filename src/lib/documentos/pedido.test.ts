@@ -102,3 +102,35 @@ describe("pedido de vehículo nuevo de Renault/Dacia (datos inventados con la mi
     expect(d.idTipoDeVenta).toBe(11);
   });
 });
+
+describe("el descuento de financiación del pedido cambia el tipo de venta", () => {
+  const cat = { ...catalogo, tiposVenta: [...catalogo.tiposVenta, { id: 13, nombre: "Preference", categoria: "PREFERENCE" }] };
+  const base = (descuento: string | null) =>
+    [
+      "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+      "Sra. Doña Ana De Prueba  CONCESIONARIO DE PRUEBA, S.L.",
+      "12345678Z  B00000000",
+      "Calle Inventada, 1  CALLE, 1",
+      "Madrid, Madrid (28000)  Rivas, Madrid (28500)",
+      "RESUMEN",
+      "Modelo:  RENAULT CLIO equilibre  18.000,00 €",
+      ...(descuento ? [descuento] : []),
+      "Forma de pago: al contado",
+    ].join("\n");
+
+  it("«Descuento crédito» y «dto crédito» → Crédito", () => {
+    expect(parsearPedido(base("Promociones:  Descuento crédito  -300,00 €"), cat).idTipoDeVenta).toBe(11);
+    expect(parsearPedido(base("Promociones:  dto crédito  -300,00 €"), cat).idTipoDeVenta).toBe(11);
+    expect(parsearPedido(base("Descuento Adicional Financiacion y Serv.  -400,00 €"), cat).idTipoDeVenta).toBe(11);
+  });
+
+  it("«Preference» → Preference (más específico que crédito)", () => {
+    expect(parsearPedido(base("Promociones:  DTO PREFERENCE  -500,00 €"), cat).idTipoDeVenta).toBe(13);
+    expect(parsearPedido(base("Promociones:  DTO PREFERENCE crédito  -500,00 €"), cat).idTipoDeVenta).toBe(13);
+  });
+
+  it("sin descuento de financiación el tipo no se toca (aunque el texto cite «contado»)", () => {
+    expect(parsearPedido(base(null), cat).idTipoDeVenta).toBeNull();
+    expect(parsearPedido(base("Promociones:  DTO VENTA DIRECTA  -100,00 €"), cat).idTipoDeVenta).toBeNull();
+  });
+});
