@@ -320,7 +320,7 @@ cmd_instalar() {
       echo "$salida"
       pass="$(printf '%s\n' "$salida" | sed -n 's/^Contraseña temporal: //p' | head -1)"
       if [ -n "$pass" ]; then
-        umask 077; printf 'Administrador: %s\nContraseña temporal: %s\n(Se obliga a cambiarla en el primer acceso. Borra este archivo cuando la hayas cambiado.)\n' "$email" "$pass" > "$DIR/CREDENCIAL-ADMIN.txt"
+        umask 077; printf 'Administrador: %s\nContraseña temporal: %s\n(Se obliga a cambiarla en el primer acceso. Borra este archivo cuando la hayas cambiado.)\n' "$email" "$pass" > "$DIR/CREDENCIAL-ADMIN.txt"; chmod 600 "$DIR/CREDENCIAL-ADMIN.txt"
         aviso "CONTRASEÑA TEMPORAL del administrador (también en $DIR/CREDENCIAL-ADMIN.txt): $pass"
       fi
     else
