@@ -52,8 +52,15 @@ services:
       retries: 5
       start_period: 60s
     mem_limit: ${APP_MEM_LIMIT:-1024m}
+    # Endurecimiento: sistema de ficheros de solo lectura (solo se escribe en /backups y /tmp), sin privilegios extra
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    init: true
     tmpfs:
       - /tmp
+      - /app/.next/cache
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
