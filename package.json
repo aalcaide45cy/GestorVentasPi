@@ -17,13 +17,17 @@
     "reset-password": "tsx scripts/reset-password.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.11",
     "@node-rs/argon2": "^2.2.2",
+    "@tesseract.js-data/spa": "^1.0.0",
     "drizzle-orm": "^0.45.4",
     "next": "^16.2.6",
+    "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "tesseract.js": "^7.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.7"
   },

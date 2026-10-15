@@ -2,12 +2,13 @@ import Link from "next/link";
 import { db } from "@/db";
 import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
 import RecentExpedientesTable from "@/components/RecentExpedientesTable";
-import { esRolActivo } from "@/lib/auth/permisos";
+import { esAdministrador, esRolActivo } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
 import { formatDate } from "@/lib/date-utils";
 import { resumenPanel } from "@/lib/servicios/expedientes-lectura";
 import { cargarDatosPanel } from "@/lib/servicios/panel";
 import { calcularVendedorMes } from "@/lib/servicios/liquidaciones";
+import { avisosRejilla } from "@/lib/servicios/rejillas";
 import { etiquetaTramo, euros, nombreMes, puntos } from "@/lib/formato";
 
 export const dynamic = "force-dynamic";
@@ -89,19 +90,37 @@ export default async function DashboardPage() {
           </p>
         </div>
       ) : (
-        <PanelActivo userId={user.idUsuario} tiendaPredeterminadaId={user.tiendaPredeterminadaId} />
+        <PanelActivo userId={user.idUsuario} esAdmin={esAdministrador(user.rol)} tiendaPredeterminadaId={user.tiendaPredeterminadaId} />
       )}
     </div>
   );
 }
 
-async function PanelActivo({ userId, tiendaPredeterminadaId }: { userId: number; tiendaPredeterminadaId: number | null }) {
+async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId: number; esAdmin: boolean; tiendaPredeterminadaId: number | null }) {
   const mesIso = new Date().toISOString().slice(0, 7);
-  const [resumen, datos, motor] = await Promise.all([resumenPanel(db), cargarDatosPanel(db), calcularVendedorMes(db, userId, mesIso)]);
+  const [resumen, datos, motor, avisos] = await Promise.all([resumenPanel(db), cargarDatosPanel(db), calcularVendedorMes(db, userId, mesIso), avisosRejilla(db, esAdmin ? null : userId, mesIso)]);
   const hayPlan = motor !== null && motor.idPlan !== null;
 
   return (
     <>
+      {/* Validación de comisiones pendiente */}
+      {avisos.length > 0 && (
+        <div className="glass-panel" style={{ padding: "20px 24px", borderLeft: "4px solid var(--warning)", display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+            <h3 style={{ fontSize: "1.1rem" }}>✅ Validación de comisiones pendiente ({avisos.length})</h3>
+            <Link href="/dashboard/comisiones" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              Ir a validar
+            </Link>
+          </div>
+          {avisos.slice(0, 5).map((a) => (
+            <div key={`${a.tipo}-${a.idUsuario}-${a.mes}`} style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+              {esAdmin && a.vendedor ? <b>{a.vendedor}: </b> : null}
+              {a.detalle}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Métricas clave */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
         <div className="glass-panel-interactive" style={estiloTarjeta}>

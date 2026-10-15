@@ -1,7 +1,7 @@
 import { asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, telefonosUsuarios, usuarios, usuariosTiendas } from "@/db/schema";
+import { commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, rejillas, telefonosUsuarios, validacionesComision, usuarios, usuariosTiendas } from "@/db/schema";
 import type { UsuarioAdminDto } from "@/lib/dto";
 import { generarPasswordTemporal, hashPassword } from "@/lib/auth/password";
 import { ROLES } from "@/lib/auth/permisos";
@@ -191,7 +191,9 @@ export async function eliminarUsuario(ej: Ejecutor, admin: UsuarioActual, id: nu
   const [libro] = await ej.select({ id: libroPuntos.id }).from(libroPuntos).where(eq(libroPuntos.idUsuario, id)).limit(1);
   const [liq] = await ej.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id)).limit(1);
   const [objetivo] = await ej.select({ id: commissionPlanVendedores.id }).from(commissionPlanVendedores).where(eq(commissionPlanVendedores.idUsuario, id)).limit(1);
-  if (libro || liq || objetivo) {
+  const [rej] = await ej.select({ id: rejillas.id }).from(rejillas).where(eq(rejillas.idUsuario, id)).limit(1);
+  const [val] = await ej.select({ id: validacionesComision.id }).from(validacionesComision).where(eq(validacionesComision.idUsuario, id)).limit(1);
+  if (libro || liq || objetivo || rej || val) {
     throw new HttpError(409, "No se puede eliminar el usuario porque tiene historial de comisiones (puntos, liquidaciones o planes). Bloquea su cuenta para suspender su acceso.");
   }
   const filas = await ej.delete(usuarios).where(eq(usuarios.idUsuario, id)).returning({ id: usuarios.idUsuario });

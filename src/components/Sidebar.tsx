@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useCarga } from "@/components/comisiones/useCarga";
 import { usePreferencia } from "@/lib/preferencias";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
 
@@ -30,10 +31,12 @@ interface EnlaceNavProps {
   href: string;
   titulo: string;
   colapsado: boolean;
+  /** Contador rojo (p. ej. validaciones pendientes). */
+  insignia?: number;
   children: ReactNode;
 }
 
-function EnlaceNav({ href, titulo, colapsado, children }: EnlaceNavProps) {
+function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavProps) {
   return (
     <Link
       href={href}
@@ -55,6 +58,14 @@ function EnlaceNav({ href, titulo, colapsado, children }: EnlaceNavProps) {
     >
       <svg {...iconoProps}>{children}</svg>
       {!colapsado && <span>{titulo}</span>}
+      {insignia !== undefined && insignia > 0 && (
+        <span
+          title={`${insignia} validación(es) de comisiones pendiente(s)`}
+          style={{ marginLeft: colapsado ? 0 : "auto", background: "var(--danger, #ef4444)", color: "#fff", borderRadius: "999px", fontSize: "0.7rem", fontWeight: 700, minWidth: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 6px" }}
+        >
+          {insignia}
+        </span>
+      )}
     </Link>
   );
 }
@@ -69,6 +80,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const rol = normalizarRol(user.rol);
   const isAdmin = esAdministrador(rol);
   const isVendedorOrUp = esRolActivo(rol);
+  const { datos: avisosRejilla } = useCarga<{ total: number } | null>(isVendedorOrUp ? "/api/comisiones/rejillas/avisos" : null, null);
   const inicial = (user.nombre ?? "?").trim().charAt(0).toUpperCase() || "?";
 
   // En el servidor y en el primer pintado vale expandida (la preferencia es null hasta hidratar).
@@ -326,7 +338,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
           {isVendedorOrUp && (
             <>
-              <EnlaceNav href="/dashboard/comisiones" titulo="Comisiones" colapsado={isCollapsed}>
+              <EnlaceNav href="/dashboard/comisiones" titulo="Comisiones" colapsado={isCollapsed} insignia={avisosRejilla?.total}>
                 <line x1="12" y1="1" x2="12" y2="23" />
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </EnlaceNav>

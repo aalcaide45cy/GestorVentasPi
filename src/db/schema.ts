@@ -679,3 +679,71 @@ export const conexionDrive = pgTable("conexion_drive", {
   /** El último intento falló por token caducado o revocado. */
   requiereReconexion: boolean("requiere_reconexion").notNull().default(false),
 });
+
+/* ------------------------------------------------------------------ */
+/* Validación de comisiones con la «rejilla» de la empresa              */
+/* ------------------------------------------------------------------ */
+
+/** Hoja de comisiones que entrega la empresa a un vendedor para un mes de liquidación. Una por vendedor y mes. */
+export const rejillas = pgTable(
+  "rejillas",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario),
+    /** Mes de la liquidación que se valida (AAAA-MM). */
+    mes: varchar("mes", { length: 7 }).notNull(),
+    /** excel | csv | pdf | imagen | manual */
+    origen: varchar("origen", { length: 20 }).notNull(),
+    nombreArchivo: text("nombre_archivo"),
+    /** Total que indica la hoja (céntimos), si lo trae. */
+    totalHoja: integer("total_hoja"),
+    notas: text("notas"),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    creadaPor: integer("creada_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+  },
+  (t) => [uniqueIndex("rejillas_usuario_mes_uq").on(t.idUsuario, t.mes)],
+);
+
+export const rejillaFilas = pgTable(
+  "rejilla_filas",
+  {
+    id: serial("id").primaryKey(),
+    idRejilla: integer("id_rejilla")
+      .notNull()
+      .references(() => rejillas.id, { onDelete: "cascade" }),
+    /** Matrícula tal y como aparece en la hoja. */
+    matricula: varchar("matricula", { length: 50 }).notNull(),
+    cliente: text("cliente"),
+    financiacion: text("financiacion"),
+    concepto: text("concepto"),
+    /** Céntimos; null si la hoja no trae importe legible. */
+    importe: integer("importe"),
+    /** Línea original (OCR) para poder revisar lo leído. */
+    textoOriginal: text("texto_original"),
+    /** Confianza del OCR (0-100), si procede. */
+    confianza: integer("confianza"),
+  },
+  (t) => [index("rejilla_filas_rejilla_idx").on(t.idRejilla)],
+);
+
+/** Estado que el vendedor da a cada coche de un mes: pagado, pendiente o reclamado a la empresa. */
+export const validacionesComision = pgTable(
+  "validaciones_comision",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario),
+    mes: varchar("mes", { length: 7 }).notNull(),
+    idExpediente: integer("id_expediente")
+      .notNull()
+      .references(() => expedientes.idExpediente),
+    /** pagado | pendiente | reclamado */
+    estado: varchar("estado", { length: 12 }).notNull(),
+    nota: text("nota"),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("validaciones_comision_uq").on(t.idUsuario, t.mes, t.idExpediente)],
+);

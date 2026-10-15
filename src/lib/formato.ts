@@ -50,3 +50,10 @@ export function etiquetaTramo(tramo: number): string {
   if (tramo === 0) return "X";
   return tramo > 0 ? `X+${tramo}` : `X−${Math.abs(tramo)}`;
 }
+
+/** Suma (o resta) meses a un «AAAA-MM». */
+export function sumarMeses(mes: string, n: number): string {
+  const [a, m] = mes.split("-").map(Number);
+  const t = a * 12 + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+}

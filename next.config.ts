@@ -31,6 +31,18 @@ const cabeceras = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // OCR de la rejilla (Tesseract en WebAssembly, lectura de PDF y lienzo nativo): se cargan desde node_modules en tiempo de ejecución
+  serverExternalPackages: ["tesseract.js", "pdfjs-dist", "@napi-rs/canvas"],
+  outputFileTracingIncludes: {
+    "/api/comisiones/rejillas/ocr": [
+      "./node_modules/tesseract.js/**/*",
+      "./node_modules/tesseract.js-core/**/*",
+      "./node_modules/@tesseract.js-data/spa/4.0.0_best_int/**/*",
+      "./node_modules/pdfjs-dist/legacy/build/**/*",
+      "./node_modules/pdfjs-dist/standard_fonts/**/*",
+      "./node_modules/@napi-rs/canvas*/**/*",
+    ],
+  },
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: cabeceras }];

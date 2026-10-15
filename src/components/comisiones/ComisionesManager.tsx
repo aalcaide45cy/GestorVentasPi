@@ -9,6 +9,7 @@ import type { ResumenPlan } from "@/lib/servicios/planes";
 import { llamar, textoError } from "./api";
 import CotejoCobros from "./CotejoCobros";
 import PlanEditor from "./PlanEditor";
+import ValidacionRejilla from "./ValidacionRejilla";
 import { BotonMini, Seccion } from "./campos";
 import type { CatalogosComisiones, Plan } from "./tipos";
 import { useCarga } from "./useCarga";
@@ -118,6 +119,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
             ))}
           </Seccion>
         )}
+        <ValidacionRejilla cat={{ ...cat, vendedores: cat.vendedores.filter((v) => v.id === idUsuario) }} usuarioInicial={idUsuario} esAdmin={false} />
         <CotejoCobros cat={{ ...cat, vendedores: cat.vendedores.filter((v) => v.id === idUsuario) }} usuarioInicial={idUsuario} esAdmin={false} />
       </div>
     );
@@ -179,6 +181,8 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
           </table>
         </div>
       </Seccion>
+
+      <ValidacionRejilla cat={cat} usuarioInicial={cat.vendedores[0]?.id ?? idUsuario} esAdmin />
 
       <CotejoCobros cat={cat} usuarioInicial={cat.vendedores[0]?.id ?? idUsuario} esAdmin />
 

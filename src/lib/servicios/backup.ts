@@ -110,7 +110,7 @@ export async function restaurarCopia(ej: Ejecutor, admin: UsuarioActual, copia: 
     // disparadores de protección). La copia JSON no los incluye; para conservarlos se usan las copias completas (.dump).
     await tx.execute(
       sql.raw(
-        "truncate table libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade",
+        "truncate table rejillas, validaciones_comision, libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade",
       ),
     );
     for (const t of [...TABLAS].reverse()) await tx.delete(t.tabla);
