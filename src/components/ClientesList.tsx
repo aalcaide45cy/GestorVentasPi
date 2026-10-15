@@ -19,6 +19,8 @@ export type ClienteItem = ClienteDto & { num_expedientes: number };
 
 interface Props {
   clientesIniciales: ClienteItem[];
+  /** Total de clientes en la base de datos (si es mayor que los cargados, se avisa de que la lista está recortada). */
+  totalEnBd?: number;
   tiendas: TiendaDto[];
   userRole: string;
   tiendaPredeterminadaId: number | null;
@@ -41,7 +43,7 @@ const botonBloqueo = (activo: boolean, fondo: string, color: string) =>
   }) as const;
 
 /** «Base de Clientes»: directorio con filtros por columna, alta/edición, importación y exportación CSV. */
-export default function ClientesList({ clientesIniciales, tiendas, userRole, tiendaPredeterminadaId }: Props) {
+export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, userRole, tiendaPredeterminadaId }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
 
@@ -410,6 +412,12 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
           {userRole === "administrador" && <BotonesBackup deshabilitado={cargando} />}
         </div>
       </div>
+
+      {totalEnBd !== undefined && totalEnBd > clientes.length && (
+        <div style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.9rem" }}>
+          ⚠️ Se muestran los {clientes.length.toLocaleString("es-ES")} clientes más recientes de {totalEnBd.toLocaleString("es-ES")}. Para localizar otro usa el buscador global (arriba).
+        </div>
+      )}
 
       <div className="glass-panel" style={{ padding: "8px" }}>
         <div style={{ padding: "10px 16px 4px", fontSize: "0.85rem", color: "var(--text-muted)" }}>

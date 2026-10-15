@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, type SQL } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { clientes, expedientes, marcas, modelos } from "@/db/schema";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
@@ -11,32 +11,46 @@ export interface SugerenciasBusqueda {
   expedientes: { id_expediente: number; label: string }[];
 }
 
-/** Ids de expedientes que coinciden por matrícula, VIN, cliente, DNI, modelo, marca o número. */
-async function idsCoincidentes(ej: Ejecutor, q: string, limite?: number): Promise<number[]> {
-  const patron = `%${escaparLike(q.trim())}%`;
-  const consulta = ej
-    .selectDistinct({ id: expedientes.idExpediente })
-    .from(expedientes)
-    .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
-    .leftJoin(modelos, eq(modelos.idModelo, expedientes.idModelo))
-    .leftJoin(marcas, eq(marcas.idMarca, modelos.marcaId))
-    .where(
-      and(
-        isNull(expedientes.eliminadoEn),
-      or(
-        ilike(expedientes.matricula, patron),
-        ilike(expedientes.vin, patron),
-        ilike(clientes.nombre, patron),
-        ilike(clientes.dni, patron),
-        ilike(modelos.nombreModelo, patron),
-        ilike(marcas.nombre, patron),
-        sql`${expedientes.idExpediente}::text like ${patron}`,
-      ),
-      ),
-    )
-    .orderBy(desc(expedientes.idExpediente));
-  const filas = await (limite ? consulta.limit(limite) : consulta);
-  return filas.map((f) => f.id);
+/**
+ * Ids de expedientes que coinciden por matrícula, VIN, cliente, DNI, modelo, marca o número exacto. Cada criterio es una
+ * consulta propia (con su índice de trigramas) y se mezclan los más recientes: un único OR sobre varias tablas obligaba a
+ * recorrer todos los expedientes, que con un millón tardaba segundos.
+ */
+async function idsCoincidentes(ej: Ejecutor, q: string, limite = 100): Promise<number[]> {
+  const texto = q.trim();
+  const patron = `%${escaparLike(texto)}%`;
+  const vivo = isNull(expedientes.eliminadoEn);
+  const primeros = (condicion: SQL | undefined) =>
+    ej
+      .select({ id: expedientes.idExpediente })
+      .from(expedientes)
+      .where(and(vivo, condicion))
+      .orderBy(desc(expedientes.idExpediente))
+      .limit(limite);
+  // Los clientes y modelos que coinciden se resuelven antes (son pocos): con una subconsulta, si no coincide ninguno el
+  // planificador recorre al revés todos los expedientes buscando uno, que con un millón son segundos.
+  const [clientesQue, modelosQue] = await Promise.all([
+    ej
+      .select({ id: clientes.id })
+      .from(clientes)
+      .where(and(isNull(clientes.eliminadoEn), or(ilike(clientes.nombre, patron), ilike(clientes.dni, patron))))
+      .limit(500),
+    ej
+      .select({ id: modelos.idModelo })
+      .from(modelos)
+      .leftJoin(marcas, eq(marcas.idMarca, modelos.marcaId))
+      .where(or(ilike(modelos.nombreModelo, patron), ilike(marcas.nombre, patron))),
+  ]);
+  const consultas = [
+    primeros(ilike(expedientes.matricula, patron)),
+    primeros(ilike(expedientes.vin, patron)),
+    ...(clientesQue.length ? [primeros(inArray(expedientes.idCliente, clientesQue.map((c) => c.id)))] : []),
+    ...(modelosQue.length ? [primeros(inArray(expedientes.idModelo, modelosQue.map((m) => m.id)))] : []),
+    ...(/^\d{1,9}$/.test(texto) ? [primeros(eq(expedientes.idExpediente, Number(texto)))] : []),
+  ];
+  const ids = new Set<number>();
+  for (const filas of await Promise.all(consultas)) for (const f of filas) ids.add(f.id);
+  return [...ids].sort((a, b) => b - a).slice(0, limite);
 }
 
 export async function sugerencias(ej: Ejecutor, q: string): Promise<SugerenciasBusqueda> {

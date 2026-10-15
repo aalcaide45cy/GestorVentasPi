@@ -8,10 +8,11 @@ import { sembrar } from "../src/db/semilla";
 import { hashPassword, verificarPassword } from "../src/lib/auth/password";
 import { cargarDatosPanel } from "../src/lib/servicios/panel";
 import { LIMITE_LISTA_EXPEDIENTES, listarExpedientes, resumenPanel } from "../src/lib/servicios/expedientes-lectura";
-import { listarClientes } from "../src/lib/servicios/clientes";
+import { LIMITE_LISTA_CLIENTES, listarClientes } from "../src/lib/servicios/clientes";
 import { calcularVendedorMes, conRecalculo, recalcularMes } from "../src/lib/servicios/liquidaciones";
 import { guardarPlan } from "../src/lib/servicios/planes";
 import { generarInforme } from "../src/lib/servicios/informes";
+import { resultadosBusqueda, sugerencias } from "../src/lib/servicios/busqueda";
 
 /**
  * Mide los tiempos de 15.1 con datos sintéticos (5.000 expedientes, 3.000 clientes).
@@ -59,25 +60,35 @@ async function main(): Promise<void> {
     clientes.push(...(await db.insert(schema.clientes).values(Array.from({ length: Math.min(500, N_CLI - i) }, (_, k) => ({ clienteId: `c${i + k}`, dni: `${10000000 + i + k}A`, nombre: `Cliente Número ${i + k}`, tiendaId: tienda.idTienda }))).returning({ id: schema.clientes.id })));
   }
   const anio = new Date().getFullYear();
-  const filas = Array.from({ length: N_EXP }, (_, i) => {
-    const mes = String((i % 12) + 1).padStart(2, "0");
-    const t = tipos[i % tipos.length];
-    return {
-      idUsuario: vendedores[i % 5].idUsuario,
-      idCliente: clientes[i % N_CLI].id,
-      idModelo: modelos[i % 5].idModelo,
-      idTienda: tienda.idTienda,
-      idTipoDeVenta: t.idTipoDeVenta,
-      idEstadoVehiculo: nuevo.idEstadoVehiculo,
-      fechaExpediente: `${anio}-${mes}-02`,
-      fechaRci: t.categoria === "CONTADO" ? null : `${anio}-${mes}-10`,
-      fechaMatriculacion: `${anio}-${mes}-${String((i % 27) + 1).padStart(2, "0")}`,
-      matricula: `${1000 + (i % 9000)}ABC`,
-      vin: `VF1${String(i).padStart(14, "0")}`,
-    };
-  });
-  for (let i = 0; i < filas.length; i += 500) await db.insert(schema.expedientes).values(filas.slice(i, i + 500));
+  // Los expedientes se reparten en 10 años (el plan de la medición cubre solo el actual) y se insertan por lotes sin
+  // guardar el conjunto entero en memoria, para poder probar con millones.
+  const ANIOS = 10;
+  const tInicio = performance.now();
+  for (let i = 0; i < N_EXP; i += 1000) {
+    const lote = Array.from({ length: Math.min(1000, N_EXP - i) }, (_, k) => {
+      const n = i + k;
+      const mes = String((n % 12) + 1).padStart(2, "0");
+      const a = anio - (Math.floor(n / 12) % ANIOS);
+      const t = tipos[n % tipos.length];
+      return {
+        idUsuario: vendedores[n % 5].idUsuario,
+        idCliente: clientes[n % N_CLI].id,
+        idModelo: modelos[n % 5].idModelo,
+        idTienda: tienda.idTienda,
+        idTipoDeVenta: t.idTipoDeVenta,
+        idEstadoVehiculo: nuevo.idEstadoVehiculo,
+        fechaExpediente: `${a}-${mes}-02`,
+        fechaRci: t.categoria === "CONTADO" ? null : `${a}-${mes}-10`,
+        fechaMatriculacion: `${a}-${mes}-${String((n % 27) + 1).padStart(2, "0")}`,
+        matricula: `${1000 + (n % 9000)}${String.fromCharCode(66 + (Math.floor(n / 9000) % 20))}BC`,
+        vin: `VF1${String(n).padStart(14, "0")}`,
+      };
+    });
+    await db.insert(schema.expedientes).values(lote);
+    if ((i / 1000) % 100 === 0 && i > 0) console.log(`  ${i.toLocaleString("es-ES")} expedientes (${Math.round((performance.now() - tInicio) / 1000)} s)`);
+  }
   await db.execute(sql`analyze`);
+  console.log("Datos generados; midiendo...");
 
   const imp = Object.fromEntries([-4, -3, -2, -1, 0, 1, 2, 3].map((t) => [String(t), 20000 + t * 1000]));
   const { plan } = await guardarPlan(db as never, null, {
@@ -109,7 +120,10 @@ async function main(): Promise<void> {
     await Promise.all([resumenPanel(db as never), cargarDatosPanel(db as never)]);
   });
   await medir("Listado de expedientes (5.000)", () => listarExpedientes(db as never, { limite: LIMITE_LISTA_EXPEDIENTES }));
-  await medir("Clientes (3.000)", () => listarClientes(db as never));
+  await medir("Clientes (los 5.000 más recientes)", () => listarClientes(db as never, { limite: LIMITE_LISTA_CLIENTES }));
+  await medir("Búsqueda global (desplegable) por matrícula", () => sugerencias(db as never, "1234B"));
+  await medir("Búsqueda global (desplegable) por nombre", () => sugerencias(db as never, "Cliente Número 12"));
+  await medir("Búsqueda completa (página de resultados)", () => resultadosBusqueda(db as never, "5678"));
   await medir("Calcular una liquidación mensual", () => db.transaction((tx) => recalcularMes(tx as never, v0, mesTest, "medición")));
   await medir("Cálculo del mes sin guardar", () => calcularVendedorMes(db as never, v0, mesTest));
   const [e0] = await db.select({ id: schema.expedientes.idExpediente }).from(schema.expedientes).limit(1);
@@ -121,7 +135,7 @@ async function main(): Promise<void> {
     }),
   );
   // Tamaño de lo que viaja al navegador al abrir las listas (hoy se envían completas y se pagina en el cliente)
-  const todos = await listarExpedientes(db as never, { limite: N_EXP });
+  const todos = await listarExpedientes(db as never, { limite: Math.min(N_EXP, 200000) });
   const mbExp = JSON.stringify(todos).length / 1048576;
   const mbCli = JSON.stringify(await listarClientes(db as never)).length / 1048576;
   console.log(`

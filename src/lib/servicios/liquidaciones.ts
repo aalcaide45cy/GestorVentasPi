@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, between, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import {
   commissionBonusRules,
@@ -126,9 +126,28 @@ export async function planDelMes(ej: Ejecutor, mes: string): Promise<PlanMotor |
   return seleccionarPlan(planes, mes);
 }
 
-/** Expedientes de un vendedor en el formato del motor. */
-export async function cargarExpedientesMotor(ej: Ejecutor, idVendedor: number): Promise<ExpedienteMotor[]> {
-  return cargarExpedientesDonde(ej, eq(expedientes.idUsuario, idVendedor));
+/** Rango de meses (AAAA-MM, ambos incluidos). */
+export interface RangoMeses {
+  desde: string;
+  hasta: string;
+}
+
+/** Último día de un mes «AAAA-MM» como fecha ISO. */
+function ultimoDiaDelMes(mes: string): string {
+  const [a, m] = mes.split("-").map(Number);
+  return `${mes}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Expedientes de un vendedor en el formato del motor. El motor solo mira los expedientes con alguna fecha (pedido,
+ * afectación, RCI, matriculación o cobro) dentro del mes que calcula, así que con `rango` solo se cargan esos: con
+ * cientos de miles de expedientes por vendedor es la diferencia entre milisegundos y segundos.
+ */
+export async function cargarExpedientesMotor(ej: Ejecutor, idVendedor: number, rango?: RangoMeses): Promise<ExpedienteMotor[]> {
+  const delRango = rango
+    ? [expedientes.fechaExpediente, expedientes.fechaAfectacion, expedientes.fechaRci, expedientes.fechaMatriculacion, expedientes.fechaCobrado].map((c) => between(c, `${rango.desde}-01`, ultimoDiaDelMes(rango.hasta)))
+    : null;
+  return cargarExpedientesDonde(ej, delRango ? and(eq(expedientes.idUsuario, idVendedor), or(...delRango)) : eq(expedientes.idUsuario, idVendedor));
 }
 
 /** Expedientes (con vendedor) por identificador, en el formato del motor. */
@@ -185,7 +204,7 @@ export async function calcularVendedorMes(ej: Ejecutor, idVendedor: number, mes:
   const vendedor = await cargarVendedor(ej, idVendedor);
   if (!vendedor) return null;
   const plan = await planDelMes(ej, mes);
-  return calcularMes(plan, vendedor, mes, expedientesPrecargados ?? (await cargarExpedientesMotor(ej, idVendedor)));
+  return calcularMes(plan, vendedor, mes, expedientesPrecargados ?? (await cargarExpedientesMotor(ej, idVendedor, { desde: mes, hasta: mes })));
 }
 
 /* ------------------------------------------------------------------ */

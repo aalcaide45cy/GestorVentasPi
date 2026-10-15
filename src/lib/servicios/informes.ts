@@ -140,7 +140,7 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
     let n = 0;
     let tramos = 0;
     let nMeses = 0;
-    const expedientesMotor = await cargarExpedientesMotor(ej, id);
+    const expedientesMotor = await cargarExpedientesMotor(ej, id, { desde: meses[0], hasta: meses[meses.length - 1] });
     for (const mes of meses) {
       const r = await calcularVendedorMes(ej, id, mes, expedientesMotor);
       if (!r || r.idPlan === null) continue;

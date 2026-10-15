@@ -4,7 +4,7 @@ import ClientesList from "@/components/ClientesList";
 import { esRolActivo } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
 import { leerCatalogos } from "@/lib/servicios/catalogos";
-import { listarClientes } from "@/lib/servicios/clientes";
+import { LIMITE_LISTA_CLIENTES, contarClientes, listarClientes } from "@/lib/servicios/clientes";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export default async function ClientesPage() {
   const user = await getCurrentUser();
   if (!user || !esRolActivo(user.rol)) redirect("/dashboard");
 
-  const [clientes, catalogos] = await Promise.all([listarClientes(db), leerCatalogos(db)]);
+  const [clientes, totalEnBd, catalogos] = await Promise.all([listarClientes(db, { limite: LIMITE_LISTA_CLIENTES }), contarClientes(db), leerCatalogos(db)]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
@@ -21,7 +21,7 @@ export default async function ClientesPage() {
         <p style={{ color: "var(--text-secondary)" }}>Directorio de clientes registrados y su información de contacto (correos y teléfonos).</p>
       </div>
 
-      <ClientesList clientesIniciales={clientes} userRole={user.rol} tiendas={catalogos.tiendas} tiendaPredeterminadaId={user.tiendaPredeterminadaId} />
+      <ClientesList clientesIniciales={clientes} totalEnBd={totalEnBd} userRole={user.rol} tiendas={catalogos.tiendas} tiendaPredeterminadaId={user.tiendaPredeterminadaId} />
     </div>
   );
 }

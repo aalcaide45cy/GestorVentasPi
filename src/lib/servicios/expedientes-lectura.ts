@@ -48,14 +48,22 @@ export async function resumenPanel(ej: Ejecutor): Promise<{
   clientes: number;
   porTipoVenta: { nombre: string; cantidad: number }[];
 }> {
-  const [{ total }] = await ej.select({ total: sql<number>`count(*)::int` }).from(expedientes).where(isNull(expedientes.eliminadoEn));
+  // Un solo recorrido (solo de índice) da el total y el reparto por tipo de venta; el mes se acota por rango de fechas
+  // para poder usar el índice de la fecha (con date_trunc sobre la columna recorría todos los expedientes).
+  const cuentas = await ej
+    .select({ id: expedientes.idTipoDeVenta, n: sql<number>`count(*)::int` })
+    .from(expedientes)
+    .where(isNull(expedientes.eliminadoEn))
+    .groupBy(expedientes.idTipoDeVenta);
+  const total = cuentas.reduce((suma, c) => suma + c.n, 0);
   const [{ mes }] = await ej
     .select({ mes: sql<number>`count(*)::int` })
     .from(expedientes)
     .where(
       and(
         isNull(expedientes.eliminadoEn),
-        sql`date_trunc('month', ${expedientes.fechaExpediente}) = date_trunc('month', (now() at time zone 'Europe/Madrid')::date)`,
+        sql`${expedientes.fechaExpediente} >= date_trunc('month', now() at time zone 'Europe/Madrid')::date`,
+        sql`${expedientes.fechaExpediente} < (date_trunc('month', now() at time zone 'Europe/Madrid') + interval '1 month')::date`,
       ),
     );
   const [{ nClientes }] = await ej.select({ nClientes: sql<number>`count(*)::int` }).from(clientes).where(isNull(clientes.eliminadoEn));
@@ -63,12 +71,7 @@ export async function resumenPanel(ej: Ejecutor): Promise<{
     where: isNull(tipoDeVenta.eliminadoEn),
     orderBy: (t, { asc }) => [asc(t.orden), asc(t.nombreTipoVenta)],
   });
-  const cuentas = await ej
-    .select({ id: expedientes.idTipoDeVenta, n: sql<number>`count(*)::int` })
-    .from(expedientes)
-    .where(and(isNull(expedientes.eliminadoEn), sql`${expedientes.idTipoDeVenta} is not null`))
-    .groupBy(expedientes.idTipoDeVenta);
-  const mapa = new Map(cuentas.map((c) => [c.id, c.n]));
+  const mapa = new Map(cuentas.flatMap((c) => (c.id === null ? [] : [[c.id, c.n] as const])));
   return {
     mesActual: mes,
     total,

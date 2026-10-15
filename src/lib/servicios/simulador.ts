@@ -62,7 +62,7 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
   const vendedor = { id: entrada.id_usuario, tipo: (u.tipo === "VO" ? "VO" : "VN") as Clase, patronVo: u.patron };
   const clave = (motor.clase === "VO" || motor.cobradoOtraFecha ? motor.fechaCobro : motor.fechaMatriculacion)?.slice(0, 7) ?? null;
   const plan = clave ? await planDelMes(ej, clave) : null;
-  const resto = await cargarExpedientesMotor(ej, entrada.id_usuario);
+  const resto = clave ? await cargarExpedientesMotor(ej, entrada.id_usuario, { desde: clave, hasta: clave }) : [];
   const sim = simularExpediente(plan, vendedor, motor, resto);
   return {
     mes: sim.mes,

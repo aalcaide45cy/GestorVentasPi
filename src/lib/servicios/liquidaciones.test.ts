@@ -15,7 +15,7 @@ import {
 } from "@/db/schema";
 import { mesesAfectados } from "@/lib/comisiones";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { cargarExpedientesMotor, recalcularAfectados, recalcularMes as recalcular } from "./liquidaciones";
+import { calcularVendedorMes, cargarExpedientesMotor, recalcularAfectados, recalcularMes as recalcular } from "./liquidaciones";
 
 const recalcularMes = (_db: typeof db, id: number, mes: string, motivo: string) => db.transaction((tx) => recalcular(tx, id, mes, motivo));
 
@@ -102,6 +102,36 @@ describe("liquidaciones persistidas", () => {
     const liqs = await db.select().from(commissionLiquidations);
     expect(liqs.find((l) => l.idUsuario === esc.v1.idUsuario)?.neto).toBe(0);
     expect(liqs.find((l) => l.idUsuario === esc.v2.idUsuario)?.neto).toBe(10000);
+  });
+});
+
+describe("carga de expedientes por mes", () => {
+  it("el resultado de un mes es idéntico cargando solo sus expedientes o todos los del vendedor", async () => {
+    const esc = await escenario();
+    const v = esc.v1.idUsuario;
+    // Julio: matriculados, uno solo con pedido en julio y matriculación en septiembre, uno cobrado en otra fecha
+    await nuevoExpediente(esc, v, "2026-07-10");
+    await nuevoExpediente(esc, v, "2026-07-20", 160000);
+    const pedidoJulioMatSep = await nuevoExpediente(esc, v, "2026-09-02");
+    await db.update(expedientes).set({ fechaExpediente: "2026-07-15" }).where(eq(expedientes.idExpediente, pedidoJulioMatSep.idExpediente));
+    const otraFecha = await nuevoExpediente(esc, v, "2026-06-28");
+    await db.update(expedientes).set({ cobradoOtraFecha: true, fechaCobrado: "2026-07-31" }).where(eq(expedientes.idExpediente, otraFecha.idExpediente));
+    // Fuera de julio: no deben influir ni cargarse
+    await nuevoExpediente(esc, v, "2026-05-05");
+    await nuevoExpediente(esc, v, "2026-08-30");
+    await nuevoExpediente(esc, v, "2024-07-10");
+
+    const completos = await cargarExpedientesMotor(db, v);
+    const delMes = await cargarExpedientesMotor(db, v, { desde: "2026-07", hasta: "2026-07" });
+    expect(completos).toHaveLength(7);
+    expect(delMes).toHaveLength(4);
+
+    const rapido = await calcularVendedorMes(db, v, "2026-07");
+    const lento = await calcularVendedorMes(db, v, "2026-07", completos);
+    expect(rapido).toEqual(lento);
+    expect(rapido?.neto).toBeGreaterThan(0);
+    // un rango de varios meses trae los de cada mes del rango
+    expect(await cargarExpedientesMotor(db, v, { desde: "2026-05", hasta: "2026-08" })).toHaveLength(6);
   });
 });
 

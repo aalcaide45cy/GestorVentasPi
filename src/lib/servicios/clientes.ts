@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { clientes, emailsClientes, expedientes, telefonosClientes } from "@/db/schema";
@@ -122,13 +122,35 @@ export async function eliminarClientes(ej: Ejecutor, ids: number[]): Promise<num
   return filas.length;
 }
 
-export async function listarClientes(ej: Ejecutor): Promise<(ClienteDto & { num_expedientes: number })[]> {
-  const filas = await ej.query.clientes.findMany({ where: isNull(clientes.eliminadoEn), with: conContactos, orderBy: [asc(clientes.nombre)] });
-  const cuentas = await ej
-    .select({ id: expedientes.idCliente, n: count() })
-    .from(expedientes)
-    .where(and(isNull(expedientes.eliminadoEn), sql`${expedientes.idCliente} is not null`))
-    .groupBy(expedientes.idCliente);
+/**
+ * Máximo de clientes que se envían al navegador al abrir la lista (los más recientes): la lista filtra en el cliente y
+ * con 200.000 clientes serían ~36 MB. El resto se encuentra con el buscador.
+ */
+export const LIMITE_LISTA_CLIENTES = 5000;
+
+export async function contarClientes(ej: Ejecutor): Promise<number> {
+  const [{ n }] = await ej.select({ n: count() }).from(clientes).where(isNull(clientes.eliminadoEn));
+  return n;
+}
+
+export async function listarClientes(ej: Ejecutor, opciones: { limite?: number } = {}): Promise<(ClienteDto & { num_expedientes: number })[]> {
+  const filas = await ej.query.clientes.findMany({
+    where: isNull(clientes.eliminadoEn),
+    with: conContactos,
+    orderBy: opciones.limite ? [desc(clientes.id)] : [asc(clientes.nombre)],
+    limit: opciones.limite,
+  });
+  if (opciones.limite) filas.sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? "", "es"));
+  // Recuento de expedientes: con una lista acotada, solo de esos clientes (por el índice de cliente); con todos, agrupado
+  const ids = filas.map((c) => c.id);
+  const acotado = ids.length > 0 && ids.length <= 20000;
+  const cuentas = ids.length === 0
+    ? []
+    : await ej
+        .select({ id: expedientes.idCliente, n: count() })
+        .from(expedientes)
+        .where(and(isNull(expedientes.eliminadoEn), acotado ? inArray(expedientes.idCliente, ids) : sql`${expedientes.idCliente} is not null`))
+        .groupBy(expedientes.idCliente);
   const mapa = new Map(cuentas.map((c) => [c.id, c.n]));
   return filas.map((c) => ({ ...clienteDto(c), num_expedientes: mapa.get(c.id) ?? 0 }));
 }
