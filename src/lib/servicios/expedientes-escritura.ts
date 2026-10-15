@@ -15,6 +15,22 @@ import { buscarPorDni, crearCliente } from "./clientes";
 import { hoyIso } from "./comun";
 import type { EntradaActualizarExpediente, EntradaCrearExpediente } from "./expedientes";
 import { obtenerExpediente } from "./expedientes-lectura";
+import { conRecalculo, type ResumenRecalculo } from "./liquidaciones";
+
+/** Cambios producidos por el recálculo en meses ya revisados o cerrados (para avisar al usuario). */
+export interface ImpactoCerrado {
+  idVendedor: number;
+  mes: string;
+  netoAnterior: number;
+  netoNuevo: number;
+  diferencia: number;
+}
+
+function impactos(rs: ResumenRecalculo[]): ImpactoCerrado[] {
+  return rs
+    .filter((r) => r.versionGuardada && r.netoAnterior !== null)
+    .map((r) => ({ idVendedor: r.idVendedor, mes: r.mes, netoAnterior: r.netoAnterior as number, netoNuevo: r.netoNuevo, diferencia: r.netoNuevo - (r.netoAnterior as number) }));
+}
 
 async function tiendaUnica(ej: Ejecutor, idUsuario: number): Promise<number | null> {
   const filas = await ej.select().from(usuariosTiendas).where(eq(usuariosTiendas.idUsuario, idUsuario));
@@ -44,7 +60,7 @@ export async function crearExpediente(
   if (!puedeCrearExpedientes(usuario.rol)) {
     throw new HttpError(403, "No tienes permiso para crear expedientes");
   }
-  const id = await ej.transaction(async (tx) => {
+  const { valor: id } = await conRecalculo(ej, [], "Alta de expediente", async (tx) => {
     let idCliente: number | null = null;
     const c = entrada.cliente;
     if (c && c.nombre) {
@@ -88,7 +104,7 @@ export async function crearExpediente(
         fechaCobrado: e.fecha_cobrado ?? null,
       })
       .returning({ id: expedientes.idExpediente });
-    return nuevo.id;
+    return { valor: nuevo.id, idsDespues: [nuevo.id] };
   });
   const creado = await obtenerExpediente(ej, id);
   if (!creado) throw new HttpError(500, "No se pudo leer el expediente creado");
@@ -141,7 +157,7 @@ export async function actualizarExpedientes(
   ej: Ejecutor,
   usuario: UsuarioActual,
   entrada: EntradaActualizarExpediente,
-): Promise<{ actualizados: number }> {
+): Promise<{ actualizados: number; impactos: ImpactoCerrado[] }> {
   if (entrada.modo === "lote") {
     const e = entrada.expediente;
     const set: CamposActualizables = {};
@@ -158,12 +174,15 @@ export async function actualizarExpedientes(
     });
     if (Object.keys(set).length === 0) throw new HttpError(400, "No se seleccionaron datos para modificar");
     await comprobarAlcance(ej, usuario, entrada.ids);
-    const filas = await ej
-      .update(expedientes)
-      .set(set)
-      .where(inArray(expedientes.idExpediente, entrada.ids))
-      .returning({ id: expedientes.idExpediente });
-    return { actualizados: filas.length };
+    const { valor, recalculos } = await conRecalculo(ej, entrada.ids, "Edición de expedientes en lote", async (tx) => {
+      const filas = await tx
+        .update(expedientes)
+        .set(set)
+        .where(inArray(expedientes.idExpediente, entrada.ids))
+        .returning({ id: expedientes.idExpediente });
+      return { valor: filas.length, idsDespues: entrada.ids };
+    });
+    return { actualizados: valor, impactos: impactos(recalculos) };
   }
 
   const e = entrada.expediente;
@@ -192,6 +211,7 @@ export async function actualizarExpedientes(
     comisionPreferenceCobrada: e.comision_preference_cobrada,
     comisionBonusCobrada: e.comision_bonus_cobrada,
     puntos: e.puntos,
+    idPromocion: e.id_promocion,
     comisionCocheManual: e.comision_coche_manual,
     comisionFinanciacionManual: e.comision_financiacion_manual,
     conceptosEspeciales: e.conceptos_especiales as ConceptoEspecial[] | undefined,
@@ -199,20 +219,26 @@ export async function actualizarExpedientes(
   });
   if (Object.keys(set).length === 0) throw new HttpError(400, "No hay datos que actualizar");
   await comprobarAlcance(ej, usuario, [entrada.id_expediente]);
-  const filas = await ej
-    .update(expedientes)
-    .set(set)
-    .where(eq(expedientes.idExpediente, entrada.id_expediente))
-    .returning({ id: expedientes.idExpediente });
-  if (filas.length === 0) throw new HttpError(404, "Expediente no encontrado");
-  return { actualizados: 1 };
+  const { valor, recalculos } = await conRecalculo(ej, [entrada.id_expediente], "Edición de expediente", async (tx) => {
+    const filas = await tx
+      .update(expedientes)
+      .set(set)
+      .where(eq(expedientes.idExpediente, entrada.id_expediente))
+      .returning({ id: expedientes.idExpediente });
+    return { valor: filas.length, idsDespues: [entrada.id_expediente] };
+  });
+  if (valor === 0) throw new HttpError(404, "Expediente no encontrado");
+  return { actualizados: 1, impactos: impactos(recalculos) };
 }
 
 export async function eliminarExpedientes(ej: Ejecutor, usuario: UsuarioActual, ids: number[]): Promise<number> {
   await comprobarAlcance(ej, usuario, ids);
-  const filas = await ej
-    .delete(expedientes)
-    .where(inArray(expedientes.idExpediente, ids))
-    .returning({ id: expedientes.idExpediente });
-  return filas.length;
+  const { valor } = await conRecalculo(ej, ids, "Baja de expediente", async (tx) => {
+    const filas = await tx
+      .delete(expedientes)
+      .where(inArray(expedientes.idExpediente, ids))
+      .returning({ id: expedientes.idExpediente });
+    return { valor: filas.length, idsDespues: [] };
+  });
+  return valor;
 }

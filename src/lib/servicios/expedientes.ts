@@ -61,6 +61,7 @@ const camposEdicion = {
   comision_preference_cobrada: booleano,
   comision_bonus_cobrada: booleano,
   puntos: z.number().int().nullable().optional(),
+  id_promocion: z.number().int().positive().nullable().optional(),
   comision_coche_manual: z.number().int().nullable().optional(),
   comision_financiacion_manual: z.number().int().nullable().optional(),
   conceptos_especiales: z.array(esquemaConcepto).max(100).optional(),
