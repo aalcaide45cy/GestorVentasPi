@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { and, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { SECCIONES_V1, type SeccionV1 } from "@/lib/migracion-secciones";
+import { SECCIONES_AL_ANADIR, SECCIONES_V1, type SeccionV1 } from "@/lib/migracion-secciones";
 import type { Ejecutor } from "@/db";
 import {
   clientes,
@@ -36,6 +36,7 @@ import {
 import { hashPassword } from "@/lib/auth/password";
 import { HttpError } from "@/lib/auth/sesion";
 import { categoriaTipoVenta, claseEstado } from "./comun";
+import { conRecalculo } from "./liquidaciones";
 
 /**
  * Conversión de una copia JSON de la app ANTIGUA (formato «1.0», con Clerk) a la base de datos nueva (12.13).
@@ -484,6 +485,9 @@ export interface ResultadoMigracion {
   promociones: number;
   liquidaciones: number;
   usuariosCreados: number;
+  /** Solo en modo «añadir»: clientes que ya existían (mismo DNI o nombre) y se reutilizan, y expedientes omitidos por estar ya. */
+  clientesReutilizados?: number;
+  expedientesOmitidos?: number;
   avisos: string[];
 }
 
@@ -493,7 +497,11 @@ export const esquemaConvertirV1 = z.object({
   copia: esquemaCopiaV1,
   confirmacion: z.string(),
   secciones: z.array(z.enum(SECCIONES_V1)).min(1).default([...SECCIONES_V1]),
+  /** «anadir»: conserva lo que ya hay y añade lo nuevo; «sustituir»: borra los datos actuales y carga la copia. */
+  modo: z.enum(["anadir", "sustituir"]).default("sustituir"),
 });
+
+export { SECCIONES_AL_ANADIR };
 
 /** Dependencias entre partes: no se puede cargar una sin las que referencia. */
 export function comprobarSecciones(secciones: readonly SeccionV1[]): void {
@@ -516,8 +524,14 @@ async function arreglarSecuencia(tx: Ejecutor, tabla: string, columna: string): 
 /** Convierte y carga la copia antigua. Sustituye los datos operativos actuales; conserva las cuentas de acceso. */
 export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z.input<typeof esquemaConvertirV1>): Promise<ResultadoMigracion> {
   if (entrada.confirmacion.trim() !== "CONVERTIR") throw new HttpError(400, "Escribe CONVERTIR para confirmar");
-  const secciones = entrada.secciones ?? [...SECCIONES_V1];
+  const modo = entrada.modo ?? "sustituir";
+  const secciones = entrada.secciones ?? (modo === "anadir" ? [...SECCIONES_AL_ANADIR] : [...SECCIONES_V1]);
   comprobarSecciones(secciones);
+  if (modo === "anadir") {
+    const noPermitidas = secciones.filter((x) => !SECCIONES_AL_ANADIR.includes(x));
+    if (noPermitidas.length > 0) throw new HttpError(400, "Al añadir solo se pueden importar catálogos, clientes y expedientes. Los planes de comisiones, las liquidaciones y el historial solo se cargan sustituyendo.");
+    return anadirCopiaV1(ej, idAdmin, entrada.copia, new Set(secciones));
+  }
   const sel = new Set<SeccionV1>(secciones);
   return ej.transaction(async (tx) => {
     const actuales = (await tx.select({ id: usuarios.idUsuario, nombre: usuarios.nombre }).from(usuarios)).map((u) => ({ id: u.id, nombre: u.nombre }));
@@ -677,4 +691,197 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
       avisos: datos.avisos,
     };
   });
+}
+
+/** Minúsculas y sin espacios sobrantes, para comparar nombres. */
+const minus = (v: unknown): string => (typeof v === "string" ? v.trim().toLowerCase() : "");
+const normalizarMatricula = (v: unknown): string => (typeof v === "string" ? v.toUpperCase().replace(/[\s-]/g, "") : "");
+
+/**
+ * Importación «añadir»: no borra nada. Los catálogos se emparejan por nombre (se crean los que faltan), los clientes por DNI
+ * o nombre (se reutilizan los que ya están) y los expedientes se omiten si ya existe uno con la misma matrícula. Todo recibe
+ * identificadores nuevos, así que no choca con lo que ya hay. Es repetible: una segunda pasada no añade nada.
+ */
+async function anadirCopiaV1(ej: Ejecutor, idAdmin: number, copia: CopiaV1, sel: Set<SeccionV1>): Promise<ResultadoMigracion> {
+  const { valor, recalculos } = await conRecalculo(ej, [], "Importación de la copia antigua (añadir)", async (tx) => {
+    const actuales = (await tx.select({ id: usuarios.idUsuario, nombre: usuarios.nombre }).from(usuarios)).map((u) => ({ id: u.id, nombre: u.nombre }));
+    const datos = transformarCopiaV1(copia, { actuales, idAdmin });
+
+    if (!sel.has("expedientes")) datos.usuariosNuevos.length = 0;
+    const hashInutil = await hashPassword(randomBytes(24).toString("base64url"));
+    for (const u of datos.usuariosNuevos) {
+      const [cuenta] = await tx
+        .insert(usuarios)
+        .values({ loginEmail: `migrado-${u.idAntiguo}-${randomBytes(3).toString("hex")}@invalid.local`, passwordHash: hashInutil, nombre: u.nombre, rol: u.rol, tipoVendedor: u.tipoVendedor, patronVo: u.patronVo, bloqueado: true, fechaDeRegistro: new Date().toISOString().slice(0, 10) })
+        .returning({ id: usuarios.idUsuario });
+      datos.mapaUsuarios.set(u.idAntiguo, cuenta.id);
+    }
+    const usuarioNuevo = (idAntiguo: number | null): number => (idAntiguo === null ? idAdmin : (datos.mapaUsuarios.get(idAntiguo) ?? idAdmin));
+
+    const mTienda = new Map<number, number>();
+    const mMarca = new Map<number, number>();
+    const mModelo = new Map<number, number>();
+    const mTipo = new Map<number, number>();
+    const mEstado = new Map<number, number>();
+    const mCliente = new Map<number, number>();
+    const nuevosClientes = new Set<number>();
+    let reutilizados = 0;
+    let omitidos = 0;
+
+    if (sel.has("catalogos")) {
+      const ts = await tx.select().from(tiendas).where(isNull(tiendas.eliminadoEn));
+      for (const t of datos.tiendas) {
+        const nombre = str(t.nombre) ?? "Tienda";
+        let ex = ts.find((x) => minus(x.nombre) === minus(nombre));
+        if (!ex) {
+          [ex] = await tx.insert(tiendas).values({ nombre, ciudad: str(t.ciudad) }).returning();
+          ts.push(ex);
+        }
+        mTienda.set(num(t.id_tienda), ex.idTienda);
+      }
+      const ms = await tx.select().from(marcas).where(isNull(marcas.eliminadoEn));
+      for (const m of datos.marcas) {
+        const nombre = str(m.nombre) ?? "Marca";
+        let ex = ms.find((x) => minus(x.nombre) === minus(nombre));
+        if (!ex) {
+          [ex] = await tx.insert(marcas).values({ nombre, activo: bool(m.activo, true), accesoRapido: bool(m.acceso_rapido), sistemaComisiones: bool(m.sistema_comisiones) }).returning();
+          ms.push(ex);
+        }
+        mMarca.set(num(m.id_marca), ex.idMarca);
+      }
+      const mos = await tx.select().from(modelos).where(isNull(modelos.eliminadoEn));
+      for (const m of datos.modelos) {
+        const marcaNueva = numNull(m.marca_id) === null ? null : (mMarca.get(num(m.marca_id)) ?? null);
+        const nombre = str(m.nombre_modelo) ?? "Modelo";
+        let ex = mos.find((x) => x.marcaId === marcaNueva && minus(x.nombreModelo) === minus(nombre));
+        if (!ex) {
+          [ex] = await tx.insert(modelos).values({ marcaId: marcaNueva, nombreModelo: nombre, accesoRapido: bool(m.acceso_rapido), ordenAccesoRapido: num(m.orden_acceso_rapido) }).returning();
+          mos.push(ex);
+        }
+        mModelo.set(num(m.id_modelo), ex.idModelo);
+      }
+      const tvs = await tx.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn));
+      for (const t of datos.tiposVenta) {
+        const nombre = str(t.nombre_tipo_venta) ?? "Tipo";
+        let ex = tvs.find((x) => minus(x.nombreTipoVenta) === minus(nombre));
+        if (!ex) {
+          const categoria = String(t.categoria);
+          [ex] = await tx.insert(tipoDeVenta).values({ nombreTipoVenta: nombre, color: str(t.color) ?? "#3b82f6", orden: num(t.orden), categoria, requiereRciAlMatricular: ["CREDITO", "PREFERENCE", "RENTING"].includes(categoria) }).returning();
+          tvs.push(ex);
+        }
+        mTipo.set(num(t.id_tipo_de_venta), ex.idTipoDeVenta);
+      }
+      const evs = await tx.select().from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn));
+      for (const e of datos.estados) {
+        const nombre = str(e.nombre_estado_vehiculo) ?? "Estado";
+        let ex = evs.find((x) => minus(x.nombreEstadoVehiculo) === minus(nombre));
+        if (!ex) {
+          [ex] = await tx.insert(estadoVehiculo).values({ nombreEstadoVehiculo: nombre, predeterminado: false, clase: String(e.clase), subtipoVo: (e.subtipo_vo as string | null) ?? null }).returning();
+          evs.push(ex);
+        }
+        mEstado.set(num(e.id_estado_vehiculo), ex.idEstadoVehiculo);
+      }
+    }
+
+    if (sel.has("clientes")) {
+      const existentes = await tx.select({ id: clientes.id, dni: clientes.dni, nombre: clientes.nombre }).from(clientes).where(isNull(clientes.eliminadoEn));
+      const porDni = new Map(existentes.filter((x) => minus(x.dni)).map((x) => [minus(x.dni), x.id]));
+      const porNombre = new Map(existentes.filter((x) => minus(x.nombre)).map((x) => [minus(x.nombre), x.id]));
+      for (const cl of datos.clientes) {
+        const dni = str(cl.dni);
+        const nombre = str(cl.nombre);
+        const idExistente = (dni ? porDni.get(minus(dni)) : undefined) ?? (nombre ? porNombre.get(minus(nombre)) : undefined);
+        if (idExistente) {
+          reutilizados++;
+          mCliente.set(num(cl.id), idExistente);
+          continue;
+        }
+        const [nuevo] = await tx
+          .insert(clientes)
+          .values({ clienteId: `migrado-${randomBytes(5).toString("hex")}`, dni, nombre, fechaDeNacimiento: fecha(cl.fecha_de_nacimiento), tiendaId: sel.has("catalogos") ? (mTienda.get(num(cl.tienda_id)) ?? null) : null })
+          .returning({ id: clientes.id });
+        mCliente.set(num(cl.id), nuevo.id);
+        nuevosClientes.add(num(cl.id));
+        if (dni) porDni.set(minus(dni), nuevo.id);
+        if (nombre) porNombre.set(minus(nombre), nuevo.id);
+      }
+      for (const e of datos.emailsClientes) {
+        if (nuevosClientes.has(num(e.id_cliente))) await tx.insert(emailsClientes).values({ idCliente: mCliente.get(num(e.id_cliente)) as number, email: str(e.email) ?? "", tipoEmail: str(e.tipo_email) });
+      }
+      for (const t of datos.telefonosClientes) {
+        if (nuevosClientes.has(num(t.id_cliente))) await tx.insert(telefonosClientes).values({ idCliente: mCliente.get(num(t.id_cliente)) as number, telefono: str(t.telefono) ?? "", tipoTelefono: str(t.tipo_telefono) });
+      }
+    }
+
+    const idsNuevos: number[] = [];
+    if (sel.has("expedientes")) {
+      const ya = await tx.select({ id: expedientes.idExpediente, matricula: expedientes.matricula, cliente: expedientes.idCliente, fecha: expedientes.fechaExpediente, modelo: expedientes.idModelo }).from(expedientes).where(and(isNull(expedientes.eliminadoEn)));
+      const matriculas = new Set(ya.map((x) => normalizarMatricula(x.matricula)).filter(Boolean));
+      const claves = new Set(ya.map((x) => `${x.cliente ?? ""}|${x.fecha ?? ""}|${x.modelo ?? ""}`));
+      for (const lote of lotes(datos.expedientes)) {
+        const filas: (typeof expedientes.$inferInsert)[] = [];
+        for (const e of lote) {
+          const matricula = normalizarMatricula(e.matricula);
+          const idCliente = mCliente.get(num(e.id_cliente)) ?? null;
+          const idModelo = mModelo.get(num(e.id_modelo)) ?? null;
+          const clave = `${idCliente ?? ""}|${fecha(e.fecha_expediente) ?? ""}|${idModelo ?? ""}`;
+          if ((matricula && matriculas.has(matricula)) || (!matricula && claves.has(clave))) {
+            omitidos++;
+            continue;
+          }
+          if (matricula) matriculas.add(matricula);
+          filas.push({
+            idUsuario: usuarioNuevo(e._usuarioAntiguo as number | null),
+            idCliente,
+            idModelo,
+            idTienda: mTienda.get(num(e.id_tienda)) ?? null,
+            fechaExpediente: fecha(e.fecha_expediente),
+            fechaAfectacion: fecha(e.fecha_afectacion),
+            fechaMatriculacion: fecha(e.fecha_matriculacion),
+            fechaEntrega: fecha(e.fecha_entrega),
+            fechaRci: fecha(e.fecha_rci),
+            fechaFacturacion: fecha(e.fecha_facturacion),
+            matricula: str(e.matricula),
+            idTipoDeVenta: mTipo.get(num(e.id_tipo_de_venta)) ?? null,
+            idEstadoVehiculo: mEstado.get(num(e.id_estado_vehiculo)) ?? null,
+            vin: str(e.vin),
+            cobradoOtraFecha: bool(e.cobrado_otra_fecha),
+            fechaCobrado: (e.fecha_cobrado_nuevo as string | null) ?? null,
+            comisionCobrada: bool(e.comision_cobrada),
+            comisionCocheCobrada: bool(e.comision_coche_cobrada),
+            comisionUsadoCobrada: bool(e.comision_usado_cobrada),
+            comisionFinanciacionCobrada: bool(e.comision_financiacion_cobrada),
+            comisionPreferenceCobrada: bool(e.comision_preference_cobrada),
+            comisionBonusCobrada: bool(e.comision_bonus_cobrada),
+            puntos: (e.puntos_nuevo as number | null) ?? null,
+            idPromocion: null,
+            comisionCocheManual: (e.manual_coche as number | null) ?? null,
+            comisionFinanciacionManual: (e.manual_fin as number | null) ?? null,
+            conceptosEspeciales: e.conceptos as ConceptoEspecial[],
+            valorObjetivo: numNull(e.valor_objetivo),
+            minCochesMultiplicador: num(e.min_coches_multiplicador),
+            comisionCocheReal: numNull(e.comision_coche_real),
+            comisionFinanciacionReal: numNull(e.comision_financiacion_real),
+            conceptosAdicionales: str(e.conceptos_adicionales),
+          });
+        }
+        if (filas.length > 0) idsNuevos.push(...(await tx.insert(expedientes).values(filas).returning({ id: expedientes.idExpediente })).map((r) => r.id));
+      }
+    }
+
+    const resultado: ResultadoMigracion = {
+      expedientes: idsNuevos.length,
+      clientes: nuevosClientes.size,
+      planes: 0,
+      promociones: 0,
+      liquidaciones: 0,
+      usuariosCreados: datos.usuariosNuevos.length,
+      clientesReutilizados: reutilizados,
+      expedientesOmitidos: omitidos,
+      avisos: datos.avisos,
+    };
+    return { valor: resultado, idsDespues: idsNuevos };
+  });
+  void recalculos;
+  return valor;
 }

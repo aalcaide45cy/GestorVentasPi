@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { commissionLiquidations, commissionPlanModelRates, commissionPlanVendedores, commissionPlans, commissionUsedRates, estadoVehiculo, expedientes, promocionesPuntos, usuarios } from "@/db/schema";
+import { clientes, commissionLiquidations, commissionPlanModelRates, commissionPlanVendedores, commissionPlans, commissionUsedRates, estadoVehiculo, expedientes, marcas, promocionesPuntos, tiendas, usuarios } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { compararConAntigua, leerLiquidacion } from "./comisiones-gestion";
 import { analizarCopiaV1, convertirCopiaV1, esquemaCopiaV1, transformarCopiaV1, type CopiaV1 } from "./migracion-v1";
@@ -185,6 +185,34 @@ describe("conversión", () => {
     const admin = await adminActual();
     await expect(convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", secciones: ["expedientes"] })).rejects.toMatchObject({ status: 400 });
     await expect(convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", secciones: ["catalogos", "liquidaciones"] })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("modo añadir: conserva lo que ya hay, reutiliza catálogos y clientes iguales y no duplica al repetirse", async () => {
+    const admin = await adminActual();
+    const [t] = await db.insert(tiendas).values({ nombre: "Madrid Norte" }).returning();
+    const [renault] = await db.insert(marcas).values({ nombre: "renault" }).returning();
+    await db.insert(clientes).values([
+      { clienteId: "mio-1", dni: "9Z", nombre: "Pedro Propio", tiendaId: t.idTienda },
+      { clienteId: "mio-2", dni: "1A", nombre: "Ana Ruiz (ya existía)", tiendaId: t.idTienda },
+    ]);
+    const r = await convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", modo: "anadir" });
+    expect(r).toMatchObject({ expedientes: 7, clientes: 0, clientesReutilizados: 1, planes: 0, liquidaciones: 0 });
+    const cs = await db.select().from(clientes);
+    expect(cs.map((x) => x.nombre).sort()).toEqual(["Ana Ruiz (ya existía)", "Pedro Propio"]);
+    expect((await db.select().from(marcas)).map((m) => m.idMarca)).toEqual([renault.idMarca]);
+    expect(await db.select().from(tiendas)).toHaveLength(1);
+    const exps = await db.select().from(expedientes);
+    expect(exps).toHaveLength(7);
+    expect(exps.every((e) => e.idCliente === cs.find((x) => x.dni === "1A")?.id)).toBe(true);
+
+    const segunda = await convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", modo: "anadir" });
+    expect(segunda).toMatchObject({ expedientes: 0, expedientesOmitidos: 7 });
+    expect(await db.select().from(expedientes)).toHaveLength(7);
+  });
+
+  it("modo añadir: no admite planes ni liquidaciones", async () => {
+    const admin = await adminActual();
+    await expect(convertirCopiaV1(db, admin.idUsuario, { copia: copiaAntigua(), confirmacion: "CONVERTIR", modo: "anadir", secciones: ["catalogos", "comisiones"] })).rejects.toMatchObject({ status: 400 });
   });
 
   it("exige escribir CONVERTIR", async () => {

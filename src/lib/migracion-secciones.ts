@@ -59,3 +59,6 @@ export const SECCIONES_INFO: InfoSeccionV1[] = [
     requiere: [],
   },
 ];
+
+/** Partes que se pueden añadir sin borrar nada (planes, liquidaciones e historial solo al sustituir). */
+export const SECCIONES_AL_ANADIR: readonly SeccionV1[] = ["catalogos", "clientes", "expedientes"];

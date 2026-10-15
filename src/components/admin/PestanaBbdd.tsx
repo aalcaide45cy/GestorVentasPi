@@ -148,7 +148,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
-      <PanelMigracion />
+      <PanelMigracion alTerminar={() => setVersionCopias((n) => n + 1)} />
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
