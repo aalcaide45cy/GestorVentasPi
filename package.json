@@ -11,7 +11,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrar.ts",
-    "crear-admin": "tsx scripts/crear-admin.ts"
+    "crear-admin": "tsx scripts/crear-admin.ts",
+    "reset-2fa": "tsx scripts/reset-2fa.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

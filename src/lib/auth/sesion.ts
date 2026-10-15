@@ -157,6 +157,7 @@ export async function requireSession(permiso: Permiso = "sesion"): Promise<Usuar
   const usuario = await getCurrentUser();
   if (!usuario) throw new HttpError(401, "No autenticado");
   if (usuario.bloqueado) throw new HttpError(403, "Cuenta suspendida");
+  if (!usuario.totpActivo) throw new HttpError(403, "Activa el doble factor para continuar");
   if (!cumplePermiso(usuario.rol, permiso)) throw new HttpError(403, "No tienes permisos para realizar esta acción");
   return usuario;
 }

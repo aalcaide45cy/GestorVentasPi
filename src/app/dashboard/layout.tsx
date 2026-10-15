@@ -12,6 +12,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!user) redirect("/login");
 
+  // 2FA obligatorio y, si procede, cambio de contraseña (5.3): antes de usar el panel.
+  if (!user.bloqueado) {
+    if (!user.totpActivo) redirect("/cuenta/activar-2fa");
+    if (user.debeCambiarPassword) redirect("/cuenta/cambiar-password");
+  }
+
   if (user.bloqueado) {
     return (
       <div

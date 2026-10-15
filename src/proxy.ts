@@ -39,7 +39,7 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/dashboard")) {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/cuenta")) {
     const tieneCookie = COOKIES_SESION.some((n) => req.cookies.has(n));
     if (!tieneCookie) return NextResponse.redirect(new URL("/login", req.url));
   }
@@ -47,5 +47,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/:path*"],
+  matcher: ["/dashboard/:path*", "/cuenta/:path*", "/api/:path*"],
 };

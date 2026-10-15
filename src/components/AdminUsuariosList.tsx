@@ -200,6 +200,27 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
     }
   };
 
+  const accionSeguridad = async (u: UsuarioAdminDto, accion: "reset_2fa" | "cerrar_sesiones") => {
+    const texto =
+      accion === "reset_2fa"
+        ? `¿Restablecer el doble factor de ${u.nombre}? Se cerrarán sus sesiones y deberá activarlo de nuevo al entrar.`
+        : `¿Cerrar todas las sesiones abiertas de ${u.nombre}?`;
+    if (!window.confirm(texto)) return;
+    setActualizando(u.id_usuario);
+    try {
+      const res = await fetch("/api/admin/usuarios/seguridad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id_usuario: u.id_usuario, accion }) });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo completar la acción."));
+      const r = (await res.json()) as { message?: string };
+      if (accion === "reset_2fa") setUsuarios((prev) => prev.map((x) => (x.id_usuario === u.id_usuario ? { ...x, totp_activo: false } : x)));
+      mostrar(r.message ?? "Hecho.");
+      router.refresh();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se pudo completar la acción.", "error");
+    } finally {
+      setActualizando(null);
+    }
+  };
+
   const eliminar = async (id: number) => {
     setActualizando(id);
     try {
@@ -296,6 +317,28 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                     )}
                     <button type="button" className="btn btn-secondary" onClick={() => abrirEditar(u)} disabled={actualizando === u.id_usuario} style={{ padding: "6px 10px", fontSize: "0.8rem" }}>
                       ✏️ Editar
+                    </button>
+                    {u.totp_activo && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => void accionSeguridad(u, "reset_2fa")}
+                        disabled={actualizando === u.id_usuario}
+                        style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+                        title="Restablecer el doble factor (pierde el móvil y los códigos)"
+                      >
+                        🔑 Reset 2FA
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => void accionSeguridad(u, "cerrar_sesiones")}
+                      disabled={actualizando === u.id_usuario}
+                      style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+                      title="Cerrar todas las sesiones abiertas de este usuario"
+                    >
+                      🚪 Cerrar sesiones
                     </button>
                     <button
                       type="button"
