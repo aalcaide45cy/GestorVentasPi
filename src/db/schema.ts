@@ -628,3 +628,40 @@ export const commissionPlanPending = pgTable("commission_plan_pending", {
   importe: integer("importe").notNull(),
   mesOrigen: varchar("mes_origen", { length: 7 }),
 });
+
+/* ------------------------------------------------------------------ */
+/* Copias de seguridad y Google Drive (F5)                              */
+/* ------------------------------------------------------------------ */
+
+export const copiasSeguridad = pgTable(
+  "copias_seguridad",
+  {
+    id: serial("id").primaryKey(),
+    /** Nombre del fichero dentro de la carpeta de copias. */
+    nombre: text("nombre").notNull(),
+    /** manual | auto | previa */
+    tipo: varchar("tipo", { length: 10 }).notNull(),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    tamano: bigint("tamano", { mode: "number" }).notNull().default(0),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    creadaPor: integer("creada_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    /** Identificador del fichero en Google Drive, si se ha subido. */
+    driveFileId: text("drive_file_id"),
+    subidaDriveEn: timestamp("subida_drive_en", { withTimezone: true }),
+    /** ok | error */
+    estado: varchar("estado", { length: 10 }).notNull().default("ok"),
+    error: text("error"),
+  },
+  (t) => [uniqueIndex("copias_seguridad_nombre_uq").on(t.nombre), index("copias_seguridad_creada_idx").on(t.creadaEn)],
+);
+
+/** Conexión con Google Drive: solo se guarda el refresh token, cifrado. */
+export const conexionDrive = pgTable("conexion_drive", {
+  id: integer("id").primaryKey().default(1),
+  refreshTokenCifrado: text("refresh_token_cifrado").notNull(),
+  email: text("email"),
+  carpetaId: text("carpeta_id"),
+  conectadaEn: timestamp("conectada_en", { withTimezone: true }).notNull().defaultNow(),
+  /** El último intento falló por token caducado o revocado. */
+  requiereReconexion: boolean("requiere_reconexion").notNull().default(false),
+});

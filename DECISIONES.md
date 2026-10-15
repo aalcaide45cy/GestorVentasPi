@@ -50,4 +50,9 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 | 15/10/2026 | F4 | Visibilidad: el administrador gestiona planes y liquidaciones; el resto de roles activos ve solo sus liquidaciones, previsión, pendientes y cotejo; en Informes el vendedor ve solo lo suyo | 7.2 por defecto [D][P] | Sí |
 | 15/10/2026 | F4 | El plan se edita entero y se guarda de una vez (PUT del plan completo) y recalcula sus liquidaciones existentes | Simplifica las 9 pestañas y mantiene la atomicidad | No |
 | 15/10/2026 | F4 | Importes y puntos se muestran siempre con separador de miles (1.600,00 €) | Anexo A, ejemplo 7 | No |
+| 15/10/2026 | F5 | Los comandos `pg_dump`/`pg_restore` se configuran con `PG_DUMP_CMD`/`PG_RESTORE_CMD` (por defecto los del PATH); en desarrollo se usan los del contenedor `gestorventas-db` | Windows no trae el cliente de PostgreSQL; en la imagen de la app (F6) se instalará `postgresql-client` | No |
+| 15/10/2026 | F5 | La subida de un `.dump` para restaurar se recibe como cuerpo crudo en streaming y queda registrada como copia; se restaura desde la lista | Evita cargar 2 GB en memoria con multipart | No |
+| 15/10/2026 | F5 | Restaurar no activa `app.restauracion`: `pg_restore --clean` recrea tablas y disparadores después de cargar los datos | Los disparadores de solo lectura no se disparan durante la carga | No |
+| 15/10/2026 | F5 | La copia JSON (formato 2.0) vacía las tablas de comisiones al restaurar (no las incluye); las copias completas `.dump` sí conservan todo | Las FK de comisiones impiden borrar usuarios/expedientes | Sí |
+| 15/10/2026 | F5 | Si falla una copia automática se reintenta a los 30 min y el error se muestra en la pantalla de copias | 13.3 | No |
 
