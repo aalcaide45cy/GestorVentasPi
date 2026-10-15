@@ -46,4 +46,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 | 15/10/2026 | F3 | Las tablas `commission_rules` y `commission_bonus_rules` se fusionan en el motor (ids de bonus + 1.000.000) | Mismas columnas; la clave del libro de puntos no debe colisionar | No |
 | 15/10/2026 | F3 | Versiones y libro rechazan UPDATE/DELETE siempre (12.9.5 contradice «salvo recálculo»; se aplica «siempre»); la restauración usa TRUNCATE | Coherencia con «solo inserción» | No |
 | 15/10/2026 | F3 | La liquidación se actualiza en sitio (mismo id) y se versiona solo si estaba revisada/cerrada/importada y su contenido cambia | Las FK de versiones impiden borrar la liquidación | No |
+| 15/10/2026 | F4 | El aviso de impacto en un mes cerrado se muestra tras guardar (con la diferencia y la versión anterior guardada), no antes | Evita un cálculo previo duplicado; el cambio es reversible porque queda la versión | Sí |
+| 15/10/2026 | F4 | Visibilidad: el administrador gestiona planes y liquidaciones; el resto de roles activos ve solo sus liquidaciones, previsión, pendientes y cotejo; en Informes el vendedor ve solo lo suyo | 7.2 por defecto [D][P] | Sí |
+| 15/10/2026 | F4 | El plan se edita entero y se guarda de una vez (PUT del plan completo) y recalcula sus liquidaciones existentes | Simplifica las 9 pestañas y mantiene la atomicidad | No |
+| 15/10/2026 | F4 | Importes y puntos se muestran siempre con separador de miles (1.600,00 €) | Anexo A, ejemplo 7 | No |
 

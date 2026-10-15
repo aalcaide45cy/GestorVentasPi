@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useCarga } from "@/components/comisiones/useCarga";
 import type { ExpedienteDto } from "@/lib/dto";
+import { etiquetaTramo, euros, puntos } from "@/lib/formato";
+import type { ResultadoMes } from "@/lib/comisiones";
 
 const MESES = [
   "Enero",
@@ -37,7 +40,7 @@ const estiloPie = { display: "flex", justifyContent: "space-between", fontSize: 
 
 /**
  * «Detalle y Resumen Estadístico»: recuentos del mes elegido.
- * Los tramos y el importe de comisión se añaden en F4 (dependen del motor de comisiones).
+ * Puntos, tramo y comisión estimada salen del motor de comisiones (el mismo que la liquidación).
  */
 export default function ResumenMensual({ expedientes, anios }: Props) {
   const hoy = new Date();
@@ -57,6 +60,10 @@ export default function ResumenMensual({ expedientes, anios }: Props) {
     setMes(m);
     setAnio(a);
   };
+
+  const mesIso = `${anio}-${String(mes).padStart(2, "0")}`;
+  const { datos: motor } = useCarga<ResultadoMes | null>(`/api/comisiones/mes?mes=${mesIso}`, null);
+  const m = motor !== null && motor.idPlan !== null ? motor : null;
 
   const r = useMemo(() => {
     const total = { afectados: 0, matriculados: 0, mContado: 0, mCredito: 0, mPref: 0, vn: 0, vnFinanciados: 0, pedidos: 0, pContado: 0, pCredito: 0, pPref: 0 };
@@ -170,6 +177,21 @@ export default function ResumenMensual({ expedientes, anios }: Props) {
               {r.pContado}/{r.pCredito}/{r.pPref}
             </strong>
           </div>
+        </div>
+        <div className="glass-panel-interactive" style={estiloTarjeta}>
+          <span style={estiloEtiqueta}>PUNTOS / OBJETIVO</span>
+          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{m ? `${puntos(m.puntosMes)} / ${puntos(m.objetivoX)}` : "—"}</h3>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{m ? "Puntos del mes frente a tu objetivo X" : "No hay plan para este mes"}</span>
+        </div>
+        <div className="glass-panel-interactive" style={estiloTarjeta}>
+          <span style={estiloEtiqueta}>TRAMO DEL MES</span>
+          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>{m ? etiquetaTramo(m.tramo) : "—"}</h3>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Respecto a X, redondeo hacia abajo</span>
+        </div>
+        <div className="glass-panel-interactive" style={estiloTarjeta}>
+          <span style={estiloEtiqueta}>COMISIÓN ESTIMADA</span>
+          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{m ? euros(m.neto) : "—"}</h3>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{m ? "Neta; se cobra en la nómina del mes siguiente" : "Sin plan de comisionamiento"}</span>
         </div>
       </div>
     </div>

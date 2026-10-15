@@ -1,7 +1,7 @@
 /** Formato español de importes (céntimos) y puntos (centésimas); siempre con al menos 2 decimales. */
 
-const fmtEuros = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtPuntos = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtEuros = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" });
+const fmtPuntos = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" });
 
 export function euros(centimos: number | null | undefined): string {
   return fmtEuros.format((centimos ?? 0) / 100);

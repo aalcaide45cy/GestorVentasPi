@@ -8,7 +8,7 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F1 Base sin Clerk y sin comisiones | ⬜ pendiente | |
 | F2 Autenticación completa | ⬜ pendiente | |
 | F3 Motor de comisiones (sin interfaz) | ✅ hecha (rama `fase/F3-motor`) | Ver detalle abajo |
-| F4 Interfaz de comisiones | ⬜ pendiente | |
+| F4 Interfaz de comisiones | ✅ hecha (rama `fase/F4-interfaz-comisiones`) | Ver detalle abajo |
 | F5 Copias y Google Drive | ⬜ pendiente | |
 | F6 Empaquetado (imágenes, instalador, guía, túnel) | ⬜ pendiente | |
 | F7 Raspberry real y rendimiento | ⬜ pendiente | |
@@ -31,6 +31,18 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 4. Más tests (usuarios, catálogos, importaciones), lint, build, prueba manual en navegador, DECISIONES.md y parada con informe.
 
 **Notas de diseño**: la lista de expedientes filtra por defecto por el vendedor actual (como la original); el diseño de referencia está en `referencia/gestorVentas-original/src/components/ExpedientesList.tsx`; no usar heredocs en Bash para escribir archivos con comillas (usar la herramienta Write).
+
+## F4 — Interfaz de comisiones
+
+**Hecho**
+- Recálculo automático al crear/editar/borrar expedientes (`conRecalculo`): meses afectados antes y después, también cerrados, con versión e impacto en la respuesta (`impactos`).
+- Servicios: planes (guardar/leer plan completo), liquidaciones (calcular, revisar, cerrar, versiones), libro de puntos, previsión de nómina, cotejo, pendientes de cobro, simulador, informes. API en `/api/comisiones/*`, `/api/expedientes/simular-comision`, `/api/informes`.
+- Pantallas: Comisiones (lista de planes + cotejo; editor de 9 pestañas; los no administradores ven solo lo suyo), bloque «Comisionamiento» y «Desglose Estimado» en Editar Expediente, tarjetas de puntos/tramo/comisión en «Detalle y Resumen Estadístico», tarjeta «Objetivo del mes» en el Dashboard, Informes con el motor.
+- Revisado en el navegador contra una BD de pruebas: las 9 pestañas, calcular liquidación, desglose y guardado con puntos/importes a mano.
+
+**Cómo probarlo**: `npm test ; npm run typecheck ; npm run lint ; npm run build`
+
+**Pendiente**: «Comparar con liquidación antigua» (F8); aviso previo al guardar un cambio en mes cerrado (hoy se avisa justo después, con la diferencia); las copias JSON aún no incluyen tablas de comisiones (F5).
 
 ## F3 — Motor de comisiones (sin interfaz)
 
