@@ -106,6 +106,13 @@ export async function restaurarCopia(ej: Ejecutor, admin: UsuarioActual, copia: 
   await ej.transaction(async (tx) => {
     const [cuentaAdmin] = await tx.select().from(usuarios).where(sql`${usuarios.idUsuario} = ${admin.idUsuario}`);
 
+    // Los datos de comisiones dependen de usuarios, modelos y expedientes: se vacían antes (TRUNCATE no activa los
+    // disparadores de protección). La copia JSON no los incluye; para conservarlos se usan las copias completas (.dump).
+    await tx.execute(
+      sql.raw(
+        "truncate table libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade",
+      ),
+    );
     for (const t of [...TABLAS].reverse()) await tx.delete(t.tabla);
 
     for (const t of TABLAS) {
