@@ -193,7 +193,7 @@ async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined):
   } satisfies ExpedienteMotor]);
 }
 
-async function cargarVendedor(ej: Ejecutor, idVendedor: number): Promise<VendedorMotor | null> {
+export async function cargarVendedor(ej: Ejecutor, idVendedor: number): Promise<VendedorMotor | null> {
   const [u] = await ej.select({ tipo: usuarios.tipoVendedor, patron: usuarios.patronVo }).from(usuarios).where(eq(usuarios.idUsuario, idVendedor));
   if (!u) return null;
   return { id: idVendedor, tipo: u.tipo === "VO" ? "VO" : "VN", patronVo: u.patron };

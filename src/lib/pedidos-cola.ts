@@ -31,7 +31,9 @@ export interface EstadoCola {
 }
 
 const CLAVE = "gv_cola_pedidos";
-const MAXIMO = 100;
+/** Pedidos que caben a la vez en la cola. */
+export const MAXIMO_COLA = 100;
+const MAXIMO = MAXIMO_COLA;
 const VACIO: EstadoCola = { items: [], abierto: null };
 
 let estado: EstadoCola = VACIO;
@@ -110,3 +112,27 @@ export function abrirDeCola(id: string | null): void {
   estado = { ...estado, abierto: id };
   oyentes.forEach((o) => o());
 }
+
+/** Huecos libres en la cola (para no perder pedidos ya leídos al soltar más de golpe). */
+export function huecosEnCola(): number {
+  cargar();
+  return Math.max(0, MAXIMO_COLA - estado.items.length);
+}
+
+/** Progreso de la lectura en curso (visible en la cola aunque se esté trabajando con otro pedido). */
+export interface ProgresoLectura {
+  hechos: number;
+  total: number;
+}
+let lectura: ProgresoLectura | null = null;
+const oyentesLectura = new Set<() => void>();
+
+export function fijarLectura(p: ProgresoLectura | null): void {
+  lectura = p;
+  oyentesLectura.forEach((o) => o());
+}
+export function suscribirLectura(cb: () => void): () => void {
+  oyentesLectura.add(cb);
+  return () => oyentesLectura.delete(cb);
+}
+export const leerLectura = (): ProgresoLectura | null => lectura;

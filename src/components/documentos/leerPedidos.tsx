@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
-import { abrirDeCola, anadirACola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
+import { MAXIMO_COLA, abrirDeCola, anadirACola, fijarLectura, huecosEnCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
 import { leerPedidoDeFichero } from "./BotonLeerDocumento";
 import ZonaSoltar from "./ZonaSoltar";
 
@@ -20,13 +20,21 @@ export async function leerYEncolar(
   destino: Destino,
   alProgreso: (hechos: number, total: number) => void,
   alError: (mensaje: string) => void,
+  /** Se llama con cada pedido en cuanto se lee (el primero se puede abrir mientras se leen los demás). */
+  alLeer?: (item: ItemCola) => void,
 ): Promise<ItemCola[]> {
   const leidos: ItemCola[] = [];
   for (let i = 0; i < ficheros.length; i++) {
     alProgreso(i, ficheros.length);
+    if (huecosEnCola() === 0) {
+      alError(`La cola está llena (${MAXIMO_COLA} pedidos): se han dejado ${ficheros.length - i} sin leer. Procesa algunos y vuelve a soltarlos.`);
+      break;
+    }
     try {
       const pedido = await leerPedidoDeFichero(ficheros[i]);
-      leidos.push(...anadirACola([{ nombre: ficheros[i].name, pedido, eleccion: destino.eleccion ?? null, idExpediente: destino.idExpediente ?? null }]));
+      const nuevos = anadirACola([{ nombre: ficheros[i].name, pedido, eleccion: destino.eleccion ?? null, idExpediente: destino.idExpediente ?? null }]);
+      leidos.push(...nuevos);
+      for (const n of nuevos) alLeer?.(n);
     } catch (e) {
       alError(`${ficheros[i].name}: ${e instanceof Error ? e.message : "no se pudo leer"}`);
     }
@@ -42,11 +50,35 @@ export function useLeerPedidos() {
 
   const leer = async (ficheros: File[], destino: Destino = {}) => {
     if (ficheros.length === 0) return;
-    setProgreso({ hechos: 0, total: ficheros.length });
-    const leidos = await leerYEncolar(ficheros, destino, (hechos, total) => setProgreso(hechos >= total ? null : { hechos, total }), (m) => mostrar(m, "error"));
+    const huecos = huecosEnCola();
+    if (huecos === 0) {
+      mostrar(`La cola está llena (${MAXIMO_COLA} pedidos). Procesa o descarta alguno antes de añadir más.`, "error");
+      return;
+    }
+    const aceptados = ficheros.slice(0, huecos);
+    if (aceptados.length < ficheros.length) mostrar(`La cola admite ${MAXIMO_COLA} pedidos a la vez: se leerán los primeros ${aceptados.length} de ${ficheros.length}.`, "error");
+    setProgreso({ hechos: 0, total: aceptados.length });
+    fijarLectura({ hechos: 0, total: aceptados.length });
+    let abierto = false;
+    const leidos = await leerYEncolar(
+      aceptados,
+      destino,
+      (hechos, total) => {
+        setProgreso(hechos >= total ? null : { hechos, total });
+        fijarLectura(hechos >= total ? null : { hechos, total });
+      },
+      (m) => mostrar(m, "error"),
+      (item) => {
+        // El primero se abre ya: se puede trabajar con él mientras se leen los demás
+        if (!abierto) {
+          abierto = true;
+          abrirDeCola(item.id);
+        }
+      },
+    );
     setProgreso(null);
+    fijarLectura(null);
     if (leidos.length > 1) mostrar(`${leidos.length} pedidos leídos: están en la cola de pedidos.`);
-    if (leidos.length > 0) abrirDeCola(leidos[0].id);
   };
   return { leer, leyendo: progreso !== null, textoProgreso: progreso && progreso.total > 1 ? `Leyendo ${progreso.hechos + 1} de ${progreso.total}…` : "Leyendo…" };
 }
