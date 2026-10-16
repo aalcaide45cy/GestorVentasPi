@@ -14,6 +14,10 @@ import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
 
 export const MAX_BYTES_OCR = 15 * 1024 * 1024;
 const MAX_PAGINAS = 15;
+/** Un pedido lleva los datos en las primeras hojas; leer más por OCR solo alarga la espera (en la Raspberry, minutos). */
+const MAX_PAGINAS_PEDIDO = 3;
+/** Tiempo máximo de una lectura de pedido: pasado este tiempo se libera la cola para que las demás sigan. */
+const MAX_MS_PEDIDO = 150_000;
 const ESCALA_RASTER = 2.5;
 
 export interface ResultadoOcr {
@@ -40,8 +44,16 @@ export function tipoDeFichero(datos: Buffer): TipoOcr | null {
 
 /** Solo un reconocimiento a la vez: el OCR consume mucha memoria y CPU, sobre todo en la Raspberry Pi. */
 let cola: Promise<unknown> = Promise.resolve();
-export function enCola<T>(tarea: () => Promise<T>): Promise<T> {
-  const siguiente = cola.then(tarea, tarea);
+export function enCola<T>(tarea: () => Promise<T>, maxMs?: number): Promise<T> {
+  const conLimite = (): Promise<T> => {
+    if (!maxMs) return tarea();
+    let temporizador: NodeJS.Timeout | undefined;
+    const limite = new Promise<never>((_, rechazar) => {
+      temporizador = setTimeout(() => rechazar(new HttpError(504, "La lectura ha tardado demasiado y se ha cancelado. Prueba con otra copia del documento o rellena los datos a mano.")), maxMs);
+    });
+    return Promise.race([tarea(), limite]).finally(() => clearTimeout(temporizador));
+  };
+  const siguiente = cola.then(conLimite, conLimite);
   cola = siguiente.catch(() => undefined);
   return siguiente;
 }
@@ -266,7 +278,7 @@ export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo
         const paginas = Math.min(doc.numPages, MAX_PAGINAS);
         const texto = await textoDePaginas(doc, paginas);
         if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
-        return { texto: (await ocrOrientado(await paginasComoImagenes(doc, paginas))).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        return { texto: (await ocrOrientado(await paginasComoImagenes(doc, Math.min(paginas, MAX_PAGINAS_PEDIDO)))).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       } finally {
         await doc.cleanup?.();
       }
@@ -275,5 +287,5 @@ export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo
       console.error("Error de OCR:", e instanceof Error ? e.message : e);
       throw new HttpError(500, "No se ha podido leer el documento. Prueba con otra imagen.");
     }
-  });
+  }, MAX_MS_PEDIDO);
 }

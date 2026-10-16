@@ -38,9 +38,9 @@ export const GET = manejar(async () => {
  */
 export const POST = manejar(async (req: Request) => {
   const admin = await requireSession("administrador");
-  await leerJson(req, z.object({ confirmar: z.literal(true) }));
+  const { forzar } = await leerJson(req, z.object({ confirmar: z.literal(true), forzar: z.boolean().optional() }));
   if (!disponible()) throw new HttpError(409, "La actualización desde la aplicación no está activada en este equipo. Ejecuta una vez el instalador nuevo (o «sudo gv actualizar» por SSH) para activarla.");
-  if ((await leer("actualizacion.estado")).trim() === "en-curso") throw new HttpError(409, "Ya hay una actualización en curso.");
+  if (!forzar && (await leer("actualizacion.estado")).trim() === "en-curso") throw new HttpError(409, "Ya hay una actualización en curso.");
   await mkdir(carpeta(), { recursive: true });
   await auditar({ idUsuario: admin.idUsuario, accion: "actualizacion_solicitada", entidad: "sistema" });
   await writeFile(path.join(carpeta(), "actualizar"), `${new Date().toISOString()} ${admin.loginEmail}\n`, { mode: 0o666 });

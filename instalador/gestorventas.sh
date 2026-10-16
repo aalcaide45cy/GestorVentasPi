@@ -224,7 +224,28 @@ PathExists=$DIR/control/actualizar
 WantedBy=multi-user.target
 UNIT
   rm -f "$DIR/control/actualizar"
+  # Botón «Reiniciar equipo» de la aplicación (mismo mecanismo que el apagado)
+  rm -f "$DIR/control/reiniciar"
+  cat > /etc/systemd/system/gestorventas-reiniciar.service <<UNIT
+[Unit]
+Description=Reiniciar el equipo (solicitado desde GestorVentasPi)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'rm -f $DIR/control/reiniciar; sleep 3; systemctl reboot'
+UNIT
+  cat > /etc/systemd/system/gestorventas-reiniciar.path <<UNIT
+[Unit]
+Description=Vigila la petición de reinicio de GestorVentasPi
+
+[Path]
+PathExists=$DIR/control/reiniciar
+
+[Install]
+WantedBy=multi-user.target
+UNIT
   systemctl daemon-reload
+  if systemctl enable --now gestorventas-reiniciar.path >/dev/null 2>&1; then fijar_env REINICIAR_HABILITADO 1; fi
   systemctl enable --now gestorventas-apagar.path >/dev/null 2>&1 || return 0
   fijar_env APAGADO_HABILITADO 1
   if systemctl enable --now gestorventas-actualizar.path >/dev/null 2>&1; then fijar_env ACTUALIZAR_HABILITADO 1; fi
@@ -488,9 +509,9 @@ cmd_restaurar() {
 cmd_desinstalar() {
   necesita_root
   dc --profile tailscale --profile cloudflare down || true
-  systemctl disable --now gestorventas-apagar.path >/dev/null 2>&1 || true
+  systemctl disable --now gestorventas-apagar.path gestorventas-reiniciar.path >/dev/null 2>&1 || true
   systemctl disable --now gestorventas-actualizar.path >/dev/null 2>&1 || true
-  rm -f /etc/systemd/system/gestorventas-apagar.path /etc/systemd/system/gestorventas-apagar.service /etc/systemd/system/gestorventas-actualizar.path /etc/systemd/system/gestorventas-actualizar.service
+  rm -f /etc/systemd/system/gestorventas-apagar.path /etc/systemd/system/gestorventas-apagar.service /etc/systemd/system/gestorventas-reiniciar.path /etc/systemd/system/gestorventas-reiniciar.service /etc/systemd/system/gestorventas-actualizar.path /etc/systemd/system/gestorventas-actualizar.service
   if [ "${1:-}" = "--borrar-datos" ]; then
     confirmar "Se BORRARÁN la base de datos y las copias de $DIR. ¿Seguro?" || { echo "Cancelado."; exit 1; }
     rm -rf "$DIR"
