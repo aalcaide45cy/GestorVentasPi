@@ -1256,7 +1256,7 @@ export default function ExpedientesList({
         />
       </div>
 
-      <ResumenMensual expedientes={expedientes} anios={opciones.anios.map(Number)} />
+      <ResumenMensual expedientes={expedientes} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
 
       {modales}
 
