@@ -234,3 +234,9 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Cola de pedidos recuperable y varios pedidos de golpe; ventana con scroll y casillas por dato.
 - Pendiente: probar con pedidos reales con retoma y de usados (aún no recibidos).
 
+
+## Tras la 1.0.7 (sin publicar)
+
+- Pedidos en PDF escaneado (JBIG2) leídos por OCR; columnas separadas.
+- Alias de modelos (R5, R4…) y modelos enseñados por el usuario (`alias_modelos`).
+- Aviso de expediente duplicado al leer un pedido.

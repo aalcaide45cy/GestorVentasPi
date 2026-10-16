@@ -1,3 +1,4 @@
+import { modeloAprendido, puntuarModelo } from "./modelos";
 import { matriculasEnTexto } from "@/lib/rejilla/analizar";
 import { buscarDniEnTexto, validarDni } from "./dni";
 
@@ -25,6 +26,8 @@ export function partirDomicilio(texto: string | null): { domicilio: string | nul
 export interface CatalogoPedido {
   modelos: { id: number; nombre: string; marca: string | null }[];
   tiposVenta: { id: number; nombre: string; categoria: string }[];
+  /** Correcciones que el usuario ha enseñado antes («SANDERO EXPRESSION» → modelo X). */
+  aliasModelos?: { alias: string; id: number }[];
 }
 
 export interface DatosPedido {
@@ -142,9 +145,11 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   const tel = col.slice(iCP + 1).find((c) => /^\+?\d[\d\s]{7,13}$/.test(c));
   e.telefono = tel ? tel.replace(/\s/g, "") : null;
   const mail = col.slice(iCP + 1).find((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c));
-  e.email = mail ?? null;
+  // El OCR suele perder la «@» (y a veces la deja como «Q»): «luisimarino gmail.com»
+  const mailSinArroba = col.slice(iCP + 1).map((c) => c.match(/^([\w.+-]+)\s+((?:gmail|hotmail|outlook|yahoo|icloud|live|msn)\.[a-z.]+)$/i)).find(Boolean);
+  e.email = mail ?? (mailSinArroba ? `${mailSinArroba[1]}@${mailSinArroba[2]}`.toLowerCase() : null);
   // Vendedor: el nombre que precede a la línea con su correo y teléfono (la segunda dirección de correo del bloque)
-  const iVend = datos.findIndex((l, i) => i > 0 && /@/.test(l) && /\d{9}/.test(l));
+  const iVend = datos.findIndex((l, i) => i > 0 && /@|[a-z]Q[a-z]+\.(?:es|com)\b/.test(l) && /\d{9}/.test(l));
   if (iVend > 0) e.vendedor = primeraColumna(datos[iVend - 1]) || null;
 
   const modelo = lineas.find((l) => /^Modelo:/i.test(l.trim()));
@@ -251,11 +256,14 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   // Modelo: el nombre de catálogo más largo que aparece en el texto (preferiblemente junto a su marca)
   const buscaEn = estructura?.modeloLinea ? sinAcentos(estructura.modeloLinea) : mayus;
   const candidatos = catalogo.modelos
-    .filter((m) => m.nombre.trim().length >= 2 && new RegExp(`(?<![A-Z0-9])${sinAcentos(m.nombre).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Z0-9])`).test(buscaEn))
-    .sort((a, b) => b.nombre.length - a.nombre.length);
+    .map((m) => ({ m, puntos: puntuarModelo(m.nombre, m.marca, buscaEn) }))
+    .filter((c) => c.puntos > 0)
+    .sort((x, y) => y.puntos - x.puntos)
+    .map((c) => c.m);
   const conMarca = candidatos.find((m) => m.marca && buscaEn.includes(sinAcentos(m.marca)));
-  const modelo = conMarca ?? candidatos[0] ?? null;
-  if (candidatos.length > 1 && !conMarca) avisos.push("Aparecen varios modelos del catálogo en el pedido: comprueba el elegido.");
+  const idAprendido = modeloAprendido(buscaEn, catalogo.aliasModelos ?? []);
+  const modelo = (idAprendido !== null ? catalogo.modelos.find((m) => m.id === idAprendido) : null) ?? conMarca ?? candidatos[0] ?? null;
+  if (candidatos.length > 1 && !conMarca && idAprendido === null) avisos.push("Aparecen varios modelos del catálogo en el pedido: comprueba el elegido.");
   if (estructura?.modeloLinea && !modelo) avisos.push(`El modelo del pedido («${estructura.modeloLinea}») no está en tus catálogos: elígelo a mano.`);
 
   // Forma de pago por palabras clave de la primera hoja (promociones de financiación, renting…)

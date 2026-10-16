@@ -131,6 +131,10 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
         },
       });
       if (idCliente) await llamar("/api/expedientes", { method: "PUT", cuerpo: { id_expediente: creado.id_expediente, id_cliente: idCliente, expediente: {} } }).catch(() => undefined);
+      // Si el modelo no se había reconocido y el usuario lo ha elegido, la app lo aprende para la próxima vez
+      if (!eleccion && d.idModelo === null && d.modeloTexto && idModeloFinal) {
+        await llamar("/api/documentos/aprender-modelo", { method: "POST", cuerpo: { texto: d.modeloTexto, id_modelo: idModeloFinal } }).catch(() => undefined);
+      }
       await vincularAdjuntos([pedido.adjunto.id], { idExpediente: creado.id_expediente, idCliente });
       alTerminar(cliente === "nuevo" ? `Expediente creado con el cliente nuevo ${d.cliente}.` : idCliente ? "Expediente creado y asociado al cliente." : "Expediente creado sin cliente.");
     } catch (e) {
@@ -218,6 +222,11 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             <strong style={{ wordBreak: "break-word" }}>{d.modeloTexto || "—"}</strong>
           </div>
         </div>
+        {(pedido.similares ?? []).length > 0 && (
+          <div style={{ color: "var(--warning)", fontSize: "0.85rem", border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)", padding: "8px 10px" }}>
+            ⚠️ Ya existe un expediente parecido: {(pedido.similares ?? []).map((x) => `nº ${x.idExpediente} (${x.motivo}${x.cliente ? `, ${x.cliente}` : ""})`).join("; ")}. Puedes continuar, pero comprueba que no lo duplicas.
+          </div>
+        )}
         {d.avisos.length > 0 && <div style={{ color: "var(--warning)", fontSize: "0.82rem" }}>⚠️ {d.avisos[0]}</div>}
 
         {eleccion ? (
