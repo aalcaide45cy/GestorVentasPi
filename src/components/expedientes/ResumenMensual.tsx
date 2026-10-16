@@ -5,6 +5,7 @@ import { useCarga } from "@/components/comisiones/useCarga";
 import type { ExpedienteDto } from "@/lib/dto";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
+import { PanelCartera, PanelComisiones, firmaExpedientes } from "./ComisionesYCartera";
 
 const MESES = [
   "Enero",
@@ -26,6 +27,9 @@ export { MESES };
 interface Props {
   expedientes: ExpedienteDto[];
   anios: number[];
+  /** Vendedor elegido en el filtro de la lista (nombre); vacío = todos. Las cifras y las comisiones son las suyas. */
+  vendedor: string;
+  esAdministrador: boolean;
 }
 
 const enMes = (fecha: string | null, anio: number, mes: number) => {
@@ -42,7 +46,7 @@ const estiloPie = { display: "flex", justifyContent: "space-between", fontSize: 
  * «Detalle y Resumen Estadístico»: recuentos del mes elegido.
  * Puntos, tramo y comisión estimada salen del motor de comisiones (el mismo que la liquidación).
  */
-export default function ResumenMensual({ expedientes, anios }: Props) {
+export default function ResumenMensual({ expedientes: todos, anios, vendedor, esAdministrador }: Props) {
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [mes, setMes] = useState(hoy.getMonth() + 1);
@@ -61,8 +65,18 @@ export default function ResumenMensual({ expedientes, anios }: Props) {
     setAnio(a);
   };
 
+  // Las estadísticas y las comisiones son del vendedor elegido en el filtro (por defecto, el usuario actual)
+  const expedientes = useMemo(() => {
+    const nombre = vendedor.toLowerCase().trim();
+    return nombre ? todos.filter((e) => (e.usuario?.nombre?.toLowerCase().trim() ?? "") === nombre) : todos;
+  }, [todos, vendedor]);
+  // Solo el administrador puede ver las comisiones de otra persona; el resto siempre ve las suyas
+  const idVendedor = esAdministrador ? expedientes.find((e) => e.usuario !== null)?.usuario?.id_usuario : undefined;
+  const usuarioQ = vendedor && idVendedor ? `&usuario=${idVendedor}` : "";
+  const firma = useMemo(() => firmaExpedientes(expedientes), [expedientes]);
+
   const mesIso = `${anio}-${String(mes).padStart(2, "0")}`;
-  const { datos: motor } = useCarga<ResultadoMes | null>(`/api/comisiones/mes?mes=${mesIso}`, null);
+  const { datos: motor } = useCarga<ResultadoMes | null>(`/api/comisiones/mes?mes=${mesIso}${usuarioQ}&v=${firma}`, null);
   const m = motor !== null && motor.idPlan !== null ? motor : null;
 
   const r = useMemo(() => {
@@ -139,6 +153,7 @@ export default function ResumenMensual({ expedientes, anios }: Props) {
   const botonMes = { padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" } as const;
 
   return (
+    <>
     <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", marginTop: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "15px" }}>
         <div>
@@ -286,5 +301,8 @@ export default function ResumenMensual({ expedientes, anios }: Props) {
         </div>
       )}
     </div>
+    <PanelComisiones anio={anio} mes={mes} expedientes={expedientes} usuario={vendedor && idVendedor ? idVendedor : undefined} />
+    <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />
+    </>
   );
 }
