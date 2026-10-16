@@ -6,6 +6,8 @@ import { formatDate } from "@/lib/date-utils";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
 import ListaContactos, { contactoVacio, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { mensajeDeError } from "./expedientes/comun";
+import { CLAVE_MOSTRAR_LABORATORIO } from "./LaboratorioComisiones";
+import { usePreferencia } from "@/lib/preferencias";
 
 interface Props {
   nombreInicial: string;
@@ -35,6 +37,7 @@ export default function PerfilForm({ nombreInicial, correoAcceso, rol, fechaRegi
   const [exito, setExito] = useState<string | null>(null);
 
   const rolNormalizado = normalizarRol(rol);
+  const [mostrarLab, fijarMostrarLab] = usePreferencia(CLAVE_MOSTRAR_LABORATORIO);
 
   const enviar = async (ev: FormEvent) => {
     ev.preventDefault();
@@ -173,6 +176,25 @@ export default function PerfilForm({ nombreInicial, correoAcceso, rol, fechaRegi
           </div>
         )}
       </div>
+
+      {esRolActivo(rolNormalizado) && (
+        <div className="glass-panel" style={{ padding: "20px 28px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", userSelect: "none" }}>
+            <input
+              type="checkbox"
+              checked={mostrarLab !== "false"}
+              onChange={(e) => fijarMostrarLab(String(e.target.checked))}
+              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+            />
+            <span>
+              <strong>Mostrar el botón «🧪 Laboratorio»</strong>
+              <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                El botón flotante de la esquina inferior derecha. Se recuerda en este navegador y se aplica al momento.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "16px" }}>
         <button type="submit" className="btn btn-primary" disabled={cargando} style={{ minWidth: "160px" }}>

@@ -13,16 +13,16 @@ import { etiquetaTramo, euros, nombreMes, puntos } from "@/lib/formato";
 
 export const dynamic = "force-dynamic";
 
-const estiloTarjeta = { padding: "24px" } as const;
-const estiloCabeceraTarjeta = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" } as const;
-const estiloEtiqueta = { fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 } as const;
-const estiloNumero = { fontSize: "1.8rem", marginBottom: "4px" } as const;
-const estiloPie = { fontSize: "0.8rem", color: "var(--text-muted)" } as const;
+const estiloTarjeta = { padding: "12px 16px" } as const;
+const estiloCabeceraTarjeta = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" } as const;
+const estiloEtiqueta = { fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 } as const;
+const estiloNumero = { fontSize: "1.4rem", marginBottom: "2px", lineHeight: 1.2 } as const;
+const estiloPie = { fontSize: "0.75rem", color: "var(--text-muted)" } as const;
 
 function Icono({ color, children }: { color: string; children: React.ReactNode }) {
   return (
     <span style={{ color }}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         {children}
       </svg>
     </span>
@@ -36,12 +36,12 @@ export default async function DashboardPage() {
   const esInvitado = !esRolActivo(user.rol);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
       {/* Cabecera / bienvenida */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
-        <div>
-          <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>¡Hola, {user.nombre}!</h1>
-          <p style={{ color: "var(--text-secondary)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "4px 16px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "4px 14px" }}>
+          <h1 style={{ fontSize: "1.5rem", margin: 0 }}>¡Hola, {user.nombre}!</h1>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
             Bienvenido al panel del Gestor de Ventas. Aquí tienes el resumen de hoy.
           </p>
         </div>
@@ -122,7 +122,7 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
       )}
 
       {/* Métricas clave */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
         <div className="glass-panel-interactive" style={estiloTarjeta}>
           <div style={estiloCabeceraTarjeta}>
             <span style={estiloEtiqueta}>OBJETIVO DEL MES</span>
@@ -189,7 +189,7 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
               <line x1="2" y1="10" x2="22" y2="10" />
             </Icono>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "80px", overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "64px", overflowY: "auto" }}>
             {resumen.porTipoVenta.map((t) => (
               <div key={t.nombre} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between" }}>
                 <span>Expedientes {t.nombre}:</span>
@@ -204,9 +204,9 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
       </div>
 
       {/* Expedientes recientes */}
-      <div className="glass-panel" style={{ padding: "28px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h3 style={{ fontSize: "1.2rem" }}>Últimos Expedientes Activos</h3>
+      <div className="glass-panel" style={{ padding: "16px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+          <h3 style={{ fontSize: "1.05rem" }}>Últimos Expedientes Activos</h3>
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>💡 Arrastra el pedido de un cliente sobre un expediente para rellenarlo</span>
           <Link href="/dashboard/expedientes" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
             Ver todos

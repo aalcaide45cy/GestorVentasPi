@@ -86,12 +86,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
           className="app-main"
           style={{
             flex: 1,
-            padding: "32px",
+            padding: "16px 28px",
             overflowY: "auto",
             maxHeight: "100vh",
             display: "flex",
             flexDirection: "column",
-            gap: "32px",
+            gap: "14px",
             minWidth: 0,
           }}
         >
@@ -102,9 +102,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
               justifyContent: "flex-end",
               alignItems: "center",
               width: "100%",
-              paddingBottom: "16px",
+              paddingBottom: "8px",
               borderBottom: "1px solid var(--border-light)",
-              marginBottom: "-8px",
             }}
           >
             <BotonMenuMovil />
