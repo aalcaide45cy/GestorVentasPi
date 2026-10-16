@@ -58,7 +58,7 @@ export function enCola<T>(tarea: () => Promise<T>, maxMs?: number): Promise<T> {
   return siguiente;
 }
 
-function carpetaIdioma(): string {
+export function carpetaIdioma(): string {
   return path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "@tesseract.js-data", "spa", "4.0.0_best_int");
 }
 
@@ -192,12 +192,12 @@ async function abrirPdf(datos: Buffer) {
 type DocumentoPdf = Awaited<ReturnType<typeof abrirPdf>>;
 
 /** Dibuja las páginas del PDF como imágenes PNG. */
-async function paginasComoImagenes(doc: DocumentoPdf, paginas: number): Promise<Buffer[]> {
+async function paginasComoImagenes(doc: DocumentoPdf, paginas: number, escala = ESCALA_RASTER): Promise<Buffer[]> {
   const { createCanvas } = await import("@napi-rs/canvas");
   const imagenes: Buffer[] = [];
   for (let n = 1; n <= paginas; n++) {
     const pagina = await doc.getPage(n);
-    const vista = pagina.getViewport({ scale: ESCALA_RASTER });
+    const vista = pagina.getViewport({ scale: escala });
     const lienzo = createCanvas(Math.ceil(vista.width), Math.ceil(vista.height));
     const ctx = lienzo.getContext("2d");
     ctx.fillStyle = "#ffffff";
@@ -219,12 +219,12 @@ async function textoDePaginas(doc: DocumentoPdf, paginas: number): Promise<strin
 }
 
 /** Páginas de un PDF como imágenes (para leer un DNI o un pedido escaneado). */
-export async function imagenesDePdf(datos: Buffer): Promise<{ imagenes: Buffer[]; texto: string }> {
+export async function imagenesDePdf(datos: Buffer, escala?: number): Promise<{ imagenes: Buffer[]; texto: string }> {
   const doc = await abrirPdf(datos);
   try {
     const paginas = Math.min(doc.numPages, MAX_PAGINAS);
     const texto = await textoDePaginas(doc, paginas);
-    return { imagenes: await paginasComoImagenes(doc, paginas), texto };
+    return { imagenes: await paginasComoImagenes(doc, paginas, escala), texto };
   } finally {
     await doc.cleanup?.();
   }
@@ -295,4 +295,21 @@ export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo
       throw new HttpError(500, "No se ha podido leer el documento. Prueba con otra imagen.");
     }
   }, MAX_MS_PEDIDO);
+}
+
+/** OCR de recortes de una sola línea (una celda): devuelve un resultado por imagen, en el mismo orden. */
+export async function ocrCeldas(imagenes: Buffer[], lista: string, modo: "linea" | "caracter" = "linea"): Promise<LineaOcr[]> {
+  const { createWorker, PSM } = await import("tesseract.js");
+  const worker = await createWorker("spa", 1, { langPath: carpetaIdioma(), gzip: true, cacheMethod: "none" });
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: modo === "caracter" ? PSM.SINGLE_CHAR : PSM.SINGLE_LINE, tessedit_char_whitelist: lista });
+    const salida: LineaOcr[] = [];
+    for (const img of imagenes) {
+      const { data } = await worker.recognize(img);
+      salida.push({ texto: data.text.replace(/\s+/g, " ").trim(), confianza: Math.round(data.confidence) });
+    }
+    return salida;
+  } finally {
+    await worker.terminate();
+  }
 }

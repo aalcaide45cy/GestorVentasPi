@@ -14,9 +14,13 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | 🟨 preparada; faltan las pruebas en la Pi (rama `fase/F7-rendimiento`) | Ver detalle abajo |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
+## v1.0.16 — Cotejo de pagos (16/10/2026)
+- Nueva pantalla **Cotejo de pagos** (cruza las rejillas de comisiones con los coches por matrícula) y botón **Contrastar listado** en Expedientes.
+
 ## v1.0.15 — pantallas más compactas (16/10/2026)
 - Expedientes y la parte superior del dashboard ocupan menos: el listado se ve sin bajar. Los filtros se pueden plegar.
 - Nuevo ajuste en «Mis Datos» para ocultar o mostrar el botón «Laboratorio» (se recuerda en cada navegador).
+
 
 ## v1.0.14 — corrección de BBDD (16/10/2026)
 - Configuración → BBDD ya no da «Error interno del servidor» cuando hay copias previas ilegibles; las copias previas del instalador se crean con el propietario de la app.
@@ -250,3 +254,9 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Pedidos en PDF escaneado (JBIG2) leídos por OCR; columnas separadas.
 - Alias de modelos (R5, R4…) y modelos enseñados por el usuario (`alias_modelos`).
 - Aviso de expediente duplicado al leer un pedido.
+
+## Cotejo de pagos y contraste de listados (16/10/2026)
+
+- Pantalla **Cotejo de pagos**: subir rejillas escaneadas, revisar matrículas, guardar por mes y ver el cotejo en verde/amarillo/rojo (+ gris sin rejilla). Probado con las 9 rejillas reales: 58 de 68 matrículas exactas y el resto marcadas para revisar; el cotejo con los 2 listados señala 2 coches sin pagar en julio de 2026.
+- Botón **Contrastar listado** en Expedientes (solo lectura).
+- Pruebas: 342 en verde (nuevas: `cotejo-pagos`, `contraste-listado`, `servicios/cotejo`).
