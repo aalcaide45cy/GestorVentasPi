@@ -13,6 +13,8 @@ import type { PlanEditableEscenario, RespuestaEscenario } from "@/lib/servicios/
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 const TRAMOS = [-4, -3, -2, -1, 0, 1, 2, 3];
 const CLAVE_ABIERTO = "laboratorio-abierto";
+/** Preferencia del navegador (se cambia en «Mis Datos»): "false" oculta el botón Laboratorio. */
+export const CLAVE_MOSTRAR_LABORATORIO = "laboratorio-mostrar";
 
 const aIso = (a: number, m: number) => `${a}-${String(m).padStart(2, "0")}`;
 const sinCambios: CambiosEscenario = {};
@@ -54,6 +56,7 @@ function Fila({ etiqueta, children }: { etiqueta: string; children: ReactNode })
  */
 export default function LaboratorioComisiones({ esAdministrador }: { esAdministrador: boolean }) {
   const [abiertoGuardado, guardarAbierto] = usePreferencia(CLAVE_ABIERTO);
+  const [mostrarGuardado] = usePreferencia(CLAVE_MOSTRAR_LABORATORIO);
   const abierto = abiertoGuardado === "true";
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
@@ -146,6 +149,8 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
   const valorTasa = (id: number) => cambios.tasas?.[String(id)];
   const valorPromo = (id: number) => cambios.promociones?.[String(id)];
   const importeTarifa = (idModelo: number, tasaCumplida: boolean, tramo: number, real: number) => cambios.tarifas?.find((t) => t.idModelo === idModelo && t.tasaCumplida === tasaCumplida && t.tramo === tramo)?.importe ?? real;
+
+  if (mostrarGuardado === "false") return null;
 
   if (!abierto) {
     return (

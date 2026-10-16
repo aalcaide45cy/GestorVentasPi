@@ -38,7 +38,7 @@ export function usePlegable(clave: string): { abierto: boolean; alternar: () => 
 
 export function BotonPlegar({ abierto, alternar, titulo }: { abierto: boolean; alternar: () => void; titulo: string }) {
   return (
-    <button type="button" onClick={alternar} aria-expanded={abierto} title={abierto ? `Plegar «${titulo}»` : `Desplegar «${titulo}»`} className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.85rem" }}>
+    <button type="button" onClick={alternar} aria-expanded={abierto} title={abierto ? `Plegar «${titulo}»` : `Desplegar «${titulo}»`} className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }}>
       {abierto ? "▾ Plegar" : "▸ Desplegar"}
     </button>
   );
@@ -148,12 +148,12 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
 
   const { abierto, alternar } = usePlegable("comisiones");
   return (
-    <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+    <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "flex-start" }}>
         <div>
-          <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>💶 Comisiones</h4>
+          <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>💶 Comisiones</h4>
           {abierto && (
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>
               Lo que generas en un mes se cobra en la nómina del mes siguiente. Se recalcula solo al poner fechas de matriculación (o de facturación, cobro, RCI…).
             </p>
           )}
@@ -213,11 +213,11 @@ export function PanelCartera({ anio, mes, expedientes }: { anio: number; mes: nu
   for (const e of lista) cuenta[estadoCartera(e)]++;
 
   return (
-    <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px" }}>
+    <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
         <div>
-          <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>📁 Cartera: pedidos de {etiquetaMes(previo.anio, previo.mes)}</h4>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>
+          <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>📁 Cartera: pedidos de {etiquetaMes(previo.anio, previo.mes)}</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>
             Expedientes con fecha de pedido en ese mes. La afectación (bastidor de fábrica) es la fecha clave. Pulsa uno para abrirlo.
           </p>
         </div>

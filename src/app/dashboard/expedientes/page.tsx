@@ -23,11 +23,11 @@ export default async function ExpedientesPage() {
   ]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
         <div>
-          <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Control de Expedientes</h1>
-          <p style={{ color: "var(--text-secondary)" }}>Listado completo de ventas realizadas y seguimiento de expedientes.</p>
+          <h1 style={{ fontSize: "1.4rem", marginBottom: "2px" }}>Control de Expedientes</h1>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Listado completo de ventas realizadas y seguimiento de expedientes.</p>
         </div>
 
         {puedeCrearExpedientes(user.rol) && (
