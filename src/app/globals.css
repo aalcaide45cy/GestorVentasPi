@@ -349,3 +349,155 @@ select, select option {
   padding: 8px 10px;
   font-size: 0.85rem;
 }
+
+/* ==========================================================================
+   Adaptación a móvil y tableta (≤ 900 px). En escritorio nada de esto se aplica:
+   el menú lateral pasa a ser un cajón y el contenido ocupa todo el ancho.
+   (El 900 debe coincidir con ANCHO_MOVIL de src/lib/movil.ts.)
+   ========================================================================== */
+.boton-menu-movil,
+.cerrar-menu-movil,
+.menu-fondo {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  html, body {
+    overflow-x: hidden;
+  }
+
+  /* Menú lateral como cajón que entra desde la izquierda */
+  .app-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    margin: 0 !important;
+    width: min(300px, 86vw) !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0 !important;
+    padding: 56px 18px 24px !important;
+    z-index: 1001 !important;
+    overflow-y: auto !important;
+    transform: translateX(-105%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+  body.menu-abierto .app-sidebar {
+    transform: translateX(0);
+  }
+  .sidebar-colapsar {
+    display: none !important;
+  }
+  .cerrar-menu-movil {
+    display: flex;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .menu-fondo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(2px);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  body.menu-abierto .menu-fondo {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  body.menu-abierto {
+    overflow: hidden;
+  }
+
+  /* Contenido: sin límite de altura propio (se desplaza la página) y con márgenes menores */
+  .app-main {
+    padding: 14px !important;
+    gap: 20px !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    width: 100%;
+  }
+  .app-topbar {
+    justify-content: space-between !important;
+    gap: 10px;
+  }
+  .boton-menu-movil {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 10px;
+    flex-shrink: 0;
+  }
+  .buscador-global {
+    width: 100% !important;
+    max-width: 420px;
+    flex: 1 1 auto;
+  }
+
+  /* Rejillas definidas en línea: se reparten según el ancho disponible (1 columna en móvil) */
+  [style*="grid-template-columns"] {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)) !important;
+  }
+
+  /* Ventanas emergentes casi a pantalla completa */
+  [aria-modal="true"] {
+    padding: 8px !important;
+    height: 100dvh !important;
+  }
+  [aria-modal="true"] > .glass-panel {
+    padding: 18px !important;
+    max-height: 96dvh !important;
+  }
+
+  /* Tablas: se desplazan en horizontal en vez de aplastar las columnas */
+  .table-container {
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-premium {
+    min-width: 560px;
+  }
+  .table-premium th,
+  .table-premium td {
+    padding: 10px 12px;
+  }
+
+  /* Campos y botones cómodos con el dedo (16 px evita el zoom automático de iOS) */
+  .form-input, .form-select, input, select, textarea {
+    font-size: 16px;
+  }
+  .btn {
+    min-height: 40px;
+  }
+
+  h1 {
+    font-size: 1.6rem !important;
+  }
+  h2 {
+    font-size: 1.3rem !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-main {
+    padding: 10px !important;
+  }
+  /* Los botones de pie de ventana se reparten el ancho */
+  [aria-modal="true"] .btn {
+    flex: 1 1 auto;
+  }
+}

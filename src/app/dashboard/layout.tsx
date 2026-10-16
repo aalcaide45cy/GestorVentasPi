@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
+import BotonMenuMovil from "@/components/BotonMenuMovil";
 import Sidebar from "@/components/Sidebar";
 import { versionDeLaApp } from "@/lib/version";
 import { ToastProvider } from "@/components/Toast";
@@ -80,6 +81,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Sidebar user={{ nombre: user.nombre, rol: user.rol }} version={versionDeLaApp()} />
 
         <main
+          className="app-main"
           style={{
             flex: 1,
             padding: "32px",
@@ -92,6 +94,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           }}
         >
           <div
+            className="app-topbar"
             style={{
               display: "flex",
               justifyContent: "flex-end",
@@ -102,6 +105,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               marginBottom: "-8px",
             }}
           >
+            <BotonMenuMovil />
             <Suspense fallback={null}>
               <GlobalSearch />
             </Suspense>
