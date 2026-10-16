@@ -151,15 +151,15 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
   const detalleMotor = abierto === "puntos" || abierto === "tramo" || abierto === "comision";
 
   const listaAnios = anios.includes(anio) ? anios : [anio, ...anios].sort((a, b) => b - a);
-  const botonMes = { padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" } as const;
+  const botonMes = { padding: "3px 10px", fontSize: "0.8rem", whiteSpace: "nowrap" } as const;
 
   return (
     <>
-    <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", marginTop: "10px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "15px" }}>
+    <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
         <div>
-          <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
+          <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           <BotonPlegar abierto={panelAbierto} alternar={alternarPanel} titulo="Detalle y Resumen Estadístico" />
@@ -180,14 +180,14 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
           <button type="button" className="btn btn-secondary" onClick={() => mover(1)} style={botonMes}>
             Mes Siguiente ➡
           </button>
-          <select className="form-select" value={mes} onChange={(e) => setMes(Number(e.target.value))} style={{ padding: "6px 12px", fontSize: "0.85rem", minWidth: "120px" }}>
+          <select className="form-select" value={mes} onChange={(e) => setMes(Number(e.target.value))} style={{ padding: "3px 8px", fontSize: "0.8rem", width: "auto", minWidth: "110px" }}>
             {MESES.map((nombre, i) => (
               <option key={nombre} value={i + 1}>
                 {nombre}
               </option>
             ))}
           </select>
-          <select className="form-select" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ padding: "6px 12px", fontSize: "0.85rem", minWidth: "90px" }}>
+          <select className="form-select" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ padding: "3px 8px", fontSize: "0.8rem", width: "auto", minWidth: "80px" }}>
             {listaAnios.map((a) => (
               <option key={a} value={a}>
                 {a}

@@ -108,8 +108,8 @@ const FECHAS_FILTRO: { valor: string; etiqueta: string }[] = [
 
 const etiquetaFiltro: CSSProperties = { fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" };
 const botonHerramienta = (activo: boolean, fondoActivo: string, colorActivo: string): CSSProperties => ({
-  padding: "8px 14px",
-  fontSize: "0.85rem",
+  padding: "5px 10px",
+  fontSize: "0.8rem",
   cursor: "pointer",
   display: "inline-flex",
   alignItems: "center",
@@ -120,15 +120,15 @@ const botonHerramienta = (activo: boolean, fondoActivo: string, colorActivo: str
   borderRadius: "var(--radius-sm)",
   fontWeight: 600,
 });
-const botonMes: CSSProperties = { padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 };
+const botonMes: CSSProperties = { padding: "3px 10px", fontSize: "0.8rem", fontWeight: 600 };
 const cajaMes: CSSProperties = {
-  padding: "10px 14px",
+  padding: "4px 10px",
   border: "1px solid rgba(255, 255, 255, 0.08)",
   borderRadius: "8px",
   background: "rgba(255, 255, 255, 0.02)",
   display: "flex",
   alignItems: "center",
-  gap: "12px",
+  gap: "8px",
   width: "fit-content",
 };
 const textoCaja: CSSProperties = { fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-light, #60a5fa)", textTransform: "uppercase", letterSpacing: "0.5px" };
@@ -176,6 +176,8 @@ export default function ExpedientesList({
   const [asignandoId, setAsignandoId] = useState<number | null>(null);
 
   // Preferencias del navegador (null hasta hidratar; después el valor guardado)
+  const [filtrosGuardado, fijarFiltrosAbiertos] = usePreferencia("exp-filtros-abiertos");
+  const filtrosAbiertos = filtrosGuardado !== "false";
   const [cobrosGuardado, fijarCobros] = usePreferencia("exp-show-cobro-status");
   const mostrarCobros = cobrosGuardado === "true";
   const [columnasGuardadas, fijarColumnas] = usePreferencia("exp-visible-columns");
@@ -654,10 +656,10 @@ export default function ExpedientesList({
   const expedienteAsignando = expedientes.find((e) => e.id_expediente === asignandoId);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       {/* BUSCADOR GENERAL */}
-      <div className="glass-panel" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" }}>
-        <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Buscador Global:</span>
+      <div className="glass-panel" style={{ padding: "8px 14px", display: "flex", alignItems: "center", gap: "10px" }}>
+        <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Buscador Global:</span>
         <input
           type="text"
           className="form-input"
@@ -667,7 +669,7 @@ export default function ExpedientesList({
             setBusqueda(e.target.value);
             setPagina(1);
           }}
-          style={{ flex: 1, padding: "8px 14px" }}
+          style={{ flex: 1, padding: "5px 12px" }}
         />
         {busqueda && (
           <button type="button" className="btn btn-secondary" onClick={() => setBusqueda("")} style={{ padding: "8px 14px", fontSize: "0.85rem" }}>
@@ -685,7 +687,7 @@ export default function ExpedientesList({
           flexWrap: "wrap",
           gap: "10px",
           background: "rgba(255, 255, 255, 0.03)",
-          padding: "12px 16px",
+          padding: "8px 12px",
           borderRadius: "8px",
           border: "1px solid var(--border-light)",
         }}
@@ -842,7 +844,7 @@ export default function ExpedientesList({
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <label
             className="btn btn-secondary"
-            style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)" }}
+            style={{ padding: "5px 10px", fontSize: "0.8rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)" }}
           >
             🟢 Importar Datos Excel
             <input type="file" accept=".xlsx, .xls" onChange={importarExcel} style={{ display: "none" }} disabled={importandoExcel || cargando} />
@@ -859,10 +861,10 @@ export default function ExpedientesList({
 
           {mostrarBotonesCsv && (
             <>
-              <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(false)} style={{ padding: "8px 14px", fontSize: "0.85rem" }}>
+              <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(false)} style={{ padding: "5px 10px", fontSize: "0.8rem" }}>
                 📤 Exportar Todo (CSV)
               </button>
-              <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <label className="btn btn-primary" style={{ padding: "5px 10px", fontSize: "0.8rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 📥 Importar CSV
                 <input type="file" accept=".csv" onChange={importarCsv} style={{ display: "none" }} disabled={cargando} />
               </label>
@@ -874,17 +876,38 @@ export default function ExpedientesList({
       </div>
 
       {/* FILTRADO AVANZADO */}
-      <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div className="glass-panel" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-          <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
-            <span>🔍 Filtrado y Búsqueda Avanzada</span>
+          <h4 onClick={() => fijarFiltrosAbiertos(filtrosAbiertos ? "false" : "true")} title={filtrosAbiertos ? "Plegar filtros" : "Desplegar filtros"} style={{ cursor: "pointer", userSelect: "none", margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <span>{filtrosAbiertos ? "▾" : "▸"} 🔍 Filtrado y Búsqueda Avanzada</span>
           </h4>
-          <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <div style={cajaMes}>
+            <span style={textoCaja}>Comisionado:</span>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "ant")} style={botonMes} title="Mes Anterior (-1)">←</button>
+              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "actual")} style={botonMes} title="Mes Actual -1">Actual</button>
+              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "sig")} style={botonMes} title="Mes Siguiente (+1)">→</button>
+            </div>
+          </div>
+          <div style={cajaMes}>
+            <span style={textoCaja}>Afectación:</span>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "ant")} style={botonMes} title="Mes Anterior (-1)">←</button>
+              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "actual")} style={botonMes} title="Mes Actual Real">Actual</button>
+              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "sig")} style={botonMes} title="Mes Siguiente (+1)">→</button>
+            </div>
+          </div>
+        </div>
+          <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} style={{ padding: "4px 10px", fontSize: "0.75rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
             🧹 Limpiar Filtros
           </button>
+          </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+        {filtrosAbiertos && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: "8px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={etiquetaFiltro}>Campo de Fecha</label>
             <select
@@ -894,7 +917,7 @@ export default function ExpedientesList({
                 setFTipoFecha(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               {FECHAS_FILTRO.map((f) => (
                 <option key={f.valor} value={f.valor}>
@@ -913,7 +936,7 @@ export default function ExpedientesList({
                 setFMes(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               <option value="">Todos los meses</option>
               {MESES.map((nombre, i) => (
@@ -933,7 +956,7 @@ export default function ExpedientesList({
                 setFAnio(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               <option value="">Todos los años</option>
               {opciones.anios.map((a) => (
@@ -954,7 +977,7 @@ export default function ExpedientesList({
                 setFModelo("");
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               <option value="">Todas las marcas</option>
               <option value="VO_NO_BRAND">Sin Marca (VO)</option>
@@ -975,7 +998,7 @@ export default function ExpedientesList({
                 setFModelo(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
               disabled={fMarca === "VO_NO_BRAND"}
             >
               <option value="">Todos los modelos</option>
@@ -996,7 +1019,7 @@ export default function ExpedientesList({
                 setFTienda(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               <option value="">Todas las tiendas</option>
               {tiendas.map((t) => (
@@ -1016,7 +1039,7 @@ export default function ExpedientesList({
                 setFVendedor(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               <option value="">Todos los comerciales</option>
               {opciones.vendedores.map((v) => (
@@ -1036,7 +1059,7 @@ export default function ExpedientesList({
                 setFTipo(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               <option value="">Todos los tipos</option>
               {opciones.tipos.map((t) => (
@@ -1056,7 +1079,7 @@ export default function ExpedientesList({
                 setFEstado(e.target.value);
                 setPagina(1);
               }}
-              style={{ padding: "8px" }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
             >
               <option value="">Todos los estados</option>
               {opciones.estados.map((s) => (
@@ -1067,25 +1090,7 @@ export default function ExpedientesList({
             </select>
           </div>
         </div>
-
-        <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-          <div style={cajaMes}>
-            <span style={textoCaja}>Comisionado:</span>
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "ant")} style={botonMes} title="Mes Anterior (-1)">←</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "actual")} style={botonMes} title="Mes Actual -1">Actual</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "sig")} style={botonMes} title="Mes Siguiente (+1)">→</button>
-            </div>
-          </div>
-          <div style={cajaMes}>
-            <span style={textoCaja}>Afectación:</span>
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "ant")} style={botonMes} title="Mes Anterior (-1)">←</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "actual")} style={botonMes} title="Mes Actual Real">Actual</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "sig")} style={botonMes} title="Mes Siguiente (+1)">→</button>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {totalEnBd !== undefined && totalEnBd > expedientes.length && (

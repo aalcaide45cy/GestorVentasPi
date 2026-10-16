@@ -14,8 +14,13 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | 🟨 preparada; faltan las pruebas en la Pi (rama `fase/F7-rendimiento`) | Ver detalle abajo |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
-## v1.0.15 — Cotejo de pagos (16/10/2026)
+## v1.0.16 — Cotejo de pagos (16/10/2026)
 - Nueva pantalla **Cotejo de pagos** (cruza las rejillas de comisiones con los coches por matrícula) y botón **Contrastar listado** en Expedientes.
+
+## v1.0.15 — pantallas más compactas (16/10/2026)
+- Expedientes y la parte superior del dashboard ocupan menos: el listado se ve sin bajar. Los filtros se pueden plegar.
+- Nuevo ajuste en «Mis Datos» para ocultar o mostrar el botón «Laboratorio» (se recuerda en cada navegador).
+
 
 ## v1.0.14 — corrección de BBDD (16/10/2026)
 - Configuración → BBDD ya no da «Error interno del servidor» cuando hay copias previas ilegibles; las copias previas del instalador se crean con el propietario de la app.
