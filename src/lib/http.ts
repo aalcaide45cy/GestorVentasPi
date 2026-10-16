@@ -7,6 +7,32 @@ export function errorJson(status: number, message: string): NextResponse {
   return NextResponse.json({ message }, { status });
 }
 
+/** Error de PostgreSQL (código SQLSTATE y detalle) dentro de una excepción, aunque venga envuelto por el ORM. */
+function errorPostgres(e: unknown): { code: string; detail: string } | null {
+  for (let actual: unknown = e, i = 0; actual && typeof actual === "object" && i < 5; i++) {
+    const { code, detail, cause } = actual as { code?: unknown; detail?: unknown; cause?: unknown };
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) && /^(22|23)/.test(code)) return { code, detail: typeof detail === "string" ? detail : "" };
+    actual = cause;
+  }
+  return null;
+}
+
+/** Traduce los errores de integridad de la base de datos a una respuesta clara (sin filtrar nombres de tablas ni datos). */
+export function respuestaDeErrorPostgres(e: unknown): NextResponse | null {
+  const pg = errorPostgres(e);
+  if (!pg) return null;
+  if (pg.code === "23503") {
+    // «is still referenced»: se intenta borrar algo en uso; si no, apunta a algo que no existe
+    return /is still referenced/i.test(pg.detail)
+      ? errorJson(409, "No se puede eliminar: está en uso por otros registros.")
+      : errorJson(400, "Alguno de los datos indicados (modelo, cliente, tienda, vendedor, forma de pago…) no existe.");
+  }
+  if (pg.code === "23505") return errorJson(409, "Ya existe un registro con esos datos.");
+  if (pg.code === "23502") return errorJson(400, "Falta algún dato obligatorio.");
+  if (pg.code.startsWith("22")) return errorJson(400, "Algún dato tiene un valor o un formato no válido.");
+  return null;
+}
+
 /** Convierte cualquier excepción en una respuesta JSON sin filtrar detalles internos. */
 export function responderError(e: unknown): NextResponse {
   if (e instanceof HttpError) return errorJson(e.status, e.message);
@@ -14,6 +40,8 @@ export function responderError(e: unknown): NextResponse {
     const primero = e.issues[0];
     return errorJson(400, primero ? primero.message : "Datos no válidos");
   }
+  const integridad = respuestaDeErrorPostgres(e);
+  if (integridad) return integridad;
   console.error("Error no controlado en la API:", e instanceof Error ? e.message : e);
   return errorJson(500, "Error interno del servidor");
 }
