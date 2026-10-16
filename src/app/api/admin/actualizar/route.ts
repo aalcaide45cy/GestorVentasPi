@@ -14,7 +14,7 @@ const disponible = () => process.env.ACTUALIZAR_HABILITADO === "1";
 
 async function leer(nombre: string): Promise<string> {
   try {
-    return await readFile(path.join(carpeta(), nombre), "utf8");
+    return await readFile(path.join(/*turbopackIgnore: true*/ carpeta(), nombre), "utf8");
   } catch {
     return "";
   }

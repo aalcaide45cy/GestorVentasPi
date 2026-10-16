@@ -17,7 +17,7 @@ const MAX_PAGINAS = 15;
 /** Un pedido lleva los datos en las primeras hojas; leer más por OCR solo alarga la espera (en la Raspberry, minutos). */
 const MAX_PAGINAS_PEDIDO = 3;
 /** Tiempo máximo de una lectura de pedido: pasado este tiempo se libera la cola para que las demás sigan. */
-const MAX_MS_PEDIDO = 150_000;
+const MAX_MS_PEDIDO = 270_000;
 const ESCALA_RASTER = 2.5;
 
 export interface ResultadoOcr {
