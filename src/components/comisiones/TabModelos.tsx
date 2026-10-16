@@ -85,7 +85,7 @@ export default function TabModelos({ plan, setPlan, cat }: PropsPestana) {
       <div>
         <h3 style={{ fontSize: "1.15rem", margin: "0 0 6px" }}>Tarifas de Modelos VN por Tramo</h3>
         <p style={{ color: "var(--text-secondary)", margin: 0 }}>
-          Importe de la comisión del coche VN por modelo y tramo. Cada modelo tiene 2 líneas: una para cuando la tasa de intervención real de la marca en el mes alcanza el objetivo, y otra para cuando no lo alcanza. El tramo (X-4 … X+3) sale de los puntos del mes frente al objetivo X del plan. Un hueco significa «sin tarifa» (0 € con aviso). Una línea desmarcada en «Activo» se ignora.
+          Define las tarifas de comisiones de coches nuevos agrupados por marcas. Importe de la comisión del coche VN por modelo y tramo. Cada modelo tiene 2 líneas: una para cuando la tasa de intervención real de la marca en el mes alcanza el objetivo, y otra para cuando no lo alcanza. El tramo (X-4 … X+3) sale de los puntos del mes frente al objetivo X del plan. Un hueco significa «sin tarifa» (0 € con aviso). Una línea desmarcada en «Activo» se ignora.
         </p>
         {portapapeles && (
           <p style={{ margin: "8px 0 0", fontSize: "0.85rem", color: "var(--primary)" }}>
@@ -99,16 +99,16 @@ export default function TabModelos({ plan, setPlan, cat }: PropsPestana) {
       {marcasConModelos.map((marca) => {
         const modelos = modelosDe(marca.id);
         return (
-          <Seccion key={marca.id} titulo={`MODELOS DE ${marca.nombre.toUpperCase()}`}>
+          <Seccion key={marca.id} destacado titulo={`📦 MODELOS DE ${marca.nombre.toUpperCase()}`}>
             <div className="table-container">
-              <table className="table-premium">
+              <table className="table-premium table-compact">
                 <thead>
                   <tr>
                     <th>Orden</th>
                     <th>Modelo</th>
                     <th>Tasa intervención</th>
                     {tramos.map((t) => (
-                      <th key={t} style={{ textAlign: "right" }}>
+                      <th key={t}>
                         {etiquetaTramo(t)}
                       </th>
                     ))}

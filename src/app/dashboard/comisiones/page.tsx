@@ -16,6 +16,9 @@ export default async function ComisionesPage() {
   const esAdmin = esAdministrador(user.rol);
 
   const catalogos = await leerCatalogos(db);
+  // Solo las marcas con «Sist. Comisiones» activo (Configuración → Marcas) entran en los planes de comisionamiento
+  const marcasComisiones = catalogos.marcas.filter((m) => m.sistema_comisiones);
+  const idsMarcas = new Set(marcasComisiones.map((m) => m.id_marca));
   const vendedores = await db
     .select({ id: usuarios.idUsuario, nombre: usuarios.nombre, tipo: usuarios.tipoVendedor })
     .from(usuarios)
@@ -32,8 +35,8 @@ export default async function ComisionesPage() {
         esAdmin={esAdmin}
         idUsuario={user.idUsuario}
         cat={{
-          marcas: catalogos.marcas.map((m) => ({ id: m.id_marca, nombre: m.nombre })),
-          modelos: catalogos.modelos.map((m) => ({ id: m.id_modelo, nombre: m.nombre_modelo, marcaId: m.marca_id })),
+          marcas: marcasComisiones.map((m) => ({ id: m.id_marca, nombre: m.nombre })),
+          modelos: catalogos.modelos.filter((m) => m.marca_id !== null && idsMarcas.has(m.marca_id)).map((m) => ({ id: m.id_modelo, nombre: m.nombre_modelo, marcaId: m.marca_id })),
           vendedores: vendedores.map((v) => ({ id: v.id, nombre: v.nombre ?? `Usuario ${v.id}`, tipo: v.tipo })),
         }}
       />

@@ -25,28 +25,57 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
           </BotonMini>
         }
       >
-        {plan.financiacion.map((f, i) => (
-          <div key={i} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <select className="form-input" style={{ width: "auto" }} value={f.idMarca} onChange={(e) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, idMarca: Number(e.target.value) } : x)) }))}>
-              {cat.marcas.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nombre}
-                </option>
+        <div className="table-container">
+          <table className="table-premium table-compact">
+            <thead>
+              <tr>
+                <th>Marca</th>
+                <th>Tipo de financiación</th>
+                <th>Importe (€)</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {plan.financiacion.map((f, i) => (
+                <tr key={i}>
+                  <td>
+                    <select className="form-input" style={{ minWidth: "150px" }} value={f.idMarca} onChange={(e) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, idMarca: Number(e.target.value) } : x)) }))}>
+                      {cat.marcas.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select className="form-input" style={{ minWidth: "150px" }} value={f.tipoFinanciacion} onChange={(e) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, tipoFinanciacion: e.target.value as typeof f.tipoFinanciacion } : x)) }))}>
+                      {TIPOS.map((t) => (
+                        <option key={t} value={t}>
+                          {ETIQUETA[t]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
+                  </td>
+                  <td>
+                    <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, financiacion: p.financiacion.filter((_, j) => j !== i) }))}>
+                      Quitar
+                    </BotonMini>
+                  </td>
+                </tr>
               ))}
-            </select>
-            <select className="form-input" style={{ width: "auto" }} value={f.tipoFinanciacion} onChange={(e) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, tipoFinanciacion: e.target.value as typeof f.tipoFinanciacion } : x)) }))}>
-              {TIPOS.map((t) => (
-                <option key={t} value={t}>
-                  {ETIQUETA[t]}
-                </option>
-              ))}
-            </select>
-            <InputCentesimas valor={f.importe} sufijo="€" onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
-            <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, financiacion: p.financiacion.filter((_, j) => j !== i) }))}>
-              Quitar
-            </BotonMini>
-          </div>
-        ))}
+              {plan.financiacion.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                    Sin incentivos de financiación en el plan.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Seccion>
 
       <Seccion
@@ -54,39 +83,72 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
         ayuda="Se aplica solo la regla más específica: marca + modelo, después modelo, después marca y por último la general."
         acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, importe: 0, activa: true }] }))}>+ Nueva regla</BotonMini>}
       >
-        {plan.preference.map((r, i) => {
-          const set = (c: Partial<typeof r>) => setPlan((p) => ({ ...p, preference: p.preference.map((x, j) => (j === i ? { ...x, ...c } : x)) }));
-          return (
-            <div key={i} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", opacity: r.activa ? 1 : 0.6 }}>
-              <input className="form-input" style={{ width: "180px" }} placeholder="Nombre" value={r.nombre ?? ""} onChange={(e) => set({ nombre: e.target.value || null })} />
-              <select className="form-input" style={{ width: "auto" }} value={r.idMarca ?? ""} onChange={(e) => set({ idMarca: e.target.value ? Number(e.target.value) : null, idModelo: null })}>
-                <option value="">Todas las marcas</option>
-                {cat.marcas.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nombre}
-                  </option>
-                ))}
-              </select>
-              <select className="form-input" style={{ width: "auto" }} value={r.idModelo ?? ""} onChange={(e) => set({ idModelo: e.target.value ? Number(e.target.value) : null })}>
-                <option value="">Todos los modelos</option>
-                {cat.modelos
-                  .filter((m) => r.idMarca === null || m.marcaId === r.idMarca)
-                  .map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.nombre}
-                    </option>
-                  ))}
-              </select>
-              <InputCentesimas valor={r.importe} sufijo="€" onChange={(v) => set({ importe: v ?? 0 })} />
-              <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                <input type="checkbox" checked={r.activa} onChange={(e) => set({ activa: e.target.checked })} /> Activa
-              </label>
-              <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, preference: p.preference.filter((_, j) => j !== i) }))}>
-                Quitar
-              </BotonMini>
-            </div>
-          );
-        })}
+        <div className="table-container">
+          <table className="table-premium table-compact">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Marca</th>
+                <th>Modelo</th>
+                <th>Importe (€)</th>
+                <th>Activa</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {plan.preference.map((r, i) => {
+                const set = (c: Partial<typeof r>) => setPlan((p) => ({ ...p, preference: p.preference.map((x, j) => (j === i ? { ...x, ...c } : x)) }));
+                return (
+                  <tr key={i} style={{ opacity: r.activa ? 1 : 0.6 }}>
+                    <td>
+                      <input className="form-input" style={{ minWidth: "180px" }} placeholder="Nombre" value={r.nombre ?? ""} onChange={(e) => set({ nombre: e.target.value || null })} />
+                    </td>
+                    <td>
+                      <select className="form-input" style={{ minWidth: "150px" }} value={r.idMarca ?? ""} onChange={(e) => set({ idMarca: e.target.value ? Number(e.target.value) : null, idModelo: null })}>
+                        <option value="">Todas las marcas</option>
+                        {cat.marcas.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <select className="form-input" style={{ minWidth: "170px" }} value={r.idModelo ?? ""} onChange={(e) => set({ idModelo: e.target.value ? Number(e.target.value) : null })}>
+                        <option value="">Todos los modelos</option>
+                        {cat.modelos
+                          .filter((m) => r.idMarca === null || m.marcaId === r.idMarca)
+                          .map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.nombre}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
+                    <td>
+                      <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />
+                    </td>
+                    <td>
+                      <input type="checkbox" checked={r.activa} onChange={(e) => set({ activa: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+                    </td>
+                    <td>
+                      <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, preference: p.preference.filter((_, j) => j !== i) }))}>
+                        Quitar
+                      </BotonMini>
+                    </td>
+                  </tr>
+                );
+              })}
+              {plan.preference.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                    Sin reglas de Preference / BOX3 en el plan.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Seccion>
 
       <Seccion titulo="Reglas especiales" ayuda="Reglas adicionales del plan con evento, filtros y efecto (importe y/o puntos).">

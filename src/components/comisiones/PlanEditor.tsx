@@ -14,15 +14,15 @@ import TabUsados from "./TabUsados";
 import type { CatalogosComisiones, Plan } from "./tipos";
 
 const PESTANAS = [
-  { id: "resumen", titulo: "Resumen del Plan" },
-  { id: "objetivo", titulo: "Cálculo del Objetivo X" },
-  { id: "modelos", titulo: "Tarifas de Modelos VN por Tramo" },
-  { id: "usados", titulo: "Usados / VO" },
-  { id: "reglas", titulo: "Financiación / Reglas del Plan" },
-  { id: "bonus", titulo: "Bonus de Campaña" },
-  { id: "penalizaciones", titulo: "Penalizaciones" },
-  { id: "liquidacion", titulo: "Liquidación Consolidada" },
-  { id: "notas", titulo: "Notas y Pendientes" },
+  { id: "resumen", icono: "📋", titulo: "Resumen" },
+  { id: "objetivo", icono: "🎯", titulo: "Objetivo" },
+  { id: "modelos", icono: "🚙", titulo: "VN" },
+  { id: "usados", icono: "🚐", titulo: "Usados / VO" },
+  { id: "reglas", icono: "⚙️", titulo: "Financ/Reglas" },
+  { id: "bonus", icono: "🎁", titulo: "Bonus" },
+  { id: "penalizaciones", icono: "⚠️", titulo: "Penalizaciones" },
+  { id: "liquidacion", icono: "💰", titulo: "Liquidación" },
+  { id: "notas", icono: "📝", titulo: "Notas" },
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
@@ -97,26 +97,69 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
   };
 
   const props = { plan, setPlan, cat };
+  const campoCabecera = { display: "flex", alignItems: "center", gap: "12px" } as const;
+  const etiquetaCabecera = { color: "var(--text-secondary)", fontSize: "0.95rem", minWidth: "72px" } as const;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <button type="button" className="btn btn-secondary" onClick={() => (hayCambios ? setSaliendo(true) : onVolver())}>
-            ← Planes
-          </button>
-          <h2 style={{ fontSize: "1.4rem" }}>{plan.idPlan === 0 ? "Nuevo plan" : plan.nombre}</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div>
+            <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => (hayCambios ? setSaliendo(true) : onVolver())}>
+              ← Volver a Planes
+            </button>
+          </div>
+          <div style={campoCabecera}>
+            <label style={etiquetaCabecera}>Nombre:</label>
+            <input className="form-input" style={{ width: "min(420px, 80vw)", fontSize: "1.05rem", fontWeight: 600 }} value={plan.nombre} onChange={(e) => setPlan((p) => ({ ...p, nombre: e.target.value }))} />
+          </div>
+          <div style={{ ...campoCabecera, flexWrap: "wrap", gap: "12px 20px" }}>
+            <span style={campoCabecera}>
+              <label style={etiquetaCabecera}>F. Inicio:</label>
+              <input className="form-input" type="date" style={{ width: "165px" }} value={plan.fechaInicio} onChange={(e) => setPlan((p) => ({ ...p, fechaInicio: e.target.value }))} />
+            </span>
+            <span style={campoCabecera}>
+              <label style={{ ...etiquetaCabecera, minWidth: 0 }}>F. Fin:</label>
+              <input className="form-input" type="date" style={{ width: "165px" }} value={plan.fechaFin} onChange={(e) => setPlan((p) => ({ ...p, fechaFin: e.target.value }))} />
+            </span>
+          </div>
         </div>
         <button type="button" className="btn btn-primary" disabled={guardando || !hayCambios} onClick={guardar}>
-          {guardando ? "Guardando…" : hayCambios ? "Guardar plan" : "Sin cambios"}
+          {guardando ? "Guardando…" : hayCambios ? "💾 Guardar Cambios" : "Sin cambios"}
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-        {PESTANAS.map((p) => (
-          <button key={p.id} type="button" className={`btn ${pestana === p.id ? "btn-primary" : "btn-secondary"}`} style={{ padding: "8px 14px", fontSize: "0.85rem" }} onClick={() => setPestana(p.id)}>
-            {p.titulo}
-          </button>
-        ))}
+      <div role="tablist" style={{ display: "flex", gap: "4px", flexWrap: "wrap", borderBottom: "1px solid var(--border-light)" }}>
+        {PESTANAS.map((p) => {
+          const activa = pestana === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={activa}
+              onClick={() => setPestana(p.id)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "12px 16px",
+                background: "transparent",
+                border: "none",
+                borderBottom: `2px solid ${activa ? "var(--primary)" : "transparent"}`,
+                marginBottom: "-1px",
+                color: activa ? "var(--text-primary)" : "var(--text-secondary)",
+                fontWeight: activa ? 700 : 600,
+                fontSize: "0.95rem",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "var(--transition)",
+              }}
+            >
+              <span aria-hidden="true">{p.icono}</span>
+              {p.titulo}
+            </button>
+          );
+        })}
       </div>
 
       {pestana === "resumen" && <TabResumen {...props} solapados={solapados} />}

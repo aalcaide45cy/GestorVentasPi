@@ -214,3 +214,8 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Clientes: domicilio, población y código postal (migración 0010); el pedido los rellena.
 - Planes de comisionamiento: botón «Duplicar».
 
+## Versión 1.0.5 (16/10/2026)
+
+- Comisiones: solo marcas con «Sist. Comisiones»; editor de planes con pestañas con iconos, cabecera con nombre y fechas, y campos alineados bajo sus cabeceras.
+- Comprobado en un navegador con una base de pruebas (Resumen, Objetivo, VN, Usados, Financ/Reglas, Bonus); Penalizaciones, Liquidación y Notas no se han revisado visualmente.
+

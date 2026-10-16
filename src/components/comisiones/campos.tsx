@@ -26,7 +26,7 @@ export function InputCentesimas({ valor, onChange, vacioEsNulo = false, sufijo, 
         inputMode="decimal"
         disabled={disabled}
         placeholder={placeholder}
-        style={{ ...estiloNum, width: ancho, padding: "6px 8px" }}
+        style={{ ...estiloNum, width: ancho ?? "120px", padding: "6px 8px" }}
         value={mostrado}
         onChange={(e) => {
           setTexto(e.target.value);
@@ -66,11 +66,11 @@ export function Campo({ etiqueta, children, ayuda }: { etiqueta: string; childre
   );
 }
 
-export function Seccion({ titulo, children, acciones, ayuda }: { titulo: string; children: ReactNode; acciones?: ReactNode; ayuda?: string }) {
+export function Seccion({ titulo, children, acciones, ayuda, destacado }: { titulo: string; children: ReactNode; acciones?: ReactNode; ayuda?: string; destacado?: boolean }) {
   return (
     <section className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-        <h3 style={{ fontSize: "1.05rem" }}>{titulo}</h3>
+        <h3 style={destacado ? { fontSize: "1rem", color: "var(--primary)", letterSpacing: "0.02em" } : { fontSize: "1.05rem" }}>{titulo}</h3>
         {acciones}
       </div>
       {ayuda && <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>{ayuda}</p>}
