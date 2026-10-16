@@ -144,3 +144,49 @@ describe("partirDomicilio", () => {
     expect(partirDomicilio(null)).toEqual({ domicilio: null, poblacion: null, codigoPostal: null });
   });
 });
+
+describe("retoma (vehículo usado que deja el cliente) y tipo de pedido", () => {
+  const base = [
+    "PEDIDO DE VEHÍCULO NUEVO",
+    "Número Pedido 14000002 - 7577-00 - dnt - AAA111111112",
+    "Emitido: Martes, 06 Oct 2026 10:00 hs.",
+    "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+    "Sr. Don Pedro De Prueba Ejemplo  CONCESIONARIO DE PRUEBA, S.L.",
+    "X1234567L  B00000000",
+    "Calle Inventada, 12  CALLE, 1",
+    "Madrid, Madrid (28000)  Rivas, Madrid (28500)",
+    "600111222  Tel.: 910000000",
+    "RESUMEN",
+    "Modelo:  RENAULT CLIO Techno  16.000,00 €",
+  ];
+  const valoracion = ["VALORACIÓN VO", "Marca / Modelo: SEAT IBIZA 1.0", "Matrícula: 1234 BCD", "Bastidor: VSSZZZ6JZ9R123456", "Valoración  3.500,00 €"];
+  const final = ["TOTAL A PAGAR  12.000,00 €", "En Rivas - Vaciamadrid , a Martes, 06 Octubre 2026"];
+
+  it("no toma como matrícula del expediente la de la sección de valoración VO", () => {
+    const d = parsearPedido([...base, ...valoracion, ...final].join("\n"), catalogo);
+    expect(d.tipoPedido).toBe("nuevo");
+    expect(d.matricula).toBeNull();
+    expect(d.retoma).toMatchObject({ matricula: "1234BCD", vin: "VSSZZZ6JZ9R123456" });
+    expect(d.avisos.join(" ")).toContain("vehículo de retoma");
+  });
+
+  it("sin sección de valoración no hay retoma, y un pedido nuevo nunca lleva matrícula", () => {
+    const d = parsearPedido([...base, "Matrícula: 5678 FGH", ...final].join("\n"), catalogo);
+    expect(d.retoma).toBeNull();
+    expect(d.matricula).toBeNull();
+  });
+
+  it("en un pedido de vehículo usado vendido sí se lee la matrícula del coche, y la retoma aparte", () => {
+    const texto = ["PEDIDO DE VEHÍCULO USADO", "Emitido: Martes, 06 Oct 2026 10:00 hs.", "CLIENTE  ESTABLECIMIENTO", "Matrícula: 9999 KLM", "Bastidor: VF1RJA00123456789", ...valoracion, ...final].join("\n");
+    const d = parsearPedido(texto, catalogo);
+    expect(d.tipoPedido).toBe("usado");
+    expect(d.matricula).toBe("9999KLM");
+    expect(d.vin).toBe("VF1RJA00123456789");
+    expect(d.retoma?.matricula).toBe("1234BCD");
+  });
+
+  it("toma la fecha del pedido de la firma si no hay «Emitido»", () => {
+    const d = parsearPedido(["PEDIDO DE VEHÍCULO NUEVO", "CLIENTE  ESTABLECIMIENTO", "Sr. Don Ana Ejemplo  X", ...final].join("\n"), catalogo);
+    expect(d.fechaExpediente).toBe("2026-10-06");
+  });
+});

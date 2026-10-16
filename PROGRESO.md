@@ -224,3 +224,9 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Arrastrar un pedido sobre un expediente del dashboard lo rellena.
 - Borrar todos los datos: atómico y con el motivo del fallo.
 
+## Versión 1.0.7 (16/10/2026)
+
+- Pedidos: sin matrícula en vehículos nuevos, retoma («Valoración VO») identificada y separada, pedidos de usados vendidos, fecha de pedido.
+- Cola de pedidos recuperable y varios pedidos de golpe; ventana con scroll y casillas por dato.
+- Pendiente: probar con pedidos reales con retoma y de usados (aún no recibidos).
+

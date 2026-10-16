@@ -10,9 +10,7 @@ import { formatDate } from "@/lib/date-utils";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, mensajeDeError } from "./expedientes/comun";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
 import { useEdicionFechas } from "./expedientes/useEdicionFechas";
-import { leerPedidoDeFichero } from "./documentos/BotonLeerDocumento";
-import RellenarDesdePedidoModal, { type CambiosExpediente } from "./RellenarDesdePedidoModal";
-import type { ResultadoPedido } from "@/lib/servicios/documentos";
+import { useLeerPedidos } from "./documentos/leerPedidos";
 
 interface Props {
   initialExpedientes: ExpedienteDto[];
@@ -37,17 +35,15 @@ export default function RecentExpedientesTable({
   // Pedido soltado sobre una fila: se lee y se propone rellenar ese expediente con sus datos
   const [filaSobre, setFilaSobre] = useState<number | null>(null);
   const [leyendoId, setLeyendoId] = useState<number | null>(null);
-  const [rellenando, setRellenando] = useState<{ exp: ExpedienteDto; pedido: ResultadoPedido } | null>(null);
+  const { leer: leerPedidos } = useLeerPedidos();
 
-  const soltarPedido = async (exp: ExpedienteDto, fichero: File | undefined) => {
+  /** Pedidos soltados sobre un expediente: se leen, pasan a la cola y se abre el primero para completar este expediente. */
+  const soltarPedido = async (exp: ExpedienteDto, ficheros: File[]) => {
     setFilaSobre(null);
-    if (!fichero) return;
+    if (ficheros.length === 0) return;
     setLeyendoId(exp.id_expediente);
-    mostrar("Leyendo el pedido…");
     try {
-      setRellenando({ exp, pedido: await leerPedidoDeFichero(fichero) });
-    } catch (e) {
-      mostrar(e instanceof Error ? e.message : "No se pudo leer el pedido.", "error");
+      await leerPedidos(ficheros, { idExpediente: exp.id_expediente });
     } finally {
       setLeyendoId(null);
     }
@@ -120,7 +116,7 @@ export default function RecentExpedientesTable({
                 onDragLeave={() => setFilaSobre((v) => (v === exp.id_expediente ? null : v))}
                 onDrop={(e) => {
                   e.preventDefault();
-                  void soltarPedido(exp, e.dataTransfer.files[0]);
+                  void soltarPedido(exp, Array.from(e.dataTransfer.files));
                 }}
                 style={{ outline: filaSobre === exp.id_expediente ? "2px dashed var(--primary)" : "none", outlineOffset: "-2px", opacity: leyendoId === exp.id_expediente ? 0.6 : 1 }}
               >
@@ -208,21 +204,6 @@ export default function RecentExpedientesTable({
       </div>
 
       {modales}
-
-      {rellenando && (
-        <RellenarDesdePedidoModal
-          expediente={rellenando.exp}
-          pedido={rellenando.pedido}
-          alCerrar={() => setRellenando(null)}
-          alTerminar={(cambios: CambiosExpediente, mensaje) => {
-            const id = rellenando.exp.id_expediente;
-            setLista((prev) => prev.map((e) => (e.id_expediente === id ? { ...e, ...cambios } : e)));
-            setRellenando(null);
-            mostrar(mensaje);
-            router.refresh();
-          }}
-        />
-      )}
 
       {asignandoId !== null && expedienteAsignando && (
         <ModalAsignarCliente

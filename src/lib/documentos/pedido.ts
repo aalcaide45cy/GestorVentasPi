@@ -51,6 +51,10 @@ export interface DatosPedido {
   idModelo: number | null;
   modeloTexto: string | null;
   idTipoDeVenta: number | null;
+  /** «nuevo» (pedido de vehículo nuevo), «usado» (vehículo de ocasión vendido) o null si no se reconoce. */
+  tipoPedido: "nuevo" | "usado" | null;
+  /** Vehículo de retoma (usado que deja el cliente), de la sección «Valoración VO»: su matrícula nunca es la del coche vendido. */
+  retoma: { matricula: string | null; vin: string | null; texto: string | null } | null;
   avisos: string[];
 }
 
@@ -154,19 +158,53 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   return e;
 }
 
+const ENCABEZADO_RETOMA = /^(?:FICHA\s+DE\s+)?(?:VALORACION|TASACION)\b.{0,45}$|^(?:RETOMA|VEHICULO\s+(?:USADO|DE\s+OCASION|DE\s+RETOMA))\b.{0,35}$/;
+const FIN_SECCION = /^(?:CLIENTE|RESUMEN|TOTAL|FORMA\s+DE\s+PAGO|PLAZO\s+DE\s+ENTREGA|ESTABLECIMIENTO|BASE\s+IMPONIBLE|SENAL|FIRMA|ESTIPULACIONES|PEDIDO\s+DE|HEMOS\s+RECIBIDO)\b/;
+
+/**
+ * Separa las líneas de la sección de retoma («Valoración VO», «Vehículo usado a entregar»…) del resto del pedido: lo que
+ * figura ahí es el usado que deja el cliente, no el coche del expediente.
+ */
+export function separarRetoma(lineas: string[]): { principales: string[]; retoma: string[] } {
+  const principales: string[] = [];
+  const retoma: string[] = [];
+  let dentro = 0;
+  for (const l of lineas) {
+    const n = sinAcentos(l).trim();
+    if (dentro > 0 && !FIN_SECCION.test(n)) {
+      retoma.push(l);
+      dentro--;
+      continue;
+    }
+    dentro = 0;
+    if (n.length <= 60 && ENCABEZADO_RETOMA.test(n) && !/[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}/.test(l)) {
+      retoma.push(l);
+      dentro = 14;
+      continue;
+    }
+    principales.push(l);
+  }
+  return { principales, retoma };
+}
+
 export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPedido {
   // Solo la primera hoja cuenta: las siguientes son las condiciones generales, que citan todas las formas de pago
   const corte = texto.search(/ESTIPULACIONES GENERALES|Queda prohibida la reproducci/i);
   const primera = corte > 0 ? texto.slice(0, corte) : texto;
+  // La retoma puede estar en cualquier hoja; el resto del pedido solo se lee en la primera
+  const { retoma: lineasRetoma } = separarRetoma(texto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean));
   const lineas = primera.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const mayus = sinAcentos(primera);
+  const sinRetoma = separarRetoma(lineas).principales;
+  const cabecera = sinAcentos(texto.slice(0, 1500));
+  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) ? "usado" : null;
+  const mayus = sinAcentos(sinRetoma.join("\n"));
   const avisos: string[] = [];
   const estructura = leerEstructuraRenault(lineas);
 
   // Bastidor y matrícula: sin direcciones de correo (su parte local puede tener 17 caracteres). En un pedido de Renault
   // de vehículo nuevo no hay ni uno ni otra: solo se aceptan si están rotulados («Bastidor», «Matrícula»).
   const sinCorreos = (t: string) => t.replace(/[^\s@]+@[^\s@]+/g, " ");
-  const lineasBusqueda = estructura ? lineas.filter((l) => /BASTIDOR|\bVIN\b|CHASIS|MATR[IÍ]CULA/i.test(l)) : lineas.map(sinCorreos);
+  const lineasBusqueda = estructura ? sinRetoma.filter((l) => /BASTIDOR|\bVIN\b|CHASIS|MATR[IÍ]CULA/i.test(l)) : sinRetoma.map(sinCorreos);
   const textoBusqueda = lineasBusqueda.join("\n");
   // Bastidor: 17 caracteres alfanuméricos sin I, O ni Q (el OCR confunde O/0 e I/1: se corrigen)
   let vin: string | null = null;
@@ -178,7 +216,17 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     }
   }
 
-  const matricula = lineasBusqueda.flatMap((l) => (/\b[A-HJ-NP-Z0-9]{17}\b/i.test(l) ? [] : matriculasEnTexto(l)))[0] ?? null;
+  // Un pedido de vehículo nuevo no tiene matrícula (la del usado de retoma se trata aparte)
+  const matricula = tipoPedido === "nuevo" ? null : (lineasBusqueda.flatMap((l) => (/\b[A-HJ-NP-Z0-9]{17}\b/i.test(l) ? [] : matriculasEnTexto(l)))[0] ?? null);
+
+  let retoma: DatosPedido["retoma"] = null;
+  if (lineasRetoma.length > 0) {
+    const cuerpo = lineasRetoma.slice(1).map(sinCorreos);
+    const vinRetoma = sinAcentos(cuerpo.join("\n")).match(/(?<![A-Z0-9])([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])/)?.[1] ?? null;
+    const matriculaRetoma = cuerpo.flatMap((l) => (/\b[A-HJ-NP-Z0-9]{17}\b/i.test(l) ? [] : matriculasEnTexto(l)))[0] ?? null;
+    const resumen = cuerpo.map((l) => l.replace(/\s{2,}-?[\d.]+,\d{2}\s*€?\s*$/, "").replace(/\s{2,}/g, " ").trim()).filter(Boolean).slice(0, 3).join(" · ").slice(0, 140) || null;
+    retoma = { matricula: matriculaRetoma, vin: vinRetoma, texto: resumen };
+  }
 
   let dni = estructura?.dni ?? null;
   if (dni && !validarDni(dni) && !/^[A-Z]\d{8}$|^[A-Z]\d{7}[A-Z0-9]$/.test(dni)) dni = buscarDniEnTexto(dni)?.dni ?? dni;
@@ -194,9 +242,11 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     }
   }
 
-  const fechaExpediente = estructura?.fecha ?? fechaTrasEtiqueta(lineas, /FECHA\s*(DE\s*)?(PEDIDO|ORDEN|CONTRATO|EXPEDIENTE)|^FECHA\b|^EMITIDO/);
-  const fechaEntrega = estructura ? null : fechaTrasEtiqueta(lineas, /ENTREGA/);
-  const fechaMatriculacion = fechaTrasEtiqueta(lineas, /MATRICULACION/);
+  // Fecha del pedido: «Emitido», «Fecha de pedido…» o, si no, la de la firma («En Rivas, a Jueves, 08 Octubre 2026»)
+  const fechaFirma = sinRetoma.map((l) => (/^En\s+.+,\s*a\s+/i.test(l) ? fechasEnTexto(l)[0] : undefined)).find(Boolean) ?? null;
+  const fechaExpediente = estructura?.fecha ?? fechaTrasEtiqueta(sinRetoma, /FECHA\s*(DE\s*)?(PEDIDO|ORDEN|CONTRATO|EXPEDIENTE)|^FECHA\b|^EMITIDO/) ?? fechaFirma;
+  const fechaEntrega = estructura ? null : fechaTrasEtiqueta(sinRetoma, /ENTREGA/);
+  const fechaMatriculacion = fechaTrasEtiqueta(sinRetoma, /MATRICULACION/);
 
   // Modelo: el nombre de catálogo más largo que aparece en el texto (preferiblemente junto a su marca)
   const buscaEn = estructura?.modeloLinea ? sinAcentos(estructura.modeloLinea) : mayus;
@@ -233,6 +283,7 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   const hayAlgo = vin || matricula || dni || modelo || estructura;
   if (!hayAlgo) avisos.push("No se ha reconocido ningún dato útil en el documento.");
   else avisos.push("Lectura automática: comprueba cada dato antes de guardar.");
+  if (retoma) avisos.push(`El pedido lleva un vehículo de retoma${retoma.matricula ? ` (${retoma.matricula})` : ""}: no se usa como matrícula del expediente.`);
 
   return {
     numeroPedido: estructura?.numeroPedido ?? null,
@@ -251,6 +302,8 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     idModelo: modelo?.id ?? null,
     modeloTexto: modelo?.nombre ?? estructura?.modeloLinea ?? null,
     idTipoDeVenta,
+    tipoPedido,
+    retoma,
     avisos,
   };
 }

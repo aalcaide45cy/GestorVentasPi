@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import type { MarcaDto, ModeloDto, TipoVentaDto, VendedorDto } from "@/lib/dto";
-import type { ResultadoPedido } from "@/lib/servicios/documentos";
-import { BotonLeerPedido, leerPedidoDeFichero } from "./documentos/BotonLeerDocumento";
+import type { EleccionRapida } from "@/lib/pedidos-cola";
+import ColaPedidos from "./ColaPedidos";
+import { useLeerPedidos, ZonaPedidos } from "./documentos/leerPedidos";
 import { mensajeDeError } from "./expedientes/comun";
-import PedidoRapidoModal, { type EleccionRapida } from "./PedidoRapidoModal";
 
 export interface MarcaConModelos extends MarcaDto {
   modelos: ModeloDto[];
@@ -55,9 +55,8 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
   const [cargandoTipo, setCargandoTipo] = useState<number | null>(null);
 
   const [vendedorId, setVendedorId] = useState<number>(currentUserId);
-  /** Pedido leído a la espera de decidir el cliente (se suelta en la zona general o sobre un botón de pago). */
-  const [pedido, setPedido] = useState<{ datos: ResultadoPedido; eleccion: EleccionRapida | null } | null>(null);
-  const [leyendoPedido, setLeyendoPedido] = useState(false);
+  /** Pedidos soltados sobre un botón de pago: se leen y pasan a la cola de pedidos. */
+  const { leer: leerPedidos, leyendo: leyendoPedido } = useLeerPedidos();
   const [sobre, setSobre] = useState<string | null>(null);
   const [desplegado, setDesplegado] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -103,19 +102,10 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
     }
   };
 
-  /** Pedido soltado sobre un botón de pago de un modelo: se lee y se pregunta por el cliente. */
-  const soltarPedido = async (fichero: File | undefined, eleccion: EleccionRapida) => {
+  /** Pedidos soltados sobre un botón de pago de un modelo: se leen y se pregunta por el cliente de cada uno. */
+  const soltarPedido = async (ficheros: File[], eleccion: EleccionRapida) => {
     setSobre(null);
-    if (!fichero) return;
-    setLeyendoPedido(true);
-    mostrar("Leyendo el pedido…");
-    try {
-      setPedido({ datos: await leerPedidoDeFichero(fichero), eleccion });
-    } catch (e) {
-      mostrar(e instanceof Error ? e.message : "No se pudo leer el pedido.", "error");
-    } finally {
-      setLeyendoPedido(false);
-    }
+    await leerPedidos(ficheros, { eleccion });
   };
 
   const marcasConModelos = marcas.filter((m) => m.modelos.length > 0);
@@ -137,7 +127,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
             onDragLeave={() => setSobre(null)}
             onDrop={(e) => {
               e.preventDefault();
-              void soltarPedido(e.dataTransfer.files[0], { idModelo, nombreModelo, tipo: tv, estadoNombre });
+              void soltarPedido(Array.from(e.dataTransfer.files), { idModelo, nombreModelo, tipo: tv, estadoNombre });
             }}
             disabled={cargandoModelo !== null || leyendoPedido}
             style={{
@@ -328,12 +318,10 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       </div>
 
       <div style={{ display: "flex" }}>
-        <BotonLeerPedido
-          etiqueta="Arrastra aquí el pedido de un cliente"
-          disabled={leyendoPedido}
-          alLeer={(r) => setPedido({ datos: r, eleccion: null })}
-        />
+        <ZonaPedidos />
       </div>
+
+      <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", justifyContent: "center", width: "100%" }}>
         {marcasConModelos.map((marca) => (
@@ -403,21 +391,6 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
 
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
 
-      {pedido && (
-        <PedidoRapidoModal
-          pedido={pedido.datos}
-          eleccion={pedido.eleccion}
-          marcas={marcas}
-          tiposVenta={tiposVenta}
-          vendedorId={vendedorId}
-          alCerrar={() => setPedido(null)}
-          alTerminar={(mensaje) => {
-            setPedido(null);
-            mostrar(mensaje);
-            router.refresh();
-          }}
-        />
-      )}
     </div>
   );
 }
