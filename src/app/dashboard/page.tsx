@@ -207,6 +207,7 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
       <div className="glass-panel" style={{ padding: "28px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h3 style={{ fontSize: "1.2rem" }}>Últimos Expedientes Activos</h3>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>💡 Arrastra el pedido de un cliente sobre un expediente para rellenarlo</span>
           <Link href="/dashboard/expedientes" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
             Ver todos
           </Link>

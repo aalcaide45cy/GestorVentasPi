@@ -117,6 +117,8 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
   } catch (e) {
     throw new HttpError(500, `No se borró nada: no se pudo crear la copia de seguridad previa (${e instanceof Error ? e.message : "error desconocido"}).`);
   }
+  // Todo en una sola transacción, también la recarga de los catálogos: si algo falla, no se borra nada
+  try {
   await ej.transaction(async (tx) => {
     // TRUNCATE no activa los disparadores de protección. Las tablas de comisiones y lo que cuelga de expedientes primero.
     await tx.execute(
@@ -141,10 +143,16 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
     for (const [tabla, col] of [["tiendas", "id_tienda"], ["marcas", "id_marca"], ["modelos", "id_modelo"], ["tipo_de_venta", "id_tipo_de_venta"], ["estado_vehiculo", "id_estado_vehiculo"], ["clientes", "id"], ["emails_clientes", "id_email_cliente"], ["telefonos_clientes", "id_telefono_cliente"], ["usuarios_tiendas", "id_usuario_tienda"], ["expedientes", "id_expediente"], ["importaciones_bloques", "id"], ["importaciones_registros", "id"]] as const) {
       await tx.execute(sql.raw(`select setval(pg_get_serial_sequence('${tabla}', '${col}'), 1, false)`));
     }
+    if (entrada.catalogosPorDefecto ?? true) {
+      await sembrar(tx);
+      await sembrarCatalogoInicial(tx);
+    }
   });
-  if (entrada.catalogosPorDefecto ?? true) {
-    await sembrar(ej);
-    await sembrarCatalogoInicial(ej);
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    const causa = (e as { cause?: { message?: string } }).cause?.message ?? (e instanceof Error ? e.message : "error desconocido");
+    console.error("Error al vaciar la base de datos:", e);
+    throw new HttpError(500, `No se ha borrado nada (la copia previa ${copiaPrevia} sí se creó). Motivo: ${causa}`);
   }
   return { copiaPrevia };
 }
