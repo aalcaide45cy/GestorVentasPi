@@ -8,6 +8,15 @@ import { ModalConfirmar } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { construirCsv, descargarTexto, interpretarCsvExpedientes } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
+import {
+  CLAVE_FILTROS_GUARDADOS,
+  CLAVE_FILTROS_PREDEFINIDOS,
+  CLAVE_RECORDAR_FILTROS,
+  aplicarPredefinidos,
+  leerFiltrosGuardados,
+  leerPredefinidos,
+  type FiltrosActuales,
+} from "@/lib/filtros-expedientes";
 import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
@@ -203,6 +212,56 @@ export default function ExpedientesList({
   const [fTienda, setFTienda] = useState("");
 
   // Importación de Excel
+  // Filtros predefinidos y recuerdo entre recargas (preferencias del navegador, ver Administración › Expedientes)
+  const [filtrosListos, setFiltrosListos] = useState(false);
+  useEffect(() => {
+    const leerLocal = (clave: string): string | null => {
+      try {
+        return localStorage.getItem(clave);
+      } catch {
+        return null;
+      }
+    };
+    const f: FiltrosActuales =
+      (leerLocal(CLAVE_RECORDAR_FILTROS) === "true" ? leerFiltrosGuardados(leerLocal(CLAVE_FILTROS_GUARDADOS)) : null) ??
+      aplicarPredefinidos(leerPredefinidos(leerLocal(CLAVE_FILTROS_PREDEFINIDOS)), currentUserName ?? "");
+    /* eslint-disable react-hooks/set-state-in-effect -- el navegador solo se puede leer tras hidratar */
+    setBusqueda(f.busqueda);
+    setOcultarEntregados(f.ocultarEntregados);
+    setFMarca(f.marca);
+    setFModelo(f.modelo);
+    setFTipo(f.tipo);
+    setFEstado(f.estado);
+    setFVendedor(f.vendedor);
+    setFMes(f.mes);
+    setFAnio(f.anio);
+    setFTipoFecha(f.tipoFecha);
+    setFTienda(f.tienda);
+    setFiltrosListos(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // Solo al montar: después mandan los controles de la pantalla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [recordarFiltros] = usePreferencia(CLAVE_RECORDAR_FILTROS);
+  useEffect(() => {
+    if (!filtrosListos) return;
+    if (recordarFiltros !== "true") return;
+    const actuales: FiltrosActuales = {
+      busqueda,
+      ocultarEntregados,
+      marca: fMarca,
+      modelo: fModelo,
+      tipo: fTipo,
+      estado: fEstado,
+      vendedor: fVendedor,
+      mes: fMes,
+      anio: fAnio,
+      tipoFecha: fTipoFecha,
+      tienda: fTienda,
+    };
+    guardarPreferencia(CLAVE_FILTROS_GUARDADOS, JSON.stringify(actuales));
+  }, [filtrosListos, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
+
   const [importandoExcel, setImportandoExcel] = useState(false);
   const [nombreExcel, setNombreExcel] = useState("");
   const [conflictos, setConflictos] = useState<ConflictoExcel[]>([]);

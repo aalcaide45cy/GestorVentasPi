@@ -2,8 +2,31 @@
 
 import { useToast } from "@/components/Toast";
 import { TAMANOS_PAGINA } from "@/components/expedientes/BarraPaginacion";
+import {
+  CLAVE_FILTROS_PREDEFINIDOS,
+  CLAVE_RECORDAR_FILTROS,
+  leerPredefinidos,
+} from "@/lib/filtros-expedientes";
 import { usePreferencia } from "@/lib/preferencias";
 import { estiloPanel } from "./utilidades";
+
+const OPCIONES_INICIO = [
+  { texto: "Solo mis expedientes", soloMios: true, mesActual: false },
+  { texto: "Solo los míos de este mes", soloMios: true, mesActual: true },
+  { texto: "Todos los expedientes", soloMios: false, mesActual: false },
+];
+
+const estiloOpcion = (activa: boolean) =>
+  ({
+    padding: "12px 20px",
+    fontSize: "0.95rem",
+    fontWeight: activa ? 800 : 500,
+    border: `2px solid ${activa ? "var(--primary)" : "var(--border-light)"}`,
+    borderRadius: "var(--radius-md)",
+    background: activa ? "rgba(var(--primary-rgb), 0.15)" : "rgba(255, 255, 255, 0.02)",
+    color: activa ? "var(--primary)" : "var(--text-secondary)",
+    cursor: "pointer",
+  }) as const;
 
 /** Pestaña «Expedientes»: paginación por defecto de la lista (se guarda en el navegador). */
 export default function PestanaExpedientes() {
@@ -14,6 +37,19 @@ export default function PestanaExpedientes() {
   const elegir = (t: number) => {
     guardar(String(t));
     mostrar(`Paginación por defecto establecida en ${t} expedientes.`);
+  };
+
+  const [predefinidosGuardados, guardarPredefinidos] = usePreferencia(CLAVE_FILTROS_PREDEFINIDOS);
+  const predefinidos = leerPredefinidos(predefinidosGuardados);
+  const elegirInicio = (o: { soloMios: boolean; mesActual: boolean }) => {
+    guardarPredefinidos(JSON.stringify({ ...predefinidos, soloMios: o.soloMios, mesActual: o.mesActual }));
+    mostrar("Guardado.");
+  };
+  const [recordarGuardado, guardarRecordar] = usePreferencia(CLAVE_RECORDAR_FILTROS);
+  const recordar = recordarGuardado === "true";
+  const elegirRecordar = (v: boolean) => {
+    guardarRecordar(v ? "true" : "false");
+    mostrar("Guardado.");
   };
 
   return (
@@ -72,6 +108,38 @@ export default function PestanaExpedientes() {
           <span>
             Actualmente configurado en <strong style={{ color: "var(--primary)" }}>{tamano}</strong> expedientes por página. Este valor se aplica al cargar la pestaña de expedientes por primera vez.
           </span>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>🔍 ¿Qué quieres ver al abrir Expedientes?</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>Pulsa una opción. Se guarda sola.</p>
+        </div>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {OPCIONES_INICIO.map((o) => {
+            const activa = o.soloMios === predefinidos.soloMios && o.mesActual === predefinidos.mesActual;
+            return (
+              <button key={o.texto} type="button" onClick={() => elegirInicio(o)} style={estiloOpcion(activa)}>
+                {o.texto}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>💾 Si refresco la página, ¿se queda el filtro que puse?</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>Pulsa una opción. Se guarda sola.</p>
+        </div>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <button type="button" style={estiloOpcion(recordar)} onClick={() => elegirRecordar(true)}>
+            Sí, que se quede
+          </button>
+          <button type="button" style={estiloOpcion(!recordar)} onClick={() => elegirRecordar(false)}>
+            No, que vuelva al inicio
+          </button>
         </div>
       </div>
     </div>
