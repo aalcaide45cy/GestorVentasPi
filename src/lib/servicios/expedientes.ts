@@ -67,11 +67,28 @@ const camposEdicion = {
   conceptos_especiales: z.array(esquemaConcepto).max(100).optional(),
 };
 
+/** Duplicado de uno o varios expedientes (para probar): `copias` por cada uno. */
+export const MAX_COPIAS_POR_EXPEDIENTE = 50;
+export const MAX_COPIAS_TOTAL = 5000;
+/** A partir de cuántos expedientes nuevos en una sola operación se exige una copia de seguridad reciente y válida. */
+export const UMBRAL_COPIA_PREVIA = 10;
+export const esquemaDuplicarExpedientes = z.object({
+  ids: listaIds,
+  /** Escribir la etiqueta visible «COPIA» en las copias (por defecto, sí). La marca interna se guarda siempre. */
+  etiqueta: z.boolean().optional(),
+  /** Duplicar sin hacer antes la copia de seguridad (solo si el usuario lo confirma de forma expresa). */
+  sin_copia: z.boolean().optional(),
+  copias: z.coerce.number().int().min(1, "Indica al menos 1 copia").max(MAX_COPIAS_POR_EXPEDIENTE, `Máximo ${MAX_COPIAS_POR_EXPEDIENTE} copias de cada expediente`),
+});
+export type EntradaDuplicarExpedientes = z.infer<typeof esquemaDuplicarExpedientes>;
+
 export const esquemaActualizarExpediente = z.discriminatedUnion("modo", [
   z.object({
     modo: z.literal("uno"),
     id_expediente: z.number().int().positive(),
     id_cliente: idOpcional.optional(),
+    /** Datos del cliente que se guardan en la misma transacción que el expediente (con `id`: se actualiza; sin él: se crea o se asocia el que tenga ese DNI). */
+    cliente: esquemaCliente.optional(),
     expediente: z.object(camposEdicion),
   }),
   z.object({
@@ -127,6 +144,8 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     cobrado_otra_fecha: e.cobradoOtraFecha,
     fecha_cobrado: e.fechaCobrado,
     comision_cobrada: e.comisionCobrada,
+    copia_de: e.copiaDe,
+    copia_etiqueta: e.copiaEtiqueta,
     comision_coche_cobrada: e.comisionCocheCobrada,
     comision_usado_cobrada: e.comisionUsadoCobrada,
     comision_financiacion_cobrada: e.comisionFinanciacionCobrada,

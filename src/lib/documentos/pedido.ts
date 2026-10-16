@@ -1,4 +1,4 @@
-import { modeloAprendido, puntuarModelo } from "./modelos";
+import { modeloAprendido, proponerMarcaModelo, puntuarModelo } from "./modelos";
 import { matriculasEnTexto } from "@/lib/rejilla/analizar";
 import { buscarDniEnTexto, validarDni } from "./dni";
 
@@ -28,6 +28,8 @@ export interface CatalogoPedido {
   tiposVenta: { id: number; nombre: string; categoria: string }[];
   /** Correcciones que el usuario ha enseñado antes («SANDERO EXPRESSION» → modelo X). */
   aliasModelos?: { alias: string; id: number }[];
+  /** Nombres de todas las marcas del catálogo (también las que aún no tienen modelos). */
+  marcas?: string[];
 }
 
 export interface DatosPedido {
@@ -52,6 +54,9 @@ export interface DatosPedido {
   /** Plazo de entrega previsto («12 Oct 2026 / 23 Oct 2026»), informativo. */
   plazoEntrega: { desde: string; hasta: string } | null;
   idModelo: number | null;
+  /** Marca y modelo limpios del pedido (sin acabado, motor ni códigos), para proponer crearlos si no existen. */
+  marcaPropuesta: string | null;
+  modeloPropuesto: string | null;
   modeloTexto: string | null;
   idTipoDeVenta: number | null;
   /** «nuevo» (pedido de vehículo nuevo), «usado» (vehículo de ocasión vendido) o null si no se reconoce. */
@@ -262,9 +267,16 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     .map((c) => c.m);
   const conMarca = candidatos.find((m) => m.marca && buscaEn.includes(sinAcentos(m.marca)));
   const idAprendido = modeloAprendido(buscaEn, catalogo.aliasModelos ?? []);
-  const modelo = (idAprendido !== null ? catalogo.modelos.find((m) => m.id === idAprendido) : null) ?? conMarca ?? candidatos[0] ?? null;
+  // Solo marca y modelo: «DACIA JOGGER extreme Eco-G 120 …» es Dacia / Jogger; lo demás se ignora
+  const marcasCatalogo = [...new Set([...(catalogo.marcas ?? []), ...catalogo.modelos.map((m) => m.marca).filter((m): m is string => !!m)])];
+  const propuesta = estructura?.modeloLinea
+    ? proponerMarcaModelo(estructura.modeloLinea, {
+        marcas: marcasCatalogo.map((nombre, i) => ({ id: i + 1, nombre, modelos: catalogo.modelos.filter((m) => m.marca === nombre).map((m) => ({ id: m.id, nombre: m.nombre })) })),
+      })
+    : null;
+  const modelo = (idAprendido !== null ? catalogo.modelos.find((m) => m.id === idAprendido) : null) ?? conMarca ?? candidatos[0] ?? (propuesta?.idModelo ? (catalogo.modelos.find((m) => m.id === propuesta.idModelo) ?? null) : null);
   if (candidatos.length > 1 && !conMarca && idAprendido === null) avisos.push("Aparecen varios modelos del catálogo en el pedido: comprueba el elegido.");
-  if (estructura?.modeloLinea && !modelo) avisos.push(`El modelo del pedido («${estructura.modeloLinea}») no está en tus catálogos: elígelo a mano.`);
+  if (estructura?.modeloLinea && !modelo) avisos.push(`La marca y el modelo del pedido («${[propuesta?.marca, propuesta?.modelo].filter(Boolean).join(" ")}») no están en tus catálogos: se propone crearlos.`);
 
   // Forma de pago por palabras clave de la primera hoja (promociones de financiación, renting…)
   let idTipoDeVenta: number | null = null;
@@ -288,6 +300,12 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     if (porNombre) idTipoDeVenta = porNombre.id;
   }
 
+  // Un pedido de Renault/Dacia sin descuento de financiación ni renting es de contado (se avisa para que se compruebe)
+  if (estructura && idTipoDeVenta === null) {
+    idTipoDeVenta = porCategoria("CONTADO");
+    if (idTipoDeVenta !== null) avisos.push("El pedido no lleva financiación: se propone «Contado». Compruébalo.");
+  }
+
   const hayAlgo = vin || matricula || dni || modelo || estructura;
   if (!hayAlgo) avisos.push("No se ha reconocido ningún dato útil en el documento.");
   else avisos.push("Lectura automática: comprueba cada dato antes de guardar.");
@@ -308,7 +326,9 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     fechaMatriculacion,
     plazoEntrega: estructura?.plazo ?? null,
     idModelo: modelo?.id ?? null,
-    modeloTexto: modelo?.nombre ?? estructura?.modeloLinea ?? null,
+    marcaPropuesta: modelo ? (modelo.marca ?? null) : (propuesta?.marca || null),
+    modeloPropuesto: modelo ? modelo.nombre : (propuesta?.modelo || null),
+    modeloTexto: modelo?.nombre ?? ([propuesta?.marca, propuesta?.modelo].filter(Boolean).join(" ") || estructura?.modeloLinea) ?? null,
     idTipoDeVenta,
     tipoPedido,
     retoma,

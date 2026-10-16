@@ -12,9 +12,10 @@ import {
 import type { ExpedienteDto } from "@/lib/dto";
 import { esAdministrador, puedeCrearExpedientes } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
-import { buscarPorDni, crearCliente } from "./clientes";
+import { actualizarCliente, buscarPorDni, crearCliente } from "./clientes";
+import { asegurarCopiaReciente } from "./copias";
 import { hoyIso } from "./comun";
-import type { EntradaActualizarExpediente, EntradaCrearExpediente } from "./expedientes";
+import { MAX_COPIAS_TOTAL, UMBRAL_COPIA_PREVIA, type EntradaActualizarExpediente, type EntradaCrearExpediente, type EntradaDuplicarExpedientes } from "./expedientes";
 import { obtenerExpediente } from "./expedientes-lectura";
 import { conRecalculo, type ResumenRecalculo } from "./liquidaciones";
 
@@ -87,6 +88,7 @@ export async function crearExpediente(
     const idEstado = await resolverEstado(tx, e.id_estado_vehiculo, e.estado_nombre);
     const [tipoVenta] = e.id_tipo_de_venta ? await tx.select().from(tipoDeVenta).where(eq(tipoDeVenta.idTipoDeVenta, e.id_tipo_de_venta)) : [];
     if (e.fecha_matriculacion && !e.fecha_rci && tipoVenta?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipoVenta.nombreTipoVenta));
+    if (e.fecha_facturacion && !e.fecha_rci && tipoVenta?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipoVenta.nombreTipoVenta, undefined, "facturar"));
     const [estadoNuevo] = idEstado ? await tx.select().from(estadoVehiculo).where(eq(estadoVehiculo.idEstadoVehiculo, idEstado)) : [];
     const [nuevo] = await tx
       .insert(expedientes)
@@ -158,20 +160,20 @@ function fusionar(destino: CamposActualizables, origen: CamposActualizables): vo
   }
 }
 
-/** Mensaje cuando un tipo de pago exige fecha RCI y se intenta matricular sin ella. */
-function avisoRciObligatoria(nombreTipo: string, idExpediente?: number): string {
-  return `${idExpediente ? `Expediente ${idExpediente}: ` : ""}los pagos «${nombreTipo}» exigen la fecha RCI (fecha de contratación de la financiera) para poder matricular. Indica primero la F. RCI.`;
+/** Mensaje cuando un tipo de pago exige fecha RCI y se intenta matricular o facturar sin ella. */
+function avisoRciObligatoria(nombreTipo: string, idExpediente?: number, accion: "matricular" | "facturar" = "matricular"): string {
+  return `${idExpediente ? `Expediente ${idExpediente}: ` : ""}los pagos «${nombreTipo}» exigen la fecha RCI (fecha de contratación de la financiera) para poder ${accion}. Indica primero la F. RCI.`;
 }
 
 /**
  * Reglas de fechas al escribir expedientes (antes de aplicar los cambios):
- * 1. Si el tipo de pago exige fecha RCI («Requerido al matricular»), no se puede poner fecha de matriculación sin ella.
+ * 1. Si el tipo de pago exige fecha RCI («Requerido al matricular»), no se puede poner fecha de matriculación ni de facturación sin ella.
  * 2. En un VN la fecha de facturación acompaña a la de matriculación mientras no se haya cambiado a mano (vacía o igual a la
  *    matriculación anterior); si el vendedor la fija a otra fecha, se respeta y es la que cuenta para comisionar.
  * Devuelve las facturaciones que hay que fijar después de aplicar el cambio, agrupadas por valor.
  */
 async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizables): Promise<{ ids: number[]; fecha: string | null }[]> {
-  const toca = set.fechaMatriculacion !== undefined || set.fechaRci !== undefined || set.idTipoDeVenta !== undefined || set.idEstadoVehiculo !== undefined;
+  const toca = set.fechaMatriculacion !== undefined || set.fechaFacturacion !== undefined || set.fechaRci !== undefined || set.idTipoDeVenta !== undefined || set.idEstadoVehiculo !== undefined;
   if (!toca || ids.length === 0) return [];
   const filas = await tx
     .select({ id: expedientes.idExpediente, mat: expedientes.fechaMatriculacion, rci: expedientes.fechaRci, fact: expedientes.fechaFacturacion, tipo: expedientes.idTipoDeVenta, estado: expedientes.idEstadoVehiculo })
@@ -185,6 +187,12 @@ async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizab
     const rci = set.fechaRci !== undefined ? set.fechaRci : f.rci;
     const tipo = tipos.get(set.idTipoDeVenta !== undefined ? (set.idTipoDeVenta ?? -1) : (f.tipo ?? -1));
     if (mat && !rci && tipo?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipo.nombreTipoVenta, ids.length > 1 ? f.id : undefined));
+    // Facturación: solo se comprueba si se está poniendo ahora, o si se quita la RCI o se cambia el tipo de pago (los expedientes
+    // que ya incumplían la regla no se tocan mientras no se edite ninguno de esos datos)
+    const factFinal = set.fechaFacturacion !== undefined ? set.fechaFacturacion : f.fact;
+    // (los formularios envían todos los campos aunque no se hayan tocado: solo cuenta lo que cambia respecto a lo guardado)
+    const revisaFact = (set.fechaFacturacion !== undefined && !!set.fechaFacturacion && set.fechaFacturacion !== f.fact) || (set.fechaRci !== undefined && set.fechaRci !== f.rci) || (set.idTipoDeVenta !== undefined && set.idTipoDeVenta !== f.tipo);
+    if (revisaFact && factFinal && !rci && tipo?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipo.nombreTipoVenta, ids.length > 1 ? f.id : undefined, "facturar"));
     const clase = clases.get(set.idEstadoVehiculo !== undefined ? (set.idEstadoVehiculo ?? -1) : (f.estado ?? -1));
     const manual = set.fechaFacturacion !== undefined && set.fechaFacturacion !== f.fact;
     if (clase === "VN" && !manual && (f.fact === null || f.fact === f.mat) && (mat ?? null) !== f.fact) {
@@ -204,7 +212,7 @@ export async function actualizarExpedientes(
   ej: Ejecutor,
   usuario: UsuarioActual,
   entrada: EntradaActualizarExpediente,
-): Promise<{ actualizados: number; impactos: ImpactoCerrado[] }> {
+): Promise<{ actualizados: number; impactos: ImpactoCerrado[]; cliente?: { id: number; accion: "actualizado" | "creado" | "asociado_existente" } }> {
   if (entrada.modo === "lote") {
     const e = entrada.expediente;
     const set: CamposActualizables = {};
@@ -266,9 +274,25 @@ export async function actualizarExpedientes(
     conceptosEspeciales: e.conceptos_especiales as ConceptoEspecial[] | undefined,
     idCliente: entrada.id_cliente,
   });
-  if (Object.keys(set).length === 0) throw new HttpError(400, "No hay datos que actualizar");
+  if (Object.keys(set).length === 0 && !entrada.cliente) throw new HttpError(400, "No hay datos que actualizar");
   await comprobarAlcance(ej, usuario, [entrada.id_expediente]);
+  let clienteResultado: { id: number; accion: "actualizado" | "creado" | "asociado_existente" } | undefined;
   const { valor, recalculos } = await conRecalculo(ej, [entrada.id_expediente], "Edición de expediente", async (tx) => {
+    // Cliente y expediente se guardan juntos: si falla una de las dos partes no se guarda ninguna
+    const c = entrada.cliente;
+    if (c) {
+      if (c.id) {
+        await actualizarCliente(tx, c.id, c);
+        clienteResultado = { id: c.id, accion: "actualizado" };
+        set.idCliente = c.id;
+      } else {
+        const existente = c.dni ? await buscarPorDni(tx, c.dni) : null;
+        const id = existente ? existente.id : (await crearCliente(tx, c, usuario.tiendaPredeterminadaId)).id;
+        clienteResultado = { id, accion: existente ? "asociado_existente" : "creado" };
+        set.idCliente = id;
+      }
+    }
+    if (Object.keys(set).length === 0) throw new HttpError(400, "No hay datos que actualizar");
     const facturaciones = await prepararFechas(tx, [entrada.id_expediente], set);
     const filas = await tx
       .update(expedientes)
@@ -279,7 +303,66 @@ export async function actualizarExpedientes(
     return { valor: filas.length, idsDespues: [entrada.id_expediente] };
   });
   if (valor === 0) throw new HttpError(404, "Expediente no encontrado");
-  return { actualizados: 1, impactos: impactos(recalculos) };
+  return { actualizados: 1, impactos: impactos(recalculos), cliente: clienteResultado };
+}
+
+/**
+ * Duplica expedientes (para probar el sistema y su rendimiento): `copias` de cada uno, en una sola transacción y con un solo
+ * envío al servidor, de modo que si algo falla no se crea ninguna copia. Se copia todo (cliente, vendedor, tipo de venta,
+ * fechas, comisiones a mano…) salvo el bastidor y la matrícula, que quedan vacíos para no chocar con otros expedientes, y los
+ * documentos adjuntos, que no se copian. Cada copia lleva `copia_de` para localizarla y borrarla después.
+ */
+export async function duplicarExpedientes(
+  ej: Ejecutor,
+  usuario: UsuarioActual,
+  entrada: EntradaDuplicarExpedientes,
+): Promise<{ creados: number; impactos: ImpactoCerrado[]; copia: { nombre: string; creadaAhora: boolean; milisegundos: number } | null }> {
+  if (!puedeCrearExpedientes(usuario.rol)) throw new HttpError(403, "No tienes permiso para crear expedientes");
+  const ids = [...new Set(entrada.ids)];
+  if (ids.length * entrada.copias > MAX_COPIAS_TOTAL) throw new HttpError(400, `Demasiadas copias de una vez (${ids.length * entrada.copias}). El máximo es ${MAX_COPIAS_TOTAL}.`);
+  await comprobarAlcance(ej, usuario, ids);
+  // Operación grande: antes se exige una copia de seguridad reciente y válida (se reutiliza la de los últimos 15 minutos o se crea una nueva)
+  let copia: { nombre: string; creadaAhora: boolean; milisegundos: number } | null = null;
+  if (ids.length * entrada.copias > UMBRAL_COPIA_PREVIA && !entrada.sin_copia) {
+    try {
+      copia = await asegurarCopiaReciente(ej, usuario.idUsuario);
+    } catch (e) {
+      throw new HttpError(409, `COPIA_PREVIA: No se ha duplicado nada porque no se pudo hacer la copia de seguridad previa. ${e instanceof Error ? e.message : ""}`.trim());
+    }
+  }
+  const { valor, recalculos } = await conRecalculo(ej, [], "Duplicado de expedientes", async (tx) => {
+    const origen = await tx.select().from(expedientes).where(and(inArray(expedientes.idExpediente, ids), isNull(expedientes.eliminadoEn)));
+    if (origen.length !== ids.length) throw new HttpError(404, "Alguno de los expedientes seleccionados ya no existe.");
+    const filas: (typeof expedientes.$inferInsert)[] = [];
+    for (const o of origen) {
+      const { idExpediente, matricula: _matricula, vin: _vin, eliminadoEn: _eliminado, ...datos } = o;
+      void _matricula;
+      void _vin;
+      void _eliminado;
+      for (let i = 0; i < entrada.copias; i++) {
+        filas.push({
+          ...datos,
+          matricula: null,
+          vin: null,
+          copiaDe: idExpediente,
+          copiaEtiqueta: entrada.etiqueta !== false,
+          comisionCobrada: false,
+          comisionCocheCobrada: false,
+          comisionUsadoCobrada: false,
+          comisionFinanciacionCobrada: false,
+          comisionPreferenceCobrada: false,
+          comisionBonusCobrada: false,
+        });
+      }
+    }
+    const nuevos: number[] = [];
+    for (let i = 0; i < filas.length; i += 500) {
+      const r = await tx.insert(expedientes).values(filas.slice(i, i + 500)).returning({ id: expedientes.idExpediente });
+      nuevos.push(...r.map((x) => x.id));
+    }
+    return { valor: nuevos.length, idsDespues: nuevos };
+  });
+  return { creados: valor, impactos: impactos(recalculos), copia };
 }
 
 /** Borrado lógico: el expediente se conserva con `eliminado_en` (no cuenta en listados, comisiones ni puntos). */

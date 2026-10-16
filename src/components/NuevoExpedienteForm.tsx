@@ -313,12 +313,42 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
     );
   }
 
-  const campo = (etiqueta: string, control: React.ReactNode) => (
-    <div className="form-group">
-      <label className="form-label">{etiqueta}</label>
-      {control}
-    </div>
-  );
+  /** Columnas (de 12) que ocupa cada campo y su etiqueta corta; la explicación larga va en el icono de ayuda. */
+  const DISENO: Record<string, { cols: number; etiqueta?: string; ayuda?: string }> = {
+    "DNI / NIE": { cols: 2 },
+    "Nombre Completo *": { cols: 5, etiqueta: "Nombre completo *" },
+    "Fecha de Nacimiento": { cols: 2, etiqueta: "F. nacimiento" },
+    Tienda: { cols: 3 },
+    Marca: { cols: 3 },
+    Modelo: { cols: 3 },
+    "Tipo de Venta": { cols: 2, etiqueta: "Tipo de venta" },
+    "Estado de Vehículo": { cols: 2, etiqueta: "Estado" },
+    "Vendedor Asignado": { cols: 2, etiqueta: "Vendedor" },
+    "Matrícula": { cols: 2 },
+    "Número de Bastidor (VIN)": { cols: 4, etiqueta: "Bastidor (VIN)" },
+    "Fecha Expediente": { cols: 2, etiqueta: "F. expediente" },
+    "Fecha Afectación": { cols: 2, etiqueta: "F. afectación" },
+    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference es obligatoria antes de poder matricular o facturar." },
+    "Fecha Matriculación": { cols: 2, etiqueta: "F. matriculación" },
+    "Fecha Facturación": { cols: 2, etiqueta: "F. facturación", ayuda: "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI." },
+    "Fecha Entrega": { cols: 2, etiqueta: "F. entrega" },
+  };
+  const campo = (etiqueta: string, control: React.ReactNode) => {
+    const d = DISENO[etiqueta] ?? { cols: 3 };
+    return (
+      <div className={`form-group c${d.cols}`} style={{ marginBottom: 0 }}>
+        <label className="form-label" style={{ marginBottom: "4px" }}>
+          {d.etiqueta ?? etiqueta}
+          {d.ayuda && (
+            <span title={d.ayuda} aria-label={d.ayuda} style={{ marginLeft: "6px", cursor: "help", color: "var(--text-muted)", fontWeight: 700 }}>
+              ⓘ
+            </span>
+          )}
+        </label>
+        {control}
+      </div>
+    );
+  };
   /** En un VN la facturación acompaña a la matriculación mientras esté vacía o igual a ella (si se cambia a mano, se respeta). */
   const cambiarMatriculacion = (v: string) => {
     const esVn = estadosVehiculo.find((x) => x.id === Number(estado))?.clase === "VN";
@@ -327,11 +357,12 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
   };
   const rciObligatoria = (): string | null => {
     const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
-    return fMat && !fRci && t?.requiereRci ? `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder matricular. Indica primero la Fecha RCI.` : null;
+    if (!fRci && t?.requiereRci && (fMat || fFact)) return `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder ${fMat ? "matricular" : "facturar"}. Indica primero la Fecha RCI.`;
+    return null;
   };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
   const titulo = (color: string, icono: React.ReactNode, texto: string) => (
-    <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+    <h2 style={{ fontSize: "1.05rem", marginBottom: "10px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         {icono}
       </svg>
@@ -341,7 +372,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
 
   return (
     <>
-      <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+      <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {error && (
           <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
             <strong style={{ display: "block", marginBottom: "4px" }}>Error:</strong>
@@ -349,9 +380,9 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "32px" }}>
+        <div className="rejilla-propia" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
           {/* DATOS DEL CLIENTE */}
-          <div className="glass-panel" style={{ padding: "32px" }}>
+          <div className="glass-panel" style={{ padding: "16px 20px" }}>
             {titulo(
               "var(--primary)",
               <>
@@ -361,8 +392,9 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               "Datos del Cliente",
             )}
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
               <BotonLeerDni
+                compacta
                 disabled={cargando}
                 alLeer={(r) => {
                   if (r.datos.dni) setDni(r.datos.dni);
@@ -451,7 +483,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+            <div className="rejilla-ficha">
               {campo("DNI / NIE", <input type="text" className="form-input" value={dni} onChange={(e) => setDni(e.target.value)} placeholder="Ej. 12345678Z" />)}
               {campo("Nombre Completo *", <input type="text" className="form-input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" />)}
               {campo("Fecha de Nacimiento", fecha(fechaNacimiento, setFechaNacimiento))}
@@ -468,14 +500,14 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "32px", marginTop: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px", marginTop: "14px" }}>
               <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
               <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
             </div>
           </div>
 
           {/* DETALLES DE LA VENTA Y VEHÍCULO */}
-          <div className="glass-panel" style={{ padding: "32px" }}>
+          <div className="glass-panel" style={{ padding: "16px 20px" }}>
             {titulo(
               "var(--secondary)",
               <>
@@ -485,8 +517,9 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               "Detalles de la Venta y Vehículo",
             )}
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
               <BotonLeerPedido
+                compacta
                 disabled={cargando}
                 alLeer={(r) => {
                   const d = r.datos;
@@ -516,7 +549,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido (PDF o foto) y se rellenan bastidor, matrícula, modelo, forma de pago y fechas.</span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+            <div className="rejilla-ficha">
               {campo(
                 "Marca",
                 <select
@@ -568,17 +601,31 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
                   ))}
                 </select>,
               )}
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginTop: "16px" }}>
               {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
               {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
+            </div>
+          </div>
+
+          {/* FECHAS */}
+          <div className="glass-panel" style={{ padding: "16px 20px" }}>
+            {titulo(
+              "var(--warning)",
+              <>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </>,
+              "Fechas",
+            )}
+            <div className="rejilla-ficha">
               {campo("Fecha Expediente", fecha(fExp, setFExp))}
               {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
               {campo("Fecha RCI (Financiación)", fecha(fRci, setFRci))}
               {campo("Fecha Matriculación", fecha(fMat, cambiarMatriculacion))}
-              {campo("Fecha Facturación (en un VN es la de matriculación; si la cambias, manda ella para comisionar)", fecha(fFact, setFFact))}
+              {campo("Fecha Facturación", fecha(fFact, setFFact))}
               {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
+              <div style={{ gridColumn: "1 / -1", fontSize: "0.78rem", color: "var(--text-muted)" }}>En un VN la fecha de facturación acompaña a la de matriculación; si la cambias, manda ella para comisionar.</div>
             </div>
           </div>
         </div>

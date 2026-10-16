@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { MAXIMO_COLA, abrirDeCola, anadirACola, fijarLectura, huecosEnCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
 import { leerPedidoDeFichero } from "./BotonLeerDocumento";
+import OpcionVentanaPedido from "./OpcionVentanaPedido";
 import ZonaSoltar from "./ZonaSoltar";
 
 interface Destino {
@@ -87,14 +88,17 @@ export function useLeerPedidos() {
 export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clientes" }: { etiqueta?: string }) {
   const { leer, leyendo, textoProgreso } = useLeerPedidos();
   return (
-    <ZonaSoltar
-      icono="📄"
-      titulo={etiqueta}
-      ayuda="Arrastra uno o varios pedidos (PDF o foto). Se leen en este equipo y quedan en la cola de pedidos: de cada uno eliges qué datos se aplican y si crea un expediente nuevo."
-      multiple
-      ocupado={leyendo}
-      textoOcupado={textoProgreso}
-      alSoltar={(f) => leer(f)}
-    />
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: "1 1 180px", minWidth: "160px" }}>
+      <ZonaSoltar
+        icono="📄"
+        titulo={etiqueta}
+        ayuda="Arrastra uno o varios pedidos (PDF o foto). Se leen en este equipo y quedan en la cola de pedidos: de cada uno eliges qué datos se aplican y si crea un expediente nuevo."
+        multiple
+        ocupado={leyendo}
+        textoOcupado={textoProgreso}
+        alSoltar={(f) => leer(f)}
+      />
+      <OpcionVentanaPedido />
+    </div>
   );
 }

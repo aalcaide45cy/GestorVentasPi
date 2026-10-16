@@ -161,8 +161,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
           <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
         </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          <BotonPlegar abierto={panelAbierto} alternar={alternarPanel} titulo="Detalle y Resumen Estadístico" />
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button type="button" className="btn btn-secondary" onClick={() => mover(-1)} style={botonMes}>
             ⬅ Mes Anterior
           </button>
@@ -194,6 +193,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
               </option>
             ))}
           </select>
+          <BotonPlegar abierto={panelAbierto} alternar={alternarPanel} titulo="Detalle y Resumen Estadístico" />
         </div>
       </div>
 

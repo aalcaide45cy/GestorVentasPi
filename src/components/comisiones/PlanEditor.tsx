@@ -41,7 +41,7 @@ const PLAN_VACIO = (): Plan => {
   const ultimo = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
   return {
     idPlan: 0,
-    nombre: `Plan ${mes}`,
+    nombre: nombreMes(mes),
     fechaInicio: `${mes}-01`,
     fechaFin: `${mes}-${String(ultimo).padStart(2, "0")}`,
     estado: "borrador",
@@ -75,9 +75,50 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
   const [pestana, setPestana] = useState<IdPestana>("resumen");
   const [guardando, setGuardando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
+  // Fechas bloqueadas por defecto: con el candado cerrado solo se cambian con las flechas
+  const [fechasBloqueadas, setFechasBloqueadas] = useState(true);
+  // Si el usuario escribe un nombre propio en esta sesión, el nombre deja de seguir al mes
+  const [nombreManual, setNombreManual] = useState(false);
 
   const hayCambios = useMemo(() => JSON.stringify(plan) !== guardado, [plan, guardado]);
   const setPlan = (cambio: (p: Plan) => Plan) => setPlanEstado((p) => cambio(p));
+
+  /** Nombre automático: «Julio 2026», «Copia de Julio 2026» (plan copiado) o el antiguo «Plan AAAA-MM». Un nombre propio («Plan especial») no lo es. */
+  const esNombreAutomatico = (n: string) => {
+    const t = n.trim();
+    if (t === "" || /^Plan \d{4}-\d{2}$/.test(t)) return true;
+    return /^(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre) \d{4}$/.test(t.replace(/^Copia de /i, ""));
+  };
+  const siguePorMes = (p: Plan) => !nombreManual && esNombreAutomatico(p.nombre);
+
+  /** Si las fechas son un mes natural completo y el nombre es automático, el nombre sigue al mes. */
+  const nombreSegunFechas = (p: Plan): Plan => {
+    const ini = /^(\d{4})-(\d{2})-01$/.exec(p.fechaInicio);
+    if (!ini || !siguePorMes(p)) return p;
+    const ultimo = new Date(Number(ini[1]), Number(ini[2]), 0).getDate();
+    return p.fechaFin === `${ini[1]}-${ini[2]}-${String(ultimo).padStart(2, "0")}` ? { ...p, nombre: nombreMes(`${ini[1]}-${ini[2]}`) } : p;
+  };
+
+  /** Fija el plan a un mes natural (día 1 al último día) y, si el nombre es automático, lo pone al mes («Septiembre 2026»). */
+  const fijarMes = (anio: number, mes0: number) => {
+    const m = new Date(anio, mes0, 1);
+    const clave = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}`;
+    const ultimo = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    setPlan((p) => ({
+      ...p,
+      nombre: siguePorMes(p) ? nombreMes(clave) : p.nombre,
+      fechaInicio: `${clave}-01`,
+      fechaFin: `${clave}-${String(ultimo).padStart(2, "0")}`,
+    }));
+  };
+  const moverMes = (delta: -1 | 1) => {
+    const base = /^\d{4}-\d{2}/.test(plan.fechaInicio) ? plan.fechaInicio : new Date().toISOString().slice(0, 7);
+    fijarMes(Number(base.slice(0, 4)), Number(base.slice(5, 7)) - 1 + delta);
+  };
+  const mesActual = () => {
+    const hoy = new Date();
+    fijarMes(hoy.getFullYear(), hoy.getMonth());
+  };
 
   const guardar = async () => {
     setGuardando(true);
@@ -97,6 +138,7 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
   };
 
   const props = { plan, setPlan, cat };
+  const estiloFlecha: React.CSSProperties = { padding: "4px 12px", opacity: fechasBloqueadas ? 0.45 : 1, cursor: fechasBloqueadas ? "not-allowed" : "pointer" };
   const campoCabecera = { display: "flex", alignItems: "center", gap: "12px" } as const;
   const etiquetaCabecera = { color: "var(--text-secondary)", fontSize: "0.95rem", minWidth: "72px" } as const;
   return (
@@ -110,16 +152,24 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
           </div>
           <div style={campoCabecera}>
             <label style={etiquetaCabecera}>Nombre:</label>
-            <input className="form-input" style={{ width: "min(420px, 80vw)", fontSize: "1.05rem", fontWeight: 600 }} value={plan.nombre} onChange={(e) => setPlan((p) => ({ ...p, nombre: e.target.value }))} />
+            <input className="form-input" style={{ width: "min(420px, 80vw)", fontSize: "1.05rem", fontWeight: 600 }} value={plan.nombre} onChange={(e) => { setNombreManual(!esNombreAutomatico(e.target.value)); setPlan((p) => ({ ...p, nombre: e.target.value })); }} />
           </div>
           <div style={{ ...campoCabecera, flexWrap: "wrap", gap: "12px 20px" }}>
             <span style={campoCabecera}>
               <label style={etiquetaCabecera}>F. Inicio:</label>
-              <input className="form-input" type="date" style={{ width: "165px" }} value={plan.fechaInicio} onChange={(e) => setPlan((p) => ({ ...p, fechaInicio: e.target.value }))} />
+              <input className="form-input" type="date" disabled={fechasBloqueadas} style={{ width: "165px" }} value={plan.fechaInicio} onChange={(e) => setPlan((p) => nombreSegunFechas({ ...p, fechaInicio: e.target.value }))} />
             </span>
             <span style={campoCabecera}>
               <label style={{ ...etiquetaCabecera, minWidth: 0 }}>F. Fin:</label>
-              <input className="form-input" type="date" style={{ width: "165px" }} value={plan.fechaFin} onChange={(e) => setPlan((p) => ({ ...p, fechaFin: e.target.value }))} />
+              <input className="form-input" type="date" disabled={fechasBloqueadas} style={{ width: "165px" }} value={plan.fechaFin} onChange={(e) => setPlan((p) => nombreSegunFechas({ ...p, fechaFin: e.target.value }))} />
+            </span>
+            <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px" }} onClick={() => setFechasBloqueadas((b) => !b)} title={fechasBloqueadas ? "Fechas bloqueadas: pulsa para escribirlas a mano" : "Fechas desbloqueadas: pulsa para bloquearlas"}>
+              {fechasBloqueadas ? "🔒" : "🔓"}
+            </button>
+            <span style={{ display: "flex", gap: "6px" }}>
+              <button type="button" className="btn btn-secondary" style={estiloFlecha} disabled={fechasBloqueadas} onClick={() => moverMes(-1)} title={fechasBloqueadas ? "Desbloquea el candado para mover las fechas" : "Mes anterior"}>←</button>
+              <button type="button" className="btn btn-secondary" style={estiloFlecha} disabled={fechasBloqueadas} onClick={mesActual} title={fechasBloqueadas ? "Desbloquea el candado para mover las fechas" : "Mes actual"}>Actual</button>
+              <button type="button" className="btn btn-secondary" style={estiloFlecha} disabled={fechasBloqueadas} onClick={() => moverMes(1)} title={fechasBloqueadas ? "Desbloquea el candado para mover las fechas" : "Mes siguiente"}>→</button>
             </span>
           </div>
         </div>

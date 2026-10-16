@@ -33,7 +33,7 @@ export const PUT = manejar(async (req: Request) => {
   if (!crudo.expediente) return errorJson(400, "Faltan datos obligatorios para actualizar");
   const adaptado = crudo.isBulkEdit
     ? { modo: "lote", ids: crudo.ids, expediente: crudo.expediente }
-    : { modo: "uno", id_expediente: crudo.id_expediente, id_cliente: crudo.id_cliente, expediente: crudo.expediente };
+    : { modo: "uno", id_expediente: crudo.id_expediente, id_cliente: crudo.id_cliente, cliente: crudo.cliente ?? undefined, expediente: crudo.expediente };
   const entrada = esquemaActualizarExpediente.parse(adaptado);
   const r = await actualizarExpedientes(db, usuario, entrada);
   return NextResponse.json(
@@ -44,6 +44,7 @@ export const PUT = manejar(async (req: Request) => {
           ? `${r.actualizados} expedientes actualizados correctamente`
           : "Expediente actualizado correctamente",
       impactos: r.impactos,
+      cliente: r.cliente ?? null,
     },
     { status: 200 },
   );

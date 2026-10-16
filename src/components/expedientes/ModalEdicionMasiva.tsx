@@ -1,5 +1,6 @@
 "use client";
 
+import FechaRapida from "@/components/FechaRapida";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 
@@ -84,7 +85,7 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
   );
 
   const fecha = (valor: string, fijar: (v: string) => void) => (
-    <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />
+    <FechaRapida valor={valor} alCambiar={fijar} />
   );
 
   return (

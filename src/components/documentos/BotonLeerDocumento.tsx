@@ -1,5 +1,6 @@
 "use client";
 
+import { permitirDuplicadosAhora } from "@/lib/preferencias";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { textoError } from "@/components/comisiones/api";
@@ -18,11 +19,12 @@ interface Props<T> {
   /** Datos leídos de cada fichero: la pantalla rellena sus campos con ellos. */
   alLeer: (resultado: T) => void | Promise<void>;
   disabled?: boolean;
+  compacta?: boolean;
 }
 
 /** Sube un fichero al servidor, que lo lee con OCR local y devuelve los datos. */
 async function leerFichero<T>(tipo: Tipo, f: File): Promise<T> {
-  const r = await fetch(`/api/documentos/leer?tipo=${tipo}&nombre=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: AbortSignal.timeout(285_000) }).catch((e: unknown) => {
+  const r = await fetch(`/api/documentos/leer?tipo=${tipo}&nombre=${encodeURIComponent(f.name)}${permitirDuplicadosAhora() ? "&duplicados=permitir" : ""}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: AbortSignal.timeout(285_000) }).catch((e: unknown) => {
     throw new Error(e instanceof DOMException && e.name === "TimeoutError" ? "La lectura ha tardado demasiado. Prueba con otro documento o rellena los datos a mano." : "No se pudo contactar con el servidor.");
   });
   const json = (await r.json().catch(() => ({}))) as { message?: string; data?: T };
@@ -34,7 +36,7 @@ async function leerFichero<T>(tipo: Tipo, f: File): Promise<T> {
 export const leerPedidoDeFichero = (f: File): Promise<ResultadoPedido> => leerFichero<ResultadoPedido>("pedido", f);
 
 /** Cuadro para arrastrar un DNI o un pedido: se lee en este equipo y se devuelven los datos para rellenar la ficha. */
-function ZonaLeer<T>({ tipo, titulo, ayuda, icono, multiple, alLeer, disabled }: Props<T>) {
+function ZonaLeer<T>({ tipo, titulo, ayuda, icono, multiple, alLeer, disabled, compacta }: Props<T>) {
   const { mostrar } = useToast();
   const [leyendo, setLeyendo] = useState(false);
 
@@ -50,16 +52,16 @@ function ZonaLeer<T>({ tipo, titulo, ayuda, icono, multiple, alLeer, disabled }:
     }
   };
 
-  return <ZonaSoltar icono={icono} titulo={titulo} ayuda={ayuda} multiple={multiple} ocupado={leyendo} disabled={disabled} alSoltar={procesar} />;
+  return <ZonaSoltar icono={icono} titulo={titulo} ayuda={ayuda} multiple={multiple} ocupado={leyendo} disabled={disabled} compacta={compacta} alSoltar={procesar} />;
 }
 
 type PropsPublicas<T> = Omit<Props<T>, "tipo" | "titulo" | "ayuda" | "icono" | "multiple"> & { etiqueta?: string };
 
 export const BotonLeerDni = (p: PropsPublicas<ResultadoDni>) => (
-  <ZonaLeer<ResultadoDni> tipo="dni" icono="🪪" titulo={p.etiqueta ?? "Leer DNI"} ayuda="Arrastra la foto o el PDF del DNI (puedes soltar anverso y reverso a la vez). Se lee en este equipo, rellena los datos del cliente y guarda su foto." multiple alLeer={p.alLeer} disabled={p.disabled} />
+  <ZonaLeer<ResultadoDni> tipo="dni" icono="🪪" titulo={p.etiqueta ?? "Leer DNI"} ayuda="Arrastra la foto o el PDF del DNI (puedes soltar anverso y reverso a la vez). Se lee en este equipo, rellena los datos del cliente y guarda su foto." multiple alLeer={p.alLeer} disabled={p.disabled} compacta={p.compacta} />
 );
 export const BotonLeerPedido = (p: PropsPublicas<ResultadoPedido>) => (
-  <ZonaLeer<ResultadoPedido> tipo="pedido" icono="📄" titulo={p.etiqueta ?? "Leer pedido"} ayuda="Arrastra el pedido (PDF o foto). Se lee en este equipo y rellena los datos del cliente y del expediente." alLeer={p.alLeer} disabled={p.disabled} />
+  <ZonaLeer<ResultadoPedido> tipo="pedido" icono="📄" titulo={p.etiqueta ?? "Leer pedido"} ayuda="Arrastra el pedido (PDF o foto). Se lee en este equipo y rellena los datos del cliente y del expediente." alLeer={p.alLeer} disabled={p.disabled} compacta={p.compacta} />
 );
 
 /** Vincula adjuntos subidos antes de guardar (pendientes) al cliente o expediente ya creado. */
@@ -101,7 +103,7 @@ export function ZonaDocumentosVarios({ destino, alSubir, disabled }: { destino?:
       setSubiendo(false);
     }
   };
-  return <ZonaSoltar icono="📎" titulo="Documentos varios" ayuda="Arrastra aquí todos los documentos que quieras guardar (PDF o imágenes). Solo se guardan, no se leen." multiple ocupado={subiendo} disabled={disabled} alSoltar={procesar} />;
+  return <ZonaSoltar icono="📎" titulo="Documentos varios" ayuda="Arrastra aquí todos los documentos que quieras guardar (PDF o imágenes). Solo se guardan, no se leen." multiple ocupado={subiendo} disabled={disabled} compacta alSoltar={procesar} />;
 }
 
 /** Lista de documentos ya subidos pero aún no vinculados (alta de un cliente o expediente), con opción de quitarlos. */

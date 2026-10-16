@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdQuery, manejar } from "@/lib/http";
-import { borrarCopia, crearCopia, estadoCopias, leerAjustesCopias, listarCopias } from "@/lib/servicios/copias";
+import { borrarCopia, borrarCopiasInvalidas, crearCopia, estadoCopias, leerAjustesCopias, listarCopias } from "@/lib/servicios/copias";
 import { borrarEnDrive, estadoDrive, subirCopiaADrive } from "@/lib/servicios/drive";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,20 @@ export const POST = manejar(async (req: Request) => {
 
 export const DELETE = manejar(async (req: Request) => {
   const admin = await requireSession("administrador");
+  // «Borrar las copias inválidas»: quita las copias vacías o rotas (no sirven para restaurar)
+  if (new URL(req.url).searchParams.get("invalidas") === "1") {
+    const { borradas, driveFileIds } = await borrarCopiasInvalidas(db);
+    let aviso: string | null = null;
+    if (driveFileIds.length > 0) {
+      try {
+        await borrarEnDrive(db, driveFileIds);
+      } catch {
+        aviso = "Se borraron las copias locales, pero no se pudieron borrar las de Google Drive.";
+      }
+    }
+    await auditar({ idUsuario: admin.idUsuario, accion: "copias_invalidas_borradas", entidad: "copias_seguridad", detalle: { borradas } });
+    return NextResponse.json({ success: true, borradas, aviso });
+  }
   const id = leerIdQuery(req);
   if (!id) return errorJson(400, "Falta el ID de la copia");
   const { driveFileId } = await borrarCopia(db, id);

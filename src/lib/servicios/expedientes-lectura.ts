@@ -1,9 +1,10 @@
 import { desc } from "drizzle-orm";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
-import { clientes, expedientes, tipoDeVenta } from "@/db/schema";
+import { clientes, expedientes, rejillas, tipoDeVenta, validacionesComision } from "@/db/schema";
 import type { ExpedienteDto } from "@/lib/dto";
 import { aDto, leerFila, relacionesExpediente } from "./expedientes";
+import { comprobarRejilla } from "./rejillas";
 
 export async function obtenerExpediente(ej: Ejecutor, id: number): Promise<ExpedienteDto | null> {
   const e = await leerFila(ej, id);
@@ -28,7 +29,27 @@ export async function listarExpedientes(ej: Ejecutor, opciones: { limite?: numbe
     with: relacionesExpediente,
     limit: opciones.limite,
   });
-  return filas.map(aDto);
+  // «Comisionado»: lo que dice el Cotejo de pagos. Un coche cuenta como pagado si en alguna hoja guardada cuadra con la liquidación
+  // (verde) o si el vendedor lo marcó como pagado a mano; «reclamado» si lo marcó como reclamado a la empresa.
+  const porExpediente = new Map<number, { estado: "pagado" | "reclamado"; mes: string }>();
+  const registrar = (id: number, estado: "pagado" | "reclamado", mes: string) => {
+    const actual = porExpediente.get(id);
+    // Gana «pagado» sobre «reclamado»; entre iguales, el mes más reciente
+    if (!actual || (actual.estado === "reclamado" && estado === "pagado") || (actual.estado === estado && mes > actual.mes)) porExpediente.set(id, { estado, mes });
+  };
+  const manuales = await ej
+    .select({ id: validacionesComision.idExpediente, mes: validacionesComision.mes, estado: validacionesComision.estado })
+    .from(validacionesComision)
+    .where(sql`${validacionesComision.estado} in ('pagado', 'reclamado')`);
+  for (const v of manuales) registrar(v.id, v.estado as "pagado" | "reclamado", v.mes);
+  const hojas = await ej.select({ idUsuario: rejillas.idUsuario, mes: rejillas.mes }).from(rejillas);
+  for (const h of hojas) {
+    const r = await comprobarRejilla(ej, h.idUsuario, h.mes).catch(() => null);
+    for (const f of r?.filas ?? []) {
+      if (f.idExpediente !== null && (f.validacion === "pagado" || f.validacion === "reclamado")) registrar(f.idExpediente, f.validacion, h.mes);
+    }
+  }
+  return filas.map((f) => ({ ...aDto(f), comisionado: porExpediente.get(f.idExpediente) ?? null }));
 }
 
 /** Expedientes de un cliente (para el modal «Expedientes de …»). */

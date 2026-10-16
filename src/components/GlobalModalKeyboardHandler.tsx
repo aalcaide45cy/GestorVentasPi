@@ -19,6 +19,14 @@ function buscarModal(): HTMLElement | null {
   return encontrado;
 }
 
+/** Un botón con `data-tecla="escape"` o `data-tecla="enter"` manda sobre el reparto por texto. */
+function pulsarMarcado(modal: HTMLElement, tecla: "escape" | "enter"): boolean {
+  const b = modal.querySelector<HTMLButtonElement>(`button[data-tecla="${tecla}"]:not([disabled])`);
+  if (!b) return false;
+  b.click();
+  return true;
+}
+
 function pulsar(modal: HTMLElement, patron: RegExp): boolean {
   for (const b of modal.querySelectorAll<HTMLButtonElement>("button:not([disabled])")) {
     const texto = (b.textContent ?? "").replace(/[^\p{L}\p{N}\s]/gu, "").trim();
@@ -30,7 +38,7 @@ function pulsar(modal: HTMLElement, patron: RegExp): boolean {
   return false;
 }
 
-/** Esc pulsa cancelar/cerrar; Enter pulsa el botón principal (salvo en campos de varias líneas). */
+/** Esc pulsa cancelar/cerrar; Enter pulsa el botón principal (salvo en campos de varias líneas, desplegables y botones). */
 export default function GlobalModalKeyboardHandler() {
   useEffect(() => {
     function alPulsar(e: KeyboardEvent) {
@@ -38,11 +46,11 @@ export default function GlobalModalKeyboardHandler() {
       const modal = buscarModal();
       if (!modal) return;
       if (e.key === "Escape") {
-        if (pulsar(modal, RE_CANCELAR)) e.preventDefault();
+        if (pulsarMarcado(modal, "escape") || pulsar(modal, RE_CANCELAR)) e.preventDefault();
         return;
       }
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLButtonElement) return;
-      if (pulsar(modal, RE_ACEPTAR)) e.preventDefault();
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLButtonElement || e.target instanceof HTMLSelectElement) return;
+      if (pulsarMarcado(modal, "enter") || pulsar(modal, RE_ACEPTAR)) e.preventDefault();
     }
     document.addEventListener("keydown", alPulsar);
     return () => document.removeEventListener("keydown", alPulsar);

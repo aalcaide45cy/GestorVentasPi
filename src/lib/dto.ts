@@ -96,6 +96,12 @@ export interface ExpedienteDto {
   cobrado_otra_fecha: boolean;
   fecha_cobrado: string | null;
   comision_cobrada: boolean;
+  /** Solo en el listado: si la comisión de este expediente ya se ha pagado o reclamado según el Cotejo de pagos. */
+  /** Si es un duplicado hecho con «Duplicar»: expediente del que se copió. */
+  copia_de?: number | null;
+  /** La copia lleva la etiqueta visible «COPIA». */
+  copia_etiqueta?: boolean;
+  comisionado?: { estado: "pagado" | "reclamado"; mes: string } | null;
   comision_coche_cobrada: boolean;
   comision_usado_cobrada: boolean;
   comision_financiacion_cobrada: boolean;

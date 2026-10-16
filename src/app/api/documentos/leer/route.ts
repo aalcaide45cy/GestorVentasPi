@@ -20,6 +20,6 @@ export const POST = manejar(async (req: Request) => {
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
   const datos = Buffer.from(await req.arrayBuffer());
   const nombre = q.get("nombre") ?? "documento";
-  const resultado = tipo === "dni" ? await leerDni(db, u.idUsuario, nombre, datos) : await leerPedido(db, u.idUsuario, nombre, datos);
+  const resultado = tipo === "dni" ? await leerDni(db, u.idUsuario, nombre, datos) : await leerPedido(db, u.idUsuario, nombre, datos, q.get("duplicados") === "permitir");
   return NextResponse.json({ success: true, data: resultado });
 });
