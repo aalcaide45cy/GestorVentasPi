@@ -361,6 +361,10 @@ export default function Sidebar({ user, version }: SidebarProps) {
                 <line x1="12" y1="1" x2="12" y2="23" />
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </EnlaceNav>
+              <EnlaceNav href="/dashboard/cotejo-pagos" titulo="Cotejo de pagos" colapsado={isCollapsed}>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </EnlaceNav>
               <EnlaceNav href="/dashboard/informes" titulo="Informes" colapsado={isCollapsed}>
                 <line x1="18" y1="20" x2="18" y2="10" />
                 <line x1="12" y1="20" x2="12" y2="4" />

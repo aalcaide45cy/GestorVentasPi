@@ -246,3 +246,9 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Pedidos en PDF escaneado (JBIG2) leídos por OCR; columnas separadas.
 - Alias de modelos (R5, R4…) y modelos enseñados por el usuario (`alias_modelos`).
 - Aviso de expediente duplicado al leer un pedido.
+
+## Cotejo de pagos y contraste de listados (16/10/2026, sin publicar)
+
+- Pantalla **Cotejo de pagos**: subir rejillas escaneadas, revisar matrículas, guardar por mes y ver el cotejo en verde/amarillo/rojo (+ gris sin rejilla). Probado con las 9 rejillas reales: 58 de 68 matrículas exactas y el resto marcadas para revisar; el cotejo con los 2 listados señala 2 coches sin pagar en julio de 2026.
+- Botón **Contrastar listado** en Expedientes (solo lectura).
+- Pruebas: 342 en verde (nuevas: `cotejo-pagos`, `contraste-listado`, `servicios/cotejo`).

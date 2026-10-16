@@ -24,6 +24,8 @@ import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
+import ModalContrasteListado from "./expedientes/ModalContrasteListado";
+import { leerListadoVentas, type ResultadoContraste } from "@/lib/contraste-listado";
 import ModalConflictoExcel, { type ConflictoExcel } from "./expedientes/ModalConflictoExcel";
 import ModalEdicionMasiva, { type CambiosMasivos } from "./expedientes/ModalEdicionMasiva";
 import ResumenMensual, { MESES } from "./expedientes/ResumenMensual";
@@ -263,6 +265,7 @@ export default function ExpedientesList({
   }, [filtrosListos, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
 
   const [importandoExcel, setImportandoExcel] = useState(false);
+  const [contraste, setContraste] = useState<{ archivo: string; resultado: ResultadoContraste } | null>(null);
   const [nombreExcel, setNombreExcel] = useState("");
   const [conflictos, setConflictos] = useState<ConflictoExcel[]>([]);
   const [indiceConflicto, setIndiceConflicto] = useState(0);
@@ -546,6 +549,30 @@ export default function ExpedientesList({
     }
   };
 
+  /** Compara un listado de ventas (Excel) con los expedientes. Solo lee: no cambia nada. */
+  const contrastarListado = async (ev: ChangeEvent<HTMLInputElement>) => {
+    const archivo = ev.target.files?.[0];
+    const entrada = ev.target;
+    if (!archivo) return;
+    setImportandoExcel(true);
+    try {
+      const filas = leerListadoVentas(await leerArchivo<ArrayBuffer>(archivo, "binario"));
+      const res = await fetch("/api/expedientes/contrastar-listado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filas }),
+      });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al contrastar el listado."));
+      const { resultado } = (await res.json()) as { resultado: ResultadoContraste };
+      setContraste({ archivo: archivo.name, resultado });
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "Error al contrastar el listado.", "error");
+    } finally {
+      setImportandoExcel(false);
+      entrada.value = "";
+    }
+  };
+
   const avanzarConflicto = (nuevas: ActualizacionExcel[]) => {
     setActualizaciones(nuevas);
     if (indiceConflicto + 1 < conflictos.length) setIndiceConflicto(indiceConflicto + 1);
@@ -819,6 +846,15 @@ export default function ExpedientesList({
           >
             🟢 Importar Datos Excel
             <input type="file" accept=".xlsx, .xls" onChange={importarExcel} style={{ display: "none" }} disabled={importandoExcel || cargando} />
+          </label>
+
+          <label
+            className="btn btn-secondary"
+            style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+            title="Compara un listado de ventas en Excel con tus expedientes, sin cambiar nada"
+          >
+            🔎 Contrastar listado
+            <input type="file" accept=".xlsx, .xls" onChange={contrastarListado} style={{ display: "none" }} disabled={importandoExcel || cargando} />
           </label>
 
           {mostrarBotonesCsv && (
@@ -1324,6 +1360,8 @@ export default function ExpedientesList({
           alAvisar={(m) => mostrar(m, "error")}
         />
       )}
+
+      {contraste && <ModalContrasteListado nombreArchivo={contraste.archivo} resultado={contraste.resultado} alCerrar={() => setContraste(null)} />}
 
       {conflictos.length > 0 && conflictos[indiceConflicto] && (
         <ModalConflictoExcel
