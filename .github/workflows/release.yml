@@ -4,6 +4,13 @@ name: Publicar versión
 on:
   push:
     tags: ["v*"]
+  # Disparo manual: publica la versión indicada (crea la etiqueta vX.Y.Z sobre la rama elegida)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión a publicar, sin la v (por ejemplo 1.0.7)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -23,7 +30,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Versión
         id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        env:
+          VERSION_MANUAL: ${{ inputs.version }}
+        run: |
+          if [ -n "$VERSION_MANUAL" ]; then echo "version=${VERSION_MANUAL#v}" >> "$GITHUB_OUTPUT"; else echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"; fi
       - name: Imagen amd64 + arm64
         uses: docker/build-push-action@v6
         with:
@@ -45,4 +55,6 @@ jobs:
           ./scripts/empaquetar.sh "${{ steps.v.outputs.version }}" --pi
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
           files: dist-instalador/*
