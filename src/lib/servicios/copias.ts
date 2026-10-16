@@ -218,8 +218,13 @@ export async function sincronizarCarpeta(ej: Ejecutor): Promise<void> {
     const m = NOMBRE_VALIDO.exec(nombre);
     if (!m || conocidas.has(nombre)) continue;
     const ruta = path.join(/*turbopackIgnore: true*/ dir, nombre);
-    const st = statSync(/*turbopackIgnore: true*/ ruta);
-    await ej.insert(copiasSeguridad).values({ nombre, tipo: m[1], tamano: st.size, sha256: await sha256DeFichero(ruta), creadaEn: st.mtime }).onConflictDoNothing();
+    try {
+      const st = statSync(/*turbopackIgnore: true*/ ruta);
+      await ej.insert(copiasSeguridad).values({ nombre, tipo: m[1], tamano: st.size, sha256: await sha256DeFichero(ruta), creadaEn: st.mtime }).onConflictDoNothing();
+    } catch (e) {
+      // Fichero ilegible (p. ej. copia previa creada por el instalador con otro propietario): se omite sin romper la lista
+      console.error(`No se pudo registrar la copia ${nombre}:`, e instanceof Error ? e.message : e);
+    }
   }
 }
 

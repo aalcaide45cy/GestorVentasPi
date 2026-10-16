@@ -483,7 +483,7 @@ copia_antes_de_actualizar() {
   # shellcheck disable=SC1091
   . "$DIR/.env"
   if dc exec -T db pg_dump -Fc -Z 6 --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB" > "$f"; then
-    chmod 600 "$f"; verde "Copia previa: $f"
+    chmod 600 "$f"; chown 1000:1000 "$f" 2>/dev/null || true; verde "Copia previa: $f"
   else
     rm -f "$f"; fallar "No se pudo hacer la copia previa. No se actualiza."
   fi
