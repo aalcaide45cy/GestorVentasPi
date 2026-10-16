@@ -22,7 +22,9 @@ interface Props<T> {
 
 /** Sube un fichero al servidor, que lo lee con OCR local y devuelve los datos. */
 async function leerFichero<T>(tipo: Tipo, f: File): Promise<T> {
-  const r = await fetch(`/api/documentos/leer?tipo=${tipo}&nombre=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin" });
+  const r = await fetch(`/api/documentos/leer?tipo=${tipo}&nombre=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: AbortSignal.timeout(200_000) }).catch((e: unknown) => {
+    throw new Error(e instanceof DOMException && e.name === "TimeoutError" ? "La lectura ha tardado demasiado. Prueba con otro documento o rellena los datos a mano." : "No se pudo contactar con el servidor.");
+  });
   const json = (await r.json().catch(() => ({}))) as { message?: string; data?: T };
   if (!r.ok || !json.data) throw new Error(json.message ?? `Error ${r.status}`);
   return json.data;

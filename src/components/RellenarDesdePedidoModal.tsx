@@ -17,6 +17,10 @@ export type CambiosExpediente = Partial<Pick<ExpedienteDto, CampoRelleno>> & { i
 interface Props {
   expediente: ExpedienteDto;
   pedido: ResultadoPedido;
+  /** Posición en la cola de pedidos y navegación entre ellos. */
+  posicion?: number;
+  total?: number;
+  alIr?: (delta: -1 | 1) => void;
   alCerrar: () => void;
   alTerminar: (cambios: CambiosExpediente, mensaje: string) => void;
 }
@@ -30,7 +34,7 @@ const ETIQUETAS: Record<CampoRelleno, string> = { vin: "Bastidor", matricula: "M
  * Pedido soltado sobre un expediente ya creado (p. ej. con los botones de acceso rápido): propone rellenar bastidor, matrícula,
  * fechas y cliente con los datos del pedido. Lo que ya está rellenado y es distinto no se pisa salvo que se marque.
  */
-export default function RellenarDesdePedidoModal({ expediente, pedido, alCerrar, alTerminar }: Props) {
+export default function RellenarDesdePedidoModal({ expediente, pedido, posicion = 1, total = 1, alIr, alCerrar, alTerminar }: Props) {
   const { mostrar } = useToast();
   const d = pedido.datos;
   const nuevos: Record<CampoRelleno, string | null> = { vin: d.vin, matricula: d.matricula, fecha_expediente: d.fechaExpediente, fecha_entrega: d.fechaEntrega };
@@ -122,12 +126,27 @@ export default function RellenarDesdePedidoModal({ expediente, pedido, alCerrar,
 
   return (
     <Modal
-      titulo="📄 Completar el expediente con el pedido"
+      titulo={
+        <span style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          📄 Completar el expediente con el pedido
+          {total > 1 && alIr && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 500, color: "var(--text-secondary)" }}>
+              <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px" }} disabled={posicion <= 1 || trabajando} onClick={() => alIr(-1)}>
+                ‹
+              </button>
+              {posicion} de {total}
+              <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px" }} disabled={posicion >= total || trabajando} onClick={() => alIr(1)}>
+                ›
+              </button>
+            </span>
+          )}
+        </span>
+      }
       ancho="680px"
       pie={
         <>
           <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>
-            Cancelar
+            Cerrar (queda en la cola)
           </button>
           <button type="button" className="btn btn-primary" onClick={() => void aplicarCambios()} disabled={trabajando || cliente === null}>
             {trabajando ? "Guardando…" : "Completar expediente"}
@@ -136,6 +155,13 @@ export default function RellenarDesdePedidoModal({ expediente, pedido, alCerrar,
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        {d.retoma && (
+          <div style={{ padding: "10px 12px", borderLeft: "4px solid var(--info)", background: "var(--bg-surface-tint)", fontSize: "0.88rem" }}>
+            🔁 <strong>Lleva vehículo de retoma</strong>
+            {d.retoma.matricula ? ` (matrícula ${d.retoma.matricula})` : ""}
+            {d.retoma.texto ? `: ${d.retoma.texto}` : ""}. Esa matrícula no se usa en el expediente.
+          </div>
+        )}
         {campos.length > 0 ? (
           <div className="table-container">
             <table className="table-premium table-compact">

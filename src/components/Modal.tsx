@@ -43,7 +43,7 @@ export default function Modal({ titulo, children, pie, ancho = "400px", peligro 
           width: "100%",
           maxWidth: ancho,
           maxHeight: "90vh",
-          overflowY: "auto",
+          overflow: "hidden",
           padding: "32px",
           display: "flex",
           flexDirection: "column",
@@ -53,8 +53,9 @@ export default function Modal({ titulo, children, pie, ancho = "400px", peligro 
         }}
       >
         <h3 style={{ fontSize: tamanoTitulo, color: "var(--text-primary)", margin: 0 }}>{titulo}</h3>
-        {children && <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>{children}</div>}
-        {pie && <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>{pie}</div>}
+        {/* Con mucho contenido solo se desplaza el cuerpo: el título y los botones del pie siempre se ven */}
+        {children && <div style={{ display: "flex", flexDirection: "column", gap: "16px", overflowY: "auto", minHeight: 0, flex: "1 1 auto", paddingRight: "4px" }}>{children}</div>}
+        {pie && <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px", flexWrap: "wrap", flexShrink: 0 }}>{pie}</div>}
       </div>
     </div>
   );

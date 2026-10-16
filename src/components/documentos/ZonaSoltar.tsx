@@ -10,12 +10,14 @@ interface Props {
   multiple?: boolean;
   /** Muestra «trabajando…» y no admite más ficheros. */
   ocupado?: boolean;
+  /** Texto que se ve mientras está ocupado (por defecto «Leyendo…»). */
+  textoOcupado?: string;
   disabled?: boolean;
   alSoltar: (ficheros: File[]) => void | Promise<void>;
 }
 
 /** Cuadro para arrastrar ficheros encima o pulsar para elegirlos (imágenes y PDF). */
-export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocupado = false, disabled = false, alSoltar }: Props) {
+export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocupado = false, textoOcupado = "Leyendo…", disabled = false, alSoltar }: Props) {
   const entrada = useRef<HTMLInputElement>(null);
   const [encima, setEncima] = useState(false);
   const inactivo = disabled || ocupado;
@@ -66,7 +68,7 @@ export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocu
       }}
     >
       <span style={{ fontSize: "1.6rem" }}>{ocupado ? "⏳" : icono}</span>
-      <strong style={{ fontSize: "0.85rem" }}>{ocupado ? "Leyendo…" : titulo}</strong>
+      <strong style={{ fontSize: "0.85rem" }}>{ocupado ? textoOcupado : titulo}</strong>
       <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Arrastra aquí o pulsa para elegir</span>
       <input
         ref={entrada}
