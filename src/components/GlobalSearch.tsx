@@ -88,7 +88,7 @@ export default function GlobalSearch() {
   const total = sugerencias.clientes.length + sugerencias.expedientes.length;
 
   return (
-    <div ref={containerRef} style={{ position: "relative", width: "320px" }}>
+    <div ref={containerRef} className="buscador-global" style={{ position: "relative", width: "320px" }}>
       <form onSubmit={enviar} style={{ display: "flex", alignItems: "center", position: "relative", width: "100%" }}>
         <input
           type="text"

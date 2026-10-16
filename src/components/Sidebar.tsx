@@ -1,12 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import BotonApagar from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { usePreferencia } from "@/lib/preferencias";
+import { fijarMenuAbierto, useMovil } from "@/lib/movil";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
 
 interface SidebarProps {
@@ -75,8 +76,16 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavPro
 
 export default function Sidebar({ user, version }: SidebarProps) {
   const [colapsadoGuardado, guardarColapsado] = usePreferencia("sidebar-collapsed");
-  const isCollapsed = colapsadoGuardado === "true";
+  const movil = useMovil();
+  // En móvil el menú es un cajón: siempre con textos (la preferencia de colapsar solo vale en escritorio)
+  const isCollapsed = colapsadoGuardado === "true" && !movil;
   const router = useRouter();
+  const ruta = usePathname();
+
+  // Al cambiar de página el cajón del móvil se cierra
+  useEffect(() => {
+    fijarMenuAbierto(false);
+  }, [ruta]);
 
   const toggleSidebar = () => guardarColapsado(String(!isCollapsed));
 
@@ -99,8 +108,10 @@ export default function Sidebar({ user, version }: SidebarProps) {
   };
 
   return (
+    <>
+    <div className="menu-fondo" onClick={() => fijarMenuAbierto(false)} aria-hidden="true" />
     <aside
-      className="glass-panel"
+      className="glass-panel app-sidebar"
       style={{
         width: asideWidth,
         minHeight: "calc(100vh - 32px)",
@@ -118,8 +129,13 @@ export default function Sidebar({ user, version }: SidebarProps) {
         overflow: "visible",
       }}
     >
-      {/* Botón flotante de colapsar */}
+      <button type="button" className="cerrar-menu-movil" onClick={() => fijarMenuAbierto(false)} title="Cerrar el menú" aria-label="Cerrar el menú">
+        ✕
+      </button>
+
+      {/* Botón flotante de colapsar (solo escritorio) */}
       <button
+        className="sidebar-colapsar"
         onClick={toggleSidebar}
         style={{
           position: "absolute",
@@ -419,5 +435,6 @@ export default function Sidebar({ user, version }: SidebarProps) {
         </div>
       </div>
     </aside>
+    </>
   );
 }

@@ -14,6 +14,9 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | 🟨 preparada; faltan las pruebas en la Pi (rama `fase/F7-rendimiento`) | Ver detalle abajo |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
+## v1.0.8 — adaptación a móvil (16/10/2026)
+- Interfaz adaptable a móvil y tableta (menú en cajón, rejillas y tablas flexibles); escritorio sin cambios.
+
 ## v1.0.7 — cambios tras la primera entrega (16/10/2026)
 - Lectura de pedidos: tiempo máximo por lectura y OCR limitado a 3 hojas (evita que un PDF largo bloquee la cola).
 - Botones Reiniciar equipo y Forzar actualización (el reinicio necesita que la Raspberry ejecute `sudo gv actualizar` una vez para instalar el servicio).

@@ -22,6 +22,7 @@ export default function Modal({ titulo, children, pie, ancho = "400px", peligro 
     <div
       role="dialog"
       aria-modal="true"
+      className="modal-fondo"
       style={{
         position: "fixed",
         top: 0,
@@ -38,7 +39,7 @@ export default function Modal({ titulo, children, pie, ancho = "400px", peligro 
       }}
     >
       <div
-        className="glass-panel"
+        className="glass-panel modal-panel"
         style={{
           width: "100%",
           maxWidth: ancho,
