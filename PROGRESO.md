@@ -14,6 +14,9 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | 🟨 preparada; faltan las pruebas en la Pi (rama `fase/F7-rendimiento`) | Ver detalle abajo |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
+## v1.0.14 — corrección de BBDD (16/10/2026)
+- Configuración → BBDD ya no da «Error interno del servidor» cuando hay copias previas ilegibles; las copias previas del instalador se crean con el propietario de la app.
+
 ## v1.0.9 — adaptación a móvil (16/10/2026)
 - Interfaz adaptable a móvil y tableta (menú en cajón, rejillas y tablas flexibles); escritorio sin cambios.
 
