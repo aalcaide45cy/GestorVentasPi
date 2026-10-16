@@ -6,7 +6,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { ExpedienteDto, MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { abrirDeCola, colaVacia, leerCola, quitarDeCola, suscribirCola, vaciarCola } from "@/lib/pedidos-cola";
+import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola } from "@/lib/pedidos-cola";
 import PedidoRapidoModal from "./PedidoRapidoModal";
 import RellenarDesdePedidoModal from "./RellenarDesdePedidoModal";
 
@@ -25,6 +25,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   const { mostrar } = useToast();
   const estado = useSyncExternalStore(suscribirCola, leerCola, colaVacia);
   const { items, abierto } = estado;
+  const lectura = useSyncExternalStore(suscribirLectura, leerLectura, () => null);
   const indice = items.findIndex((i) => i.id === abierto);
   const actual = indice >= 0 ? items[indice] : null;
 
@@ -68,7 +69,8 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     <div className="glass-panel" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <h3 style={{ fontSize: "1.05rem" }}>
-          📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length})</span>
+          📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length} de {MAXIMO_COLA})</span>
+          {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…</span>}
         </h3>
         <div style={{ display: "flex", gap: "8px" }}>
           <button type="button" className="btn btn-primary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => abrirDeCola(items[0].id)}>
@@ -89,7 +91,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0 }}>
         Los pedidos leídos esperan aquí hasta que los apliques: puedes cerrar la ventana de un pedido y volver a abrirlo cuando quieras.
       </p>
-      <div className="table-container">
+      <div className="table-container" style={{ maxHeight: "420px", overflowY: "auto" }}>
         <table className="table-premium table-compact">
           <thead>
             <tr>

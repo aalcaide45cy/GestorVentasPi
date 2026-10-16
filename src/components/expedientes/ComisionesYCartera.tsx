@@ -6,6 +6,7 @@ import { useCarga } from "@/components/comisiones/useCarga";
 import type { ResultadoMes } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
+import { usePreferencia } from "@/lib/preferencias";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -26,6 +27,21 @@ export function firmaExpedientes(lista: ExpedienteDto[]): string {
     for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   }
   return `${lista.length}-${(h >>> 0).toString(36)}`;
+}
+
+/** Estado plegado/desplegado de un panel, recordado en este navegador (por defecto, desplegado). */
+export function usePlegable(clave: string): { abierto: boolean; alternar: () => void } {
+  const [guardado, guardar] = usePreferencia(`panel-${clave}`);
+  const abierto = guardado !== "cerrado";
+  return { abierto, alternar: () => guardar(abierto ? "cerrado" : "abierto") };
+}
+
+export function BotonPlegar({ abierto, alternar, titulo }: { abierto: boolean; alternar: () => void; titulo: string }) {
+  return (
+    <button type="button" onClick={alternar} aria-expanded={abierto} title={abierto ? `Plegar «${titulo}»` : `Desplegar «${titulo}»`} className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.85rem" }}>
+      {abierto ? "▾ Plegar" : "▸ Desplegar"}
+    </button>
+  );
 }
 
 const ETIQUETA_CONCEPTO: Record<string, string> = { coche_vn: "Coche", vo: "VO", financiacion: "Financiación", preference: "Preference / BOX3" };
@@ -130,15 +146,21 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
   const pago = desplazar(anio, mes, 1);
   const pagoAnterior = desplazar(previoReal.anio, previoReal.mes, 1);
 
+  const { abierto, alternar } = usePlegable("comisiones");
   return (
     <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div>
-        <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>💶 Comisiones</h4>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>
-          Lo que generas en un mes se cobra en la nómina del mes siguiente. Se recalcula solo al poner fechas de matriculación (o de facturación, cobro, RCI…).
-        </p>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div>
+          <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>💶 Comisiones</h4>
+          {abierto && (
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>
+              Lo que generas en un mes se cobra en la nómina del mes siguiente. Se recalcula solo al poner fechas de matriculación (o de facturación, cobro, RCI…).
+            </p>
+          )}
+        </div>
+        <BotonPlegar abierto={abierto} alternar={alternar} titulo="Comisiones" />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
+      {abierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
         <TarjetaComision
           titulo="Mes elegido (llevas generado)"
           mesTexto={etiquetaMes(anio, mes)}
@@ -156,7 +178,7 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
           cargado={anterior !== undefined}
           porId={porId}
         />
-      </div>
+      </div>}
     </div>
   );
 }
@@ -179,6 +201,7 @@ function estadoCartera(e: ExpedienteDto): keyof typeof ESTADOS_CARTERA {
  */
 export function PanelCartera({ anio, mes, expedientes }: { anio: number; mes: number; expedientes: ExpedienteDto[] }) {
   const [pendientesAntiguos, setPendientesAntiguos] = useState(false);
+  const { abierto, alternar } = usePlegable("cartera");
   const previo = desplazar(anio, mes, -1);
   const inicio = aIso(previo.anio, previo.mes);
   const lista = (() => {
@@ -198,18 +221,23 @@ export function PanelCartera({ anio, mes, expedientes }: { anio: number; mes: nu
             Expedientes con fecha de pedido en ese mes. La afectación (bastidor de fábrica) es la fecha clave. Pulsa uno para abrirlo.
           </p>
         </div>
-        <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem", cursor: "pointer" }}>
-          <input type="checkbox" checked={pendientesAntiguos} onChange={(e) => setPendientesAntiguos(e.target.checked)} />
-          Añadir pendientes de matricular de meses anteriores
-        </label>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          {abierto && (
+            <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem", cursor: "pointer" }}>
+              <input type="checkbox" checked={pendientesAntiguos} onChange={(e) => setPendientesAntiguos(e.target.checked)} />
+              Añadir pendientes de matricular de meses anteriores
+            </label>
+          )}
+          <BotonPlegar abierto={abierto} alternar={alternar} titulo="Cartera" />
+        </div>
       </div>
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "0.85rem" }}>
+      {abierto && <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "0.85rem" }}>
         <strong>{lista.length} en total</strong>
         <span style={{ color: ESTADOS_CARTERA.sinAfectar.color }}>● {cuenta.sinAfectar} sin afectar</span>
         <span style={{ color: ESTADOS_CARTERA.sinMatricular.color }}>● {cuenta.sinMatricular} afectados, sin matricular</span>
         <span style={{ color: ESTADOS_CARTERA.matriculado.color }}>● {cuenta.matriculado} matriculados</span>
-      </div>
-      {lista.length === 0 ? (
+      </div>}
+      {abierto && (lista.length === 0 ? (
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>No hay expedientes con fecha de pedido en ese mes.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
@@ -245,7 +273,7 @@ export function PanelCartera({ anio, mes, expedientes }: { anio: number; mes: nu
             </tbody>
           </table>
         </div>
-      )}
+      ))}
     </div>
   );
 }

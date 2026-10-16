@@ -5,7 +5,7 @@ import { useCarga } from "@/components/comisiones/useCarga";
 import type { ExpedienteDto } from "@/lib/dto";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
-import { PanelCartera, PanelComisiones, firmaExpedientes } from "./ComisionesYCartera";
+import { BotonPlegar, PanelCartera, PanelComisiones, firmaExpedientes, usePlegable } from "./ComisionesYCartera";
 
 const MESES = [
   "Enero",
@@ -118,6 +118,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
     return { ...total, listas };
   }, [expedientes, anio, mes]);
 
+  const { abierto: panelAbierto, alternar: alternarPanel } = usePlegable("resumen");
   const [abierto, setAbierto] = useState<string | null>(null);
   const alternar = (clave: string) => setAbierto((a) => (a === clave ? null : clave));
 
@@ -161,6 +162,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
           <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <BotonPlegar abierto={panelAbierto} alternar={alternarPanel} titulo="Detalle y Resumen Estadístico" />
           <button type="button" className="btn btn-secondary" onClick={() => mover(-1)} style={botonMes}>
             ⬅ Mes Anterior
           </button>
@@ -195,7 +197,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
+      {panelAbierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
         <div className="glass-panel-interactive" {...tarjeta("afectados")}>
           <span style={estiloEtiqueta}>AFECTADOS EN EL MES</span>
           <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{r.afectados}</h3>
@@ -242,9 +244,9 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
           <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{m ? euros(m.neto) : "—"}</h3>
           <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{m ? "Neta; se cobra en la nómina del mes siguiente" : "Sin plan de comisionamiento"}</span>
         </div>
-      </div>
+      </div>}
 
-      {lista && (
+      {panelAbierto && lista && (
         <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
           <h5 style={{ margin: "0 0 10px 0", fontSize: "0.95rem" }}>
             {TITULOS[abierto ?? ""]} ({lista.length})
@@ -284,7 +286,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
       )}
 
-      {detalleMotor && (
+      {panelAbierto && detalleMotor && (
         <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", fontSize: "0.9rem", display: "flex", flexDirection: "column", gap: "6px" }}>
           {m ? (
             <>

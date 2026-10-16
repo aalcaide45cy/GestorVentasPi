@@ -450,8 +450,17 @@ select, select option {
   }
 
   /* Rejillas definidas en línea: se reparten según el ancho disponible (1 columna en móvil) */
-  [style*="grid-template-columns"] {
+  [style*="grid-template-columns"]:not(.rejilla-propia) {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)) !important;
+  }
+  .laboratorio-totales {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .laboratorio-panel {
+    right: 8px !important;
+    bottom: 8px !important;
+    width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
   }
 
   /* Ventanas emergentes casi a pantalla completa */

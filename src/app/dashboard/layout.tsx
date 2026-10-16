@@ -2,9 +2,11 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 import BotonMenuMovil from "@/components/BotonMenuMovil";
+import LaboratorioComisiones from "@/components/LaboratorioComisiones";
 import Sidebar from "@/components/Sidebar";
 import { versionDeLaApp } from "@/lib/version";
 import { ToastProvider } from "@/components/Toast";
+import { esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
 
 export const dynamic = "force-dynamic";
@@ -113,6 +115,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           {children}
         </main>
+
+        {esRolActivo(normalizarRol(user.rol)) && <LaboratorioComisiones esAdministrador={esAdministrador(normalizarRol(user.rol))} />}
       </div>
     </ToastProvider>
   );
