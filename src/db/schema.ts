@@ -55,6 +55,20 @@ export const modelos = pgTable(
   (t) => [index("modelos_marca_idx").on(t.marcaId)],
 );
 
+/** Correcciones enseñadas al leer pedidos: texto del pedido (normalizado) → modelo del catálogo. */
+export const aliasModelos = pgTable(
+  "alias_modelos",
+  {
+    id: serial("id").primaryKey(),
+    alias: text("alias").notNull(),
+    idModelo: integer("id_modelo")
+      .notNull()
+      .references(() => modelos.idModelo, { onDelete: "cascade" }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("alias_modelos_alias_uq").on(t.alias)],
+);
+
 export const tipoDeVenta = pgTable("tipo_de_venta", {
   idTipoDeVenta: serial("id_tipo_de_venta").primaryKey(),
   nombreTipoVenta: text("nombre_tipo_venta").notNull(),

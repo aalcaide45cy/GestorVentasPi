@@ -67,7 +67,14 @@ export interface LineaOcr {
   confianza: number;
 }
 
-export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico"; confianzaMinima?: number } = {}): Promise<LineaOcr[]> {
+/** Une las palabras de una línea; un hueco grande entre dos palabras (otra columna de la hoja) se marca con dos espacios. */
+function unirPalabrasConColumnas(palabras: { text: string; confidence: number; bbox: { x0: number; x1: number; y0: number; y1: number } }[], confianzaMinima?: number): string {
+  const validas = palabras.filter((w) => confianzaMinima === undefined || w.confidence >= confianzaMinima);
+  const alto = Math.max(1, ...validas.map((w) => w.bbox.y1 - w.bbox.y0));
+  return validas.map((w, i) => (i === 0 ? w.text : `${w.bbox.x0 - validas[i - 1].bbox.x1 > alto * 1.5 ? "  " : " "}${w.text}`)).join("");
+}
+
+export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico"; confianzaMinima?: number; columnas?: boolean } = {}): Promise<LineaOcr[]> {
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("spa", 1, { langPath: carpetaIdioma(), gzip: true, cacheMethod: "none" });
   try {
@@ -79,8 +86,8 @@ export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string
         for (const parrafo of bloque.paragraphs) {
           for (const l of parrafo.lines) {
             // Con confianza mínima solo cuentan las palabras bien reconocidas: lo escrito a mano sale con poca confianza
-            const texto = opciones.confianzaMinima !== undefined && l.words?.length ? l.words.filter((w) => w.confidence >= (opciones.confianzaMinima as number)).map((w) => w.text).join(" ") : l.text;
-            const t = texto.replace(/\s+/g, " ").trim();
+            const texto = opciones.columnas && l.words?.length ? unirPalabrasConColumnas(l.words, opciones.confianzaMinima) : opciones.confianzaMinima !== undefined && l.words?.length ? l.words.filter((w) => w.confidence >= (opciones.confianzaMinima as number)).map((w) => w.text).join(" ") : l.text;
+            const t = (opciones.columnas ? texto.replace(/ {3,}/g, "  ").replace(/[^\S ]+/g, " ") : texto.replace(/\s+/g, " ")).trim();
             if (t) lineas.push({ texto: t, confianza: Math.round(l.confidence) });
           }
         }
@@ -124,9 +131,9 @@ const calidad = (lineas: LineaOcr[]): number => lineas.filter((l) => l.confianza
  * OCR de páginas que pueden venir giradas (un escáner o el móvil las dejan de lado o del revés): si el texto leído es
  * pobre, se prueban los otros tres giros y se queda el que más texto fiable da.
  */
-export async function ocrOrientado(imagenes: Buffer[], opciones: { ignorarManuscrito?: boolean } = {}): Promise<LineaOcr[]> {
+export async function ocrOrientado(imagenes: Buffer[], opciones: { ignorarManuscrito?: boolean; columnas?: boolean } = {}): Promise<LineaOcr[]> {
   const todas: LineaOcr[] = [];
-  const ocr = opciones.ignorarManuscrito ? { confianzaMinima: CONFIANZA_IMPRESO } : {};
+  const ocr = { ...(opciones.ignorarManuscrito ? { confianzaMinima: CONFIANZA_IMPRESO } : {}), ...(opciones.columnas ? { columnas: true } : {}) };
   for (const bruta of imagenes) {
     const img = opciones.ignorarManuscrito ? await quitarTintaBoli(bruta) : bruta;
     let mejor = await ocrImagenes([img], ocr);
@@ -175,7 +182,7 @@ async function abrirPdf(datos: Buffer) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs")).href;
   try {
-    return await pdfjs.getDocument({ data: new Uint8Array(datos), useSystemFonts: false, standardFontDataUrl: `${path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts").replaceAll("\\", "/")}/`, verbosity: 0 }).promise;
+    return await pdfjs.getDocument({ data: new Uint8Array(datos), useSystemFonts: false, standardFontDataUrl: `${path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts").replaceAll("\\", "/")}/`, wasmUrl: `${path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "pdfjs-dist", "wasm").replaceAll("\\", "/")}/`, verbosity: 0 }).promise;
   } catch (e) {
     console.error("PDF no legible:", e instanceof Error ? e.message : e);
     throw new HttpError(400, "No se puede abrir el PDF (¿está dañado o protegido con contraseña?).");
@@ -272,13 +279,13 @@ export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {
     try {
-      if (tipo === "imagen") return { texto: (await ocrOrientado([datos])).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      if (tipo === "imagen") return { texto: (await ocrOrientado([datos], { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       const doc = await abrirPdf(datos);
       try {
         const paginas = Math.min(doc.numPages, MAX_PAGINAS);
         const texto = await textoDePaginas(doc, paginas);
         if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
-        return { texto: (await ocrOrientado(await paginasComoImagenes(doc, Math.min(paginas, MAX_PAGINAS_PEDIDO)))).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        return { texto: (await ocrOrientado(await paginasComoImagenes(doc, Math.min(paginas, MAX_PAGINAS_PEDIDO)), { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       } finally {
         await doc.cleanup?.();
       }

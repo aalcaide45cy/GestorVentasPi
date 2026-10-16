@@ -190,3 +190,23 @@ describe("retoma (vehículo usado que deja el cliente) y tipo de pedido", () => 
     expect(d.fechaExpediente).toBe("2026-10-06");
   });
 });
+
+describe("modelos abreviados", () => {
+  const cat = {
+    modelos: [
+      { id: 1, nombre: "Renault 5", marca: "Renault" },
+      { id: 2, nombre: "4", marca: "Renault" },
+      { id: 3, nombre: "Clio", marca: "Renault" },
+    ],
+    tiposVenta: [],
+  };
+  it.each([
+    ["Modelo:  R5 E-Tech 120cv  25.000,00 €", 1],
+    ["Modelo:  R 5 Iconic", 1],
+    ["Modelo:  RENAULT 4 E-TECH", 2],
+    ["Modelo:  R4 Evolution", 2],
+    ["Modelo:  RENAULT CLIO Techno", 3],
+  ])("%s", (linea, id) => {
+    expect(parsearPedido(["CLIENTE", linea].join("\n"), cat).idModelo).toBe(id);
+  });
+});

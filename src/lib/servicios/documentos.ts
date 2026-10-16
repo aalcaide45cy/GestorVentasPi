@@ -1,6 +1,10 @@
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import sharp from "sharp";
+import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { combinarDni, nombreCompleto, type DatosDni } from "@/lib/documentos/dni";
+import { aliasModelos, clientes, expedientes } from "@/db/schema";
+import { claveAprendizaje } from "@/lib/documentos/modelos";
 import { parsearPedido, type DatosPedido } from "@/lib/documentos/pedido";
 import type { RegionFoto } from "@/lib/documentos/tarjetas";
 import { HttpError } from "@/lib/auth/sesion";
@@ -26,8 +30,17 @@ export interface ResultadoDni {
   tarjetas: number;
 }
 
+export interface ExpedienteSimilar {
+  idExpediente: number;
+  motivo: string;
+  cliente: string | null;
+  fecha: string | null;
+}
+
 export interface ResultadoPedido {
   datos: DatosPedido;
+  /** Expedientes ya existentes que parecen ser este mismo pedido (solo aviso: no bloquea nada). */
+  similares: ExpedienteSimilar[];
   adjunto: AdjuntoDto;
   metodo: "texto-pdf" | "ocr";
 }
@@ -125,7 +138,59 @@ export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero:
   const parsed = parsearPedido(texto, {
     modelos: catalogos.modelos.map((m) => ({ id: m.id_modelo, nombre: m.nombre_modelo, marca: m.marca_id ? (marcas.get(m.marca_id) ?? null) : null })),
     tiposVenta: catalogos.tiposVenta.map((t) => ({ id: t.id_tipo_de_venta, nombre: t.nombre_tipo_venta, categoria: t.categoria })),
+    aliasModelos: (await ej.select({ alias: aliasModelos.alias, id: aliasModelos.idModelo }).from(aliasModelos)).map((a) => ({ alias: a.alias, id: a.id })),
   });
   const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
-  return { datos: parsed, adjunto, metodo };
+  const similares = await buscarExpedientesSimilares(ej, parsed);
+  if (similares.length > 0) parsed.avisos.unshift(`Ya existe un expediente que parece este pedido (nº ${similares[0].idExpediente}: ${similares[0].motivo}). Comprueba que no lo estás duplicando.`);
+  return { datos: parsed, similares, adjunto, metodo };
+}
+
+export const esquemaAprenderModelo = z.object({
+  texto: z.string().trim().min(2).max(300),
+  id_modelo: z.coerce.number().int().positive(),
+});
+
+/**
+ * «Enseña» a la aplicación que el texto de modelo de un pedido corresponde a un modelo del catálogo: queda guardado y
+ * se aplica en las lecturas siguientes. Devuelve la clave guardada (null si el texto no daba una clave útil).
+ */
+export async function aprenderModelo(ej: Ejecutor, entrada: z.infer<typeof esquemaAprenderModelo>): Promise<{ alias: string | null }> {
+  const catalogos = await leerCatalogos(ej);
+  if (!catalogos.modelos.some((m) => m.id_modelo === entrada.id_modelo)) throw new HttpError(404, "El modelo no existe.");
+  const alias = claveAprendizaje(entrada.texto, catalogos.marcas.map((m) => m.nombre));
+  if (!alias) return { alias: null };
+  await ej
+    .insert(aliasModelos)
+    .values({ alias, idModelo: entrada.id_modelo })
+    .onConflictDoUpdate({ target: aliasModelos.alias, set: { idModelo: entrada.id_modelo } });
+  return { alias };
+}
+
+const normalizar = (t: string) => t.replace(/[\s.-]/g, "").toUpperCase();
+
+/**
+ * Expedientes no eliminados que podrían ser el mismo pedido: mismo bastidor, misma matrícula, o mismo cliente (por DNI)
+ * con la misma fecha de pedido y el mismo modelo. Solo sirve para avisar.
+ */
+export async function buscarExpedientesSimilares(ej: Ejecutor, d: DatosPedido): Promise<ExpedienteSimilar[]> {
+  const condiciones = [];
+  if (d.vin) condiciones.push(sql`upper(replace(${expedientes.vin}, ' ', '')) = ${normalizar(d.vin)}`);
+  if (d.matricula) condiciones.push(sql`upper(replace(replace(${expedientes.matricula}, ' ', ''), '-', '')) = ${normalizar(d.matricula)}`);
+  if (d.dni && d.fechaExpediente && d.idModelo) {
+    condiciones.push(and(sql`upper(replace(replace(${clientes.dni}, ' ', ''), '-', '')) = ${normalizar(d.dni)}`, eq(expedientes.fechaExpediente, d.fechaExpediente), eq(expedientes.idModelo, d.idModelo)));
+  }
+  if (condiciones.length === 0) return [];
+  const filas = await ej
+    .select({ id: expedientes.idExpediente, vin: expedientes.vin, matricula: expedientes.matricula, cliente: clientes.nombre, fecha: expedientes.fechaExpediente })
+    .from(expedientes)
+    .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+    .where(and(isNull(expedientes.eliminadoEn), or(...condiciones)))
+    .limit(5);
+  return filas.map((f) => ({
+    idExpediente: f.id,
+    motivo: d.vin && f.vin && normalizar(f.vin) === normalizar(d.vin) ? "mismo bastidor" : d.matricula && f.matricula && normalizar(f.matricula) === normalizar(d.matricula) ? "misma matrícula" : "mismo cliente, fecha y modelo",
+    cliente: f.cliente,
+    fecha: f.fecha,
+  }));
 }

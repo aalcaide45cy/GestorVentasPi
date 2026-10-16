@@ -52,6 +52,7 @@ const nextConfig: NextConfig = {
       "./node_modules/@tesseract.js-data/spa/4.0.0_best_int/**/*",
       "./node_modules/pdfjs-dist/legacy/build/**/*",
       "./node_modules/pdfjs-dist/standard_fonts/**/*",
+      "./node_modules/pdfjs-dist/wasm/**/*",
       "./node_modules/@napi-rs/canvas*/**/*",
     ],
     "/api/comisiones/rejillas/ocr": [
@@ -62,6 +63,7 @@ const nextConfig: NextConfig = {
       "./node_modules/@tesseract.js-data/spa/4.0.0_best_int/**/*",
       "./node_modules/pdfjs-dist/legacy/build/**/*",
       "./node_modules/pdfjs-dist/standard_fonts/**/*",
+      "./node_modules/pdfjs-dist/wasm/**/*",
       "./node_modules/@napi-rs/canvas*/**/*",
     ],
   },

@@ -78,6 +78,13 @@
       "when": 1792108709464,
       "tag": "0010_cliente_direccion",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792148718493,
+      "tag": "0011_alias_modelos",
+      "breakpoints": true
     }
   ]
 }
