@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsearPedido } from "./pedido";
+import { parsearPedido, partirDomicilio } from "./pedido";
 
 const catalogo = {
   modelos: [
@@ -84,7 +84,9 @@ describe("pedido de vehículo nuevo de Renault/Dacia (datos inventados con la mi
       dni: "X1234567L",
       telefono: "600111222",
       email: "pedro.prueba@ejemplo.com",
-      domicilio: "Calle Inventada, 12, 3, B, Madrid, Madrid (28000)",
+      domicilio: "Calle Inventada, 12, 3, B",
+      poblacion: "Madrid",
+      codigoPostal: "28000",
       vendedor: "Vendedor Ejemplo Uno",
       fechaExpediente: "2026-10-08",
       plazoEntrega: { desde: "2026-10-12", hasta: "2026-10-23" },
@@ -132,5 +134,13 @@ describe("el descuento de financiación del pedido cambia el tipo de venta", () 
   it("sin descuento de financiación el tipo no se toca (aunque el texto cite «contado»)", () => {
     expect(parsearPedido(base(null), cat).idTipoDeVenta).toBeNull();
     expect(parsearPedido(base("Promociones:  DTO VENTA DIRECTA  -100,00 €"), cat).idTipoDeVenta).toBeNull();
+  });
+});
+
+describe("partirDomicilio", () => {
+  it("separa calle, población y código postal", () => {
+    expect(partirDomicilio("Calle Inventada, 12, 3, B, Madrid, Madrid (28000)")).toEqual({ domicilio: "Calle Inventada, 12, 3, B", poblacion: "Madrid", codigoPostal: "28000" });
+    expect(partirDomicilio("Calle Sol 4, Getafe, Madrid (28901)")).toEqual({ domicilio: "Calle Sol 4", poblacion: "Getafe", codigoPostal: "28901" });
+    expect(partirDomicilio(null)).toEqual({ domicilio: null, poblacion: null, codigoPostal: null });
   });
 });

@@ -25,6 +25,9 @@ export const esquemaCliente = z.object({
   dni: textoOpcional(50).optional(),
   nombre: z.string().trim().min(1, "Nombre es un campo obligatorio").max(255),
   fecha_de_nacimiento: fechaOpcional.optional(),
+  domicilio: textoOpcional(255).optional(),
+  poblacion: textoOpcional(120).optional(),
+  codigo_postal: textoOpcional(10).optional(),
   tienda_id: idOpcional.optional(),
   emails: z.array(esquemaEmail).max(50).optional(),
   telefonos: z.array(esquemaTelefono).max(50).optional(),
@@ -78,6 +81,9 @@ export async function crearCliente(
         dni: entrada.dni ?? null,
         nombre: entrada.nombre,
         fechaDeNacimiento: entrada.fecha_de_nacimiento ?? null,
+        domicilio: entrada.domicilio ?? null,
+        poblacion: entrada.poblacion ?? null,
+        codigoPostal: entrada.codigo_postal ?? null,
         tiendaId: entrada.tienda_id ?? tiendaPorDefecto,
       })
       .returning();
@@ -100,6 +106,10 @@ export async function actualizarCliente(ej: Ejecutor, id: number, entrada: Entra
         dni: entrada.dni ?? null,
         nombre: entrada.nombre,
         fechaDeNacimiento: entrada.fecha_de_nacimiento ?? null,
+        // La dirección solo se toca si viene en la petición (los formularios de expediente no la envían)
+        ...(entrada.domicilio !== undefined ? { domicilio: entrada.domicilio } : {}),
+        ...(entrada.poblacion !== undefined ? { poblacion: entrada.poblacion } : {}),
+        ...(entrada.codigo_postal !== undefined ? { codigoPostal: entrada.codigo_postal } : {}),
         tiendaId: entrada.tienda_id ?? null,
       })
       .where(eq(clientes.id, id));

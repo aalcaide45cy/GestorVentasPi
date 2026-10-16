@@ -39,6 +39,18 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
     }
   };
 
+  /** Abre una copia independiente del plan (sin guardar): mismos valores, como borrador, sin liquidaciones ni pendientes. */
+  const duplicar = async (p: ResumenPlan) => {
+    try {
+      const { data } = await llamar<Plan>(`/api/comisiones/planes?id=${p.idPlan}`);
+      const copia: Plan = { ...data, idPlan: 0, nombre: `Copia de ${data.nombre}`, estado: "borrador", pendientes: [], promociones: data.promociones.map((x) => ({ ...x, id: undefined })) };
+      setEditando({ plan: copia, solapados: [] });
+      mostrar("Copia del plan abierta: cambia el nombre y las fechas y pulsa «Guardar plan».", "exito");
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    }
+  };
+
   const borrar = async () => {
     if (!aBorrar) return;
     try {
@@ -164,6 +176,9 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
                   <td>{p.liquidaciones}</td>
                   <td style={{ display: "flex", gap: "6px" }}>
                     <BotonMini onClick={() => abrir(p)}>Abrir</BotonMini>
+                    <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => duplicar(p)}>
+                      Duplicar
+                    </BotonMini>
                     <BotonMini peligro onClick={() => setABorrar(p)}>
                       Eliminar
                     </BotonMini>

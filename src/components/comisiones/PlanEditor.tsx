@@ -71,7 +71,7 @@ const PLAN_VACIO = (): Plan => {
 export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolver }: Props) {
   const { mostrar } = useToast();
   const [plan, setPlanEstado] = useState<Plan>(inicial ?? PLAN_VACIO());
-  const [guardado, setGuardado] = useState(JSON.stringify(inicial ?? null));
+  const [guardado, setGuardado] = useState(JSON.stringify(inicial && inicial.idPlan !== 0 ? inicial : null));
   const [pestana, setPestana] = useState<IdPestana>("resumen");
   const [guardando, setGuardando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);

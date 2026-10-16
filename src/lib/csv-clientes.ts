@@ -5,13 +5,16 @@ export interface ClienteParaCsv {
   nombre: string | null;
   dni: string | null;
   fecha_de_nacimiento: string | null;
+  domicilio?: string | null;
+  poblacion?: string | null;
+  codigo_postal?: string | null;
   tiendaNombre: string;
   emails: { email: string; tipo_email: string | null }[];
   telefonos: { telefono: string; tipo_telefono: string | null }[];
   numExpedientes: number;
 }
 
-const CABECERAS = ["ID", "Nombre", "DNI", "Fecha Nacimiento", "Tienda", "Emails", "Telefonos", "Num Expedientes"];
+const CABECERAS = ["ID", "Nombre", "DNI", "Fecha Nacimiento", "Tienda", "Emails", "Telefonos", "Num Expedientes", "Domicilio", "Poblacion", "Codigo Postal"];
 
 /** CSV de clientes con BOM y `sep=;` (mismas columnas que la aplicación original). */
 export function construirCsvClientes(lista: ClienteParaCsv[]): string {
@@ -25,6 +28,9 @@ export function construirCsvClientes(lista: ClienteParaCsv[]): string {
     c.emails.map((e) => `${e.email}:${e.tipo_email || "Principal"}`).join("|"),
     c.telefonos.map((t) => `${t.telefono}:${t.tipo_telefono || "Principal"}`).join("|"),
     c.numExpedientes,
+    c.domicilio ?? "",
+    c.poblacion ?? "",
+    c.codigo_postal ?? "",
   ]);
   return "﻿" + ["sep=;", CABECERAS.join(";"), ...filas.map((f) => f.map(celda).join(";"))].join("\n");
 }

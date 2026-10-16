@@ -208,3 +208,9 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Dashboard: arrastrar un pedido sobre un modelo/pago crea el expediente y resuelve el cliente (crear, asociar o elegir).
 - `start.sh`: actualización automática en segundo plano (opción 11).
 - No comprobado en la Raspberry real: el servicio de actualización automática y el flujo de arrastre con pedidos reales. Sigue pendiente la foto del DNI que falla.
+
+## Después de la 1.0.3 (pendiente de publicar como 1.0.4)
+
+- Clientes: domicilio, población y código postal (migración 0010); el pedido los rellena.
+- Planes de comisionamiento: botón «Duplicar».
+

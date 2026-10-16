@@ -29,6 +29,9 @@ export function clienteDto(c: FilaCliente): ClienteDto {
     dni: c.dni,
     nombre: c.nombre,
     fecha_de_nacimiento: c.fechaDeNacimiento,
+    domicilio: c.domicilio,
+    poblacion: c.poblacion,
+    codigo_postal: c.codigoPostal,
     tienda_id: c.tiendaId,
     foto_id: c.fotoAdjuntoId,
     emails: (c.emails ?? []).map((e) => ({

@@ -9,6 +9,19 @@ import { buscarDniEnTexto, validarDni } from "./dni";
  * Modelo y forma de pago se comparan con los catálogos de la aplicación.
  */
 
+/**
+ * Separa «Calle X, 36, 4, B, Madrid, Madrid (28032)» en calle, población y código postal: el último trozo es la provincia
+ * con el código postal entre paréntesis y el anterior, la población.
+ */
+export function partirDomicilio(texto: string | null): { domicilio: string | null; poblacion: string | null; codigoPostal: string | null } {
+  if (!texto) return { domicilio: null, poblacion: null, codigoPostal: null };
+  const cp = texto.match(/\((\d{5})\)/)?.[1] ?? null;
+  const trozos = texto.replace(/\s*\(\d{5}\)\s*$/, "").split(",").map((t) => t.trim()).filter(Boolean);
+  if (trozos.length >= 3) return { domicilio: trozos.slice(0, -2).join(", "), poblacion: trozos[trozos.length - 2], codigoPostal: cp };
+  if (trozos.length === 2) return { domicilio: trozos[0], poblacion: trozos[1], codigoPostal: cp };
+  return { domicilio: trozos[0] ?? null, poblacion: null, codigoPostal: cp };
+}
+
 export interface CatalogoPedido {
   modelos: { id: number; nombre: string; marca: string | null }[];
   tiposVenta: { id: number; nombre: string; categoria: string }[];
@@ -23,7 +36,10 @@ export interface DatosPedido {
   cliente: string | null;
   telefono: string | null;
   email: string | null;
+  /** Calle y número (sin población ni código postal). */
   domicilio: string | null;
+  poblacion: string | null;
+  codigoPostal: string | null;
   /** Vendedor que figura en el pedido. */
   vendedor: string | null;
   fechaExpediente: string | null;
@@ -226,7 +242,7 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     cliente,
     telefono: estructura?.telefono ?? null,
     email: estructura?.email ?? null,
-    domicilio: estructura?.domicilio ?? null,
+    ...partirDomicilio(estructura?.domicilio ?? null),
     vendedor: estructura?.vendedor ?? null,
     fechaExpediente,
     fechaEntrega,

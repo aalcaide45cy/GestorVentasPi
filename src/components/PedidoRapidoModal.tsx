@@ -90,6 +90,9 @@ export default function PedidoRapidoModal({ pedido, eleccion, marcas, tiposVenta
           cuerpo: {
             nombre: d.cliente,
             dni: d.dni,
+            domicilio: d.domicilio,
+            poblacion: d.poblacion,
+            codigo_postal: d.codigoPostal,
             emails: d.email ? [{ email: d.email, tipo: "Principal" }] : [],
             telefonos: d.telefono ? [{ telefono: d.telefono, tipo: "Principal" }] : [],
           },
@@ -153,6 +156,8 @@ export default function PedidoRapidoModal({ pedido, eleccion, marcas, tiposVenta
           {fila("DNI / NIE", d.dni)}
           {fila("Teléfono", d.telefono)}
           {fila("Email", d.email)}
+          {fila("Domicilio", d.domicilio)}
+          {fila("Población", [d.codigoPostal, d.poblacion].filter(Boolean).join(" ") || null)}
           {fila("Vehículo", d.modeloTexto)}
           {fila("Bastidor", d.vin)}
           {fila("Matrícula", d.matricula)}
@@ -198,7 +203,7 @@ export default function PedidoRapidoModal({ pedido, eleccion, marcas, tiposVenta
               <div style={{ padding: "10px 12px", borderLeft: "4px solid var(--warning)", background: "var(--bg-surface-tint)", fontSize: "0.9rem" }}>
                 ⚠️ <strong>{d.cliente ?? "El cliente del pedido"}</strong> no está creado todavía. ¿Quieres crearlo?
               </div>
-              {d.cliente && opcion("nuevo", "Sí, crear el cliente con los datos del pedido", "Nombre, DNI, teléfono y correo del pedido; se le pone tu tienda predeterminada y se asigna al expediente.")}
+              {d.cliente && opcion("nuevo", "Sí, crear el cliente con los datos del pedido", "Nombre, DNI, teléfono, correo y dirección del pedido; se le pone tu tienda predeterminada y se asigna al expediente.")}
               {opcion("ninguno", "No, crear el expediente sin cliente")}
             </>
           ) : (

@@ -76,6 +76,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [dni, setDni] = useState("");
   const [nombre, setNombre] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [domicilio, setDomicilio] = useState("");
+  const [poblacion, setPoblacion] = useState("");
+  const [codigoPostal, setCodigoPostal] = useState("");
   const [tiendaId, setTiendaId] = useState("");
   const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
   const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
@@ -95,6 +98,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     setDni("");
     setNombre("");
     setFechaNacimiento("");
+    setDomicilio("");
+    setPoblacion("");
+    setCodigoPostal("");
     setTiendaId(tiendaPredeterminadaId ? String(tiendaPredeterminadaId) : "");
     setEmails([contactoVacio()]);
     setTelefonos([contactoVacio()]);
@@ -108,6 +114,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     setDni(c.dni ?? "");
     setNombre(c.nombre ?? "");
     setFechaNacimiento(c.fecha_de_nacimiento ?? "");
+    setDomicilio(c.domicilio ?? "");
+    setPoblacion(c.poblacion ?? "");
+    setCodigoPostal(c.codigo_postal ?? "");
     setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
     setEmails(emailsDeCliente(c));
     setTelefonos(telefonosDeCliente(c));
@@ -130,6 +139,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           dni: dni.trim() || null,
           nombre,
           fecha_de_nacimiento: fechaNacimiento || null,
+          domicilio: domicilio.trim() || null,
+          poblacion: poblacion.trim() || null,
+          codigo_postal: codigoPostal.trim() || null,
           tienda_id: tiendaId ? Number(tiendaId) : null,
           emails: emailsOk.map((e) => ({ email: e.valor.trim(), tipo: e.tipo })),
           telefonos: telefonosOk.map((t) => ({ telefono: t.valor.trim(), tipo: t.tipo })),
@@ -152,7 +164,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
         setClientes((prev) =>
           prev.map((c) =>
             c.id === seleccionado.id
-              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
+              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, domicilio: domicilio.trim() || null, poblacion: poblacion.trim() || null, codigo_postal: codigoPostal.trim() || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
               : c,
           ),
         );
@@ -721,6 +733,20 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Nombre Completo *</label>
                 <input type="text" className="form-input" placeholder="Ej. María López" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Domicilio</label>
+              <input type="text" className="form-input" maxLength={255} value={domicilio} onChange={(e) => setDomicilio(e.target.value)} placeholder="Calle, número, piso…" autoComplete="off" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Población</label>
+                <input type="text" className="form-input" maxLength={120} value={poblacion} onChange={(e) => setPoblacion(e.target.value)} autoComplete="off" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Código postal</label>
+                <input type="text" className="form-input" inputMode="numeric" maxLength={10} value={codigoPostal} onChange={(e) => setCodigoPostal(e.target.value)} autoComplete="off" />
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>

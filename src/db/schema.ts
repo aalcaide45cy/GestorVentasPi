@@ -159,6 +159,10 @@ export const clientes = pgTable(
     dni: varchar("dni", { length: 50 }),
     nombre: varchar("nombre", { length: 255 }),
     fechaDeNacimiento: date("fecha_de_nacimiento"),
+    /** Dirección postal (para informes por zona): calle y número, población y código postal. */
+    domicilio: varchar("domicilio", { length: 255 }),
+    poblacion: varchar("poblacion", { length: 120 }),
+    codigoPostal: varchar("codigo_postal", { length: 10 }),
     tiendaId: integer("tienda_id").references(() => tiendas.idTienda),
     /** Adjunto (miniatura) con la cara del cliente, tomada del DNI. */
     fotoAdjuntoId: integer("foto_adjunto_id"),
