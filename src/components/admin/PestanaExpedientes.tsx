@@ -2,8 +2,25 @@
 
 import { useToast } from "@/components/Toast";
 import { TAMANOS_PAGINA } from "@/components/expedientes/BarraPaginacion";
+import {
+  CLAVE_FILTROS_PREDEFINIDOS,
+  CLAVE_RECORDAR_FILTROS,
+  TIPOS_FECHA_FILTRO,
+  leerPredefinidos,
+  type FiltrosPredefinidos,
+} from "@/lib/filtros-expedientes";
 import { usePreferencia } from "@/lib/preferencias";
 import { estiloPanel } from "./utilidades";
+
+const NOMBRES_FECHA: Record<(typeof TIPOS_FECHA_FILTRO)[number], string> = {
+  fecha_expediente: "Fecha de expediente",
+  fecha_comisionado: "Fecha de comisionado",
+  fecha_afectacion: "Fecha de afectación",
+  fecha_matriculacion: "Fecha de matriculación",
+  fecha_entrega: "Fecha de entrega",
+  fecha_rci: "Fecha RCI",
+  fecha_cobrado: "Fecha de cobro",
+};
 
 /** Pestaña «Expedientes»: paginación por defecto de la lista (se guarda en el navegador). */
 export default function PestanaExpedientes() {
@@ -15,6 +32,26 @@ export default function PestanaExpedientes() {
     guardar(String(t));
     mostrar(`Paginación por defecto establecida en ${t} expedientes.`);
   };
+
+  const [predefinidosGuardados, guardarPredefinidos] = usePreferencia(CLAVE_FILTROS_PREDEFINIDOS);
+  const predefinidos = leerPredefinidos(predefinidosGuardados);
+  const cambiarPredefinido = <K extends keyof FiltrosPredefinidos>(campo: K, valor: FiltrosPredefinidos[K]) => {
+    guardarPredefinidos(JSON.stringify({ ...predefinidos, [campo]: valor }));
+    mostrar("Filtros predefinidos actualizados.");
+  };
+  const [recordarGuardado, guardarRecordar] = usePreferencia(CLAVE_RECORDAR_FILTROS);
+  const recordar = recordarGuardado === "true";
+
+  const casilla = (etiqueta: string, ayuda: string, marcada: boolean, alCambiar: (v: boolean) => void) => (
+    <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer" }}>
+      <input type="checkbox" checked={marcada} onChange={(e) => alCambiar(e.target.checked)} style={{ marginTop: "3px" }} />
+      <span>
+        <strong style={{ color: "var(--text-primary)" }}>{etiqueta}</strong>
+        <br />
+        <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{ayuda}</span>
+      </span>
+    </label>
+  );
 
   return (
     <div className="glass-panel" style={{ ...estiloPanel, gap: "28px" }}>
@@ -73,6 +110,42 @@ export default function PestanaExpedientes() {
             Actualmente configurado en <strong style={{ color: "var(--primary)" }}>{tamano}</strong> expedientes por página. Este valor se aplica al cargar la pestaña de expedientes por primera vez.
           </span>
         </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "18px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>🔍 Filtros predefinidos de la lista</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>
+            Filtros que se aplican al abrir la lista de expedientes. Puedes cambiarlos o limpiarlos después desde la propia lista.
+          </p>
+        </div>
+        {casilla("Solo mis expedientes", "Filtra por el comercial que ha iniciado sesión.", predefinidos.soloMios, (v) => cambiarPredefinido("soloMios", v))}
+        {casilla("Ocultar entregados", "No muestra los expedientes que ya tienen fecha de entrega.", predefinidos.ocultarEntregados, (v) => cambiarPredefinido("ocultarEntregados", v))}
+        {casilla("Solo el mes actual", "Filtra por el mes y el año en curso, según el campo de fecha elegido.", predefinidos.mesActual, (v) => cambiarPredefinido("mesActual", v))}
+        {casilla("Solo el año actual", "Filtra por el año en curso (no hace falta si ya has marcado el mes actual).", predefinidos.anioActual, (v) => cambiarPredefinido("anioActual", v))}
+        <label style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          <strong style={{ color: "var(--text-primary)" }}>Campo de fecha</strong>
+          <select className="form-input" value={predefinidos.tipoFecha} onChange={(e) => cambiarPredefinido("tipoFecha", e.target.value)} style={{ padding: "8px", maxWidth: "260px" }}>
+            {TIPOS_FECHA_FILTRO.map((t) => (
+              <option key={t} value={t}>
+                {NOMBRES_FECHA[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>💾 Recordar el filtro al refrescar</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>
+            Si está activado, la lista conserva los filtros que tengas puestos aunque recargues la página. Si no, siempre arranca con los filtros predefinidos.
+          </p>
+        </div>
+        {casilla("Recordar filtros entre recargas", recordar ? "Activado: se conserva el último filtro usado." : "Desactivado: se aplican los filtros predefinidos.", recordar, (v) => {
+          guardarRecordar(v ? "true" : "false");
+          mostrar(v ? "La lista recordará el filtro al refrescar." : "La lista volverá a los filtros predefinidos al refrescar.");
+        })}
       </div>
     </div>
   );
