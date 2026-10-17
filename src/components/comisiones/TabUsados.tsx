@@ -40,15 +40,9 @@ export default function TabUsados({ plan, setPlan }: PropsPestana) {
 
       <Seccion
         titulo="Cómo cuentan los usados"
-        ayuda="Usado, KM0, Demo y Buyback son lo mismo: coches de ocasión (VO). Elige cuándo cuenta cada uno y si suma puntos al objetivo del vendedor. Qué estados son nuevos o usados se define en Configuración › Estados."
+        ayuda="Usado, KM0, Demo y Buyback son lo mismo: coches de ocasión (VO). Un usado cuenta en el mes de su fecha de facturación. Aquí eliges si suma puntos al objetivo del vendedor. Qué estados son nuevos o usados se define en Configuración › Estados."
       >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px" }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Fecha que hace contar a un usado</label>
-            <select className="form-input" value={plan.voFecha} onChange={(e) => setPlan((p) => ({ ...p, voFecha: e.target.value as "cobro" | "facturacion" }))} title="Un usado cuenta en el mes de su fecha de facturación">
-              <option value="facturacion">Fecha de facturación (cuando ya está facturado)</option>
-            </select>
-          </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Puntos de los usados</label>
             <select className="form-input" value={plan.voPuntosModo} onChange={(e) => setPlan((p) => ({ ...p, voPuntosModo: e.target.value as "cuentan" | "no" }))} title="Si cada usado suma puntos al objetivo X del vendedor o solo da comisión">

@@ -91,7 +91,7 @@ export function extraer(plan: PlanEditable, cat: CatalogoNombres, comps: Compone
   if (tiene("promociones")) f.promociones = plan.promociones.map((p) => ({ nombre: p.nombre, puntosEspeciales: p.puntosEspeciales, minimoUnidades: p.minimoUnidades, puntosSiNoCumple: p.puntosSiNoCumple }));
   if (tiene("puntosModelo")) f.puntosModelo = plan.puntosModelo.flatMap((p) => { const m = modelo(p.idModelo); return m ? [{ ...m, puntos: p.puntos }] : []; });
   if (tiene("tarifasVN")) f.tarifasVN = plan.tarifasVN.flatMap((t) => { const m = modelo(t.idModelo); return m ? [{ ...m, tasaCumplida: t.tasaCumplida, importes: { ...t.importes }, activo: t.activo, orden: t.orden }] : []; });
-  if (tiene("opcionesUsados")) f.opcionesUsados = { voFecha: plan.voFecha, voPuntosModo: plan.voPuntosModo, voPuntos: plan.voPuntos };
+  if (tiene("opcionesUsados")) f.opcionesUsados = { voPuntosModo: plan.voPuntosModo, voPuntos: plan.voPuntos };
   if (tiene("usados")) f.usados = plan.usados.map((u) => ({ ...u }));
   if (tiene("patrones")) f.patrones = plan.patrones.map((p) => ({ ...p, tiers: p.tiers.map((t) => ({ ...t })) }));
   if (tiene("financiacion")) f.financiacion = plan.financiacion.flatMap((x) => { const m = marca(x.idMarca); return m ? [{ marca: m, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe }] : []; });
@@ -169,7 +169,7 @@ export function aplicar(plan: PlanEditable, f: Fragmento, cat: CatalogoNombres, 
     p.tarifasVN = lista("tarifasVN", p.tarifasVN, f.tarifasVN.map((x) => { const id = modeloId(x.marca, x.modelo); return { valor: id === null ? null : { idModelo: id, tasaCumplida: x.tasaCumplida, importes: { ...x.importes }, activo: x.activo, orden: x.orden }, etiqueta: `${x.marca} ${x.modelo}` }; }), (x) => `${x.idModelo}|${x.tasaCumplida}`);
   if (quiere("tarifasVN") && f.tarifasVN) p.tarifasVN = renumerarOrden(p.tarifasVN, cat.modelos);
   if (quiere("opcionesUsados") && f.opcionesUsados) {
-    p = { ...p, voFecha: f.opcionesUsados.voFecha, voPuntosModo: f.opcionesUsados.voPuntosModo, voPuntos: f.opcionesUsados.voPuntos };
+    p = { ...p, voPuntosModo: f.opcionesUsados.voPuntosModo, voPuntos: f.opcionesUsados.voPuntos };
     unico("opcionesUsados");
   }
   if (quiere("usados") && f.usados) p.usados = lista("usados", p.usados, f.usados.map((x) => ({ valor: { ...x }, etiqueta: x.subtipo })), (x) => norm(x.subtipo));

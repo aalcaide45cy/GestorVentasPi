@@ -55,7 +55,6 @@ const PLAN_VACIO = (): Plan => {
     tramoMin: -4,
     tramoMax: 3,
     puntosPorPedido: 0,
-    voFecha: "facturacion",
     voPuntosModo: "cuentan",
     voPuntos: 100,
     penalizacionImporte: 0,

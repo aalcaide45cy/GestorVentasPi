@@ -18,7 +18,6 @@ const plan = (extra: Partial<PlanEditable> = {}): PlanEditable => ({
   tramoMin: -4,
   tramoMax: 3,
   puntosPorPedido: 50,
-  voFecha: "cobro",
   voPuntosModo: "cuentan",
   voPuntos: null,
   penalizacionImporte: 0,

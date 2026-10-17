@@ -21,8 +21,6 @@ export const esquemaSimulacion = z.object({
   fecha_rci: fecha,
   fecha_matriculacion: fecha,
   fecha_facturacion: fecha,
-  fecha_cobrado: fecha,
-  cobrado_otra_fecha: z.boolean().optional(),
   puntos: entero,
   id_promocion: entero,
   comision_coche_manual: entero,
@@ -54,8 +52,6 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
     fechaRci: f(entrada.fecha_rci),
     fechaMatriculacion: f(entrada.fecha_matriculacion),
     fechaFacturacion: f(entrada.fecha_facturacion),
-    fechaCobro: f(entrada.fecha_cobrado),
-    cobradoOtraFecha: entrada.cobrado_otra_fecha ?? false,
     puntos: entrada.puntos ?? null,
     idPromocion: entrada.id_promocion ?? null,
     comisionCocheManual: entrada.comision_coche_manual ?? null,
@@ -63,20 +59,8 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
     conceptosEspeciales: (entrada.conceptos_especiales ?? []).map((c) => ({ titulo: c.titulo, importe: c.importe_centimos, evento: c.evento })),
   };
   const vendedor = { id: entrada.id_usuario, tipo: (u.tipo === "VO" ? "VO" : "VN") as Clase, patronVo: u.patron };
-  // El mes en que cuenta un usado depende del plan (cobro o facturación): se prueba con cada fecha candidata
-  const candidatas = [fechaQueCuenta(motor).fecha, ...(motor.clase === "VO" ? [fechaQueCuenta(motor, "facturacion").fecha] : [])].map((x) => x?.slice(0, 7) ?? null);
-  let clave = candidatas[0] ?? null;
-  let plan = clave ? await planDelMes(ej, clave) : null;
-  if (!plan || fechaQueCuenta(motor, plan.voFecha).fecha?.slice(0, 7) !== clave) {
-    for (const c of candidatas.slice(1)) {
-      const p = c ? await planDelMes(ej, c) : null;
-      if (p && c && fechaQueCuenta(motor, p.voFecha).fecha?.slice(0, 7) === c) {
-        clave = c;
-        plan = p;
-        break;
-      }
-    }
-  }
+  const clave = fechaQueCuenta(motor).fecha?.slice(0, 7) ?? null;
+  const plan = clave ? await planDelMes(ej, clave) : null;
   const resto = clave ? await cargarExpedientesMotor(ej, entrada.id_usuario, { desde: clave, hasta: clave }) : [];
   const sim = simularExpediente(plan, vendedor, motor, resto);
   return {

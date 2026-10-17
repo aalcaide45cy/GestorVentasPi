@@ -34,8 +34,6 @@ export interface ContextoSimulacion {
   fecha_matriculacion: string | null;
   /** En un VN cuenta la facturación (por defecto igual a la matriculación). */
   fecha_facturacion: string | null;
-  fecha_cobrado: string | null;
-  cobrado_otra_fecha: boolean;
 }
 
 interface Promos {
@@ -88,8 +86,7 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
   const [desglose, setDesglose] = useState<Desglose | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const usaCobro = contexto.cobrado_otra_fecha;
-  const fechaCuenta = usaCobro ? contexto.fecha_cobrado : (contexto.fecha_facturacion ?? contexto.fecha_matriculacion);
+  const fechaCuenta = contexto.fecha_facturacion ?? contexto.fecha_matriculacion;
   const mes = fechaCuenta ? fechaCuenta.slice(0, 7) : mesCierre;
 
   useEffect(() => {
@@ -121,8 +118,6 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           fecha_rci: contexto.fecha_rci,
           fecha_matriculacion: contexto.fecha_matriculacion,
           fecha_facturacion: contexto.fecha_facturacion,
-          fecha_cobrado: contexto.fecha_cobrado,
-          cobrado_otra_fecha: contexto.cobrado_otra_fecha,
           puntos: valor.puntos,
           id_promocion: valor.id_promocion,
           comision_coche_manual: valor.comision_coche_manual,
@@ -193,9 +188,8 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
               <input className="form-input" style={{ flex: "1 1 200px" }} placeholder="Título (p. ej. Bonus Rappel)" value={c.titulo} onChange={(e) => cambiar({ titulo: e.target.value })} />
               <InputCentesimas valor={c.importe_centimos} sufijo="€" onChange={(v) => cambiar({ importe_centimos: v ?? 0 })} />
               <select className="form-input" style={{ width: "auto" }} value={c.evento} onChange={(e) => cambiar({ evento: e.target.value as ConceptoForm["evento"] })}>
-                <option value="matriculacion">Evento principal (matriculación / cobro)</option>
+                <option value="matriculacion">Evento principal (facturación / matriculación)</option>
                 <option value="afectacion">Afectación</option>
-                <option value="cobro">Cobro</option>
               </select>
               <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => set({ conceptos: valor.conceptos.filter((_, j) => j !== i) })}>
                 Quitar

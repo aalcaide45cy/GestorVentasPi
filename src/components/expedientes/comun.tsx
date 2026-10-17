@@ -172,7 +172,6 @@ interface CeldaFechaProps {
 /** Fecha centrada con lápiz (editar) y papelera (borrar, solo si hay fecha). */
 export function CeldaFecha({ exp, campo, nombre, fondo, formatear, detalleMatricula = false, alEditar, alBorrar }: CeldaFechaProps) {
   const valor = exp[campo];
-  const cobradaOtraFecha = detalleMatricula && campo === "fecha_matriculacion" && exp.cobrado_otra_fecha;
   return (
     <td style={{ textAlign: "center", backgroundColor: fondo }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px" }}>
@@ -182,10 +181,7 @@ export function CeldaFecha({ exp, campo, nombre, fondo, formatear, detalleMatric
               fontSize: "0.85rem",
               color: valor ? "var(--text-primary)" : "var(--text-muted)",
               fontWeight: valor ? 500 : 400,
-              textDecoration: cobradaOtraFecha ? "underline" : "none",
-              cursor: cobradaOtraFecha ? "help" : "default",
             }}
-            title={cobradaOtraFecha && exp.fecha_cobrado ? `Fecha Cobrado: ${formatear(exp.fecha_cobrado)}` : undefined}
           >
             {formatear(valor)}
           </span>

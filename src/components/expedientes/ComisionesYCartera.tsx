@@ -27,7 +27,7 @@ const fechaCorta = (f: string | null) => (f ? f.split("-").reverse().join("/") :
 export function firmaExpedientes(lista: ExpedienteDto[]): string {
   let h = 5381;
   for (const e of lista) {
-    const s = `${e.id_expediente}|${e.fecha_expediente}|${e.fecha_afectacion}|${e.fecha_matriculacion}|${e.fecha_facturacion}|${e.fecha_rci}|${e.fecha_cobrado}|${e.cobrado_otra_fecha}|${e.puntos}|${e.id_modelo}|${e.id_tipo_de_venta}|${e.id_estado_vehiculo}|${e.id_promocion}|${e.comision_coche_manual}|${e.comision_financiacion_manual}|${e.conceptos_especiales.length}|${e.id_usuario}`;
+    const s = `${e.id_expediente}|${e.fecha_expediente}|${e.fecha_afectacion}|${e.fecha_matriculacion}|${e.fecha_facturacion}|${e.fecha_rci}|${e.puntos}|${e.id_modelo}|${e.id_tipo_de_venta}|${e.id_estado_vehiculo}|${e.id_promocion}|${e.comision_coche_manual}|${e.comision_financiacion_manual}|${e.conceptos_especiales.length}|${e.id_usuario}`;
     for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   }
   return `${lista.length}-${(h >>> 0).toString(36)}`;

@@ -102,9 +102,6 @@ export default function EditarExpedienteForm({
   const [matricula, setMatricula] = useState(expediente.matricula ?? "");
   const [vin, setVin] = useState(expediente.vin ?? "");
   const [comentarios, setComentarios] = useState(expediente.comentarios ?? "");
-  // La fecha de cobro ya no existe en la aplicación: solo cuentan las fechas del expediente
-  const cobradoOtraFecha = false;
-  const fCobrado = "";
 
   const [com, setCom] = useState<ComisionForm>(comisionInicial(expediente));
   const comOriginal = useMemo(() => JSON.stringify(comisionInicial(expediente)), [expediente]);
@@ -144,8 +141,6 @@ export default function EditarExpedienteForm({
       fMat !== (expediente.fecha_matriculacion ?? "") ||
       fFact !== (expediente.fecha_facturacion ?? "") ||
       fEntrega !== (expediente.fecha_entrega ?? "") ||
-      cobradoOtraFecha !== expediente.cobrado_otra_fecha ||
-      fCobrado !== (expediente.fecha_cobrado ?? "") ||
       matricula !== (expediente.matricula ?? "") ||
       vin !== (expediente.vin ?? "") ||
       comentarios !== (expediente.comentarios ?? "") ||
@@ -154,7 +149,7 @@ export default function EditarExpedienteForm({
   };
 
   const mismoMesPedidoMatricula = (): boolean => {
-    const mat = cobradoOtraFecha && fCobrado ? fCobrado : fMat;
+    const mat = fMat;
     if (!fExp || !mat) return false;
     const [ea, em] = fExp.split("-");
     const [ma, mm] = mat.split("-");
@@ -262,8 +257,6 @@ export default function EditarExpedienteForm({
         matricula: matricula || null,
         vin: vin || null,
         comentarios: comentarios.trim() || null,
-        cobrado_otra_fecha: cobradoOtraFecha,
-        fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
         puntos: com.puntos,
         id_promocion: com.id_promocion,
         comision_coche_manual: com.comision_coche_manual,
@@ -805,8 +798,6 @@ export default function EditarExpedienteForm({
             fecha_rci: fRci || null,
             fecha_matriculacion: fMat || null,
             fecha_facturacion: fFact || null,
-            fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
-            cobrado_otra_fecha: cobradoOtraFecha,
           }}
         />
 

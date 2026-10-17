@@ -34,15 +34,15 @@ interface Info {
 }
 
 /** Evento principal del coche (12.3, paso 1). */
-function infoDe(e: ExpedienteMotor, voFecha: "cobro" | "facturacion" = "cobro"): Info {
-  const { fecha, usaCobro } = fechaQueCuenta(e, voFecha);
+function infoDe(e: ExpedienteMotor): Info {
+  const { fecha } = fechaQueCuenta(e);
   const mes = mesDe(fecha);
   return {
     e,
     mesComputo: mes,
     fechaComputo: mes ? fecha : null,
-    eventoLibro: usaCobro ? "COBRO" : "MATRICULACION",
-    falta: mes ? null : usaCobro ? "falta fecha de cobro" : "falta fecha de facturación o de matriculación",
+    eventoLibro: "MATRICULACION",
+    falta: mes ? null : "falta fecha de facturación o de matriculación",
   };
 }
 
@@ -92,7 +92,7 @@ export function calcularMes(
 
   const avisos: string[] = [];
   const mis = expedientes.filter((e) => e.idVendedor === vendedor.id).sort((a, b) => a.id - b.id);
-  const infos = mis.map((e) => infoDe(e, plan.voFecha));
+  const infos = mis.map(infoDe);
   const cuentan = infos.filter((i) => i.mesComputo === mes);
 
   const lineas = new Map<number, LineaExpediente>();
@@ -252,7 +252,7 @@ export function calcularMes(
   for (const i of infos) {
     for (const c of i.e.conceptosEspeciales) {
       const fecha =
-        c.evento === "afectacion" ? i.e.fechaAfectacion : c.evento === "cobro" ? i.e.fechaCobro : c.evento === "matriculacion" || c.evento === undefined ? i.fechaComputo : null;
+        c.evento === "afectacion" ? i.e.fechaAfectacion : i.fechaComputo;
       if (mesDe(fecha) !== mes) continue;
       let imp = enteroValido(c.importe);
       let aviso: string | undefined;
@@ -348,10 +348,8 @@ function aplicaRegla(
       fecha = mesDe(e.fechaAfectacion) === mes ? e.fechaAfectacion : null;
       break;
     case "matriculacion":
+    case "cobro": // las reglas antiguas de «cobro» cuentan ahora con la fecha de facturación
       fecha = i.mesComputo === mes ? i.fechaComputo : null;
-      break;
-    case "cobro":
-      fecha = mesDe(e.fechaCobro) === mes ? e.fechaCobro : null;
       break;
     case "credito": {
       const ok = relajarCategoria ? e.categoriaVenta !== null && FINANCIADAS.includes(e.categoriaVenta) : e.categoriaVenta === "CREDITO" || e.categoriaVenta === "RENTING";

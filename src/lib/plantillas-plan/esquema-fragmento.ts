@@ -15,7 +15,7 @@ export const esquemaFragmento = z.object({
   promociones: z.array(z.object({ nombre, puntosEspeciales: z.number().int().min(0), minimoUnidades: z.number().int().min(1), puntosSiNoCumple: z.number().int().min(0) })).max(500).optional(),
   puntosModelo: z.array(z.object({ marca: nombre, modelo: nombre, puntos: z.number().int().min(0) })).max(5000).optional(),
   tarifasVN: z.array(z.object({ marca: nombre, modelo: nombre, tasaCumplida: z.boolean(), importes: z.record(z.string().regex(/^-?\d+$/), z.number().int()), activo: z.boolean(), orden: z.number().int() })).max(5000).optional(),
-  opcionesUsados: z.object({ voFecha: sh.voFecha, voPuntosModo: sh.voPuntosModo, voPuntos: sh.voPuntos }).optional(),
+  opcionesUsados: z.object({ voPuntosModo: sh.voPuntosModo, voPuntos: sh.voPuntos }).optional(),
   usados: sh.usados.unwrap().max(500).optional(),
   patrones: sh.patrones.unwrap().max(500).optional(),
   financiacion: z.array(z.object({ marca: nombre, tipoFinanciacion: z.enum(["CONTADO", "CREDITO", "PREFERENCE", "RENTING"]), aplicaA: z.enum(["VN", "VO", "TODOS"]).default("VN"), importe: z.number().int() })).max(2000).optional(),

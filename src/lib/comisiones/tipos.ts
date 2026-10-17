@@ -42,9 +42,6 @@ export interface ExpedienteMotor {
    * la de matriculación, pero se puede cambiar a mano). Sin facturación, cuenta la matriculación.
    */
   fechaFacturacion?: Fecha | null;
-  /** `fecha_cobrado` del expediente. */
-  fechaCobro: Fecha | null;
-  cobradoOtraFecha: boolean;
   /** `null` = usar los puntos por defecto; 0 es un valor válido. */
   puntos: Centesimas | null;
   idPromocion: number | null;
@@ -154,8 +151,6 @@ export interface PlanMotor {
   tramoMax: number;
   puntosPorPedido: Centesimas;
   penalizacionImporte: Centimos;
-  /** Fecha que hace contar a un usado (VO): «cobro» (por defecto) o «facturacion». */
-  voFecha?: "cobro" | "facturacion";
   /** «cuentan» (por defecto): un usado suma puntos como cualquier coche; «no»: no suma puntos. */
   voPuntosModo?: "cuentan" | "no";
   /** Puntos que suma cada usado (centésimas); sin valor, los del modelo, la marca o el predeterminado. */

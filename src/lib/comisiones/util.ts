@@ -52,12 +52,9 @@ export function sumar(importes: Centimos[]): Centimos {
 }
 
 /**
- * Fecha que hace contar a un coche (12.3, paso 1): en VO, o si se cobra en otra fecha, la de cobro; en VN, la de facturación
- * (por defecto igual a la de matriculación; si el vendedor la cambia a mano, manda ella) y, sin facturación, la de matriculación.
+ * Fecha que hace contar a un coche (12.3, paso 1), nuevo o usado: la de facturación (en un VN, por defecto igual a la de
+ * matriculación; si el vendedor la cambia a mano, manda ella) y, sin facturación, la de matriculación. La fecha de cobro no existe.
  */
-export function fechaQueCuenta(e: { clase: string; cobradoOtraFecha: boolean; fechaCobro: Fecha | null; fechaMatriculacion: Fecha | null; fechaFacturacion?: Fecha | null }, voFecha: "cobro" | "facturacion" = "cobro"): { fecha: Fecha | null; usaCobro: boolean } {
-  // Un usado puede contar por la fecha de facturación (si el plan lo pide) mientras no se cobre en otra fecha
-  if (e.clase === "VO" && voFecha === "facturacion" && !e.cobradoOtraFecha) return { fecha: e.fechaFacturacion ?? e.fechaCobro, usaCobro: false };
-  const usaCobro = e.clase === "VO" || e.cobradoOtraFecha;
-  return { fecha: usaCobro ? e.fechaCobro : (e.fechaFacturacion ?? e.fechaMatriculacion), usaCobro };
+export function fechaQueCuenta(e: { fechaMatriculacion: Fecha | null; fechaFacturacion?: Fecha | null }): { fecha: Fecha | null } {
+  return { fecha: e.fechaFacturacion ?? e.fechaMatriculacion };
 }
