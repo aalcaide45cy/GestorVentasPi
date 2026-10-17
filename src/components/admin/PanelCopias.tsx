@@ -14,9 +14,10 @@ interface Datos {
   estado: EstadoCopias | null;
   ajustes: AjustesCopias | null;
   drive: EstadoDrive | null;
+  claveRecuperacion: { configurada: boolean } | null;
 }
 
-const VACIO: Datos = { copias: [], estado: null, ajustes: null, drive: null };
+const VACIO: Datos = { copias: [], estado: null, ajustes: null, drive: null, claveRecuperacion: null };
 
 const tamanoLegible = (b: number): string => (b >= 1048576 ? `${(b / 1048576).toLocaleString("es-ES", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024)).toLocaleString("es-ES")} KB`);
 const fechaLegible = (iso: string): string => new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
@@ -29,7 +30,8 @@ export default function PanelCopias() {
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [restaurar, setRestaurar] = useState<CopiaDto | null>(null);
   const [marcadas, setMarcadas] = useState<number[]>([]);
-  const [form, setForm] = useState({ password: "", codigo: "", confirmacion: "" });
+  const [form, setForm] = useState({ password: "", codigo: "", confirmacion: "", claveOrigen: "" });
+  const [claveNueva, setClaveNueva] = useState("");
   const [edicion, setEdicion] = useState<Partial<AjustesCopias>>({});
   const ajustes: AjustesCopias | null = datos.ajustes ? { ...datos.ajustes, ...edicion } : null;
 
@@ -134,11 +136,18 @@ export default function PanelCopias() {
   const confirmarRestaurar = () =>
     accion("restaurar", async () => {
       if (!restaurar) return;
-      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, ...form } });
+      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, ...form, claveOrigen: form.claveOrigen.trim() || undefined } });
       setRestaurar(null);
-      setForm({ password: "", codigo: "", confirmacion: "" });
+      setForm({ password: "", codigo: "", confirmacion: "", claveOrigen: "" });
       mostrar("Copia restaurada. Vuelve a iniciar sesión.");
       setTimeout(() => router.push("/login"), 1500);
+    });
+
+  const fijarClave = () =>
+    accion("clave", async () => {
+      await llamar("/api/admin/copias/clave", { method: "POST", cuerpo: { clave: claveNueva } });
+      setClaveNueva("");
+      return "Clave de recuperación guardada. Las copias nuevas ya se podrán restaurar en cualquier instalación con ella.";
     });
 
   const guardarAjustes = () =>
@@ -171,7 +180,7 @@ export default function PanelCopias() {
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       <h3 style={{ fontSize: "1.2rem" }}>💾 Copias de seguridad</h3>
       <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "0.9rem" }}>
-        Copia completa de la base de datos (.dump de PostgreSQL). Si algo falla, reinstala la aplicación y restaura la última copia. Guarda también el fichero .env (o al menos APP_SECRET): sin él no se puede descifrar el 2FA.
+        Copia completa de la base de datos (.dump de PostgreSQL). Si algo falla, reinstala la aplicación y restaura la última copia. Fija abajo una «clave de recuperación» para poder restaurarla en cualquier instalación; si no, guarda también el fichero .env (o al menos APP_SECRET): sin él no se pueden descifrar el 2FA ni los documentos.
       </p>
 
       {estado && !estado.pgDisponible && (
@@ -342,6 +351,22 @@ export default function PanelCopias() {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", borderTop: "1px solid var(--border)", paddingTop: "14px" }}>
+        <h4>🔑 Clave de recuperación (restaurar en cualquier instalación)</h4>
+        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+          Los documentos, el doble factor y la conexión con Drive están cifrados con una clave que es distinta en cada instalación (está en su archivo .env). Con una <b>clave de recuperación</b>, cada copia que hagas lleva guardada esa clave protegida: al restaurarla en <b>otra instalación</b> escribes la clave de recuperación y todo se abre sin necesitar el .env de origen. Apúntala en un sitio seguro: si la pierdes y tampoco tienes el .env, esos datos no se podrán abrir.
+        </p>
+        <div style={{ fontSize: "0.85rem", color: datos.claveRecuperacion?.configurada ? "var(--success)" : "var(--warning)", fontWeight: 600 }}>
+          {datos.claveRecuperacion?.configurada ? "✓ Configurada: las copias nuevas se pueden restaurar en cualquier instalación." : "⚠️ Sin configurar: las copias solo se pueden restaurar donde esté el mismo .env."}
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <input className="form-input" type="password" autoComplete="new-password" placeholder="Nueva clave (mínimo 10 caracteres)" value={claveNueva} onChange={(e) => setClaveNueva(e.target.value)} style={{ maxWidth: "320px" }} />
+          <button type="button" className="btn btn-secondary" disabled={trabajando !== null || claveNueva.length < 10} onClick={fijarClave} title="Guarda (o cambia) la clave de recuperación. Solo afecta a las copias que hagas desde ahora; las anteriores siguen necesitando el .env de su instalación">
+            {datos.claveRecuperacion?.configurada ? "Cambiar clave" : "Fijar clave"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", borderTop: "1px solid var(--border)", paddingTop: "14px" }}>
         <h4>☁️ Google Drive</h4>
         {drive && !drive.configurado && (
           <p style={{ color: "var(--text-secondary)", margin: 0 }}>
@@ -396,6 +421,10 @@ export default function PanelCopias() {
           <div className="form-group">
             <label className="form-label">Código de doble factor (o de recuperación)</label>
             <input className="form-input" inputMode="numeric" autoComplete="one-time-code" value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Clave de recuperación (solo si la copia viene de OTRA instalación)</label>
+            <input className="form-input" type="password" autoComplete="off" placeholder="Déjalo vacío si restauras en la misma instalación" value={form.claveOrigen} onChange={(e) => setForm({ ...form, claveOrigen: e.target.value })} title="La clave de recuperación que fijaste en la instalación donde se hizo la copia (o su APP_SECRET). Sirve para volver a cifrar los documentos y el doble factor con la clave de esta instalación" />
           </div>
           <div className="form-group">
             <label className="form-label">Escribe RESTAURAR para confirmar</label>

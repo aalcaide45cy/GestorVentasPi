@@ -14,6 +14,7 @@ import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { verificarPassword } from "@/lib/auth/password";
 import { usuarios } from "@/db/schema";
 import { verificarSegundoFactor } from "./autenticacion";
+import { ajustarCifradoTrasRestaurar, asegurarComprobacion } from "./clave-recuperacion";
 
 /* ------------------------------------------------------------------ */
 /* Configuración y utilidades                                          */
@@ -327,6 +328,8 @@ export async function motivoCopiaInvalida(ruta: string): Promise<string | null> 
 
 /** Crea una copia completa (`pg_dump -Fc`), la VALIDA, calcula su SHA-256 y la anota. Nunca deja un fichero vacío o roto. */
 export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: number | null = null): Promise<CopiaDto> {
+  // Deja en la base el dato de comprobación del cifrado: así cualquier copia permite saber si su clave coincide
+  await asegurarComprobacion(ej).catch(() => undefined);
   const nombre = nombreNuevo(tipo);
   const ruta = path.join(/*turbopackIgnore: true*/ dirCopias(), nombre);
   const fallar = async (mensaje: string, estado: number = 500): Promise<never> => {
@@ -582,6 +585,8 @@ export const esquemaRestaurar = z.object({
   password: z.string().min(1, "Indica tu contraseña"),
   codigo: z.string().min(1, "Introduce el código de doble factor"),
   confirmacion: z.string(),
+  /** Solo si la copia viene de otra instalación: clave de recuperación (o APP_SECRET de origen) para volver a cifrar sus datos. */
+  claveOrigen: z.string().max(500).optional(),
 });
 
 async function pgRestore(ruta: string): Promise<void> {
@@ -609,7 +614,7 @@ async function posRestauracion(ej: Ejecutor): Promise<void> {
  * Restaura una copia: valida credenciales y confirmación, activa el modo mantenimiento, hace una copia
  * previa, restaura, migra y vacía sesiones. Si algo falla vuelve a la copia previa.
  */
-export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaRestaurar>, ip: string | null): Promise<{ previa: string }> {
+export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaRestaurar>, ip: string | null): Promise<{ previa: string; recifrado: boolean }> {
   if (entrada.confirmacion.trim() !== "RESTAURAR") throw new HttpError(400, "Escribe RESTAURAR para confirmar");
   const [u] = await ej.select().from(usuarios).where(eq(usuarios.idUsuario, idAdmin));
   if (!u || !(await verificarPassword(u.passwordHash, entrada.password))) throw new HttpError(403, "La contraseña no es correcta");
@@ -624,12 +629,15 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
 
   await writeFile(/*turbopackIgnore: true*/ ficheroMantenimiento(), new Date().toISOString());
   let previa: CopiaDto | null = null;
+  let recifrado = false;
   try {
     previa = await crearCopia(ej, "previa", idAdmin);
     const rutaPrevia = path.join(/*turbopackIgnore: true*/ dirCopias(), previa.nombre);
     try {
       await pgRestore(ruta);
       await posRestauracion(ej);
+      // Si la copia viene de otra instalación, sus datos cifrados se vuelven a cifrar con la clave de esta (o se deshace todo)
+      recifrado = (await ajustarCifradoTrasRestaurar(ej, entrada.claveOrigen)).recifrado;
     } catch (e) {
       // Vuelta atrás: se restaura el estado anterior
       await pgRestore(rutaPrevia).catch(() => undefined);
@@ -640,5 +648,5 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
     await sincronizarCarpeta(ej).catch(() => undefined);
     await rm(/*turbopackIgnore: true*/ ficheroMantenimiento(), { force: true });
   }
-  return { previa: previa.nombre };
+  return { previa: previa.nombre, recifrado };
 }
