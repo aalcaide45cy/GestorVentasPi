@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { BotonesDatosSeccion, descargarSeccion } from "@/components/datos/DatosSeccion";
@@ -8,9 +9,7 @@ import { euros, etiquetaTramo, nombreMes, puntos } from "@/lib/formato";
 import type { LiquidacionResumen, PrevisionMes } from "@/lib/servicios/comisiones-gestion";
 import type { ResumenPlan } from "@/lib/servicios/planes";
 import { llamar, textoError } from "./api";
-import CotejoCobros from "./CotejoCobros";
 import PlanEditor from "./PlanEditor";
-import ValidacionRejilla from "./ValidacionRejilla";
 import { BotonMini, Seccion } from "./campos";
 import type { CatalogosComisiones, Plan } from "./tipos";
 import { useCarga } from "./useCarga";
@@ -21,8 +20,14 @@ interface Props {
   idUsuario: number;
 }
 
+const AVISO_COTEJO = (
+  <div style={{ padding: "12px 16px", borderLeft: "3px solid var(--primary)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.9rem" }}>
+    🔎 La validación con la hoja de la empresa y el control de cobros ahora están junto al resto del cotejo en <Link href="/dashboard/cotejo-pagos" style={{ color: "var(--primary)", fontWeight: 700 }}>Cotejo de pagos</Link>.
+  </div>
+);
+
 /** «Planes de Comisionamiento»: lista de planes + cotejo, y el editor de un plan. Los no administradores ven solo lo suyo. */
-export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
+export default function ComisionesManager({ cat, esAdmin }: Props) {
   const { mostrar } = useToast();
   const [editando, setEditando] = useState<{ plan: Plan | null; solapados: string[] } | null>(null);
   const [aBorrar, setABorrar] = useState<ResumenPlan | null>(null);
@@ -162,8 +167,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
             ))}
           </Seccion>
         )}
-        <ValidacionRejilla cat={{ ...cat, vendedores: cat.vendedores.filter((v) => v.id === idUsuario) }} usuarioInicial={idUsuario} esAdmin={false} />
-        <CotejoCobros cat={{ ...cat, vendedores: cat.vendedores.filter((v) => v.id === idUsuario) }} usuarioInicial={idUsuario} esAdmin={false} />
+        {AVISO_COTEJO}
       </div>
     );
   }
@@ -234,9 +238,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
         </div>
       </Seccion>
 
-      <ValidacionRejilla cat={cat} usuarioInicial={cat.vendedores[0]?.id ?? idUsuario} esAdmin />
-
-      <CotejoCobros cat={cat} usuarioInicial={cat.vendedores[0]?.id ?? idUsuario} esAdmin />
+      {AVISO_COTEJO}
 
       {aBorrar && (
         <Modal

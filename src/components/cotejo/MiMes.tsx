@@ -62,7 +62,7 @@ export default function MiMes({ expedientes, vendedores, nombreActual, esAdminis
           <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem" }}>
             Vendedor
             <select className="form-input" value={vendedor} onChange={(e) => setVendedor(e.target.value)}>
-              {vendedores.map((v) => (
+              {[...new Set(vendedores)].map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
@@ -72,7 +72,7 @@ export default function MiMes({ expedientes, vendedores, nombreActual, esAdminis
         )}
       </div>
 
-      <ResumenMensual expedientes={expedientes} anios={anios} vendedor={vendedor} esAdministrador={esAdministrador} />
+      <ResumenMensual expedientes={expedientes} anios={anios} vendedor={vendedor} esAdministrador={esAdministrador} sinCartera />
 
       <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
         <h4 style={{ margin: 0 }}>🚗 Coches del mes ({filas.length})</h4>

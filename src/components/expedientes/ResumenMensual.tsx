@@ -32,6 +32,8 @@ interface Props {
   /** Vendedor elegido en el filtro de la lista (nombre); vacío = todos. Las cifras y las comisiones son las suyas. */
   vendedor: string;
   esAdministrador: boolean;
+  /** Oculta el panel de cartera (pedidos del mes), por ejemplo en Cotejo de pagos. */
+  sinCartera?: boolean;
 }
 
 const enMes = (fecha: string | null, anio: number, mes: number) => {
@@ -56,7 +58,7 @@ function mesGuardado(guardado: string | null, hoy: Date): { anio: number; mes: n
  * «Detalle y Resumen Estadístico»: recuentos del mes elegido.
  * Puntos, tramo y comisión estimada salen del motor de comisiones (el mismo que la liquidación).
  */
-export default function ResumenMensual({ expedientes: todos, anios, vendedor, esAdministrador }: Props) {
+export default function ResumenMensual({ expedientes: todos, anios, vendedor, esAdministrador, sinCartera }: Props) {
   const hoy = new Date();
   // El mes elegido se recuerda en este navegador: al volver de otra pantalla sigue el último que se puso
   const [guardado, guardarMes] = usePreferencia("exp-resumen-mes");
@@ -348,7 +350,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
       )}
     </div>
     <PanelComisiones anio={anio} mes={mes} expedientes={expedientes} usuario={vendedor && idVendedor ? idVendedor : undefined} />
-    <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />
+    {!sinCartera && <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />}
     </>
   );
 }

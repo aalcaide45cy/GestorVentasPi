@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -37,6 +37,27 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const [seleccionado, setSeleccionado] = useState<UsuarioAdminDto | null>(null);
   const [aEliminar, setAEliminar] = useState<UsuarioAdminDto | null>(null);
   const [textoConfirmar, setTextoConfirmar] = useState("");
+  // Borrar también todo lo del usuario (expedientes, liquidaciones…): sirve para quitar usuarios de prueba
+  const [conTodoId, setConTodoId] = useState<number | null>(null);
+  const [detrasDe, setDetrasDe] = useState<{ id: number; datos: { expedientes: number; liquidaciones: number; rejillas: number } } | null>(null);
+  const conTodo = aEliminar !== null && conTodoId === aEliminar.id_usuario;
+  const detras = aEliminar !== null && detrasDe?.id === aEliminar.id_usuario ? detrasDe.datos : null;
+  useEffect(() => {
+    if (!aEliminar) return;
+    const id = aEliminar.id_usuario;
+    let vigente = true;
+    void (async () => {
+      try {
+        const r = await fetch(`/api/admin/usuarios?resumen=${id}`, { credentials: "same-origin" });
+        if (r.ok && vigente) setDetrasDe({ id, datos: ((await r.json()) as { data: { expedientes: number; liquidaciones: number; rejillas: number } }).data });
+      } catch {
+        /* sin el resumen solo se puede borrar al usuario vacío */
+      }
+    })();
+    return () => {
+      vigente = false;
+    };
+  }, [aEliminar]);
   const [passwordTemporal, setPasswordTemporal] = useState<{ email: string; password: string } | null>(null);
 
   const [nombre, setNombre] = useState("");
@@ -215,7 +236,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const eliminar = async (id: number) => {
     setActualizando(id);
     try {
-      await enviarJson("DELETE", { id_usuario: id }, "Error al eliminar usuario.");
+      await enviarJson("DELETE", { id_usuario: id, con_todo: conTodo }, "Error al eliminar usuario.");
       setUsuarios((prev) => prev.filter((u) => u.id_usuario !== id));
       mostrar("Usuario eliminado del sistema.");
       setAEliminar(null);
@@ -476,6 +497,15 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
           <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5", margin: 0 }}>
             ¿Estás seguro de que deseas eliminar definitivamente al usuario <strong>{aEliminar.nombre}</strong>? Esta acción no se puede deshacer.
           </p>
+          {detras && (detras.expedientes > 0 || detras.liquidaciones > 0 || detras.rejillas > 0) && (
+            <div style={{ border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)", padding: "10px 12px", fontSize: "0.88rem", lineHeight: 1.5 }}>
+              Este usuario tiene <b>{detras.expedientes}</b> expediente(s) activo(s), <b>{detras.liquidaciones}</b> liquidación(es) y <b>{detras.rejillas}</b> rejilla(s). Mientras existan, no se puede borrar. Si es un usuario de prueba, puedes borrarlo con todo lo suyo:
+              <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px", fontWeight: 600 }}>
+                <input type="checkbox" checked={conTodo} onChange={(e) => setConTodoId(e.target.checked && aEliminar ? aEliminar.id_usuario : null)} />
+                Borrar también sus expedientes, liquidaciones, rejillas y puntos
+              </label>
+            </div>
+          )}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">
               Escribe <strong>ELIMINAR</strong> para confirmar:

@@ -167,13 +167,6 @@ export default function CotejoPagos() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div>
-        <h1 style={{ margin: 0 }}>🔎 Cotejo de pagos</h1>
-        <p style={{ margin: "6px 0 0", color: "var(--text-secondary)" }}>
-          Sube las rejillas de la empresa (PDF o foto) y la app comprueba, por matrícula, qué coches vendidos no te han pagado. Solo se cotejan los coches con matrícula.
-        </p>
-      </div>
-
       {/* 1. Rejillas */}
       <section className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
         <h3 style={{ margin: 0 }}>1. Rejillas de la empresa</h3>

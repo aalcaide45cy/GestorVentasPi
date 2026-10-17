@@ -58,8 +58,8 @@ interface TarjetaProps {
   cargado: boolean;
   porId: Map<number, ExpedienteDto>;
   destacada?: boolean;
-  /** Texto de aviso bajo el título (por ejemplo, «No es el mes actual»). */
-  aviso?: string;
+  /** El mes que se muestra no es el actual: se rodea con el marco amarillo punteado, como el resumen estadístico. */
+  fueraDeMes?: boolean;
 }
 
 /** Cajita con un indicador (puntos, tramo, bruto…) para ver las cifras de un vistazo. */
@@ -115,7 +115,7 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
   { clave: "total", etiqueta: "Total", valor: (f) => f.linea.importe, celda: (f) => <strong>{euros(f.linea.importe)}</strong>, alinear: "right" },
 ];
 
-function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, aviso }: TarjetaProps) {
+function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, fueraDeMes }: TarjetaProps) {
   const [desgloseGuardado, guardarDesglose] = usePreferencia(`desglose-${clave}`);
   const abierta = desgloseGuardado === "abierto";
   const setAbierta = (v: boolean) => guardarDesglose(v ? "abierto" : "cerrado");
@@ -136,12 +136,11 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   const efP = efectoPuntos(hayPlan ? resultado.puntosMes : null, hayPlan ? resultado.objetivoX : null);
   const efT = efectoTramo(hayPlan ? resultado.tramo : null);
   return (
-    <div className="glass-panel" style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "8px", border: destacada ? "1px solid var(--primary)" : undefined }}>
+    <div className="glass-panel" style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "8px", border: destacada ? "1px solid var(--primary)" : undefined, ...(fueraDeMes ? { outline: "2px dashed var(--warning)", outlineOffset: "6px" } : {}) }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
         <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>{titulo}</span>
         <span style={{ fontSize: "0.95rem", fontWeight: 700 }}>{mesTexto}</span>
       </div>
-      {aviso && <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--warning)" }}>⚠️ {aviso}</span>}
       {hayPlan ? (
         <>
           <div style={{ display: "flex", gap: "18px", alignItems: "stretch", flexWrap: "wrap" }}>
@@ -274,7 +273,7 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
           cargado={elegido !== undefined}
           porId={porId}
           destacada
-          aviso={esMesActual ? undefined : "No es el mes actual: se muestra solo este mes. Pulsa «Mes Actual» arriba para ver también el mes anterior"}
+          fueraDeMes={!esMesActual}
         />
       </div>}
     </div>

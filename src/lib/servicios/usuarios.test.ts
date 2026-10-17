@@ -7,7 +7,7 @@ import { HttpError } from "@/lib/auth/sesion";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
-import { actualizarUsuario, cambiarRol, crearUsuario, eliminarUsuario, esquemaCrearUsuario, guardarPerfil, listarUsuarios, listarVendedores, obtenerUsuario } from "./usuarios";
+import { actualizarUsuario, cambiarRol, crearUsuario, eliminarUsuario, eliminarUsuarioConTodo, resumenBorradoTotal, esquemaCrearUsuario, guardarPerfil, listarUsuarios, listarVendedores, obtenerUsuario } from "./usuarios";
 
 beforeEach(reiniciarBd);
 
@@ -116,5 +116,18 @@ describe("perfil propio", () => {
     await guardarPerfil(db, u.idUsuario, { nombre: "Nuevo Nombre", emails: [{ email: "x@y.com", tipo_email: "Trabajo" }], telefonos: [{ telefono: "600000000" }], tiendas: [] });
     const p = await obtenerUsuario(db, u.idUsuario);
     expect(p).toMatchObject({ nombre: "Nuevo Nombre", emails: [{ email: "x@y.com", tipo_email: "Trabajo" }], telefonos: [{ telefono: "600000000", tipo_telefono: "Principal" }] });
+  });
+
+  it("un usuario de prueba con expedientes se puede borrar con todo lo suyo, y sus expedientes dejan de verse", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const v = await crearUsuarioPrueba("vendedor");
+    const e = await crearExpediente(db, v, esquemaCrearExpediente.parse({ expediente: {} }));
+    expect((await resumenBorradoTotal(db, v.idUsuario)).expedientes).toBe(1);
+    expect(await codigoDeError(eliminarUsuario(db, admin, v.idUsuario))).toBe(409);
+    await eliminarUsuarioConTodo(db, admin, v.idUsuario);
+    expect(await obtenerUsuario(db, v.idUsuario)).toBeNull();
+    const [fila] = await db.select().from(expedientes).where(eq(expedientes.idExpediente, e.id_expediente));
+    expect(fila.eliminadoEn).not.toBeNull();
+    expect(await codigoDeError(eliminarUsuarioConTodo(db, admin, admin.idUsuario))).toBe(400);
   });
 });

@@ -1,7 +1,7 @@
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, rejillas, telefonosUsuarios, validacionesComision, usuarios, usuariosTiendas } from "@/db/schema";
+import { commissionLiquidationLineItems, commissionLiquidationLines, commissionLiquidationVersions, commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, pendientesCobro, rejillaFilas, rejillas, telefonosUsuarios, validacionesComision, usuarios, usuariosTiendas } from "@/db/schema";
 import type { UsuarioAdminDto } from "@/lib/dto";
 import { generarPasswordTemporal, hashPassword } from "@/lib/auth/password";
 import { ROLES } from "@/lib/auth/permisos";
@@ -187,6 +187,45 @@ export async function cambiarRol(ej: Ejecutor, admin: UsuarioActual, id: number,
   if (!objetivo) throw new HttpError(404, "Usuario no encontrado");
   if (rol !== "administrador" && objetivo.rol === "administrador" && !objetivo.bloqueado && (await otrosAdministradoresActivos(ej, id)) === 0) throw new HttpError(400, SIN_ADMIN);
   await ej.update(usuarios).set({ rol }).where(eq(usuarios.idUsuario, id));
+}
+
+/** Lo que se perdería al borrar un usuario junto con todo lo suyo (para enseñarlo antes de confirmar). */
+export async function resumenBorradoTotal(ej: Ejecutor, id: number): Promise<{ expedientes: number; liquidaciones: number; rejillas: number }> {
+  const exp = await ej.select({ id: expedientes.idExpediente }).from(expedientes).where(and(eq(expedientes.idUsuario, id), isNull(expedientes.eliminadoEn)));
+  const liq = await ej.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id));
+  const rej = await ej.select({ id: rejillas.id }).from(rejillas).where(eq(rejillas.idUsuario, id));
+  return { expedientes: exp.length, liquidaciones: liq.length, rejillas: rej.length };
+}
+
+/**
+ * Borra un usuario con todo lo suyo (para quitar usuarios de prueba): sus expedientes pasan a eliminados, y se borran su libro de
+ * puntos, liquidaciones, rejillas, validaciones y pendientes. Es irreversible; el administrador lo confirma antes.
+ */
+export async function eliminarUsuarioConTodo(ej: Ejecutor, admin: UsuarioActual, id: number): Promise<void> {
+  if (id === admin.idUsuario) throw new HttpError(400, "No puedes eliminar tu propia cuenta.");
+  const [u] = await ej.select().from(usuarios).where(eq(usuarios.idUsuario, id));
+  if (!u) throw new HttpError(404, "Usuario no encontrado");
+  if (u.rol === "administrador" && !u.bloqueado && (await otrosAdministradoresActivos(ej, id)) === 0) throw new HttpError(400, SIN_ADMIN);
+  await ej.transaction(async (tx) => {
+    await tx.update(expedientes).set({ eliminadoEn: new Date() }).where(and(eq(expedientes.idUsuario, id), isNull(expedientes.eliminadoEn)));
+    await tx.update(expedientes).set({ idUsuario: null }).where(eq(expedientes.idUsuario, id));
+    const liqs = (await tx.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id))).map((l) => l.id);
+    if (liqs.length > 0) {
+      const lineas = (await tx.select({ id: commissionLiquidationLines.idLine }).from(commissionLiquidationLines).where(inArray(commissionLiquidationLines.idLiquidation, liqs))).map((l) => l.id);
+      if (lineas.length > 0) await tx.delete(commissionLiquidationLineItems).where(inArray(commissionLiquidationLineItems.idLine, lineas));
+      await tx.delete(commissionLiquidationLines).where(inArray(commissionLiquidationLines.idLiquidation, liqs));
+      await tx.delete(commissionLiquidationVersions).where(inArray(commissionLiquidationVersions.idLiquidation, liqs));
+      await tx.delete(commissionLiquidations).where(inArray(commissionLiquidations.idLiquidation, liqs));
+    }
+    await tx.delete(libroPuntos).where(eq(libroPuntos.idUsuario, id));
+    await tx.delete(commissionPlanVendedores).where(eq(commissionPlanVendedores.idUsuario, id));
+    const hojas = (await tx.select({ id: rejillas.id }).from(rejillas).where(eq(rejillas.idUsuario, id))).map((r) => r.id);
+    if (hojas.length > 0) await tx.delete(rejillaFilas).where(inArray(rejillaFilas.idRejilla, hojas));
+    await tx.delete(rejillas).where(eq(rejillas.idUsuario, id));
+    await tx.delete(validacionesComision).where(eq(validacionesComision.idUsuario, id));
+    await tx.delete(pendientesCobro).where(eq(pendientesCobro.idUsuario, id));
+    await tx.delete(usuarios).where(eq(usuarios.idUsuario, id));
+  });
 }
 
 export async function eliminarUsuario(ej: Ejecutor, admin: UsuarioActual, id: number): Promise<void> {
