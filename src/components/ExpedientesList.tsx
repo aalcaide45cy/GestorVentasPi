@@ -489,7 +489,7 @@ export default function ExpedientesList({
     setFModelo("");
     setFTipo("");
     setFEstado("");
-    setFVendedor("");
+    setFVendedor(currentUserName ?? ""); // al limpiar se vuelve a ver solo lo del usuario que ha iniciado sesión
     setFMes("");
     setFAnio("");
     setFTipoFecha("fecha_expediente");
@@ -1084,7 +1084,7 @@ export default function ExpedientesList({
             </div>
           ))}
         </div>
-          <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} style={{ padding: "4px 10px", fontSize: "0.75rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
+          <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} title="Quita todos los filtros y deja solo los expedientes del comercial que ha iniciado sesión" style={{ padding: "4px 10px", fontSize: "0.75rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
             🧹 Limpiar Filtros
           </button>
           </div>
@@ -1098,7 +1098,7 @@ export default function ExpedientesList({
                 {f}
               </span>
             ))}
-            <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} style={{ padding: "2px 10px", fontSize: "0.72rem" }} title="Quita todos los filtros y vuelve a tus filtros predefinidos">
+            <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} style={{ padding: "2px 10px", fontSize: "0.72rem" }} title="Quita todos los filtros y deja solo los expedientes del comercial que ha iniciado sesión">
               Quitar filtros
             </button>
           </div>
