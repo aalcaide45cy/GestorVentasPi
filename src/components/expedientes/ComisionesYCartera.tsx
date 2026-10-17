@@ -101,6 +101,7 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
   { clave: "marca", etiqueta: "Marca", valor: marcaDe, oculta: true },
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? "", oculta: true },
   { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null) },
+  { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.e?.tipoDeVenta?.nombre_tipo_venta ?? "", celda: (f) => (f.e?.tipoDeVenta ? <BadgeTipoVenta exp={f.e} /> : "—"), ayuda: "Forma de pago del expediente (contado, crédito, preference…)" },
   { clave: "cuenta", etiqueta: "Cuenta", valor: (f) => (f.linea.cuenta ? "Este mes" : "Otros conceptos"), ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes." },
   { clave: "puntos", etiqueta: "Puntos", valor: (f) => f.linea.puntos, celda: (f) => puntos(f.linea.puntos), alinear: "right", oculta: true },
   { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => centimos(f.coche), alinear: "right", ayuda: "Comisión del coche (tarifa VN o VO)" },
