@@ -604,3 +604,12 @@ describe("reglas por subtipo de usado", () => {
     expect(importe("nuevo", "KM0")).toBeLessThan(1000);
   });
 });
+
+describe("columna Preference", () => {
+  it("el incentivo de una venta Preference sale como «preference», no como «financiacion»", () => {
+    const p = plan({ financiacionPorMarcaTipo: [{ idMarca: 1, tipo: "PREFERENCE", aplicaA: "VN", importe: 7500 }] });
+    const l = calcularMes(p, V, "2026-06", [exp(1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10", fechaMatriculacion: "2026-06-10" })]).lineas[0];
+    expect(l.conceptos.find((c) => c.concepto === "preference")?.importe).toBe(7500);
+    expect(l.conceptos.some((c) => c.concepto === "financiacion")).toBe(false);
+  });
+});

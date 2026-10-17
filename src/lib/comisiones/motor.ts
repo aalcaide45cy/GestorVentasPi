@@ -500,13 +500,15 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
   const cat = e.categoriaVenta;
   if (cat === null || !FINANCIADAS.includes(cat)) return res; // CONTADO no genera incentivo
 
+  // El incentivo de una venta Preference se enseña en la columna «Preference», junto a las reglas BOX3
+  const conceptoFin = cat === "PREFERENCE" ? "preference" : "financiacion";
   const tarifa = plan.financiacionPorMarcaTipo.find((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e));
   if (!tarifa && e.clase === "VO") return res; // los usados solo cobran financiación si hay una regla que se aplique a usados
   if (!tarifa) {
-    res.push(mk("financiacion", `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
+    res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
   } else {
     const v = enteroValido(tarifa.importe);
-    res.push(v === null ? mk("financiacion", `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0") : mk("financiacion", `Financiación ${cat}`, v));
+    res.push(v === null ? mk(conceptoFin, `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0") : mk(conceptoFin, `Financiación ${cat}`, v));
   }
 
   if (cat === "PREFERENCE") {

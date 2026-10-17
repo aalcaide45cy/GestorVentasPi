@@ -10,6 +10,7 @@ import { usePreferencia } from "@/lib/preferencias";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
+import NombreConFoto from "./documentos/FotoCliente";
 import { mensajeDeError } from "./expedientes/comun";
 import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
@@ -76,6 +77,8 @@ export default function EditarExpedienteForm({
 
   // Cliente
   const [asignado, setAsignado] = useState<ClienteDto | null>(expediente.cliente);
+  // Foto del cliente (recortada de su DNI): se enseña al dejar el ratón sobre su nombre; se actualiza al leer un DNI nuevo
+  const [fotoNueva, setFotoNueva] = useState<number | null>(null);
   const [dni, setDni] = useState(expediente.cliente?.dni ?? "");
   const [nombre, setNombre] = useState(expediente.cliente?.nombre ?? "");
   const [fechaNacimiento, setFechaNacimiento] = useState(expediente.cliente?.fecha_de_nacimiento ?? "");
@@ -550,7 +553,7 @@ export default function EditarExpedienteForm({
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{ fontSize: "1.5rem" }}>👤</span>
                   <div>
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>Cliente Asociado: {asignado.nombre}</div>
+                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>Cliente Asociado: <NombreConFoto fotoId={fotoNueva ?? asignado.foto_id}>{asignado.nombre}</NombreConFoto></div>
                     <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>DNI / NIE: {asignado.dni}</div>
                   </div>
                 </div>
@@ -594,6 +597,7 @@ export default function EditarExpedienteForm({
                   try {
                     await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
                     setVersionAdjuntos((v) => v + 1);
+                    if (r.fotoId) setFotoNueva(r.fotoId);
                   } catch (e) {
                     mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
                   }
