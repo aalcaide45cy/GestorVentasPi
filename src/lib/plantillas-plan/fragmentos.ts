@@ -1,3 +1,4 @@
+import { renumerarOrden } from "@/lib/plantillas-tarifas/orden";
 import type { PlanEditable } from "@/lib/servicios/planes";
 import type { Fragmento } from "./esquema-fragmento";
 
@@ -164,6 +165,7 @@ export function aplicar(plan: PlanEditable, f: Fragmento, cat: CatalogoNombres, 
     p.puntosModelo = lista("puntosModelo", p.puntosModelo, f.puntosModelo.map((x) => { const id = modeloId(x.marca, x.modelo); return { valor: id === null ? null : { idModelo: id, puntos: x.puntos }, etiqueta: `${x.marca} ${x.modelo}` }; }), (x) => String(x.idModelo));
   if (quiere("tarifasVN") && f.tarifasVN)
     p.tarifasVN = lista("tarifasVN", p.tarifasVN, f.tarifasVN.map((x) => { const id = modeloId(x.marca, x.modelo); return { valor: id === null ? null : { idModelo: id, tasaCumplida: x.tasaCumplida, importes: { ...x.importes }, activo: x.activo, orden: x.orden }, etiqueta: `${x.marca} ${x.modelo}` }; }), (x) => `${x.idModelo}|${x.tasaCumplida}`);
+  if (quiere("tarifasVN") && f.tarifasVN) p.tarifasVN = renumerarOrden(p.tarifasVN, cat.modelos);
   if (quiere("usados") && f.usados) p.usados = lista("usados", p.usados, f.usados.map((x) => ({ valor: { ...x }, etiqueta: x.subtipo })), (x) => norm(x.subtipo));
   if (quiere("patrones") && f.patrones) p.patrones = lista("patrones", p.patrones, f.patrones.map((x) => ({ valor: { ...x, tiers: x.tiers.map((t) => ({ ...t })) }, etiqueta: x.nombre })), (x) => norm(x.nombre));
   if (quiere("financiacion") && f.financiacion)

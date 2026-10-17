@@ -677,3 +677,12 @@ export const PLANTILLA_GENERICA: DatosPlantillaTarifas = {
 for (const t of PLANTILLA_GENERICA.tarifas.filter((x) => x.marca === "Dacia" && x.modelo === "Jogger")) {
   PLANTILLA_GENERICA.tarifas.push({ ...t, modelo: "Striker", importes: { ...t.importes }, orden: 6 });
 }
+
+/** Orden por defecto de los modelos dentro de cada marca (el que se ve en las tarifas del plan). */
+const ORDEN_MODELOS: Record<string, string[]> = {
+  Dacia: ["Sandero", "Sandero Stepway", "Duster", "Jogger", "Bigster", "Striker", "Spring"],
+  Renault: ["Clio", "Clio CL6", "Captur", "Symbioz", "Arkana", "Austral", "Espace", "Rafale", "R5", "R4", "Twingo", "Scenic", "Megane E-Tech"],
+};
+for (const t of PLANTILLA_GENERICA.tarifas) t.orden = ORDEN_MODELOS[t.marca]?.indexOf(t.modelo) ?? 99;
+PLANTILLA_GENERICA.tarifas.sort((a, b) => a.marca.localeCompare(b.marca) || a.orden - b.orden || Number(b.tasaCumplida) - Number(a.tasaCumplida));
+

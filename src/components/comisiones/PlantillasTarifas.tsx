@@ -6,6 +6,7 @@ import Modal, { ModalConfirmar } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
 import { euros } from "@/lib/formato";
+import { renumerarOrden } from "@/lib/plantillas-tarifas/orden";
 import type { DatosPlantillaTarifas } from "@/lib/plantillas-tarifas/generica";
 import type { ResumenPlantilla } from "@/lib/servicios/plantillas-tarifas";
 import { llamar, textoError } from "./api";
@@ -238,12 +239,11 @@ function ModalAplicar({ plan, setPlan, cat, alAmpliarCatalogo, alCerrar }: Props
         if (id === null) continue;
         for (const [cumplida, t] of [[true, f.tarifas.cumplida], [false, f.tarifas.noCumplida]] as const) {
           if (!t) continue;
-          const previa = plan.tarifasVN.find((x) => x.idModelo === id && x.tasaCumplida === cumplida);
           reemplazadas.add(`${id}|${cumplida}`);
-          nuevas.push({ idModelo: id, tasaCumplida: cumplida, importes: Object.fromEntries(Object.entries(t.importes).filter(([k]) => tramos.includes(k))), activo: t.activo, orden: previa?.orden ?? t.orden });
+          nuevas.push({ idModelo: id, tasaCumplida: cumplida, importes: Object.fromEntries(Object.entries(t.importes).filter(([k]) => tramos.includes(k))), activo: t.activo, orden: t.orden });
         }
       }
-      setPlan((p) => ({ ...p, tarifasVN: [...p.tarifasVN.filter((x) => !reemplazadas.has(`${x.idModelo}|${x.tasaCumplida}`)), ...nuevas] }));
+      setPlan((p) => ({ ...p, tarifasVN: renumerarOrden([...p.tarifasVN.filter((x) => !reemplazadas.has(`${x.idModelo}|${x.tasaCumplida}`)), ...nuevas], modelosCat) }));
       mostrar(`✅ Plantilla «${elegida.nombre}» aplicada: ${plural(nuevos, "modelo nuevo", "modelos nuevos")}, ${plural(sustituidos, "sustituido", "sustituidos")}.${creado} Revisa las tarifas y pulsa «Guardar plan» para conservarlas.`);
       alCerrar();
     } catch (e) {

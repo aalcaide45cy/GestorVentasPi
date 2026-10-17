@@ -21,7 +21,7 @@ describe("plantillas de tarifas VN", () => {
   it("viene sembrada la genérica de Renault y Dacia (con decimales en céntimos), y no se puede tocar", async () => {
     const lista = await listarPlantillas(db);
     const g = lista.find((p) => p.nombre === NOMBRE_PLANTILLA_GENERICA)!;
-    expect(g).toMatchObject({ sistema: true, marcas: ["Renault", "Dacia"] });
+    expect(g).toMatchObject({ sistema: true, marcas: ["Dacia", "Renault"] });
     expect(g.modelos).toBe(20);
     expect(lista[0].sistema).toBe(true); // las incluidas, primero
     await expect(actualizarPlantilla(db, g.id, { nombre: "Otra", datos: datos() })).rejects.toMatchObject({ status: 403 });
@@ -99,5 +99,15 @@ describe("plantillas de tarifas VN", () => {
     expect(await importarSeccion(db, admin.idUsuario, modificado, "actualizar", true)).toMatchObject({ actualizados: 1 });
     const id = (await listarPlantillas(db)).find((p) => p.nombre === "Propia")!.id;
     expect((await leerPlantilla(db, id)).datos.tarifas[0].importes["0"]).toBe(99999);
+  });
+});
+
+describe("orden de la plantilla genérica", () => {
+  it("trae el orden por defecto de los modelos en cada marca", async () => {
+    const g = (await listarPlantillas(db)).find((p) => p.sistema)!;
+    const datos = (await leerPlantilla(db, g.id)).datos;
+    const orden = (marca: string) => [...new Set(datos.tarifas.filter((t) => t.marca === marca).sort((a, b) => a.orden - b.orden).map((t) => t.modelo))];
+    expect(orden("Dacia")).toEqual(["Sandero", "Sandero Stepway", "Duster", "Jogger", "Bigster", "Striker", "Spring"]);
+    expect(orden("Renault")).toEqual(["Clio", "Clio CL6", "Captur", "Symbioz", "Arkana", "Austral", "Espace", "Rafale", "R5", "R4", "Twingo", "Scenic", "Megane E-Tech"]);
   });
 });
