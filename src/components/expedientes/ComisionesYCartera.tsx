@@ -54,7 +54,7 @@ interface TarjetaProps {
   titulo: string;
   mesTexto: string;
   pagoTexto: string;
-  resultado: ResultadoMes | null;
+  resultado: (ResultadoMes & { expedientes?: Record<string, { cliente: string; vehiculo: string; matricula: string | null }> }) | null;
   cargado: boolean;
   porId: Map<number, ExpedienteDto>;
   destacada?: boolean;
@@ -75,12 +75,15 @@ function Indicador({ etiqueta, ayuda, children }: { etiqueta: string; ayuda: str
 interface FilaDesglose {
   linea: ResultadoMes["lineas"][number];
   e: ExpedienteDto | undefined;
+  /** Datos que da el servidor cuando el expediente no está en la lista cargada en pantalla. */
+  info: { cliente: string; vehiculo: string; matricula: string | null } | undefined;
   coche: number;
   financiacion: number;
   preference: number;
   bonus: number;
 }
 
+const nombreCliente = (f: FilaDesglose): string => f.e?.cliente?.nombre ?? f.info?.cliente ?? `Expediente ${f.linea.idExpediente}`;
 const marcaDe = (f: FilaDesglose) => f.e?.modelo?.marca?.nombre ?? "";
 const centimos = (n: number) => (n === 0 ? <span style={{ color: "var(--text-muted)" }}>—</span> : euros(n));
 
@@ -89,17 +92,17 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
   {
     clave: "cliente",
     etiqueta: "Cliente",
-    valor: (f) => f.e?.cliente?.nombre ?? `Expediente ${f.linea.idExpediente}`,
+    valor: (f) => nombreCliente(f),
     celda: (f) => (
       <Link href={`/dashboard/expedientes/editar/${f.linea.idExpediente}`} style={{ color: "inherit", fontWeight: 600 }} title="Abrir el expediente">
-        {f.e?.cliente?.nombre ?? `Expediente ${f.linea.idExpediente}`}
+        {nombreCliente(f)}
       </Link>
     ),
     ancho: 130,
   },
-  { clave: "modelo", etiqueta: "Modelo", valor: (f) => [marcaDe(f), f.e?.modelo?.nombre_modelo].filter(Boolean).join(" ") || "—", ancho: 110 },
+  { clave: "modelo", etiqueta: "Modelo", valor: (f) => [marcaDe(f), f.e?.modelo?.nombre_modelo].filter(Boolean).join(" ") || f.info?.vehiculo || "—", ancho: 110 },
   { clave: "marca", etiqueta: "Marca", valor: marcaDe, oculta: true },
-  { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? "", oculta: true },
+  { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? f.info?.matricula ?? "", oculta: true },
   { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null) },
   { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.e?.tipoDeVenta?.nombre_tipo_venta ?? "", celda: (f) => (f.e?.tipoDeVenta ? <BadgeTipoVenta exp={f.e} /> : "—"), ayuda: "Forma de pago del expediente (contado, crédito, preference…)" },
   { clave: "cuenta", etiqueta: "Cuenta", valor: (f) => (f.linea.cuenta ? "Este mes" : "Otros conceptos"), ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes." },
@@ -119,7 +122,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   const lineas = hayPlan ? resultado.lineas.filter((l) => l.importe !== 0 || l.cuenta) : [];
   const filasDesglose: FilaDesglose[] = lineas.map((linea) => {
     const suma = (...ids: string[]) => linea.conceptos.filter((c) => ids.includes(c.concepto)).reduce((t, c) => t + c.importe, 0);
-    return { linea, e: porId.get(linea.idExpediente), coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial") };
+    return { linea, e: porId.get(linea.idExpediente), info: resultado?.expedientes?.[String(linea.idExpediente)], coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial") };
   });
   // Tasa de intervención financiera del mes: coches financiados / coches que cuentan, sumando todas las marcas
   const tasas = hayPlan ? resultado.tasaIntervencion : [];

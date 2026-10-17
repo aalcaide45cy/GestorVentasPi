@@ -69,7 +69,7 @@ const camposEdicion = {
 
 /** Duplicado de uno o varios expedientes (para probar): `copias` por cada uno. */
 export const MAX_COPIAS_POR_EXPEDIENTE = 50;
-export const MAX_COPIAS_TOTAL = 5000;
+export const MAX_COPIAS_TOTAL = 50000;
 /** A partir de cuántos expedientes nuevos en una sola operación se exige una copia de seguridad reciente y válida. */
 export const UMBRAL_COPIA_PREVIA = 10;
 export const esquemaDuplicarExpedientes = z.object({

@@ -15,7 +15,7 @@ export async function obtenerExpediente(ej: Ejecutor, id: number): Promise<Exped
  * Máximo de expedientes que se envían al navegador al abrir la lista (los más recientes). La lista filtra y pagina en el
  * cliente: con 100.000 expedientes serían ~130 MB de JSON, así que se recorta y se avisa en pantalla.
  */
-export const LIMITE_LISTA_EXPEDIENTES = 5000;
+export const LIMITE_LISTA_EXPEDIENTES = 20000;
 
 export async function contarExpedientes(ej: Ejecutor): Promise<number> {
   const [{ n }] = await ej.select({ n: sql<number>`count(*)::int` }).from(expedientes).where(isNull(expedientes.eliminadoEn));
