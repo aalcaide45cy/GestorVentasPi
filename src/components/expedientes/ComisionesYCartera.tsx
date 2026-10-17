@@ -216,6 +216,7 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
   const q = `${usuario ? `&usuario=${usuario}` : ""}&v=${firma}`;
   const { datos: elegido } = useCarga<ResultadoMes | null | undefined>(`/api/comisiones/mes?mes=${aIso(anio, mes)}${q}`, undefined);
   const { datos: anterior } = useCarga<ResultadoMes | null | undefined>(`/api/comisiones/mes?mes=${aIso(previoReal.anio, previoReal.mes)}${q}`, undefined);
+  const esMesActual = anio === hoy.getFullYear() && mes === hoy.getMonth() + 1;
   const pago = desplazar(anio, mes, 1);
   const pagoAnterior = desplazar(previoReal.anio, previoReal.mes, 1);
 
@@ -233,24 +234,24 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
         </div>
         <BotonPlegar abierto={abierto} alternar={alternar} titulo="Comisiones" />
       </div>
-      {abierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: "16px" }}>
-        <TarjetaComision
+      {abierto && <div style={{ display: "grid", gridTemplateColumns: esMesActual ? "repeat(auto-fit, minmax(min(420px, 100%), 1fr))" : "1fr", gap: "16px" }}>
+        {esMesActual && <TarjetaComision
           titulo="Mes anterior (se cobra ahora)"
           mesTexto={etiquetaMes(previoReal.anio, previoReal.mes)}
           pagoTexto={`Nómina de ${etiquetaMes(pagoAnterior.anio, pagoAnterior.mes)}`}
           resultado={anterior ?? null}
           cargado={anterior !== undefined}
           porId={porId}
-        />
+        />}
         <TarjetaComision
-          titulo="Mes elegido (llevas generado)"
+          titulo={esMesActual ? "Mes elegido (llevas generado)" : "Mes elegido (no es el mes actual)"}
           mesTexto={etiquetaMes(anio, mes)}
           pagoTexto={`Se cobrará en la nómina de ${etiquetaMes(pago.anio, pago.mes)}`}
           resultado={elegido ?? null}
           cargado={elegido !== undefined}
           porId={porId}
           destacada
-          aviso={anio === hoy.getFullYear() && mes === hoy.getMonth() + 1 ? undefined : "No es el mes actual"}
+          aviso={esMesActual ? undefined : "No es el mes actual: se muestra solo este mes. Pulsa «Mes Actual» arriba para ver también el mes anterior"}
         />
       </div>}
     </div>
