@@ -30,8 +30,7 @@ export default async function CotejoPagosPage() {
       </div>
       <CotejoHub
         expedientes={expedientes}
-        vendedores={lista.map((v) => v.nombre)}
-        nombreActual={user.nombre ?? ""}
+        vendedores={lista.map((v) => ({ id: v.id, nombre: v.nombre }))}
         esAdministrador={esAdministrador(user.rol)}
         catalogo={{ marcas: [], modelos: [], vendedores: lista }}
         idUsuario={user.idUsuario}
