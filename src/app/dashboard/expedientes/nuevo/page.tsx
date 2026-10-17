@@ -24,7 +24,7 @@ export default async function NuevoExpedientePage() {
   const tiendas = propias.length === 0 || veTodasLasTiendas(user.rol) ? catalogos.tiendas : propias;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%", maxWidth: "1100px", margin: "0 auto" }}>
       <div>
         <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Crear Nuevo Expediente de Venta</h1>
         <p style={{ color: "var(--text-secondary)" }}>

@@ -31,7 +31,7 @@ export default async function EditarExpedientePage({ params }: PageProps) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%", maxWidth: "1100px", margin: "0 auto" }}>
       <div>
         <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Editar Expediente</h1>
         <p style={{ color: "var(--text-secondary)" }}>

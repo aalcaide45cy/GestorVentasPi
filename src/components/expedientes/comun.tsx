@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
+import { useToast } from "../Toast";
 import type { ExpedienteDto } from "@/lib/dto";
 
 export type CampoFecha = "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion";
@@ -63,6 +65,48 @@ export function EnlaceEditar({ id }: { id: number }) {
   );
 }
 
+/** Copia un texto al portapapeles (con alternativa para páginas servidas sin HTTPS, como en la red local). */
+export async function copiarTexto(texto: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(texto);
+    return true;
+  } catch {
+    try {
+      const area = document.createElement("textarea");
+      area.value = texto;
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/** Texto en una sola línea: si no cabe se corta con «…», con el valor completo al pasar el ratón; doble clic lo copia entero. */
+export function TextoCopiable({ texto, estilo, children }: { texto: string; estilo?: CSSProperties; children?: ReactNode }) {
+  const { mostrar } = useToast();
+  return (
+    <span
+      className="texto-copiable"
+      style={estilo}
+      title={`${texto}\n(doble clic para copiar)`}
+      onDoubleClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.getSelection()?.removeAllRanges();
+        void copiarTexto(texto).then((ok) => (ok ? mostrar(`Copiado: ${texto}`, "exito", 2000) : mostrar("No se ha podido copiar el valor.", "error")));
+      }}
+    >
+      {children ?? texto}
+    </span>
+  );
+}
+
 interface CeldaClienteProps {
   exp: ExpedienteDto;
   alAsignar: (id: number) => void;
@@ -70,7 +114,13 @@ interface CeldaClienteProps {
 
 /** Nombre del cliente (solo nombre, sin DNI) o «Sin Cliente» con botón para asignar. */
 export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
-  if (exp.cliente?.nombre) return <NombreConFoto fotoId={exp.cliente.foto_id}>{exp.cliente.nombre}</NombreConFoto>;
+  if (exp.cliente?.nombre) {
+    return (
+      <TextoCopiable texto={exp.cliente.nombre}>
+        <NombreConFoto fotoId={exp.cliente.foto_id}>{exp.cliente.nombre}</NombreConFoto>
+      </TextoCopiable>
+    );
+  }
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>

@@ -7,6 +7,7 @@ import { useToast } from "@/components/Toast";
 import type { ExpedienteDto } from "@/lib/dto";
 import { hoyIsoCliente } from "@/lib/date-utils";
 import VisorAdjuntos from "@/components/documentos/VisorAdjuntos";
+import FechaRapida from "@/components/FechaRapida";
 import { mensajeDeError, type CampoFecha } from "./comun";
 
 interface Pendiente {
@@ -38,7 +39,8 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
   const [ocupado, setOcupado] = useState(false);
 
   const abrirEditar = (expediente: ExpedienteDto, campo: CampoFecha, nombre: string) => {
-    setFecha(expediente[campo] || hoyIsoCliente());
+    // La facturación no se propone con la fecha de hoy (un Enter despistado la dejaría puesta): se parte de la de matriculación o se deja vacía
+    setFecha(expediente[campo] || (campo === "fecha_facturacion" ? (expediente.fecha_matriculacion ?? "") : hoyIsoCliente()));
     setMatricula(expediente.matricula || "");
     setVin(expediente.vin || "");
     setFechaRciObligatoria("");
@@ -81,6 +83,14 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
         cambios.fecha_rci = fechaRciObligatoria;
       }
     }
+    if (campo === "fecha_facturacion" && fecha && exigeRci(expediente)) {
+      // Igual que al matricular: crédito, preference... no se facturan sin fecha RCI
+      if (!fechaRciObligatoria) {
+        mostrar(`Los pagos «${expediente.tipoDeVenta?.nombre_tipo_venta}» exigen la fecha RCI (contratación de la financiera) para facturar. Indícala primero.`, "error");
+        return;
+      }
+      cambios.fecha_rci = fechaRciObligatoria;
+    }
     setOcupado(true);
     try {
       await enviar(expediente.id_expediente, cambios);
@@ -117,6 +127,7 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
       {editando && (
         <Modal
           titulo={`Establecer fecha de ${editando.nombre}`}
+          ancho="540px"
           pie={
             <>
               <button type="button" className="btn btn-secondary" onClick={() => setEditando(null)} disabled={ocupado}>
@@ -130,7 +141,7 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
         >
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Selecciona Fecha</label>
-            <input type="date" className="form-input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <FechaRapida valor={fecha} alCambiar={setFecha} />
           </div>
           {editando.campo === "fecha_afectacion" && (
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -143,10 +154,10 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
               <VisorAdjuntos idExpediente={editando.expediente.id_expediente} titulo="📎 Documentos de la financiación (RCI)" />
             </div>
           )}
-          {editando.campo === "fecha_matriculacion" && exigeRci(editando.expediente) && (
+          {(editando.campo === "fecha_matriculacion" || editando.campo === "fecha_facturacion") && exigeRci(editando.expediente) && (
             <div className="form-group" style={{ marginBottom: 0, padding: "12px", border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)" }}>
               <label className="form-label">Fecha RCI * (obligatoria: pago «{editando.expediente.tipoDeVenta?.nombre_tipo_venta}»)</label>
-              <input type="date" className="form-input" value={fechaRciObligatoria} onChange={(e) => setFechaRciObligatoria(e.target.value)} />
+              <FechaRapida valor={fechaRciObligatoria} alCambiar={setFechaRciObligatoria} />
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Fecha de contratación de la financiera. Se tiene en cuenta para la tasa de intervención y las comisiones.</span>
             </div>
           )}

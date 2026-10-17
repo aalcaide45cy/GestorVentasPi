@@ -262,6 +262,10 @@ export const expedientes = pgTable(
     conceptosAdicionales: text("conceptos_adicionales"),
     /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
+    /** Si el expediente es un duplicado hecho con «Duplicar» (para pruebas), id del expediente del que se copió. */
+    copiaDe: integer("copia_de"),
+    /** Si la copia lleva la etiqueta visible «COPIA» en la tabla (se decide al duplicar; la marca interna `copia_de` se guarda siempre). */
+    copiaEtiqueta: boolean("copia_etiqueta").notNull().default(false),
   },
   (t) => [
     index("expedientes_usuario_idx").on(t.idUsuario),

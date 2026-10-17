@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
 import { ModalConfirmar } from "@/components/Modal";
+import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { construirCsv, descargarTexto, interpretarCsvExpedientes } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
@@ -17,11 +18,11 @@ import {
   leerPredefinidos,
   type FiltrosActuales,
 } from "@/lib/filtros-expedientes";
-import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
-import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, mensajeDeError, type CampoFecha } from "./expedientes/comun";
+import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, TextoCopiable, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
 import ModalContrasteListado from "./expedientes/ModalContrasteListado";
@@ -64,6 +65,7 @@ type Columna =
   | "email"
   | "marca"
   | "modelo"
+  | "marca_modelo"
   | "tipo_venta"
   | "estado"
   | "vendedor"
@@ -81,6 +83,7 @@ const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
   { clave: "email", etiqueta: "Email" },
   { clave: "marca", etiqueta: "Marca" },
   { clave: "modelo", etiqueta: "Modelo" },
+  { clave: "marca_modelo", etiqueta: "Marca y modelo" },
   { clave: "tipo_venta", etiqueta: "T. Venta" },
   { clave: "estado", etiqueta: "Estado" },
   { clave: "vendedor", etiqueta: "Vendedor" },
@@ -90,12 +93,46 @@ const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
   { clave: "fecha_matriculacion", etiqueta: "F. Mat" },
   { clave: "fecha_facturacion", etiqueta: "F. FAC." },
   { clave: "fecha_entrega", etiqueta: "F. Entrega" },
-  { clave: "cobro", etiqueta: "Cobro" },
+  { clave: "cobro", etiqueta: "Comisionado" },
 ];
 
 type Visibles = Record<Columna, boolean>;
 const TODAS: Visibles = Object.fromEntries(COLUMNAS.map((c) => [c.clave, true])) as Visibles;
+/** Por defecto «Marca» y «Modelo» van por separado; la columna unificada «Marca y modelo» se activa desde «Columnas». */
+const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false };
 const MINIMAS: Visibles = Object.fromEntries(COLUMNAS.map((c) => [c.clave, c.clave === "cliente" || c.clave === "vendedor"])) as Visibles;
+
+/** Ancho fijo de cada columna (px): la tabla no cambia de tamaño al ocultar entregados, filtrar u ordenar. */
+const ANCHO_COLUMNA: Record<Columna, number> = {
+  cliente: 200,
+  telefono: 112,
+  email: 210,
+  marca: 100,
+  modelo: 190,
+  marca_modelo: 210,
+  tipo_venta: 100,
+  estado: 100,
+  vendedor: 130,
+  fecha_expediente: 100,
+  fecha_afectacion: 150,
+  fecha_rci: 150,
+  fecha_matriculacion: 150,
+  fecha_facturacion: 150,
+  fecha_entrega: 150,
+  cobro: 150,
+};
+/** «Dacia Sandero»: marca y modelo en una sola cadena, sin repetir la marca si el modelo ya la incluye («Renault 5» de la marca Renault). */
+function marcaYModelo(e: ExpedienteDto): string {
+  const marca = e.modelo?.marca?.nombre?.trim() ?? "";
+  const modelo = e.modelo?.nombre_modelo?.trim() ?? "";
+  if (!marca) return modelo;
+  if (!modelo) return marca;
+  const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return sinAcentos(modelo).startsWith(sinAcentos(marca)) ? modelo : `${marca} ${modelo}`;
+}
+
+const ANCHO_SELECCION = 40;
+const ANCHO_ACCIONES = 130;
 
 const FECHAS_FILTRO: { valor: string; etiqueta: string }[] = [
   { valor: "fecha_expediente", etiqueta: "Fecha Expediente" },
@@ -172,6 +209,14 @@ export default function ExpedientesList({
   const [cargando, setCargando] = useState(false);
   const [borrando, setBorrando] = useState(false);
   const [aBorrar, setABorrar] = useState<ExpedienteDto | null>(null);
+  // Duplicar expedientes (solo con «Permitir expedientes duplicados» activa en Mis datos)
+  const [permitirDupGuardado] = usePreferencia(CLAVE_PERMITIR_DUPLICADOS);
+  const permitirDup = permitirDupGuardado === "true";
+  const [etiquetaCopiaGuardada] = usePreferencia(CLAVE_ETIQUETA_COPIA);
+  const [duplicando, setDuplicando] = useState<number[] | null>(null);
+  const [copias, setCopias] = useState("1");
+  const [duplicandoEnCurso, setDuplicandoEnCurso] = useState(false);
+  const [falloCopia, setFalloCopia] = useState<string | null>(null);
   const [confirmarBorradoMasivo, setConfirmarBorradoMasivo] = useState(false);
   const [asignandoId, setAsignandoId] = useState<number | null>(null);
 
@@ -183,9 +228,9 @@ export default function ExpedientesList({
   const [columnasGuardadas, fijarColumnas] = usePreferencia("exp-visible-columns");
   const visibles = useMemo<Visibles>(() => {
     try {
-      return columnasGuardadas ? { ...TODAS, ...(JSON.parse(columnasGuardadas) as Partial<Visibles>) } : TODAS;
+      return columnasGuardadas ? { ...POR_DEFECTO, ...(JSON.parse(columnasGuardadas) as Partial<Visibles>) } : POR_DEFECTO;
     } catch {
-      return TODAS; // preferencia corrupta: se muestran todas
+      return POR_DEFECTO; // preferencia corrupta: se vuelve a lo habitual
     }
   }, [columnasGuardadas]);
   const [tamanoGuardado] = usePreferencia("exp-default-page-size");
@@ -362,6 +407,8 @@ export default function ExpedientesList({
           return e.modelo?.marca?.nombre ?? "";
         case "modelo":
           return e.modelo?.nombre_modelo ?? "";
+        case "marca_modelo":
+          return marcaYModelo(e);
         case "tipo_venta":
           return e.tipoDeVenta?.nombre_tipo_venta ?? "";
         case "estado":
@@ -475,7 +522,7 @@ export default function ExpedientesList({
       const res = await fetch("/api/expedientes/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, filename: archivo.name }),
+        body: JSON.stringify({ items, filename: archivo.name, permitir_duplicados: permitirDuplicadosAhora() }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al procesar la importación en el servidor."));
       const r = (await res.json()) as { message?: string };
@@ -495,7 +542,7 @@ export default function ExpedientesList({
       const res = await fetch("/api/expedientes/importar-excel/procesar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates: lista, filename: archivo }),
+        body: JSON.stringify({ updates: lista, filename: archivo, permitir_duplicados: permitirDuplicadosAhora() }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al procesar los datos de Excel."));
       const r = (await res.json()) as { message?: string };
@@ -628,6 +675,38 @@ export default function ExpedientesList({
   const totalColSpan = columnasActivas.length + (seleccionActiva ? 1 : 0) + 1;
   const mostrarCol = (c: Columna) => visibles[c] !== false && (c !== "cobro" || mostrarCobros);
 
+  const nCopias = Math.max(0, Math.floor(Number(copias) || 0));
+  const copiasValidas = nCopias >= 1 && nCopias <= 50;
+  const duplicar = async (sinCopia = false) => {
+    if (!duplicando || !copiasValidas) return;
+    setDuplicandoEnCurso(true);
+    const inicio = performance.now();
+    try {
+      // Un solo envío para todo el lote: o se crean todas las copias o ninguna
+      const res = await fetch("/api/expedientes/duplicar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: duplicando, copias: nCopias, etiqueta: etiquetaCopiaGuardada !== "false", sin_copia: sinCopia }) });
+      if (!res.ok) {
+        const mensaje = await mensajeDeError(res, "Error al duplicar.");
+        if (mensaje.startsWith("COPIA_PREVIA:")) {
+          setFalloCopia(mensaje.replace("COPIA_PREVIA:", "").trim());
+          return;
+        }
+        throw new Error(mensaje);
+      }
+      const r = (await res.json()) as { creados: number; copia: { nombre: string; creadaAhora: boolean } | null };
+      const segundos = ((performance.now() - inicio) / 1000).toFixed(1).replace(".", ",");
+      mostrar(`✅ ${r.creados} expediente${r.creados === 1 ? "" : "s"} duplicado${r.creados === 1 ? "" : "s"} en ${segundos} s. ${r.copia ? (r.copia.creadaAhora ? ` Antes se hizo una copia de seguridad (${r.copia.nombre}).` : ` Ya había una copia de seguridad reciente (${r.copia.nombre}).`) : ""}`);
+      setDuplicando(null);
+      setFalloCopia(null);
+      setSeleccionados([]);
+      router.refresh();
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+      mostrar(`No se ha creado ninguna copia. Motivo: ${e instanceof Error ? e.message : "error inesperado."}`, "error");
+    } finally {
+      setDuplicandoEnCurso(false);
+    }
+  };
+
   const cambiarVisibles = (siguiente: Visibles) => {
     fijarColumnas(JSON.stringify(siguiente));
   };
@@ -722,7 +801,7 @@ export default function ExpedientesList({
               }}
               style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }}
             />
-            <span>👁️ Mostrar Cobros</span>
+            <span>👁️ Mostrar Comisionados</span>
           </label>
 
           <button
@@ -827,6 +906,11 @@ export default function ExpedientesList({
               >
                 🗑️ Eliminar Seleccionados
               </button>
+              {permitirDup && (
+                <button type="button" className="btn btn-secondary" onClick={() => { setCopias("1"); setDuplicando(seleccionados); }} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Crea copias de los expedientes seleccionados (para pruebas)">
+                  📑 Duplicar Seleccionados
+                </button>
+              )}
               <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
                 📤 Exportar Seleccionados (CSV)
               </button>
@@ -1115,7 +1199,14 @@ export default function ExpedientesList({
         />
 
         <div className="table-container">
-          <table className="table-premium table-compact">
+          <table className="table-premium table-compact tabla-fija" style={{ width: (seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + ANCHO_COLUMNA[c.clave], 0) + ANCHO_ACCIONES, minWidth: "100%" }}>
+            <colgroup>
+              {seleccionActiva && <col style={{ width: ANCHO_SELECCION }} />}
+              {columnasActivas.map((c) => (
+                <col key={c.clave} style={{ width: ANCHO_COLUMNA[c.clave] }} />
+              ))}
+              <col style={{ width: ANCHO_ACCIONES }} />
+            </colgroup>
             <thead>
               <tr>
                 {seleccionActiva && (
@@ -1133,6 +1224,7 @@ export default function ExpedientesList({
                 {cabecera("email", "Email")}
                 {cabecera("marca", "Marca")}
                 {cabecera("modelo", "Modelo")}
+                {cabecera("marca_modelo", "Marca y modelo")}
                 {cabecera("tipo_venta", "T. Venta")}
                 {cabecera("estado", "Estado")}
                 {cabecera("vendedor", "Vendedor")}
@@ -1142,7 +1234,7 @@ export default function ExpedientesList({
                 {cabecera("fecha_matriculacion", "F. Mat", FONDO_FECHA_B)}
                 {cabecera("fecha_facturacion", "F. FAC.", FONDO_FECHA_A)}
                 {cabecera("fecha_entrega", "F. Entrega", FONDO_FECHA_B)}
-                {cabecera("cobro", "Cobro", "rgba(128, 128, 128, 0.06)")}
+                {cabecera("cobro", "Comisionado", "rgba(128, 128, 128, 0.06)")}
                 <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Acciones</th>
               </tr>
             </thead>
@@ -1175,26 +1267,38 @@ export default function ExpedientesList({
                       </td>
                     )}
                     {mostrarCol("telefono") && (
-                      <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
-                        {exp.cliente?.telefonos[0]?.telefono ?? <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
+                      <td>
+                        {exp.cliente?.telefonos[0]?.telefono ? <TextoCopiable texto={exp.cliente.telefonos[0].telefono} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
                       </td>
                     )}
                     {mostrarCol("email") && (
-                      <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
-                        {exp.cliente?.emails[0]?.email ?? <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
+                      <td>
+                        {exp.cliente?.emails[0]?.email ? <TextoCopiable texto={exp.cliente.emails[0].email} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
                       </td>
                     )}
                     {mostrarCol("marca") && (
-                      <td>{exp.modelo?.marca?.nombre || <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
+                      <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre} /> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
                     )}
                     {mostrarCol("modelo") && (
                       <td>
                         {exp.modelo ? (
-                          <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo.nombre_modelo}</div>
+                          <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
                         ) : (
                           <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
                         )}
-                        {exp.vin && <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</div>}
+                        {exp.copia_de && exp.copia_etiqueta && <span title={`Copia del expediente nº ${exp.copia_de} (hecha con «Duplicar»)`} style={{ display: "inline-block", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.04em", color: "var(--warning)", border: "1px solid var(--warning)", borderRadius: "4px", padding: "0 5px", marginTop: "2px" }}>COPIA de #{exp.copia_de}</span>}
+                        {exp.vin && <TextoCopiable texto={exp.vin} estilo={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</TextoCopiable>}
+                      </td>
+                    )}
+                    {mostrarCol("marca_modelo") && (
+                      <td>
+                        {marcaYModelo(exp) ? (
+                          <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
+                        ) : (
+                          <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca ni modelo)</span>
+                        )}
+                        {exp.copia_de && exp.copia_etiqueta && <span title={`Copia del expediente nº ${exp.copia_de} (hecha con «Duplicar»)`} style={{ display: "inline-block", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.04em", color: "var(--warning)", border: "1px solid var(--warning)", borderRadius: "4px", padding: "0 5px", marginTop: "2px" }}>COPIA de #{exp.copia_de}</span>}
+                        {exp.vin && <TextoCopiable texto={exp.vin} estilo={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</TextoCopiable>}
                       </td>
                     )}
                     {mostrarCol("tipo_venta") && (
@@ -1209,7 +1313,7 @@ export default function ExpedientesList({
                     )}
                     {mostrarCol("vendedor") && (
                       <td>
-                        <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
+                        {exp.usuario?.nombre ? <TextoCopiable texto={exp.usuario.nombre} estilo={{ fontSize: "0.9rem", fontWeight: 500 }} /> : <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>N/D</span>}
                       </td>
                     )}
                     {mostrarCol("fecha_expediente") && (
@@ -1224,13 +1328,17 @@ export default function ExpedientesList({
                     {mostrarCol("fecha_entrega") && celdaFecha(exp, "fecha_entrega", "Entrega", FONDO_FECHA_B)}
                     {mostrarCol("cobro") && (
                       <td style={{ textAlign: "center" }}>
-                        {exp.comision_cobrada ? (
-                          <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                            💰 Cobrado
+                        {exp.comisionado?.estado === "pagado" ? (
+                          <span className="badge" title={`Comisión pagada según el Cotejo de pagos de ${exp.comisionado.mes.split("-").reverse().join("/")}`} style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                            💰 Comisionado {exp.comisionado.mes.split("-").reverse().join("/")}
+                          </span>
+                        ) : exp.comisionado?.estado === "reclamado" ? (
+                          <span className="badge" title={`Comisión reclamada a la empresa (liquidación de ${exp.comisionado.mes.split("-").reverse().join("/")})`} style={{ fontSize: "0.75rem", backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                            ⚠️ Reclamado
                           </span>
                         ) : (
-                          <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
-                            🕒 Pendiente
+                          <span className="badge" title="Todavía no está marcado como pagado en el Cotejo de pagos" style={{ fontSize: "0.75rem", backgroundColor: "rgba(128, 128, 128, 0.1)", color: "var(--text-muted)", border: "1px solid var(--border-light)" }}>
+                            Pendiente
                           </span>
                         )}
                       </td>
@@ -1244,6 +1352,16 @@ export default function ExpedientesList({
                         >
                           ✏️
                         </Link>
+                        {permitirDup && (
+                          <button
+                            type="button"
+                            onClick={() => { setCopias("1"); setDuplicando([exp.id_expediente]); }}
+                            title="Duplicar expediente"
+                            style={{ width: "28px", height: "28px", display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-btn-secondary)", border: "1px solid var(--border-light)", color: "var(--text-primary)", borderRadius: "var(--radius-sm)", fontSize: "0.85rem", cursor: "pointer" }}
+                          >
+                            📑
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => borradoActivo && setABorrar(exp)}
@@ -1353,6 +1471,54 @@ export default function ExpedientesList({
           alConfirmar={() => void eliminar(seleccionados)}
           alCancelar={() => setConfirmarBorradoMasivo(false)}
         />
+      )}
+
+      {duplicando && (
+        <Modal
+          titulo="📑 Duplicar expedientes"
+          ancho="460px"
+          pie={
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => { setDuplicando(null); setFalloCopia(null); }} disabled={duplicandoEnCurso}>
+                Cancelar
+              </button>
+              {falloCopia && (
+                <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => void duplicar(true)} disabled={duplicandoEnCurso} title="Duplica igualmente sin tener una copia de seguridad reciente. Solo si estás seguro de que no necesitas poder volver atrás.">
+                  Duplicar sin copia previa
+                </button>
+              )}
+              <button type="button" className="btn btn-primary" onClick={() => void duplicar()} disabled={duplicandoEnCurso || !copiasValidas}>
+                {duplicandoEnCurso ? (duplicando.length * nCopias > 10 ? "Copia de seguridad y duplicado…" : "Duplicando…") : falloCopia ? "Reintentar" : "Sí, duplicar"}
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.9rem" }}>
+            <div>
+              Vas a duplicar <strong>{duplicando.length}</strong> expediente{duplicando.length === 1 ? "" : "s"}. ¿Cuántas copias de cada uno?
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Copias de cada expediente (de 1 a 50)</label>
+              <input type="number" className="form-input" min={1} max={50} value={copias} onChange={(e) => setCopias(e.target.value)} disabled={duplicandoEnCurso} autoFocus style={{ maxWidth: "140px" }} />
+            </div>
+            <div style={{ color: copiasValidas ? "var(--text-secondary)" : "var(--danger)" }}>
+              {copiasValidas ? <>Se crearán <strong>{duplicando.length * nCopias}</strong> expedientes nuevos en total.</> : "Escribe un número de copias entre 1 y 50."}
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              Se copian el cliente, el vendedor, el tipo de venta, las fechas y las comisiones a mano. No se copian el bastidor, la matrícula ni los documentos adjuntos. Las copias se pueden borrar después con «Eliminar Seleccionados» (llevan la etiqueta «COPIA» salvo que la hayas desactivado en Mis datos). Se crean todas a la vez: si falla algo, no se crea ninguna.
+            </div>
+            {duplicando.length * nCopias > 10 && (
+              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                🛡️ Como son muchos expedientes, antes se comprueba que haya una copia de seguridad válida de los últimos 15 minutos y, si no la hay, se hace una (tarda unos segundos).
+              </div>
+            )}
+            {falloCopia && (
+              <div role="alert" style={{ padding: "10px 12px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", color: "var(--danger)", fontSize: "0.85rem" }}>
+                🛑 No se ha duplicado nada: no se pudo hacer la copia de seguridad previa. {falloCopia}
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
 
       {edicionMasiva && (

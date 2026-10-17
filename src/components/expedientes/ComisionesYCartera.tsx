@@ -7,8 +7,12 @@ import type { ResultadoMes } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import { usePreferencia } from "@/lib/preferencias";
+import { BadgeTipoVenta, TextoCopiable } from "./comun";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+/** Ancho fijo de las columnas de la cartera (px): cliente, modelo, matrícula, tipo de venta, pedido, afectación, matriculación, cobrado otra fecha, situación. */
+const ANCHOS_CARTERA = [160, 150, 90, 95, 100, 110, 125, 125, 155];
 
 const aIso = (anio: number, mes: number) => `${anio}-${String(mes).padStart(2, "0")}`;
 /** Mes `delta` meses antes o después de `anio`/`mes` (mes de 1 a 12). */
@@ -241,32 +245,47 @@ export function PanelCartera({ anio, mes, expedientes }: { anio: number; mes: nu
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>No hay expedientes con fecha de pedido en ese mes.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", fontSize: "0.85rem", borderCollapse: "collapse", minWidth: "640px" }}>
+          <table className="tabla-fija tabla-fija-baja" style={{ width: ANCHOS_CARTERA.reduce((t, a) => t + a, 0), minWidth: "100%", fontSize: "0.85rem", borderCollapse: "collapse" }}>
+            <colgroup>
+              {ANCHOS_CARTERA.map((a, k) => (
+                <col key={k} style={{ width: a }} />
+              ))}
+            </colgroup>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--text-secondary)" }}>
                 <th style={{ padding: "6px 8px" }}>Cliente</th>
                 <th style={{ padding: "6px 8px" }}>Modelo</th>
+                <th style={{ padding: "6px 8px" }}>Matrícula</th>
+                <th style={{ padding: "6px 8px" }}>T. venta</th>
                 <th style={{ padding: "6px 8px" }}>F. pedido</th>
                 <th style={{ padding: "6px 8px" }}>F. afectación</th>
                 <th style={{ padding: "6px 8px" }}>F. matriculación</th>
+                <th style={{ padding: "6px 8px" }} title="Fecha en la que se cobra el expediente cuando es distinta de la habitual («Expediente cobrado en otra fecha»)">Cobro otra fecha</th>
                 <th style={{ padding: "6px 8px" }}>Situación</th>
               </tr>
             </thead>
             <tbody>
               {lista.map((e) => {
                 const est = ESTADOS_CARTERA[estadoCartera(e)];
+                const modelo = [e.modelo?.marca?.nombre, e.modelo?.nombre_modelo].filter(Boolean).join(" ");
+                const nombre = e.cliente?.nombre ?? "Sin cliente";
                 return (
                   <tr key={e.id_expediente} style={{ borderTop: "1px solid var(--border-light)" }}>
-                    <td style={{ padding: "6px 8px" }}>
+                    <td style={{ padding: "6px 8px" }} title={nombre}>
                       <Link href={`/dashboard/expedientes/editar/${e.id_expediente}`} style={{ color: "inherit", fontWeight: 600 }} title="Abrir el expediente">
-                        {e.cliente?.nombre ?? "Sin cliente"}
+                        {nombre}
                       </Link>
                     </td>
-                    <td style={{ padding: "6px 8px" }}>{[e.modelo?.marca?.nombre, e.modelo?.nombre_modelo].filter(Boolean).join(" ") || "—"}</td>
+                    <td style={{ padding: "6px 8px" }}>{modelo ? <TextoCopiable texto={modelo} /> : "—"}</td>
+                    <td style={{ padding: "6px 8px", fontFamily: "monospace" }}>{e.matricula ? <TextoCopiable texto={e.matricula} /> : "—"}</td>
+                    <td style={{ padding: "6px 8px" }}>{e.tipoDeVenta ? <BadgeTipoVenta exp={e} /> : "—"}</td>
                     <td style={{ padding: "6px 8px" }}>{fechaCorta(e.fecha_expediente)}</td>
                     <td style={{ padding: "6px 8px", fontWeight: 700 }}>{fechaCorta(e.fecha_afectacion)}</td>
                     <td style={{ padding: "6px 8px" }}>{fechaCorta(e.fecha_matriculacion)}</td>
-                    <td style={{ padding: "6px 8px", color: est.color, fontWeight: 600 }}>{est.texto}</td>
+                    <td style={{ padding: "6px 8px" }}>{e.cobrado_otra_fecha ? fechaCorta(e.fecha_cobrado) : "—"}</td>
+                    <td style={{ padding: "6px 8px", color: est.color, fontWeight: 600 }} title={est.texto}>
+                      {est.texto}
+                    </td>
                   </tr>
                 );
               })}

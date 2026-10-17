@@ -482,10 +482,11 @@ copia_antes_de_actualizar() {
   local f="$DIR/backups/gv_$(date +%Y%m%d_%H%M%S)_previa.dump"
   # shellcheck disable=SC1091
   . "$DIR/.env"
-  if dc exec -T db pg_dump -Fc -Z 6 --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB" > "$f"; then
+  # La copia solo vale si pg_dump termina bien, pesa lo razonable y pg_restore la puede leer (nunca se da por buena una copia vacía)
+  if dc exec -T db pg_dump -Fc -Z 6 --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB" > "$f"      && [ "$(wc -c < "$f")" -ge 4096 ]      && dc exec -T db pg_restore --list < "$f" > /dev/null; then
     chmod 600 "$f"; chown 1000:1000 "$f" 2>/dev/null || true; verde "Copia previa: $f"
   else
-    rm -f "$f"; fallar "No se pudo hacer la copia previa. No se actualiza."
+    rm -f "$f"; fallar "No se pudo hacer una copia previa válida. No se actualiza."
   fi
 }
 

@@ -29,6 +29,8 @@ const texto = z.string().nullable().optional();
 
 export const esquemaImportacionCsv = z.object({
   filename: z.string().max(255).optional(),
+  /** Pantalla con «Permitir expedientes duplicados» activa: no se omiten filas con bastidor o matrícula repetidos. */
+  permitir_duplicados: z.boolean().optional(),
   items: z
     .array(
       z.object({
@@ -70,6 +72,7 @@ export const esquemaVerificarExcel = z.object({
 const fechaExcel = z.string().nullable().optional();
 export const esquemaProcesarExcel = z.object({
   filename: z.string().max(255).optional(),
+  permitir_duplicados: z.boolean().optional(),
   updates: z
     .array(
       z.object({
@@ -278,8 +281,8 @@ export async function importarExpedientesCsv(
       const nombreCliente = limpio(item.cliente_nombre) || "Desconocido";
 
       let duplicado = false;
-      if (vin) duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, vin))).limit(1)).length > 0;
-      if (!duplicado && matricula) {
+      if (vin && !entrada.permitir_duplicados) duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, vin))).limit(1)).length > 0;
+      if (!duplicado && matricula && !entrada.permitir_duplicados) {
         duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.matricula, matricula))).limit(1)).length > 0;
       }
       if (duplicado) {
@@ -475,11 +478,11 @@ export async function procesarActualizacionesExcel(
       const matricula = limpiarMatricula(u.matricula);
 
       let duplicado = false;
-      if (bastidor && bastidor !== exp.vin) {
+      if (bastidor && bastidor !== exp.vin && !entrada.permitir_duplicados) {
         duplicado =
           (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, bastidor), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
       }
-      if (!duplicado && matricula && matricula !== exp.matricula) {
+      if (!duplicado && matricula && matricula !== exp.matricula && !entrada.permitir_duplicados) {
         duplicado =
           (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.matricula, matricula), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
       }

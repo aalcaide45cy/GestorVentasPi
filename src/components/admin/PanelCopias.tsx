@@ -72,6 +72,14 @@ export default function PanelCopias() {
     });
   };
 
+  const borrarInvalidas = () => {
+    if (!window.confirm(`Se van a borrar ${estado?.invalidas ?? 0} copia(s) vacías o rotas. No sirven para restaurar nada, así que no se pierde ninguna copia útil. ¿Continuar?`)) return;
+    void accion("invalidas", async () => {
+      const { extra } = await llamar("/api/admin/copias?invalidas=1", { method: "DELETE" });
+      return typeof extra.aviso === "string" && extra.aviso ? extra.aviso : `Copias inválidas borradas (${String(extra.borradas ?? 0)}).`;
+    });
+  };
+
   const subirFichero = (f: File | null) => {
     if (!f) return;
     void accion("subir", async () => {
@@ -124,15 +132,36 @@ export default function PanelCopias() {
         Copia completa de la base de datos (.dump de PostgreSQL). Si algo falla, reinstala la aplicación y restaura la última copia. Guarda también el fichero .env (o al menos APP_SECRET): sin él no se puede descifrar el 2FA.
       </p>
 
+      {estado && !estado.pgDisponible && (
+        <div role="alert" style={{ padding: "12px 16px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", borderRadius: "var(--radius-sm)", color: "var(--danger)" }}>
+          🛑 <b>No se pueden hacer copias de seguridad en este equipo.</b> {estado.pgDetalle}
+        </div>
+      )}
+      {estado && estado.pgDisponible && (
+        <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+          ✔ Herramienta de copias encontrada: {estado.pgDetalle}.{" "}
+          {estado.ultimaValida ? `Última copia válida: hace ${estado.ultimaValida.minutos < 90 ? `${estado.ultimaValida.minutos} min` : `${Math.round(estado.ultimaValida.minutos / 60)} h`}.` : "Todavía no hay ninguna copia válida."}
+        </div>
+      )}
+      {estado && estado.invalidas > 0 && (
+        <div role="alert" style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <span>
+            ⚠️ Hay <b>{estado.invalidas}</b> copia(s) vacías o rotas (se hicieron cuando no funcionaba pg_dump). No sirven para restaurar.
+          </span>
+          <button type="button" className="btn btn-secondary" disabled={trabajando !== null} onClick={borrarInvalidas} title="Borra del servidor solo las copias vacías o rotas. Las copias válidas no se tocan.">
+            🗑️ Borrar las copias inválidas
+          </button>
+        </div>
+      )}
       {estado?.avisoAntigua && (
         <div style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)" }}>
-          ⚠️ La última copia automática tiene más de 48 horas o aún no existe.{estado.ultimoError ? ` Último error: ${estado.ultimoError}` : ""}
+          ⚠️ No hay ninguna copia automática VÁLIDA de las últimas 48 horas.{estado.ultimoError ? ` Último error: ${estado.ultimoError}` : ""}
         </div>
       )}
       {!estado?.avisoAntigua && estado?.ultimoError && <div style={{ color: "var(--warning)" }}>⚠️ {estado.ultimoError}</div>}
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={() => crear(false)}>
+        <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={() => crear(false)} title="Hace ahora una copia completa de toda la aplicación (clientes, expedientes, planes, usuarios, ajustes…). Se comprueba que sea legible antes de darla por buena. Úsala antes de cambios importantes o de duplicar muchos expedientes.">
           {trabajando === "crear" ? "Creando copia…" : "Crear copia ahora"}
         </button>
         {drive?.conectado && !drive.requiereReconexion && (
@@ -140,7 +169,7 @@ export default function PanelCopias() {
             Crear y subir a Google Drive
           </button>
         )}
-        <label className="btn btn-secondary" style={{ cursor: "pointer" }}>
+        <label className="btn btn-secondary" style={{ cursor: "pointer" }} title="Sube al servidor un archivo .dump que tengas guardado (por ejemplo descargado de otra instalación). Se comprueba que sea válido; después podrás restaurarlo desde la lista.">
           Subir un .dump…
           <input type="file" accept=".dump" style={{ display: "none" }} onChange={(e) => subirFichero(e.target.files?.[0] ?? null)} />
         </label>
@@ -164,8 +193,15 @@ export default function PanelCopias() {
           </thead>
           <tbody>
             {datos.copias.map((c) => (
-              <tr key={c.id} style={{ opacity: c.archivoPresente ? 1 : 0.55 }}>
-                <td style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>{c.nombre}</td>
+              <tr key={c.id} style={{ opacity: c.archivoPresente ? 1 : 0.55, background: c.estado !== "ok" ? "rgba(239, 68, 68, 0.06)" : undefined }}>
+                <td style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
+                  {c.nombre}
+                  {c.estado !== "ok" && (
+                    <div style={{ color: "var(--danger)", fontFamily: "inherit", fontSize: "0.75rem", fontWeight: 700 }} title={c.error ?? "Copia no válida"}>
+                      ⚠ INVÁLIDA: {c.error ?? "no sirve para restaurar"}
+                    </div>
+                  )}
+                </td>
                 <td>{c.tipo}</td>
                 <td>{fechaLegible(c.creadaEn)}</td>
                 <td style={{ textAlign: "right" }}>{tamanoLegible(c.tamano)}</td>
@@ -174,24 +210,24 @@ export default function PanelCopias() {
                 </td>
                 <td>{c.enDrive ? "☁️" : "—"}</td>
                 <td style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {c.archivoPresente ? (
+                  {c.archivoPresente && c.estado === "ok" ? (
                     <>
-                      <a className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} href={`/api/admin/copias/descargar?id=${c.id}`}>
+                      <a className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} href={`/api/admin/copias/descargar?id=${c.id}`} title="Descarga este archivo .dump a tu equipo para guardarlo fuera del servidor (recomendado: una copia fuera de la Raspberry o del PC).">
                         Descargar
                       </a>
                       {drive?.conectado && !drive.requiereReconexion && !c.enDrive && (
-                        <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando !== null} onClick={() => subirDrive(c)}>
+                        <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando !== null} onClick={() => subirDrive(c)} title="Sube esta copia a tu Google Drive para tener una segunda copia en la nube.">
                           {trabajando === `drive${c.id}` ? "Subiendo…" : "Subir a Drive"}
                         </button>
                       )}
-                      <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setRestaurar(c)}>
+                      <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setRestaurar(c)} title="Devuelve TODA la aplicación al estado de esta copia (se pierde lo hecho después). Antes se guarda una copia automática del estado actual. Pide contraseña y doble factor.">
                         Restaurar
                       </button>
                     </>
                   ) : (
-                    <span style={{ color: "var(--text-muted)" }}>fichero no encontrado</span>
+                    <span style={{ color: "var(--text-muted)" }}>{c.estado !== "ok" ? "no se puede usar" : "fichero no encontrado"}</span>
                   )}
-                  <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => borrar(c)}>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => borrar(c)} title="Borra esta copia del servidor (y de Google Drive si estaba subida). No se puede deshacer.">
                     Borrar
                   </button>
                 </td>

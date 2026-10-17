@@ -20,7 +20,10 @@ import {
   estadoCopias,
   guardarAjustesCopias,
   leerAjustesCopias,
+  borrarCopiasInvalidas,
+  asegurarCopiaReciente,
   listarCopias,
+  motivoCopiaInvalida,
   restaurarCopiaCompleta,
   sha256DeFichero,
 } from "./copias";
@@ -80,6 +83,29 @@ describe("retención (sin PostgreSQL)", () => {
   });
 });
 
+describe("copias vacías o rotas (sin PostgreSQL)", () => {
+  it("un fichero vacío o diminuto nunca se da por válido", async () => {
+    const vacio = path.join(dir, "gv_20260101_000000_manual.dump");
+    writeFileSync(vacio, "");
+    expect(await motivoCopiaInvalida(vacio)).toMatch(/vacía/);
+    writeFileSync(vacio, "x".repeat(300));
+    expect(await motivoCopiaInvalida(vacio)).toMatch(/demasiado pequeña/);
+    expect(await motivoCopiaInvalida(path.join(dir, "no-existe.dump"))).toMatch(/no existe/);
+  });
+
+  it("una copia vacía de la carpeta se registra como inválida y se puede borrar sin tocar las demás", async () => {
+    const vacio = path.join(dir, "gv_20260102_000000_auto.dump");
+    writeFileSync(vacio, "");
+    const lista = await listarCopias(db);
+    const mala = lista.find((c) => c.nombre === "gv_20260102_000000_auto.dump");
+    expect(mala).toMatchObject({ estado: "error" });
+    const r = await borrarCopiasInvalidas(db);
+    expect(r.borradas).toBeGreaterThanOrEqual(1);
+    expect(existsSync(vacio)).toBe(false);
+    expect((await listarCopias(db)).some((c) => c.nombre === "gv_20260102_000000_auto.dump")).toBe(false);
+  });
+});
+
 describe("ajustes", () => {
   it("valores por defecto y guardado validado", async () => {
     expect(await leerAjustesCopias(db)).toEqual({ automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false });
@@ -103,6 +129,13 @@ describe.skipIf(!hayPg)("copias completas con PostgreSQL", () => {
     expect((await estadoCopias(db)).ultima?.nombre).toBe(c.nombre);
     await borrarCopia(db, c.id);
     expect(existsSync(ruta)).toBe(false);
+  });
+
+  it("reutiliza una copia reciente y válida antes de una operación grande, o crea una nueva si no hay", async () => {
+    const primera = await asegurarCopiaReciente(db, null);
+    expect(primera.creadaAhora).toBe(true);
+    const segunda = await asegurarCopiaReciente(db, null);
+    expect(segunda).toMatchObject({ creadaAhora: false, nombre: primera.nombre });
   });
 
   it("aplica la retención solo a las automáticas", async () => {

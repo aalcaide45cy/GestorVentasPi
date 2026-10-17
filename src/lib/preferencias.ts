@@ -21,6 +21,23 @@ function suscribir(avisar: () => void): () => void {
   };
 }
 
+/** Preferencia del navegador: permitir expedientes duplicados (para probar rápido). Por defecto, desactivada. */
+export const CLAVE_PERMITIR_DUPLICADOS = "expedientes-permitir-duplicados";
+
+/** Preferencia del navegador: escribir la etiqueta «COPIA» en los duplicados. Por defecto, activada (vale «false» si se desactiva). */
+export const CLAVE_ETIQUETA_COPIA = "expedientes-etiqueta-copia";
+
+/**
+ * Preferencia del navegador: al leer un pedido, mostrar la ventana «Pedido leído» solo si la marca o el modelo no existen todavía
+ * (o hay algo que decidir). Por defecto, desactivada: la ventana sale siempre.
+ */
+export const CLAVE_VENTANA_SOLO_SI_NUEVO = "pedidos-ventana-solo-si-falta-marca-modelo";
+
+/** Lectura puntual (fuera de componentes): ¿se permiten expedientes duplicados en este navegador? */
+export function permitirDuplicadosAhora(): boolean {
+  return leer(CLAVE_PERMITIR_DUPLICADOS) === "true";
+}
+
 /** Guarda una preferencia del navegador y avisa a los componentes que la leen. */
 export function guardarPreferencia(clave: string, valor: string): void {
   try {

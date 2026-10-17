@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { combinarDni, nombreCompleto, type DatosDni } from "@/lib/documentos/dni";
-import { aliasModelos, clientes, expedientes } from "@/db/schema";
+import { aliasModelos, clientes, expedientes, marcas, modelos } from "@/db/schema";
 import { claveAprendizaje } from "@/lib/documentos/modelos";
 import { parsearPedido, type DatosPedido } from "@/lib/documentos/pedido";
 import type { RegionFoto } from "@/lib/documentos/tarjetas";
@@ -131,7 +131,7 @@ export async function leerDni(ej: Ejecutor, idUsuario: number, nombreFichero: st
 }
 
 /** Lee un pedido (PDF o imagen) y propone los datos del expediente comparando con los catálogos. */
-export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer): Promise<ResultadoPedido> {
+export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false): Promise<ResultadoPedido> {
   const { texto, metodo } = await textoDeDocumento(datos);
   const catalogos = await leerCatalogos(ej);
   const marcas = new Map(catalogos.marcas.map((m) => [m.id_marca, m.nombre]));
@@ -139,9 +139,11 @@ export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero:
     modelos: catalogos.modelos.map((m) => ({ id: m.id_modelo, nombre: m.nombre_modelo, marca: m.marca_id ? (marcas.get(m.marca_id) ?? null) : null })),
     tiposVenta: catalogos.tiposVenta.map((t) => ({ id: t.id_tipo_de_venta, nombre: t.nombre_tipo_venta, categoria: t.categoria })),
     aliasModelos: (await ej.select({ alias: aliasModelos.alias, id: aliasModelos.idModelo }).from(aliasModelos)).map((a) => ({ alias: a.alias, id: a.id })),
+    marcas: catalogos.marcas.map((m) => m.nombre),
   });
   const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
-  const similares = await buscarExpedientesSimilares(ej, parsed);
+  // Con «Permitir expedientes duplicados» no se busca ni se avisa de pedidos parecidos
+  const similares = permitirDuplicados ? [] : await buscarExpedientesSimilares(ej, parsed);
   if (similares.length > 0) parsed.avisos.unshift(`Ya existe un expediente que parece este pedido (nº ${similares[0].idExpediente}: ${similares[0].motivo}). Comprueba que no lo estás duplicando.`);
   return { datos: parsed, similares, adjunto, metodo };
 }
@@ -165,6 +167,43 @@ export async function aprenderModelo(ej: Ejecutor, entrada: z.infer<typeof esque
     .values({ alias, idModelo: entrada.id_modelo })
     .onConflictDoUpdate({ target: aliasModelos.alias, set: { idModelo: entrada.id_modelo } });
   return { alias };
+}
+
+export const esquemaCrearModeloPedido = z.object({
+  marca: z.string().trim().min(1, "Escribe la marca").max(60),
+  modelo: z.string().trim().min(1, "Escribe el modelo").max(80),
+  /** Texto del pedido del que sale el modelo: se guarda como alias para reconocerlo solo la próxima vez. */
+  texto: z.string().trim().max(300).optional(),
+});
+
+const clave = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toUpperCase();
+
+/**
+ * Crea la marca y el modelo que figuran en un pedido y no existían (o reutiliza los que ya existan con el mismo nombre,
+ * sin distinguir mayúsculas ni acentos). Todo en una transacción. Devuelve el identificador del modelo.
+ */
+export async function crearModeloDePedido(ej: Ejecutor, entrada: z.infer<typeof esquemaCrearModeloPedido>): Promise<{ id_modelo: number; id_marca: number; marca_creada: boolean; modelo_creado: boolean }> {
+  return ej.transaction(async (tx) => {
+    const cat = await leerCatalogos(tx);
+    const marca = cat.marcas.find((m) => clave(m.nombre) === clave(entrada.marca));
+    const marcaCreada = !marca;
+    let idMarca = marca?.id_marca;
+    if (idMarca === undefined) {
+      const [n] = await tx.insert(marcas).values({ nombre: entrada.marca, activo: true, accesoRapido: false, sistemaComisiones: false }).returning();
+      idMarca = n.idMarca;
+    }
+    const existente = cat.modelos.find((m) => m.marca_id === idMarca && clave(m.nombre_modelo) === clave(entrada.modelo));
+    let idModelo = existente?.id_modelo;
+    if (idModelo === undefined) {
+      const [n] = await tx.insert(modelos).values({ marcaId: idMarca, nombreModelo: entrada.modelo, accesoRapido: false, ordenAccesoRapido: 0 }).returning();
+      idModelo = n.idModelo;
+    }
+    if (entrada.texto) {
+      const alias = claveAprendizaje(entrada.texto, [...cat.marcas.map((m) => m.nombre), entrada.marca]);
+      if (alias) await tx.insert(aliasModelos).values({ alias, idModelo }).onConflictDoUpdate({ target: aliasModelos.alias, set: { idModelo } });
+    }
+    return { id_modelo: idModelo, id_marca: idMarca, marca_creada: marcaCreada, modelo_creado: !existente };
+  });
 }
 
 const normalizar = (t: string) => t.replace(/[\s.-]/g, "").toUpperCase();

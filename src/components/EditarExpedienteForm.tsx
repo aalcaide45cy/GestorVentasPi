@@ -217,27 +217,17 @@ export default function EditarExpedienteForm({
     telefonos: rellenos(telefonos).map((t) => ({ telefono: t.valor.trim(), tipo_telefono: t.tipo })),
   });
 
-  const guardarCliente = async (): Promise<ClienteDto | null> => {
-    if (!asignado || !clienteModificado()) return asignado;
-    const res = await fetch("/api/clientes", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpoCliente(asignado.id)) });
-    if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar los datos del cliente primero."));
-    const nuevo = clienteActualizado(asignado);
-    setAsignado(nuevo);
-    return nuevo;
-  };
-
-  const guardarSoloCliente = async () => {
-    setCargando(true);
-    setError(null);
-    try {
-      await guardarCliente();
-      setAviso("Datos del cliente actualizados correctamente.");
-      setTimeout(() => setAviso(null), 3000);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Ocurrió un error al guardar los cambios del cliente.");
-    } finally {
-      setCargando(false);
+  /** Datos del cliente que viajan con el expediente en el mismo guardado (null si no hay cliente ni nada que crear). */
+  const clienteParaGuardar = (): { error?: string; cliente: Record<string, unknown> | null } => {
+    const hayDatos = dni.trim() !== "" || fechaNacimiento !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0;
+    if (asignado) {
+      if (nombre.trim() === "") return { error: "El nombre del cliente es obligatorio.", cliente: null };
+      return { cliente: clienteModificado() ? cuerpoCliente(asignado.id) : null };
     }
+    if (nombre.trim() === "") return hayDatos ? { error: "Para guardar los datos del cliente escribe al menos su nombre (o busca un cliente existente).", cliente: null } : { cliente: null };
+    const { id: _sinId, ...nuevo } = cuerpoCliente(0);
+    void _sinId;
+    return { cliente: nuevo };
   };
 
   /* ---- Guardado del expediente ---- */
@@ -248,8 +238,12 @@ export default function EditarExpedienteForm({
       setError(faltaRci);
       return false;
     }
+    const datosCliente = clienteParaGuardar();
+    if (datosCliente.error) {
+      setError(datosCliente.error);
+      return false;
+    }
     try {
-      const cliente = await guardarCliente();
       const cuerpo: Record<string, unknown> = {
         id_modelo: modelo || null,
         id_tipo_de_venta: tipoVenta || null,
@@ -277,24 +271,52 @@ export default function EditarExpedienteForm({
       const res = await fetch("/api/expedientes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_expediente: expediente.id_expediente, id_cliente: cliente ? cliente.id : null, expediente: cuerpo }),
+        // Cliente y expediente viajan juntos y el servidor los guarda en una sola operación: o se guarda todo o no se guarda nada
+        body: JSON.stringify({ id_expediente: expediente.id_expediente, id_cliente: asignado ? asignado.id : null, ...(datosCliente.cliente ? { cliente: datosCliente.cliente } : {}), expediente: cuerpo }),
       });
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar el expediente."));
-      const impactos = ((await res.json().catch(() => ({}))) as { impactos?: { mes: string; netoAnterior: number; netoNuevo: number; diferencia: number }[] }).impactos ?? [];
-      if (impactos.length > 0) {
-        setAviso(`Este cambio ha modificado meses ya cerrados: ${impactos.map((i) => `${nombreMes(i.mes)} ${eurosConSigno(i.diferencia)}`).join(", ")}. Se guardó la versión anterior.`);
+      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar."));
+      const r = (await res.json().catch(() => ({}))) as {
+        impactos?: { mes: string; netoAnterior: number; netoNuevo: number; diferencia: number }[];
+        cliente?: { id: number; accion: "actualizado" | "creado" | "asociado_existente" } | null;
+      };
+      let avisoGuardado: string | null = null;
+      if (r.cliente?.accion === "actualizado" && asignado) {
+        setAsignado(clienteActualizado(asignado));
+      } else if (r.cliente) {
+        // Cliente nuevo (o ya existente con ese DNI): se carga tal como ha quedado en la base de datos
+        const sigue = await fetch(`/api/expedientes?id=${expediente.id_expediente}`).then((x) => (x.ok ? (x.json() as Promise<{ data?: ExpedienteDto }>) : null)).catch(() => null);
+        const c = sigue?.data?.cliente;
+        if (c) {
+          setAsignado(c);
+          setDni(c.dni ?? "");
+          setNombre(c.nombre ?? "");
+          setFechaNacimiento(c.fecha_de_nacimiento ?? "");
+          setEmails(emailsDeCliente(c));
+          setTelefonos(telefonosDeCliente(c));
+        }
+        if (r.cliente.accion === "asociado_existente") avisoGuardado = "Ya existía un cliente con ese DNI: se ha asociado a este expediente (sus datos no se han cambiado).";
+      }
+      const impactos = r.impactos ?? [];
+      if (impactos.length > 0) avisoGuardado = `Este cambio ha modificado meses ya cerrados: ${impactos.map((i) => `${nombreMes(i.mes)} ${eurosConSigno(i.diferencia)}`).join(", ")}. Se guardó la versión anterior.`;
+      if (avisoGuardado) {
+        setAviso(avisoGuardado);
         setTimeout(() => setAviso(null), 8000);
       }
       setExito(true);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ocurrió un error inesperado.");
+      setError(`No se ha guardado nada, ni el cliente ni el expediente. Motivo: ${e instanceof Error ? e.message : "error inesperado."}`);
       return false;
     }
   };
 
+  useEffect(() => {
+    if (error) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [error]);
+
   const enviar = async (ev?: FormEvent) => {
     ev?.preventDefault();
+    if (cargando || guardando) return;
     setCargando(true);
     const ok = await guardar();
     setCargando(false);
@@ -356,12 +378,42 @@ export default function EditarExpedienteForm({
     };
   }, []);
 
-  const campo = (etiqueta: string, control: React.ReactNode) => (
-    <div className="form-group">
-      <label className="form-label">{etiqueta}</label>
-      {control}
-    </div>
-  );
+  /** Columnas (de 12) que ocupa cada campo y su etiqueta corta; la explicación larga va en el icono de ayuda. */
+  const DISENO: Record<string, { cols: number; etiqueta?: string; ayuda?: string }> = {
+    "DNI / NIE": { cols: 2 },
+    "Nombre Completo *": { cols: 5, etiqueta: "Nombre completo *" },
+    "Fecha de Nacimiento": { cols: 2, etiqueta: "F. nacimiento" },
+    Tienda: { cols: 3 },
+    Marca: { cols: 3 },
+    Modelo: { cols: 3 },
+    "Tipo de Venta": { cols: 2, etiqueta: "Tipo de venta" },
+    "Estado de Vehículo": { cols: 2, etiqueta: "Estado" },
+    "Vendedor Asignado": { cols: 2, etiqueta: "Vendedor" },
+    "Matrícula": { cols: 2 },
+    "Número de Bastidor (VIN)": { cols: 4, etiqueta: "Bastidor (VIN)" },
+    "Fecha Expediente": { cols: 2, etiqueta: "F. expediente" },
+    "Fecha Afectación": { cols: 2, etiqueta: "F. afectación" },
+    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference es obligatoria antes de poder matricular o facturar." },
+    "Fecha Matriculación": { cols: 2, etiqueta: "F. matriculación" },
+    "Fecha Facturación": { cols: 2, etiqueta: "F. facturación", ayuda: "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI." },
+    "Fecha Entrega": { cols: 2, etiqueta: "F. entrega" },
+  };
+  const campo = (etiqueta: string, control: React.ReactNode) => {
+    const d = DISENO[etiqueta] ?? { cols: 3 };
+    return (
+      <div className={`form-group c${d.cols}`} style={{ marginBottom: 0 }}>
+        <label className="form-label" style={{ marginBottom: "4px" }}>
+          {d.etiqueta ?? etiqueta}
+          {d.ayuda && (
+            <span title={d.ayuda} aria-label={d.ayuda} style={{ marginLeft: "6px", cursor: "help", color: "var(--text-muted)", fontWeight: 700 }}>
+              ⓘ
+            </span>
+          )}
+        </label>
+        {control}
+      </div>
+    );
+  };
   /** En un VN la facturación acompaña a la matriculación mientras esté vacía o igual a ella (si se cambia a mano, se respeta). */
   const cambiarMatriculacion = (v: string) => {
     const esVn = estadosVehiculo.find((x) => x.id === Number(estado))?.clase === "VN";
@@ -370,11 +422,14 @@ export default function EditarExpedienteForm({
   };
   const rciObligatoria = (): string | null => {
     const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
-    return fMat && !fRci && t?.requiereRci ? `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder matricular. Indica primero la Fecha RCI.` : null;
+    // La facturación solo se comprueba si se toca ella, la RCI o el tipo de pago (los expedientes antiguos que ya incumplían la regla se pueden seguir editando)
+    const factTocada = fFact !== (expediente.fecha_facturacion ?? "") || fRci !== (expediente.fecha_rci ?? "") || Number(tipoVenta) !== expediente.id_tipo_de_venta;
+    if (!fRci && t?.requiereRci && (fMat || (fFact && factTocada))) return `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder ${fMat ? "matricular" : "facturar"}. Indica primero la Fecha RCI.`;
+    return null;
   };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
   const titulo = (color: string, icono: React.ReactNode, texto: string) => (
-    <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+    <h2 style={{ fontSize: "1.05rem", marginBottom: "10px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         {icono}
       </svg>
@@ -405,7 +460,7 @@ export default function EditarExpedienteForm({
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {exito && (
         <div
           style={{ position: "fixed", top: "24px", right: "24px", background: "rgba(16, 185, 129, 0.15)", backdropFilter: "blur(12px)", border: "1px solid rgba(16, 185, 129, 0.3)", color: "var(--success)", padding: "16px 24px", borderRadius: "var(--radius-md)", boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)", zIndex: 9999, display: "flex", alignItems: "center", gap: "12px" }}
@@ -417,7 +472,7 @@ export default function EditarExpedienteForm({
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", position: "sticky", top: 0, zIndex: 30, background: "var(--bg-app)", padding: "8px 0" }}>
         {volver}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ display: "flex", gap: "6px" }}>
@@ -452,7 +507,7 @@ export default function EditarExpedienteForm({
         </div>
       </div>
 
-      <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+      <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {aviso && (
           <div className="glass-panel" style={{ padding: "16px 20px", backgroundColor: "rgba(16, 185, 129, 0.1)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontWeight: 600, fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -471,9 +526,9 @@ export default function EditarExpedienteForm({
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "32px" }}>
+        <div className="rejilla-propia" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
           {/* DATOS DEL CLIENTE */}
-          <div className="glass-panel" style={{ padding: "32px" }}>
+          <div className="glass-panel" style={{ padding: "16px 20px" }}>
             {titulo(
               "var(--primary)",
               <>
@@ -496,17 +551,6 @@ export default function EditarExpedienteForm({
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                  {clienteModificado() && (
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => void guardarSoloCliente()}
-                      disabled={cargando}
-                      style={{ padding: "8px 16px", fontSize: "0.85rem", backgroundColor: "var(--success)", color: "white", border: "none", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
-                    >
-                      💾 Guardar Cambios de Cliente
-                    </button>
-                  )}
                   <button type="button" className="btn btn-secondary" onClick={desasignar} style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}>
                     ❌ Desasignar Cliente
                   </button>
@@ -515,7 +559,7 @@ export default function EditarExpedienteForm({
             ) : (
               <div className="form-group" style={{ position: "relative", marginBottom: "24px" }}>
                 <label className="form-label">🔍 Buscar Cliente Existente (DNI o Nombre)</label>
-                <input type="text" className="form-input" placeholder="Escribe DNI o Nombre... (Ej. Juan)" value={busqueda} onChange={(e) => buscarCliente(e.target.value)} />
+                <input type="text" className="form-input" placeholder="Escribe DNI o Nombre... (Ej. Juan)" value={busqueda} onChange={(e) => buscarCliente(e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.preventDefault()} />
                 {buscando && <div style={{ position: "absolute", right: "16px", bottom: "12px", fontSize: "0.8rem", color: "var(--text-muted)" }}>Buscando...</div>}
                 {resultados.length > 0 && (
                   <div
@@ -538,8 +582,9 @@ export default function EditarExpedienteForm({
               </div>
             )}
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
               <BotonLeerDni
+                compacta
                 disabled={cargando}
                 alLeer={async (r) => {
                   if (r.datos.dni) setDni(r.datos.dni);
@@ -554,10 +599,10 @@ export default function EditarExpedienteForm({
                   mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos y pulsa «Guardar Cambios».");
                 }}
               />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI y se rellenan los datos del cliente (no se guardan hasta que pulses «Guardar Cambios»); los documentos varios se suben en el cuadro «Documentos del expediente».</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI para rellenar los datos del cliente (se guardan al pulsar «Guardar Cambios»).</span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+            <div className="rejilla-ficha">
               {campo("DNI / NIE", <input type="text" className="form-input" value={dni} onChange={(e) => setDni(e.target.value)} placeholder="Ej. 12345678Z" />)}
               {campo("Nombre Completo *", <input type="text" className="form-input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" />)}
               {campo("Fecha de Nacimiento", fecha(fechaNacimiento, setFechaNacimiento))}
@@ -574,19 +619,14 @@ export default function EditarExpedienteForm({
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "32px", marginTop: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px", marginTop: "14px" }}>
               <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
               <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
             </div>
           </div>
 
-          {/* DOCUMENTOS DEL EXPEDIENTE */}
-          <div className="glass-panel" style={{ padding: "32px" }}>
-            <VisorAdjuntos key={versionAdjuntos} idExpediente={expediente.id_expediente} titulo="📎 Documentos del expediente (DNI, pedido, PDF…)" />
-          </div>
-
           {/* DETALLES DEL VEHÍCULO Y EXPEDIENTE */}
-          <div className="glass-panel" style={{ padding: "32px" }}>
+          <div className="glass-panel" style={{ padding: "16px 20px" }}>
             {titulo(
               "var(--secondary)",
               <>
@@ -596,8 +636,9 @@ export default function EditarExpedienteForm({
               "Detalles de la Venta y Vehículo",
             )}
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
               <BotonLeerPedido
+                compacta
                 disabled={cargando}
                 alLeer={async (r) => {
                   const d = r.datos;
@@ -623,10 +664,10 @@ export default function EditarExpedienteForm({
                   mostrar("Pedido leído: revisa los datos y pulsa «Guardar Cambios».");
                 }}
               />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido y se rellenan los campos que reconozca (no se guarda nada hasta que pulses «Guardar Cambios»).</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido para rellenar lo que reconozca (se guarda al pulsar «Guardar Cambios»).</span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+            <div className="rejilla-ficha">
               {campo(
                 "Marca",
                 <select
@@ -689,18 +730,32 @@ export default function EditarExpedienteForm({
                   ))}
                 </select>,
               )}
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginTop: "16px" }}>
               {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
               {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
+            </div>
+          </div>
+
+          {/* FECHAS */}
+          <div className="glass-panel" style={{ padding: "16px 20px" }}>
+            {titulo(
+              "var(--warning)",
+              <>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </>,
+              "Fechas",
+            )}
+            <div className="rejilla-ficha">
               {campo("Fecha Expediente", fecha(fExp, setFExp))}
               {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
               {campo("Fecha RCI (Financiación)", fecha(fRci, setFRci))}
               {campo("Fecha Matriculación", fecha(fMat, cambiarMatriculacion))}
-              {campo("Fecha Facturación (en un VN es la de matriculación; si la cambias, manda ella para comisionar)", fecha(fFact, setFFact))}
+              {campo("Fecha Facturación", fecha(fFact, setFFact))}
+              {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
 
-              <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "12px", background: "rgba(255, 255, 255, 0.02)", padding: "16px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.02)", padding: "8px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", justifySelf: "start", gridColumn: "1 / -1" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <input
                     type="checkbox"
@@ -717,19 +772,24 @@ export default function EditarExpedienteForm({
                   </label>
                 </div>
                 {cobradoOtraFecha && (
-                  <div className="form-group" style={{ marginBottom: 0, marginTop: "8px" }}>
-                    <label className="form-label" style={{ fontSize: "0.78rem" }}>Fecha de Cobrado</label>
+                  <div className="form-group" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                    <label className="form-label" style={{ fontSize: "0.78rem", marginBottom: 0, whiteSpace: "nowrap" }}>Fecha de Cobrado</label>
                     <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} required />
                   </div>
                 )}
               </div>
 
-              {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
+              {rciObligatoria() && (
+                <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", color: "var(--danger)", fontSize: "0.85rem", fontWeight: 600 }}>
+                  ⚠️ {rciObligatoria()}
+                </div>
+              )}
+              <div style={{ gridColumn: "1 / -1", fontSize: "0.78rem", color: "var(--text-muted)" }}>En un VN la fecha de facturación acompaña a la de matriculación; si la cambias, manda ella para comisionar.</div>
 
               {mismoMesPedidoMatricula() && (
                 <div
                   className="glass-panel"
-                  style={{ gridColumn: "1 / -1", padding: "16px 20px", background: "rgba(16, 185, 129, 0.08)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}
+                  style={{ gridColumn: "1 / -1", padding: "10px 16px", background: "rgba(16, 185, 129, 0.08)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -739,6 +799,10 @@ export default function EditarExpedienteForm({
                 </div>
               )}
             </div>
+          </div>
+          {/* DOCUMENTOS DEL EXPEDIENTE */}
+          <div className="glass-panel" style={{ padding: "16px 20px" }}>
+            <VisorAdjuntos key={versionAdjuntos} idExpediente={expediente.id_expediente} titulo="📎 Documentos del expediente (DNI, pedido, PDF…)" />
           </div>
         </div>
 

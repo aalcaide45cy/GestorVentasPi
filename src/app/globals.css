@@ -510,3 +510,37 @@ select, select option {
     flex: 1 1 auto;
   }
 }
+
+/* Rejilla de fichas (editar/crear expediente): 12 columnas con campos alineados; en pantallas estrechas se apilan */
+.rejilla-ficha {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px 14px;
+  align-items: start;
+}
+.rejilla-ficha > .c2 { grid-column: span 2; }
+.rejilla-ficha > .c3 { grid-column: span 3; }
+.rejilla-ficha > .c4 { grid-column: span 4; }
+.rejilla-ficha > .c5 { grid-column: span 5; }
+.rejilla-ficha > .c6 { grid-column: span 6; }
+.rejilla-ficha > .c12 { grid-column: 1 / -1; }
+.rejilla-ficha .form-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1000px) {
+  .rejilla-ficha > .c2 { grid-column: span 4; }
+  .rejilla-ficha > .c3, .rejilla-ficha > .c4, .rejilla-ficha > .c5 { grid-column: span 6; }
+}
+@media (max-width: 600px) {
+  .rejilla-ficha > .c2, .rejilla-ficha > .c3, .rejilla-ficha > .c4, .rejilla-ficha > .c5, .rejilla-ficha > .c6 { grid-column: 1 / -1; }
+}
+
+/* Tabla de ancho de columnas y altura de fila fijos (listado de expedientes): no cambia al ocultar columnas o filas */
+.tabla-fija { table-layout: fixed; }
+.tabla-fija th, .tabla-fija td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabla-fija thead th { height: 40px; }
+.tabla-fija tbody td { height: 64px; padding-top: 4px; padding-bottom: 4px; vertical-align: middle; }
+.texto-copiable { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: none; -webkit-user-select: none; cursor: copy; }
+.texto-copiable > span { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+
+.tabla-fija th, .tabla-fija td { padding-left: 8px; padding-right: 8px; }
+
+.tabla-fija-baja tbody td { height: 40px; padding-top: 4px; padding-bottom: 4px; }

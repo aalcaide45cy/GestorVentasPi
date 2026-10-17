@@ -1,0 +1,1 @@
+ALTER TABLE "expedientes" ADD COLUMN "copia_de" integer;

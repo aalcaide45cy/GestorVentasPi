@@ -11,7 +11,7 @@ interface ToastItem {
 }
 
 interface ContextoToast {
-  mostrar: (texto: string, tipo?: TipoToast) => void;
+  mostrar: (texto: string, tipo?: TipoToast, duracionMs?: number) => void;
 }
 
 const Contexto = createContext<ContextoToast>({ mostrar: () => undefined });
@@ -27,10 +27,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const contador = useRef(0);
 
-  const mostrar = useCallback((texto: string, tipo: TipoToast = "exito") => {
+  const mostrar = useCallback((texto: string, tipo: TipoToast = "exito", duracionMs?: number) => {
     const id = ++contador.current;
     setItems((prev) => [...prev, { id, texto, tipo }]);
-    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), tipo === "error" ? 6000 : 4000);
+    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), duracionMs ?? (tipo === "error" ? 6000 : 4000));
   }, []);
 
   const valor = useMemo(() => ({ mostrar }), [mostrar]);

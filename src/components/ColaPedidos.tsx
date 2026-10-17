@@ -143,6 +143,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
           alIr={ir}
           alCerrar={() => abrirDeCola(null)}
           alTerminar={terminado}
+          alDescartar={() => terminado("Pedido descartado.")}
         />
       )}
       {actual && actual.idExpediente && expediente?.idItem === actual.id && (

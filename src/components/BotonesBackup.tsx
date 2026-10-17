@@ -54,9 +54,10 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
     const archivo = entrada.files?.[0];
     if (!archivo) return;
     const ok = window.confirm(
-      "¡ATENCIÓN! Estás a punto de restaurar una copia de seguridad COMPLETA de la base de datos.\n\n" +
-        "Esto ELIMINARÁ permanentemente todos los datos existentes (tiendas, usuarios, clientes, comisiones, expedientes, etc.) e importará los registros del archivo.\n\n" +
-        "¿Estás completamente seguro de que deseas proceder?",
+      "¡ATENCIÓN! Estás a punto de restaurar una copia COMPLETA en JSON.\n\n" +
+        "Esto SUSTITUIRÁ todos los datos actuales (tiendas, usuarios, clientes, expedientes…) por los del archivo " + archivo.name + ".\n" +
+        "Antes de empezar se hará automáticamente una copia de seguridad del estado actual, con la que podrás volver atrás.\n\n" +
+        "¿Seguro que quieres continuar?",
     );
     if (!ok) {
       entrada.value = "";
@@ -93,14 +94,16 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
         onClick={exportar}
         style={{ padding: "8px 14px", fontSize: "0.85rem", backgroundColor: "rgba(124, 58, 237, 0.08)", border: "1px solid rgba(124, 58, 237, 0.2)", color: "var(--primary)", fontWeight: 500 }}
         disabled={ocupado || deshabilitado}
+        title="Descarga un archivo .json con TODOS los datos de la aplicación (tiendas, usuarios, clientes, expedientes, catálogos…). Úsalo para guardar o llevar los datos a otro equipo. Ojo: incluye las contraseñas cifradas y los secretos del doble factor, así que guárdalo en un sitio seguro (y guarda también el .env). No borra nada."
       >
-        💾 Exportar Backup (JSON)
+        💾 Exportar todo (JSON)
       </button>
       <label
         className="btn"
+        title="Sustituye TODOS los datos actuales por los de un archivo .json de «Exportar todo». Es lo más delicado: antes se hace una copia de seguridad automática y te pide confirmar. Para recuperar solo una parte (clientes, planes…) usa la importación de cada sección."
         style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)", fontWeight: 500 }}
       >
-        🔄 Restaurar Backup (JSON)
+        🔄 Importar todo (JSON, sustituye todo)
         <input type="file" accept=".json" onChange={restaurar} style={{ display: "none" }} disabled={ocupado || deshabilitado} />
       </label>
     </>

@@ -14,6 +14,30 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | 🟨 preparada; faltan las pruebas en la Pi (rama `fase/F7-rendimiento`) | Ver detalle abajo |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
+## v1.0.17 — copias de seguridad robustas, datos por secciones y mejoras de uso (17/10/2026)
+
+**Copias de seguridad y datos**
+- Corregido: las copias salían vacías (1 KB) cuando no se encontraba `pg_dump` y se daban por buenas. Ahora la app localiza `pg_dump`/`pg_restore` sola (variable `PG_DUMP_CMD`, PATH, carpetas habituales de PostgreSQL en Windows y Linux y, en desarrollo, el contenedor Docker de la base de datos) y, si no existen, lo avisa con un mensaje rojo claro.
+- Toda copia se valida al crearla (tamaño, `pg_restore --list` y que contenga los expedientes); si no es válida se borra y se muestra el error. Las copias vacías antiguas quedan marcadas como inválidas y hay un botón para borrarlas. El aviso de «copia antigua» solo cuenta copias válidas.
+- El instalador de la Raspberry también valida la copia previa de cada actualización (tamaño y lectura con `pg_restore`) y no actualiza si no es válida.
+- Duplicar en masa (más de 10 expedientes nuevos) exige una copia válida de los últimos 15 minutos y, si no la hay, la hace antes; si no se puede, no duplica (salvo «Duplicar sin copia previa», confirmado a mano).
+- Nuevo centro «Exportar e importar datos por secciones» (Configuración › BBDD): clientes, expedientes, marcas y modelos, tipos de venta, estados de vehículo, tiendas, planes de comisionamiento (uno, varios o todos), rejillas del Cotejo de pagos, ajustes y usuarios (solo exportar, sin contraseñas). Importar: modos «añadir», «añadir y actualizar» y «sustituir», vista previa exacta de lo que cambiará, confirmación escrita y copia de seguridad automática antes de aplicar. Cada botón explica con un texto de ayuda qué hace, por qué y cuándo usarlo.
+- Importar todo en JSON hace ahora una copia previa automática y avisa de que el JSON completo incluye contraseñas cifradas y secretos del doble factor.
+
+**Expedientes y pedidos**
+- Compactación de Expedientes y del panel superior; ajuste del botón Laboratorio en Mis Datos.
+- Tabla de Expedientes con anchos de columna y altura de fila fijos (no cambia al ocultar entregados), textos largos con puntos suspensivos, valor completo al pasar el ratón y doble clic para copiar con aviso verde.
+- Nueva columna «Marca y modelo» (unificada), activable desde «Columnas»; columna «Comisionado» (según el Cotejo de pagos) en lugar de «Cobro».
+- Cartera con columnas nuevas: matrícula, tipo de venta y «cobro en otra fecha». Botones Plegar/Desplegar alineados a la derecha.
+- Editar expediente rediseñado (rejilla alineada, bloques Cliente / Venta / Fechas / Documentos) y guardado único: cliente y expediente se guardan juntos y, si algo falla, no se guarda nada. Enter guarda.
+- Regla de fecha de facturación: en crédito y preference exige antes la fecha RCI (en pantalla y en el servidor).
+- Controles rápidos de fecha (Hoy y ← Actual → de día, mes y año) en los modales de fecha del listado.
+- Duplicar expedientes (por fila y en masa, hasta 50 copias de cada uno) con marca interna de copia y etiqueta «COPIA» opcional; casillas «Permitir expedientes duplicados» y «Marcar los duplicados con la etiqueta COPIA» en Mis Datos.
+- Pedido leído: botón rojo Cancelar (descarta el pedido), Esc cierra y Enter crea el expediente; ventana de marca y modelo nuevos para crearlos tras revisarlos; reconocimiento de solo marca y modelo («DACIA JOGGER extreme…» es Dacia / Jogger); opción «Mostrar la ventana de confirmación solo cuando la marca o el modelo no existan» (en Mis Datos y junto a la zona de arrastre); un pedido de Renault/Dacia sin financiación se propone como contado.
+- Planes de comisionamiento: candado de fechas, flechas ← Actual → por mes y nombre automático por mes («Julio 2026»).
+
+**Base de datos:** migraciones 0012 (`expedientes.copia_de`) y 0013 (`expedientes.copia_etiqueta`); se aplican solas al actualizar y no tocan datos existentes.
+
 ## v1.0.16 — Cotejo de pagos (16/10/2026)
 - Nueva pantalla **Cotejo de pagos** (cruza las rejillas de comisiones con los coches por matrícula) y botón **Contrastar listado** en Expedientes.
 

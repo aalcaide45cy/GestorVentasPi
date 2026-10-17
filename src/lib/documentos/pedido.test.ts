@@ -131,9 +131,11 @@ describe("el descuento de financiación del pedido cambia el tipo de venta", () 
     expect(parsearPedido(base("Promociones:  DTO PREFERENCE crédito  -500,00 €"), cat).idTipoDeVenta).toBe(13);
   });
 
-  it("sin descuento de financiación el tipo no se toca (aunque el texto cite «contado»)", () => {
-    expect(parsearPedido(base(null), cat).idTipoDeVenta).toBeNull();
-    expect(parsearPedido(base("Promociones:  DTO VENTA DIRECTA  -100,00 €"), cat).idTipoDeVenta).toBeNull();
+  it("un pedido de Renault/Dacia sin financiación se propone como contado (y lo avisa)", () => {
+    const sin = parsearPedido(base(null), cat);
+    expect(sin.idTipoDeVenta).toBe(10);
+    expect(sin.avisos.join(" ")).toContain("Contado");
+    expect(parsearPedido(base("Promociones:  DTO VENTA DIRECTA  -100,00 €"), cat).idTipoDeVenta).toBe(10);
   });
 });
 

@@ -6,6 +6,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
+import { CLAVE_VENTANA_SOLO_SI_NUEVO, usePreferencia } from "@/lib/preferencias";
 import type { EleccionRapida, ItemCola } from "@/lib/pedidos-cola";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
@@ -24,6 +25,8 @@ interface Props {
   alIr: (delta: -1 | 1) => void;
   alCerrar: () => void;
   alTerminar: (mensaje: string) => void;
+  /** Descarta el pedido: lo quita de la cola sin crear nada. */
+  alDescartar: () => void;
 }
 
 type ClienteElegido = number | "nuevo" | "ninguno" | null;
@@ -33,7 +36,7 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
  * Pedido leído en la cola: comprueba si el cliente ya existe y pregunta qué hacer (crearlo, asociar uno existente o elegir entre
  * varios); cada dato del pedido se puede aplicar o no, y crea el expediente con el modelo y la forma de pago.
  */
-export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar }: Props) {
+export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
   const { mostrar } = useToast();
   const pedido = item.pedido;
   const eleccion = item.eleccion;
@@ -43,6 +46,26 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const [modelo, setModelo] = useState<number | "">(d.idModelo ?? "");
   const [tipo, setTipo] = useState<number | "">(d.idTipoDeVenta ?? "");
   const [trabajando, setTrabajando] = useState(false);
+  // «Ventana solo si falta marca o modelo»: si todo está claro, el expediente se crea sin enseñar la ventana
+  const [soloSiNuevo] = usePreferencia(CLAVE_VENTANA_SOLO_SI_NUEVO);
+  const automatico = soloSiNuevo === "true";
+  const [intentoAuto, setIntentoAuto] = useState<"pendiente" | "hecho" | "descartado">("pendiente");
+  const [falloCoincidencias, setFalloCoincidencias] = useState(false);
+
+  // Marca y modelo del pedido que no están en la app: se proponen (editables) en una ventana antes de crearlos
+  const sinModelo = !eleccion && d.idModelo === null && !!d.modeloTexto;
+  // El servidor ya trae la marca y el modelo limpios del pedido (sin acabado, motor ni códigos)
+  const sugerido = { marca: d.marcaPropuesta ?? "", modelo: d.modeloPropuesto ?? "" };
+  const [crearNuevo, setCrearNuevo] = useState(sinModelo);
+  const [confirmando, setConfirmando] = useState(false);
+  const [descartando, setDescartando] = useState(false);
+  const [marcaNueva, setMarcaNueva] = useState(sugerido.marca);
+  const [modeloNuevo, setModeloNuevo] = useState(sugerido.modelo);
+  const quitar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toUpperCase();
+  const marcaExistente = marcas.find((m) => quitar(m.nombre) === quitar(marcaNueva));
+  const modeloExistente = marcaExistente?.modelos.find((x) => quitar(x.nombre_modelo) === quitar(modeloNuevo));
+  const datosNuevoOk = marcaNueva.trim() !== "" && modeloNuevo.trim() !== "";
+  const usaNuevo = sinModelo && crearNuevo;
 
   const valores: Record<Dato, string | null> = {
     dni: d.dni,
@@ -76,6 +99,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       .catch((e: unknown) => {
         if (!vivo) return;
         mostrar(textoError(e), "error");
+        setFalloCoincidencias(true);
         setCoincidencias([]);
         setCliente(d.cliente ? "nuevo" : "ninguno");
       });
@@ -88,14 +112,23 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const idModeloFinal = eleccion ? eleccion.idModelo : modelo === "" ? null : modelo;
   const tipoFinal = eleccion ? eleccion.tipo.id_tipo_de_venta : tipo === "" ? null : tipo;
   const falta = !eleccion && tipoFinal === null;
-  const puedeCrear = cliente !== null && !falta && !trabajando;
+  const puedeCrear = cliente !== null && !falta && !trabajando && (!usaNuevo || datosNuevoOk);
   // Pedido de un vehículo de ocasión vendido: el expediente es de usados
   const estadoNombre = eleccion?.estadoNombre ?? (d.tipoPedido === "usado" ? "usado" : undefined);
 
   const crear = async () => {
     if (cliente === null || tipoFinal === null) return;
+    setConfirmando(false);
     setTrabajando(true);
     try {
+      let idModeloCreado: number | null = null;
+      if (usaNuevo) {
+        const { data } = await llamar<{ id_modelo: number }>("/api/documentos/crear-modelo", {
+          method: "POST",
+          cuerpo: { marca: marcaNueva.trim(), modelo: modeloNuevo.trim(), texto: d.modeloTexto ?? undefined },
+        });
+        idModeloCreado = data.id_modelo;
+      }
       let idCliente: number | null = null;
       if (cliente === "nuevo") {
         // La tienda es la predeterminada del usuario (la asigna el servidor)
@@ -119,7 +152,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
         method: "POST",
         cuerpo: {
           expediente: {
-            id_modelo: idModeloFinal,
+            id_modelo: idModeloCreado ?? idModeloFinal,
             id_tipo_de_venta: tipoFinal,
             estado_nombre: estadoNombre,
             id_usuario: vendedorId,
@@ -132,16 +165,44 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       });
       if (idCliente) await llamar("/api/expedientes", { method: "PUT", cuerpo: { id_expediente: creado.id_expediente, id_cliente: idCliente, expediente: {} } }).catch(() => undefined);
       // Si el modelo no se había reconocido y el usuario lo ha elegido, la app lo aprende para la próxima vez
-      if (!eleccion && d.idModelo === null && d.modeloTexto && idModeloFinal) {
+      if (!eleccion && !usaNuevo && d.idModelo === null && d.modeloTexto && idModeloFinal) {
         await llamar("/api/documentos/aprender-modelo", { method: "POST", cuerpo: { texto: d.modeloTexto, id_modelo: idModeloFinal } }).catch(() => undefined);
       }
       await vincularAdjuntos([pedido.adjunto.id], { idExpediente: creado.id_expediente, idCliente });
-      alTerminar(cliente === "nuevo" ? `Expediente creado con el cliente nuevo ${d.cliente}.` : idCliente ? "Expediente creado y asociado al cliente." : "Expediente creado sin cliente.");
+      const modeloTexto = eleccion ? eleccion.nombreModelo : usaNuevo ? `${marcaNueva.trim()} ${modeloNuevo.trim()}` : (modelosPlanos.find((m) => m.id === (idModeloCreado ?? idModeloFinal))?.texto ?? "");
+      const tipoTexto = eleccion ? eleccion.tipo.nombre_tipo_venta : (tiposVenta.find((t) => t.id_tipo_de_venta === tipoFinal)?.nombre_tipo_venta ?? "");
+      const resumen = [modeloTexto, tipoTexto].filter(Boolean).join(" · ");
+      alTerminar(
+        `${cliente === "nuevo" ? `Expediente creado con el cliente nuevo ${d.cliente}` : idCliente ? "Expediente creado y asociado al cliente" : "Expediente creado sin cliente"}${resumen ? ` (${resumen})` : ""}.`,
+      );
     } catch (e) {
       mostrar(textoError(e), "error");
       setTrabajando(false);
     }
   };
+
+  // Modo automático: solo si no hay nada que decidir. Con cualquier duda se enseña la ventana de siempre.
+  const sinDuda =
+    (!!eleccion || d.idModelo !== null) && // marca y modelo ya existen
+    tipoFinal !== null && // forma de pago reconocida
+    (pedido.similares ?? []).length === 0 && // no parece duplicado
+    !falloCoincidencias &&
+    coincidencias !== null &&
+    (coincidencias.length === 0 ? !!d.cliente && cliente === "nuevo" : coincidencias.length === 1 && coincidencias[0].porDni && typeof cliente === "number"); // cliente claro
+  useEffect(() => {
+    if (!automatico || intentoAuto !== "pendiente" || coincidencias === null || cliente === null) return;
+    if (sinDuda && !trabajando) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIntentoAuto("hecho");
+      void crear();
+    } else {
+      setIntentoAuto("descartado");
+    }
+    // Se decide una sola vez, cuando ya se sabe quién es el cliente
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [automatico, intentoAuto, coincidencias, cliente]);
+  // Mientras se crea solo, no se enseña la ventana (si algo falla, aparece para poder corregirlo)
+  const ocultar = automatico && (intentoAuto === "pendiente" || (intentoAuto === "hecho" && trabajando));
 
   const opcion = (valor: ClienteElegido, titulo: string, detalle?: string) => (
     <label key={String(valor)} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "10px 12px", borderRadius: "var(--radius-sm)", cursor: "pointer", border: `1px solid ${cliente === valor ? "var(--primary)" : "var(--border-light)"}`, background: cliente === valor ? "var(--bg-surface-hover)" : "transparent" }}>
@@ -154,6 +215,72 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   );
 
   const textoDato = (k: Dato) => (valores[k] ? (k === "fecha" || k === "entrega" ? formatDate(valores[k] as string) : (valores[k] as string)) : null);
+
+  if (ocultar) return null;
+
+  if (descartando) {
+    return (
+      <Modal
+        titulo="🗑️ ¿Descartar este pedido?"
+        ancho="480px"
+        peligro
+        pie={
+          <>
+            <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={() => setDescartando(false)}>
+              Volver
+            </button>
+            <button type="button" className="btn btn-primary" onClick={alDescartar} style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)" }}>
+              Sí, descartar
+            </button>
+          </>
+        }
+      >
+        <div style={{ fontSize: "0.9rem" }}>
+          El pedido <strong>{item.nombre}</strong> se quita de la cola y no se crea ningún expediente. El fichero queda guardado como documento sin asignar.
+        </div>
+      </Modal>
+    );
+  }
+
+  if (confirmando) {
+    return (
+      <Modal
+        titulo="🚗 Marca y modelo nuevos"
+        ancho="520px"
+        pie={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setConfirmando(false)}>
+              Volver
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => void crear()} disabled={!datosNuevoOk}>
+              Crear y seguir
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div style={{ fontSize: "0.9rem" }}>
+            El pedido dice <strong>«{d.modeloTexto}»</strong> y eso no está en tus catálogos. Revisa cómo se va a llamar antes de crearlo:
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Marca</label>
+            <input className="form-input" value={marcaNueva} onChange={(e) => setMarcaNueva(e.target.value)} list="marcas-existentes" autoFocus />
+            <datalist id="marcas-existentes">
+              {marcas.map((m) => (
+                <option key={m.id_marca} value={m.nombre} />
+              ))}
+            </datalist>
+            <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{marcaExistente ? `La marca ${marcaExistente.nombre} ya existe: se usará esa.` : "Marca nueva: se creará."}</span>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Modelo</label>
+            <input className="form-input" value={modeloNuevo} onChange={(e) => setModeloNuevo(e.target.value)} />
+            <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{modeloExistente ? "Ese modelo ya existe en esa marca: se usará." : "Modelo nuevo: se creará."}</span>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -176,10 +303,13 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       ancho="700px"
       pie={
         <>
-          <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
+          <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
+            Cancelar
+          </button>
+          <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
             Cerrar (queda en la cola)
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => void crear()} disabled={!puedeCrear}>
+          <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear}>
             {trabajando ? "Creando…" : "Crear expediente"}
           </button>
         </>
@@ -237,8 +367,15 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Modelo</label>
-              <select className="form-select" value={modelo} onChange={(e) => setModelo(e.target.value ? Number(e.target.value) : "")}>
+              <select className="form-select" value={usaNuevo ? "nuevo" : modelo} onChange={(e) => {
+                if (e.target.value === "nuevo") setCrearNuevo(true);
+                else {
+                  setCrearNuevo(false);
+                  setModelo(e.target.value ? Number(e.target.value) : "");
+                }
+              }}>
                 <option value="">Sin modelo</option>
+                {sinModelo && <option value="nuevo">➕ Crear «{d.modeloTexto}» como marca y modelo nuevos</option>}
                 {modelosPlanos.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.texto}

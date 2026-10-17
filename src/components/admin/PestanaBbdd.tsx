@@ -7,6 +7,7 @@ import { descargarTexto } from "@/lib/csv-expedientes";
 import { mensajeDeError } from "@/components/expedientes/comun";
 import type { AnalisisBbdd } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
+import PanelDatos from "./PanelDatos";
 import PanelActualizar from "./PanelActualizar";
 import PanelMigracion from "./PanelMigracion";
 import PanelVaciar from "./PanelVaciar";
@@ -149,7 +150,13 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
-      <PanelCopias key={versionCopias} />
+      <PanelDatos />
+
+      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+
+      <div id="copias-de-seguridad">
+        <PanelCopias key={versionCopias} />
+      </div>
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 

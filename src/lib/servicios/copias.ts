@@ -1,11 +1,11 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { ajustes, copiasSeguridad } from "@/db/schema";
@@ -19,6 +19,7 @@ import { verificarSegundoFactor } from "./autenticacion";
 /* Configuración y utilidades                                          */
 /* ------------------------------------------------------------------ */
 
+const SHA256_VACIA_ALIAS = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 export const LIMITE_SUBIDA_BYTES = 2 * 1024 * 1024 * 1024;
 const NOMBRE_VALIDO = /^gv_\d{8}_\d{6}_(manual|auto|previa)\.dump$/;
 
@@ -34,9 +35,118 @@ const ficheroMantenimiento = () => path.join(/*turbopackIgnore: true*/ dirCopias
 
 export { enMantenimiento };
 
-/** Orden de un comando configurable: `PG_DUMP_CMD="docker exec -i gestorventas-db pg_dump"` o simplemente `pg_dump`. */
+/** Tamaño mínimo razonable de una copia válida: una base de datos con sus tablas siempre pesa bastante más. */
+export const TAMANO_MINIMO_COPIA = 4096;
+/** SHA-256 de un archivo vacío: si una copia lo tiene, está vacía. */
+export const SHA256_VACIO = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+type HerramientaPg = "pg_dump" | "pg_restore";
+const VARIABLE_PG: Record<HerramientaPg, string> = { pg_dump: "PG_DUMP_CMD", pg_restore: "PG_RESTORE_CMD" };
+
+function ejecutableEn(carpeta: string, nombre: string): string | null {
+  for (const n of process.platform === "win32" ? [`${nombre}.exe`, nombre] : [nombre]) {
+    const ruta = path.join(/*turbopackIgnore: true*/ carpeta, n);
+    try {
+      if (existsSync(/*turbopackIgnore: true*/ ruta) && statSync(/*turbopackIgnore: true*/ ruta).isFile()) return ruta;
+    } catch {
+      /* sin acceso: se sigue buscando */
+    }
+  }
+  return null;
+}
+
+/** Carpetas habituales donde se instala el cliente de PostgreSQL (versión más reciente primero). */
+function carpetasHabituales(): string[] {
+  const resultado: string[] = [];
+  const versiones = (base: string, sub: string) => {
+    try {
+      return readdirSync(/*turbopackIgnore: true*/ base)
+        .sort((a, b) => Number.parseFloat(b) - Number.parseFloat(a))
+        .map((v) => path.join(/*turbopackIgnore: true*/ base, v, sub));
+    } catch {
+      return [];
+    }
+  };
+  if (process.platform === "win32") {
+    for (const raiz of [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], "C:\\Program Files"]) if (raiz) resultado.push(...versiones(path.join(/*turbopackIgnore: true*/ raiz, "PostgreSQL"), "bin"));
+  } else {
+    resultado.push(...versiones("/usr/lib/postgresql", "bin"), "/usr/bin", "/usr/local/bin", "/opt/homebrew/bin", "/usr/local/opt/libpq/bin");
+  }
+  return resultado;
+}
+
+let cachePg: Partial<Record<HerramientaPg, string[]>> = {};
+
+/** ¿Está en marcha el contenedor de Docker de la base de datos (desarrollo en un PC sin cliente de PostgreSQL)? */
+function contenedorBd(): string | null {
+  const nombre = process.env.PG_CONTAINER || "gestorventas-db";
+  try {
+    const r = spawnSync("docker", ["inspect", "-f", "{{.State.Running}}", nombre], { encoding: "utf8", timeout: 4000, windowsHide: true });
+    return r.status === 0 && r.stdout.trim() === "true" ? nombre : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Orden con la que se ejecuta `pg_dump` o `pg_restore`. Se busca, por este orden: la variable `PG_DUMP_CMD` / `PG_RESTORE_CMD`,
+ * el PATH, las carpetas habituales de PostgreSQL (Windows y Linux) y, en desarrollo, el contenedor Docker de la base de datos.
+ * Si no hay ninguno, falla con un mensaje claro (nunca se «finge» una copia).
+ */
+export function comandoPg(herramienta: HerramientaPg): string[] {
+  const guardado = cachePg[herramienta];
+  if (guardado) return guardado;
+  const variable = VARIABLE_PG[herramienta];
+  let cmd: string[] | null = null;
+  const configurado = process.env[variable]?.trim();
+  if (configurado) cmd = configurado.split(/\s+/);
+  if (!cmd) {
+    for (const carpeta of (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)) {
+      const r = ejecutableEn(carpeta, herramienta);
+      if (r) {
+        cmd = [r];
+        break;
+      }
+    }
+  }
+  if (!cmd) {
+    for (const carpeta of carpetasHabituales()) {
+      const r = ejecutableEn(carpeta, herramienta);
+      if (r) {
+        cmd = [r];
+        break;
+      }
+    }
+  }
+  if (!cmd) {
+    const contenedor = contenedorBd();
+    if (contenedor) cmd = ["docker", "exec", "-i", contenedor, herramienta];
+  }
+  if (!cmd) {
+    throw new HttpError(
+      500,
+      `No se encuentra «${herramienta}» en este equipo, así que no se puede hacer ni restaurar la copia de seguridad. Instala el cliente de PostgreSQL (herramientas pg_dump y pg_restore) o indica su ruta en la variable ${variable} del archivo .env. En la Raspberry viene incluido en la aplicación.`,
+    );
+  }
+  cachePg[herramienta] = cmd;
+  return cmd;
+}
+
+/** ¿Se pueden usar pg_dump y pg_restore? (para avisarlo en pantalla). */
+export function estadoHerramientasPg(): { disponible: boolean; detalle: string } {
+  try {
+    const d = comandoPg("pg_dump");
+    comandoPg("pg_restore");
+    return { disponible: true, detalle: d[0] === "docker" ? `a través del contenedor Docker «${d[3]}»` : d[0] };
+  } catch (e) {
+    cachePg = {};
+    return { disponible: false, detalle: e instanceof Error ? e.message : "No se encuentra pg_dump" };
+  }
+}
+
+/** Orden de un comando configurable (compatibilidad): `PG_DUMP_CMD="docker exec -i gestorventas-db pg_dump"` o simplemente `pg_dump`. */
 function comando(variable: string, defecto: string): string[] {
-  return (process.env[variable] ?? defecto).trim().split(/\s+/);
+  return comandoPg(defecto as HerramientaPg);
 }
 
 interface Conexion {
@@ -62,11 +172,12 @@ interface ResultadoProceso {
 }
 
 /** Ejecuta un comando de PostgreSQL con stdin/stdout opcionales hacia ficheros. */
-function ejecutar(cmd: string[], opciones: { stdin?: string; stdout?: string; sha?: boolean }): Promise<ResultadoProceso & { sha256?: string; bytes?: number }> {
+function ejecutar(cmd: string[], opciones: { stdin?: string; stdout?: string; sha?: boolean; capturar?: boolean }): Promise<ResultadoProceso & { sha256?: string; bytes?: number; salida?: string }> {
   const c = conexion();
   return new Promise((resolve, reject) => {
     const hijo = spawn(cmd[0], cmd.slice(1), { env: { ...process.env, PGPASSWORD: c.clave }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     let stderr = "";
+    let salida = "";
     hijo.stderr.on("data", (d: Buffer) => {
       stderr = (stderr + d.toString()).slice(-4000);
     });
@@ -82,6 +193,10 @@ function ejecutar(cmd: string[], opciones: { stdin?: string; stdout?: string; sh
         bytes += d.length;
       });
       tareas.push(pipeline(hijo.stdout, salida));
+    } else if (opciones.capturar) {
+      hijo.stdout.on("data", (d: Buffer) => {
+        if (salida.length < 4_000_000) salida += d.toString("utf8");
+      });
     } else {
       hijo.stdout.resume();
     }
@@ -89,7 +204,7 @@ function ejecutar(cmd: string[], opciones: { stdin?: string; stdout?: string; sh
     else hijo.stdin.end();
 
     hijo.on("close", (codigo) => {
-      Promise.allSettled(tareas).then(() => resolve({ codigo: codigo ?? 1, stderr, sha256: opciones.stdout ? hash.digest("hex") : undefined, bytes }));
+      Promise.allSettled(tareas).then(() => resolve({ codigo: codigo ?? 1, stderr, sha256: opciones.stdout ? hash.digest("hex") : undefined, bytes, salida }));
     });
   });
 }
@@ -186,24 +301,97 @@ export interface CopiaDto {
   error: string | null;
 }
 
-/** Crea una copia completa (`pg_dump -Fc`), calcula su SHA-256 y la anota. */
+/**
+ * Comprueba que un fichero es una copia de PostgreSQL utilizable: tamaño razonable, `pg_restore --list` lo lee y contiene las
+ * tablas principales. Devuelve el motivo del fallo, o null si es válida.
+ */
+export async function motivoCopiaInvalida(ruta: string): Promise<string | null> {
+  let tamano = 0;
+  try {
+    tamano = (await stat(/*turbopackIgnore: true*/ ruta)).size;
+  } catch {
+    return "El fichero de la copia no existe.";
+  }
+  if (tamano === 0) return "La copia está vacía (0 bytes).";
+  if (tamano < TAMANO_MINIMO_COPIA) return `La copia es demasiado pequeña (${tamano} bytes) para ser una base de datos completa.`;
+  let r;
+  try {
+    r = await ejecutar([...comandoPg("pg_restore"), "--list"], { stdin: ruta, capturar: true });
+  } catch (e) {
+    return e instanceof Error ? e.message : "No se pudo comprobar la copia.";
+  }
+  if (r.codigo !== 0) return "El fichero no es una copia de PostgreSQL válida (pg_restore no puede leerla).";
+  if (!/TABLE DATA public expedientes\b/.test(r.salida ?? "")) return "La copia no contiene los datos de los expedientes: está incompleta.";
+  return null;
+}
+
+/** Crea una copia completa (`pg_dump -Fc`), la VALIDA, calcula su SHA-256 y la anota. Nunca deja un fichero vacío o roto. */
 export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: number | null = null): Promise<CopiaDto> {
   const nombre = nombreNuevo(tipo);
   const ruta = path.join(/*turbopackIgnore: true*/ dirCopias(), nombre);
-  const c = conexion();
-  const cmd = [...comando("PG_DUMP_CMD", "pg_dump"), "-Fc", "-Z", "6", "--no-owner", "--no-privileges", ...argsConexion(c), "-d", c.bd];
-  const r = await ejecutar(cmd, { stdout: ruta, sha: true });
-  if (r.codigo !== 0) {
+  const fallar = async (mensaje: string, estado: number = 500): Promise<never> => {
     await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
-    throw new HttpError(500, `La copia de seguridad ha fallado: ${r.stderr.trim().split("\n").pop() || `código ${r.codigo}`}`);
+    await anotarError(ej, mensaje).catch(() => undefined);
+    throw new HttpError(estado, mensaje);
+  };
+  let sha256: string | undefined;
+  try {
+    const c = conexion();
+    const cmd = [...comandoPg("pg_dump"), "-Fc", "-Z", "6", "--no-owner", "--no-privileges", ...argsConexion(c), "-d", c.bd];
+    const r = await ejecutar(cmd, { stdout: ruta, sha: true });
+    if (r.codigo !== 0) return await fallar(`La copia de seguridad ha fallado: ${r.stderr.trim().split("\n").pop() || `código ${r.codigo}`}`);
+    sha256 = r.sha256;
+  } catch (e) {
+    // «No se encuentra pg_dump», fallo al lanzarlo, etc.: se borra cualquier resto y se avisa
+    return await fallar(e instanceof Error ? e.message : "La copia de seguridad ha fallado");
   }
+  const motivo = await motivoCopiaInvalida(ruta);
+  if (motivo) return await fallar(`La copia de seguridad no es válida y se ha descartado: ${motivo}`);
   const tamano = (await stat(/*turbopackIgnore: true*/ ruta)).size;
-  if (tamano === 0) {
-    await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
-    throw new HttpError(500, "La copia de seguridad ha salido vacía");
-  }
-  const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo, tamano, sha256: r.sha256 ?? (await sha256DeFichero(ruta)), creadaPor }).returning();
+  const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo, tamano, sha256: sha256 ?? (await sha256DeFichero(ruta)), creadaPor }).returning();
+  await anotarError(ej, null).catch(() => undefined);
   return aDto(fila, true);
+}
+
+/** Última copia VÁLIDA (estado correcto y fichero presente en el servidor), con su antigüedad en minutos. */
+export async function ultimaCopiaValida(ej: Ejecutor, ahora = new Date()): Promise<{ copia: CopiaDto; minutos: number } | null> {
+  const lista = await listarCopias(ej);
+  const c = lista.find((x) => x.estado === "ok" && x.archivoPresente && x.tamano >= TAMANO_MINIMO_COPIA);
+  return c ? { copia: c, minutos: Math.max(0, Math.round((ahora.getTime() - new Date(c.creadaEn).getTime()) / 60000)) } : null;
+}
+
+/**
+ * Garantiza una copia de seguridad reciente antes de una operación delicada (duplicado masivo…): si la última válida es de hace
+ * menos de `maxMinutos` la reutiliza; si no, crea una nueva de tipo «previa». Falla si no se puede.
+ */
+export async function asegurarCopiaReciente(ej: Ejecutor, creadaPor: number | null, maxMinutos = 15): Promise<{ nombre: string; creadaAhora: boolean; milisegundos: number }> {
+  const inicio = Date.now();
+  const ultima = await ultimaCopiaValida(ej);
+  if (ultima && ultima.minutos <= maxMinutos) return { nombre: ultima.copia.nombre, creadaAhora: false, milisegundos: Date.now() - inicio };
+  const nueva = await crearCopia(ej, "previa", creadaPor);
+  return { nombre: nueva.nombre, creadaAhora: true, milisegundos: Date.now() - inicio };
+}
+
+/** Marca como inválidas las copias ya registradas que están vacías o son demasiado pequeñas (hechas cuando fallaba pg_dump). */
+export async function marcarCopiasInvalidas(ej: Ejecutor): Promise<number> {
+  const filas = await ej
+    .update(copiasSeguridad)
+    .set({ estado: "error", error: "Copia vacía o demasiado pequeña: no sirve para restaurar." })
+    .where(sql`${copiasSeguridad.estado} = 'ok' and (${copiasSeguridad.sha256} = ${SHA256_VACIO} or ${copiasSeguridad.tamano} < ${TAMANO_MINIMO_COPIA})`)
+    .returning({ id: copiasSeguridad.id });
+  return filas.length;
+}
+
+/** Borra del servidor las copias marcadas como inválidas (fichero y registro). Devuelve cuántas. */
+export async function borrarCopiasInvalidas(ej: Ejecutor): Promise<{ borradas: number; driveFileIds: string[] }> {
+  await marcarCopiasInvalidas(ej);
+  const malas = await ej.select().from(copiasSeguridad).where(eq(copiasSeguridad.estado, "error"));
+  const driveFileIds: string[] = [];
+  for (const f of malas) {
+    const r = await borrarCopia(ej, f.id).catch(() => null);
+    if (r?.driveFileId) driveFileIds.push(r.driveFileId);
+  }
+  return { borradas: malas.length, driveFileIds };
 }
 
 function aDto(f: typeof copiasSeguridad.$inferSelect, presente: boolean): CopiaDto {
@@ -220,7 +408,12 @@ export async function sincronizarCarpeta(ej: Ejecutor): Promise<void> {
     const ruta = path.join(/*turbopackIgnore: true*/ dir, nombre);
     try {
       const st = statSync(/*turbopackIgnore: true*/ ruta);
-      await ej.insert(copiasSeguridad).values({ nombre, tipo: m[1], tamano: st.size, sha256: await sha256DeFichero(ruta), creadaEn: st.mtime }).onConflictDoNothing();
+      const sha = await sha256DeFichero(ruta);
+      const vacia = st.size < TAMANO_MINIMO_COPIA || sha === SHA256_VACIA_ALIAS;
+      await ej
+        .insert(copiasSeguridad)
+        .values({ nombre, tipo: m[1], tamano: st.size, sha256: sha, creadaEn: st.mtime, ...(vacia ? { estado: "error", error: "Copia vacía o demasiado pequeña: no sirve para restaurar." } : {}) })
+        .onConflictDoNothing();
     } catch (e) {
       // Fichero ilegible (p. ej. copia previa creada por el instalador con otro propietario): se omite sin romper la lista
       console.error(`No se pudo registrar la copia ${nombre}:`, e instanceof Error ? e.message : e);
@@ -230,6 +423,7 @@ export async function sincronizarCarpeta(ej: Ejecutor): Promise<void> {
 
 export async function listarCopias(ej: Ejecutor): Promise<CopiaDto[]> {
   await sincronizarCarpeta(ej);
+  await marcarCopiasInvalidas(ej);
   const filas = await ej.select().from(copiasSeguridad).orderBy(desc(copiasSeguridad.creadaEn), desc(copiasSeguridad.id));
   const dir = dirCopias();
   return filas.map((f) => aDto(f, existsSync(/*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ dir, f.nombre))));
@@ -262,10 +456,10 @@ export async function guardarSubida(ej: Ejecutor, cuerpo: ReadableStream | null,
     await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
     throw e instanceof HttpError ? e : new HttpError(400, "No se pudo guardar el fichero recibido");
   }
-  const valida = await ejecutar([...comando("PG_RESTORE_CMD", "pg_restore"), "--list"], { stdin: ruta });
-  if (valida.codigo !== 0) {
+  const motivo = await motivoCopiaInvalida(ruta);
+  if (motivo) {
     await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
-    throw new HttpError(400, "El fichero no es una copia de PostgreSQL válida (pg_restore no puede leerlo)");
+    throw new HttpError(400, `El fichero no es una copia válida: ${motivo}`);
   }
   const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo: "manual", tamano: bytes, sha256: await sha256DeFichero(ruta), creadaPor }).returning();
   return aDto(fila, true);
@@ -326,7 +520,7 @@ export function copiasSobrantes(copias: { id: number; creadaEn: Date }[], a: Pic
 /** Borra las copias automáticas que superan la retención. Devuelve los ids de Drive a borrar (si los hay). */
 export async function aplicarRetencion(ej: Ejecutor): Promise<{ borradas: number; driveFileIds: string[] }> {
   const a = await leerAjustesCopias(ej);
-  const autos = await ej.select().from(copiasSeguridad).where(eq(copiasSeguridad.tipo, "auto"));
+  const autos = await ej.select().from(copiasSeguridad).where(and(eq(copiasSeguridad.tipo, "auto"), eq(copiasSeguridad.estado, "ok")));
   const sobran = new Set(copiasSobrantes(autos.map((x) => ({ id: x.id, creadaEn: x.creadaEn })), a));
   const driveFileIds: string[] = [];
   for (const f of autos.filter((x) => sobran.has(x.id))) {
@@ -347,6 +541,12 @@ export interface EstadoCopias {
   avisoAntigua: boolean;
   ultimoError: string | null;
   pgDisponible: boolean;
+  /** Cómo se localizó pg_dump (o por qué no se encuentra). */
+  pgDetalle: string;
+  /** Copias registradas pero vacías o rotas (no sirven para restaurar). */
+  invalidas: number;
+  /** Última copia válida y su antigüedad en minutos (null si no hay ninguna). */
+  ultimaValida: { nombre: string; minutos: number } | null;
 }
 
 export async function estadoCopias(ej: Ejecutor, ahora = new Date()): Promise<EstadoCopias> {
@@ -354,8 +554,18 @@ export async function estadoCopias(ej: Ejecutor, ahora = new Date()): Promise<Es
   const a = await leerAjustesCopias(ej);
   const ultimaAuto = lista.find((c) => c.tipo === "auto") ?? null;
   const [err] = await ej.select().from(ajustes).where(eq(ajustes.clave, "backup_ultimo_error"));
-  const antigua = a.automatica && (!ultimaAuto || ahora.getTime() - new Date(ultimaAuto.creadaEn).getTime() > 48 * 3600 * 1000);
-  return { ultima: lista[0] ?? null, ultimaAutomatica: ultimaAuto, avisoAntigua: antigua, ultimoError: err?.valor || null, pgDisponible: true };
+  const pg = estadoHerramientasPg();
+  const valida = lista.find((c) => c.estado === "ok" && c.archivoPresente && c.tamano >= TAMANO_MINIMO_COPIA) ?? null;
+  return {
+    ultima: lista[0] ?? null,
+    ultimaAutomatica: ultimaAuto?.estado === "ok" ? ultimaAuto : (lista.find((c) => c.tipo === "auto" && c.estado === "ok") ?? null),
+    avisoAntigua: a.automatica && !lista.some((c) => c.tipo === "auto" && c.estado === "ok" && ahora.getTime() - new Date(c.creadaEn).getTime() <= 48 * 3600 * 1000),
+    ultimoError: err?.valor || null,
+    pgDisponible: pg.disponible,
+    pgDetalle: pg.detalle,
+    invalidas: lista.filter((c) => c.estado !== "ok").length,
+    ultimaValida: valida ? { nombre: valida.nombre, minutos: Math.max(0, Math.round((ahora.getTime() - new Date(valida.creadaEn).getTime()) / 60000)) } : null,
+  };
 }
 
 export async function anotarError(ej: Ejecutor, mensaje: string | null): Promise<void> {
@@ -409,8 +619,8 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
 
   const { ruta } = await obtenerCopia(ej, entrada.id);
   if (!existsSync(/*turbopackIgnore: true*/ ruta)) throw new HttpError(404, "El fichero de la copia ya no está en el servidor");
-  const valida = await ejecutar([...comando("PG_RESTORE_CMD", "pg_restore"), "--list"], { stdin: ruta });
-  if (valida.codigo !== 0) throw new HttpError(400, "El fichero no es una copia de PostgreSQL válida");
+  const motivo = await motivoCopiaInvalida(ruta);
+  if (motivo) throw new HttpError(400, `La copia no se puede restaurar: ${motivo}`);
 
   await writeFile(/*turbopackIgnore: true*/ ficheroMantenimiento(), new Date().toISOString());
   let previa: CopiaDto | null = null;

@@ -7,6 +7,8 @@ import { CLASE_BADGE_ROL, ETIQUETA_ROL, esRolActivo, normalizarRol } from "@/lib
 import ListaContactos, { contactoVacio, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { mensajeDeError } from "./expedientes/comun";
 import { CLAVE_MOSTRAR_LABORATORIO } from "./LaboratorioComisiones";
+import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS } from "@/lib/preferencias";
+import OpcionVentanaPedido from "./documentos/OpcionVentanaPedido";
 import { usePreferencia } from "@/lib/preferencias";
 
 interface Props {
@@ -38,6 +40,8 @@ export default function PerfilForm({ nombreInicial, correoAcceso, rol, fechaRegi
 
   const rolNormalizado = normalizarRol(rol);
   const [mostrarLab, fijarMostrarLab] = usePreferencia(CLAVE_MOSTRAR_LABORATORIO);
+  const [permitirDup, fijarPermitirDup] = usePreferencia(CLAVE_PERMITIR_DUPLICADOS);
+  const [etiquetaCopia, fijarEtiquetaCopia] = usePreferencia(CLAVE_ETIQUETA_COPIA);
 
   const enviar = async (ev: FormEvent) => {
     ev.preventDefault();
@@ -193,6 +197,37 @@ export default function PerfilForm({ nombreInicial, correoAcceso, rol, fechaRegi
               </span>
             </span>
           </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", userSelect: "none", marginTop: "16px" }}>
+            <input
+              type="checkbox"
+              checked={permitirDup === "true"}
+              onChange={(e) => fijarPermitirDup(String(e.target.checked))}
+              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+            />
+            <span>
+              <strong>Permitir expedientes duplicados</strong>
+              <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                Desactiva la comprobación de duplicados: al leer un pedido no avisa de que ya existe uno parecido y las importaciones no omiten filas repetidas (mismo bastidor o matrícula). Sirve para probar rápido. Se recuerda en este navegador.
+              </span>
+            </span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", userSelect: "none", marginTop: "16px" }}>
+            <input
+              type="checkbox"
+              checked={etiquetaCopia !== "false"}
+              onChange={(e) => fijarEtiquetaCopia(String(e.target.checked))}
+              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+            />
+            <span>
+              <strong>Marcar los duplicados con la etiqueta «COPIA»</strong>
+              <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                Al duplicar un expediente, escribe «COPIA de #n» junto a su modelo en la tabla. Si la desactivas, las copias nuevas no llevan etiqueta visible (por dentro se siguen marcando como copia para poder borrarlas), y las que ya tienen etiqueta la conservan. Se recuerda en este navegador.
+              </span>
+            </span>
+          </label>
+          <div style={{ marginTop: "16px" }}>
+            <OpcionVentanaPedido largo />
+          </div>
         </div>
       )}
 
