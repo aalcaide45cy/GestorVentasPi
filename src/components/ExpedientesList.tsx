@@ -309,7 +309,7 @@ export default function ExpedientesList({
       }
     };
     const f: FiltrosActuales =
-      (leerLocal(CLAVE_RECORDAR_FILTROS) === "true" ? leerFiltrosGuardados(leerLocal(CLAVE_FILTROS_GUARDADOS)) : null) ??
+      (leerLocal(CLAVE_RECORDAR_FILTROS) !== "false" ? leerFiltrosGuardados(leerLocal(CLAVE_FILTROS_GUARDADOS)) : null) ??
       aplicarPredefinidos(leerPredefinidos(leerLocal(CLAVE_FILTROS_PREDEFINIDOS)), currentUserName ?? "");
     /* eslint-disable react-hooks/set-state-in-effect -- el navegador solo se puede leer tras hidratar */
     setBusqueda(f.busqueda);
@@ -331,7 +331,7 @@ export default function ExpedientesList({
   const [recordarFiltros] = usePreferencia(CLAVE_RECORDAR_FILTROS);
   useEffect(() => {
     if (!filtrosListos) return;
-    if (recordarFiltros !== "true") return;
+    if (recordarFiltros === "false") return;
     const actuales: FiltrosActuales = {
       busqueda,
       ocultarEntregados,
@@ -712,6 +712,22 @@ export default function ExpedientesList({
   const totalColSpan = columnasActivas.length + (seleccionActiva ? 1 : 0) + 1;
   const mostrarCol = (c: Columna) => visibles[c] !== false && (c !== "cobro" || mostrarCobros);
 
+  const hoyF = new Date();
+  const filtrosActivos: string[] = [];
+  if (busqueda.trim()) filtrosActivos.push(`Búsqueda: «${busqueda.trim()}»`);
+  if (fMes || fAnio) {
+    const esActual = (!fMes || fMes === String(hoyF.getMonth() + 1).padStart(2, "0")) && (!fAnio || fAnio === String(hoyF.getFullYear()));
+    filtrosActivos.push(`${FECHAS_FILTRO.find((f) => f.valor === fTipoFecha)?.etiqueta ?? "Fecha"}: ${[fMes ? MESES[Number(fMes) - 1] : "todos los meses", fAnio || "todos los años"].join(" ")}${esActual ? "" : " (no es el mes actual)"}`);
+  }
+  if (fMarca) filtrosActivos.push(`Marca: ${fMarca === "VO_NO_BRAND" ? "sin marca" : fMarca}`);
+  if (fModelo) filtrosActivos.push(`Modelo: ${fModelo}`);
+  if (fTienda) filtrosActivos.push(`Tienda: ${tiendas.find((t) => String(t.id_tienda) === fTienda)?.nombre ?? fTienda}`);
+  if (fVendedor && fVendedor !== (currentUserName ?? "")) filtrosActivos.push(`Comercial: ${fVendedor}`);
+  if (!fVendedor) filtrosActivos.push("Todos los comerciales");
+  if (fTipo) filtrosActivos.push(`Tipo de venta: ${fTipo}`);
+  if (fEstado) filtrosActivos.push(`Estado: ${fEstado}`);
+  if (ocultarEntregados) filtrosActivos.push("Entregados ocultos");
+
   const nCopias = Math.max(0, Math.floor(Number(copias) || 0));
   const copiasValidas = nCopias >= 1 && nCopias <= 50;
   const duplicar = async (sinCopia = false) => {
@@ -1074,6 +1090,19 @@ export default function ExpedientesList({
           </div>
         </div>
 
+        {filtrosActivos.length > 0 && (
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", padding: "6px 10px", borderRadius: "var(--radius-sm)", border: "1px dashed var(--warning)", background: "rgba(245, 158, 11, 0.07)" }}>
+            <strong style={{ fontSize: "0.78rem", color: "var(--warning)" }}>⚠️ Estás viendo una lista filtrada:</strong>
+            {filtrosActivos.map((f) => (
+              <span key={f} style={{ fontSize: "0.75rem", border: "1px solid var(--warning)", borderRadius: "999px", padding: "1px 8px" }}>
+                {f}
+              </span>
+            ))}
+            <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} style={{ padding: "2px 10px", fontSize: "0.72rem" }} title="Quita todos los filtros y vuelve a tus filtros predefinidos">
+              Quitar filtros
+            </button>
+          </div>
+        )}
         {filtrosAbiertos && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: "8px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
