@@ -117,11 +117,6 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
         if (r.passwordTemporal) setPasswordTemporal({ email, password: r.passwordTemporal });
         mostrar("Usuario creado correctamente.");
       } else if (formulario === "editar" && seleccionado) {
-        if (rol === "administrador" && bloqueado) {
-          mostrar("No se puede suspender a un usuario con el rol de Administrador.", "error");
-          setCargando(false);
-          return;
-        }
         await enviarJson(
           "PUT",
           { id_usuario: seleccionado.id_usuario, nombre, rol, bloqueado, email, telefono, tipo_vendedor: tipoVendedor, patron_vo: patronVo },
@@ -180,10 +175,6 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const alternarBloqueo = async (u: UsuarioAdminDto) => {
     if (u.id_usuario === currentUserId) {
       mostrar("No puedes bloquear tu propia cuenta.", "error");
-      return;
-    }
-    if (u.rol === "administrador") {
-      mostrar("No se puede suspender a un usuario con el rol de Administrador.", "error");
       return;
     }
     const nuevo = !u.bloqueado;
@@ -303,7 +294,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    {u.rol !== "administrador" && (
+                    {u.id_usuario !== currentUserId && (
                       <button
                         type="button"
                         className="btn btn-secondary"

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { usuarios } from "@/db/schema";
+import { expedientes, usuarios } from "@/db/schema";
 import { verificarPassword } from "@/lib/auth/password";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
@@ -56,13 +56,41 @@ describe("reglas del administrador (7.4)", () => {
     expect(await codigoDeError(eliminarUsuario(db, admin, admin.idUsuario))).toBe(400);
   });
 
-  it("no puede suspender a otro administrador, pero sí a un vendedor", async () => {
+  it("puede suspender a otro administrador mientras quede uno activo, y a un vendedor; nunca a sí mismo", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const otro = await crearUsuarioPrueba("administrador");
     const vendedor = await crearUsuarioPrueba("vendedor");
-    expect(await codigoDeError(actualizarUsuario(db, admin, { id_usuario: otro.idUsuario, bloqueado: true }))).toBe(400);
+    expect(await codigoDeError(actualizarUsuario(db, admin, { id_usuario: admin.idUsuario, bloqueado: true }))).toBe(400);
+    await actualizarUsuario(db, admin, { id_usuario: otro.idUsuario, bloqueado: true });
+    expect((await obtenerUsuario(db, otro.idUsuario))?.bloqueado).toBe(true);
+    await actualizarUsuario(db, admin, { id_usuario: otro.idUsuario, bloqueado: false });
     await actualizarUsuario(db, admin, { id_usuario: vendedor.idUsuario, bloqueado: true });
     expect((await obtenerUsuario(db, vendedor.idUsuario))?.bloqueado).toBe(true);
+  });
+
+  it("siempre queda al menos un administrador activo (suspender, degradar o eliminar al último)", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const otro = await crearUsuarioPrueba("administrador");
+    await actualizarUsuario(db, admin, { id_usuario: otro.idUsuario, bloqueado: true });
+    // El otro administrador está suspendido: el actual es el único activo
+    const tercero = await crearUsuarioPrueba("administrador");
+    await actualizarUsuario(db, admin, { id_usuario: tercero.idUsuario, bloqueado: true });
+    expect(await codigoDeError(cambiarRol(db, tercero, admin.idUsuario, "vendedor"))).toBe(400);
+    expect(await codigoDeError(eliminarUsuario(db, tercero, admin.idUsuario))).toBe(400);
+    // Con los suspendidos de vuelta no hay problema
+    await actualizarUsuario(db, admin, { id_usuario: tercero.idUsuario, bloqueado: false });
+    await cambiarRol(db, tercero, admin.idUsuario, "vendedor");
+    expect((await obtenerUsuario(db, admin.idUsuario))?.rol).toBe("vendedor");
+  });
+
+  it("un usuario cuyos expedientes están todos eliminados sí se puede borrar", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const v = await crearUsuarioPrueba("vendedor");
+    const e = await crearExpediente(db, v, esquemaCrearExpediente.parse({ expediente: {} }));
+    expect(await codigoDeError(eliminarUsuario(db, admin, v.idUsuario))).toBe(409);
+    await db.update(expedientes).set({ eliminadoEn: new Date() }).where(eq(expedientes.idExpediente, e.id_expediente));
+    await eliminarUsuario(db, admin, v.idUsuario);
+    expect(await obtenerUsuario(db, v.idUsuario)).toBeNull();
   });
 
   it("no elimina usuarios con expedientes (409) y sí los que no tienen", async () => {

@@ -1,4 +1,4 @@
-import { asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, rejillas, telefonosUsuarios, validacionesComision, usuarios, usuariosTiendas } from "@/db/schema";
@@ -127,7 +127,15 @@ export async function crearUsuario(
   return { usuario, passwordTemporal };
 }
 
-/** Un administrador no puede bloquearse ni degradarse a sí mismo (7.4). */
+/** Administradores activos (no suspendidos) distintos de `excluirId`: siempre debe quedar al menos uno. */
+async function otrosAdministradoresActivos(ej: Ejecutor, excluirId: number): Promise<number> {
+  const filas = await ej.select({ id: usuarios.idUsuario }).from(usuarios).where(and(eq(usuarios.rol, "administrador"), eq(usuarios.bloqueado, false), ne(usuarios.idUsuario, excluirId)));
+  return filas.length;
+}
+
+const SIN_ADMIN = "Tiene que quedar al menos un administrador activo: así la aplicación nunca queda sin nadie que pueda gestionarla.";
+
+/** Un administrador no puede bloquearse ni degradarse a sí mismo (7.4), y siempre queda al menos un administrador activo. */
 export async function actualizarUsuario(
   ej: Ejecutor,
   admin: UsuarioActual,
@@ -143,8 +151,9 @@ export async function actualizarUsuario(
         throw new HttpError(400, "No puedes degradar tu propio rol de Administrador.");
       }
     }
-    if (entrada.bloqueado === true && objetivo.rol === "administrador") {
-      throw new HttpError(400, "No se puede suspender a un administrador.");
+    const eraAdminActivo = objetivo.rol === "administrador" && !objetivo.bloqueado;
+    if (eraAdminActivo && (entrada.bloqueado === true || (entrada.rol !== undefined && entrada.rol !== "administrador")) && (await otrosAdministradoresActivos(tx, id)) === 0) {
+      throw new HttpError(400, SIN_ADMIN);
     }
     if (entrada.email) await comprobarEmailLibre(tx, entrada.email, id);
 
@@ -174,19 +183,27 @@ export async function cambiarRol(ej: Ejecutor, admin: UsuarioActual, id: number,
   if (id === admin.idUsuario && rol !== "administrador") {
     throw new HttpError(400, "No puedes degradar tu propio rol de Administrador.");
   }
-  const filas = await ej.update(usuarios).set({ rol }).where(eq(usuarios.idUsuario, id)).returning({ id: usuarios.idUsuario });
-  if (filas.length === 0) throw new HttpError(404, "Usuario no encontrado");
+  const [objetivo] = await ej.select().from(usuarios).where(eq(usuarios.idUsuario, id));
+  if (!objetivo) throw new HttpError(404, "Usuario no encontrado");
+  if (rol !== "administrador" && objetivo.rol === "administrador" && !objetivo.bloqueado && (await otrosAdministradoresActivos(ej, id)) === 0) throw new HttpError(400, SIN_ADMIN);
+  await ej.update(usuarios).set({ rol }).where(eq(usuarios.idUsuario, id));
 }
 
 export async function eliminarUsuario(ej: Ejecutor, admin: UsuarioActual, id: number): Promise<void> {
   if (id === admin.idUsuario) throw new HttpError(400, "No puedes eliminar tu propia cuenta.");
-  const [conExp] = await ej.select({ id: expedientes.idExpediente }).from(expedientes).where(eq(expedientes.idUsuario, id)).limit(1);
-  if (conExp) {
+  const [usuarioBorrar] = await ej.select().from(usuarios).where(eq(usuarios.idUsuario, id));
+  if (!usuarioBorrar) throw new HttpError(404, "Usuario no encontrado");
+  if (usuarioBorrar.rol === "administrador" && !usuarioBorrar.bloqueado && (await otrosAdministradoresActivos(ej, id)) === 0) throw new HttpError(400, SIN_ADMIN);
+  const expedientesDe = await ej.select({ id: expedientes.idExpediente, eliminado: expedientes.eliminadoEn }).from(expedientes).where(eq(expedientes.idUsuario, id));
+  const activos = expedientesDe.filter((e) => e.eliminado === null).length;
+  if (activos > 0) {
     throw new HttpError(
       409,
-      "No se puede eliminar el usuario porque tiene expedientes registrados. Prueba bloqueando su cuenta para suspender su acceso.",
+      `No se puede eliminar el usuario porque tiene ${activos} expediente${activos === 1 ? "" : "s"} activo${activos === 1 ? "" : "s"}. Pásalos a otro vendedor (en Expedientes, filtra por su nombre y usa «Editar» en la selección masiva) o elimínalos; mientras tanto puedes suspender su acceso.`,
     );
   }
+  // Los expedientes ya eliminados (que no se ven en la lista) no impiden borrar al usuario: se quedan sin vendedor
+  if (expedientesDe.length > 0) await ej.update(expedientes).set({ idUsuario: null }).where(eq(expedientes.idUsuario, id));
   // Comisiones: el libro de puntos, las liquidaciones y los objetivos de plan son históricos y no se borran con el usuario
   const [libro] = await ej.select({ id: libroPuntos.id }).from(libroPuntos).where(eq(libroPuntos.idUsuario, id)).limit(1);
   const [liq] = await ej.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id)).limit(1);
