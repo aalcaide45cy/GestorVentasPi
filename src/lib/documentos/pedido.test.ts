@@ -212,3 +212,25 @@ describe("modelos abreviados", () => {
     expect(parsearPedido(["CLIENTE", linea].join("\n"), cat).idModelo).toBe(id);
   });
 });
+
+describe("pedido de vehículo usado con retoma", () => {
+  const texto = [
+    "PEDIDO DE VEHÍCULO USADO",
+    "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+    "Sr. D. Francisco Javier Remedios Garcia  AUTOCARPE CONCESIONARIO, S.L.",
+    "DATOS DEL VEHÍCULO",
+    "Matrícula  1504JPN  Bastidor  VF12RA11A55506090",
+    "Valoración VO:  RENAULT Mégane 1.6 Confort Dynamique - Matrícula 9835DNC  -0,00 €",
+    "Pendiente de tasación definitiva del vehículo por parte del concesionario.",
+  ].join("\n");
+  it("la matrícula es la del coche vendido, aunque comparta línea con el bastidor, y la retoma se guarda aparte", () => {
+    const d = parsearPedido(texto, catalogo);
+    expect(d.tipoPedido).toBe("usado");
+    expect(d.matricula).toBe("1504JPN");
+    expect(d.retoma?.matricula).toBe("9835DNC");
+  });
+  it("un pedido escaneado sin el rótulo «USADO» se reconoce por «Renew» o por el régimen R.E.B.U.", () => {
+    expect(parsearPedido("PEDIDO DE VEHÍCULO  renew\nCLIENTE\nSr. D. Jesus Jara Rodriguez\nMatrícula  3881LYM", catalogo).tipoPedido).toBe("usado");
+    expect(parsearPedido("PEDIDO DE VEHÍCULO\nUso Anterior  Particular\nMatrícula  3881LYM", catalogo).tipoPedido).toBe("usado");
+  });
+});

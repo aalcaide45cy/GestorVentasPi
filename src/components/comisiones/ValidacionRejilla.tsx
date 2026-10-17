@@ -321,6 +321,11 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
               ❌ <b>{r.resumen.faltan} coche(s) tienen comisión en la app pero no aparecen en la hoja de la empresa.</b> Revisa si se han quedado sin comisionar y márcalos como «reclamado» cuando lo comuniques.
             </div>
           )}
+          {r.sinMatricula.length > 0 && (
+            <div role="status" style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning, #eab308)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)" }}>
+              🔎 <b>{r.sinMatricula.length} usado(s) de este mes no tienen matrícula</b>: {r.sinMatricula.map((u) => `${u.cliente ?? "Sin cliente"} (exp. ${u.idExpediente})`).join(", ")}. No es obligatoria al crear el expediente, pero sin ella no se puede cruzar con la hoja de la empresa: añádela cuando la tengas.
+            </div>
+          )}
           {r.resumen.duplicados > 0 && (
             <div role="alert" style={{ padding: "12px 16px", borderLeft: "4px solid var(--danger, #ef4444)", background: "rgba(239, 68, 68, 0.08)", borderRadius: "var(--radius-sm)" }}>
               🔁 <b>{r.resumen.duplicados} coche(s) parecen duplicados.</b> Su matrícula aparece también en la hoja de otro mes que tienes guardada, o está repetida con el mismo concepto e importe en esta hoja. Si la empresa te ha pagado dos veces el mismo coche, o lo ha movido de un mes a otro, aquí lo verás marcado con 🔁.

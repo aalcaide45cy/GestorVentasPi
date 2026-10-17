@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { clientes, commissionLiquidations, expedientes, rejillaFilas, rejillas, tipoDeVenta, usuarios, validacionesComision } from "@/db/schema";
+import { clientes, commissionLiquidations, estadoVehiculo, expedientes, rejillaFilas, rejillas, tipoDeVenta, usuarios, validacionesComision } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { sumarMeses } from "@/lib/formato";
 import { normalizarMatricula } from "@/lib/rejilla/analizar";
@@ -77,6 +77,8 @@ export interface ResultadoRejilla {
   hayLiquidacion: boolean;
   rejilla: { id: number; origen: string; nombreArchivo: string | null; creadaEn: string; totalHoja: number | null; filas: number } | null;
   filas: FilaComprobacion[];
+  /** Usados (VO) del mes sin matrícula: no bloquean nada, pero sin ella no se pueden cruzar con la hoja de la empresa. */
+  sinMatricula: { idExpediente: number; cliente: string | null }[];
   resumen: { duplicados: number; cuadran: number; distintos: number; faltan: number; sobran: number; sinImporte: number; otroMes: number; importeApp: number; importeHoja: number; diferencia: number; pendientes: number };
 }
 
@@ -272,6 +274,15 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     f.repetidaEnHoja = [...veces.entries()].some(([clave, n]) => n > 1 && clave.startsWith(`${k}|`));
   }
 
+  // Usados del vendedor que cuentan en este mes y no tienen matrícula (aunque no hayan generado comisión)
+  const usadosMes = await ej
+    .select({ id: expedientes.idExpediente, matricula: expedientes.matricula, cliente: clientes.nombre })
+    .from(expedientes)
+    .innerJoin(estadoVehiculo, and(eq(estadoVehiculo.idEstadoVehiculo, expedientes.idEstadoVehiculo), eq(estadoVehiculo.clase, "VO")))
+    .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+    .where(and(eq(expedientes.idUsuario, idUsuario), isNull(expedientes.eliminadoEn), sql`to_char(coalesce(${expedientes.fechaFacturacion}, ${expedientes.fechaMatriculacion}), 'YYYY-MM') = ${mes}`));
+  const sinMatricula = usadosMes.filter((u) => !normalizarMatricula(u.matricula ?? "")).map((u) => ({ idExpediente: u.id, cliente: u.cliente }));
+
   filas.sort((a, b) => Number(!PROBLEMAS.includes(a.estado)) - Number(!PROBLEMAS.includes(b.estado)) || a.matricula.localeCompare(b.matricula));
 
   const cuenta = (e: EstadoComprobacion) => filas.filter((f) => f.estado === e).length;
@@ -281,6 +292,7 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     hayLiquidacion: !!liq,
     rejilla: cab ? { id: cab.id, origen: cab.origen, nombreArchivo: cab.nombreArchivo, creadaEn: cab.creadaEn.toISOString(), totalHoja: cab.totalHoja, filas: hojaFilas.length } : null,
     filas,
+    sinMatricula,
     resumen: {
       duplicados: filas.filter((f) => f.duplicadaEn.length > 0 || f.repetidaEnHoja).length,
       cuadran: cuenta("ok"),

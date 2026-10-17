@@ -169,6 +169,7 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
 }
 
 const ENCABEZADO_RETOMA = /^(?:FICHA\s+DE\s+)?(?:VALORACION|TASACION)\b.{0,45}$|^(?:RETOMA|VEHICULO\s+(?:USADO|DE\s+OCASION|DE\s+RETOMA))\b.{0,35}$/;
+const LINEA_VALORACION_VO = /^(?:VALORACION|TASACION)\s+(?:VO|DE\s+VEHICULO\s+USADO)\b/;
 const FIN_SECCION = /^(?:CLIENTE|RESUMEN|TOTAL|FORMA\s+DE\s+PAGO|PLAZO\s+DE\s+ENTREGA|ESTABLECIMIENTO|BASE\s+IMPONIBLE|SENAL|FIRMA|ESTIPULACIONES|PEDIDO\s+DE|HEMOS\s+RECIBIDO)\b/;
 
 /**
@@ -187,6 +188,12 @@ export function separarRetoma(lineas: string[]): { principales: string[]; retoma
       continue;
     }
     dentro = 0;
+    // «Valoración VO: RENAULT Mégane … - Matrícula 9835DNC -0,00 €»: el dato va en la misma línea del encabezado
+    if (LINEA_VALORACION_VO.test(n)) {
+      retoma.push(l);
+      dentro = 4;
+      continue;
+    }
     if (n.length <= 60 && ENCABEZADO_RETOMA.test(n) && !/[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}/.test(l)) {
       retoma.push(l);
       dentro = 14;
@@ -197,6 +204,9 @@ export function separarRetoma(lineas: string[]): { principales: string[]; retoma
   return { principales, retoma };
 }
 
+/** Quita los bastidores (17 caracteres) de una línea: en «Matrícula 1504JPN Bastidor VF1…» la matrícula comparte línea con el bastidor. */
+const sinBastidores = (l: string): string => l.replace(/(?<![A-Z0-9])[A-HJ-NP-Z0-9]{17}(?![A-Z0-9])/gi, " ");
+
 export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPedido {
   // Solo la primera hoja cuenta: las siguientes son las condiciones generales, que citan todas las formas de pago
   const corte = texto.search(/ESTIPULACIONES GENERALES|Queda prohibida la reproducci/i);
@@ -206,7 +216,9 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   const lineas = primera.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const sinRetoma = separarRetoma(lineas).principales;
   const cabecera = sinAcentos(texto.slice(0, 1500));
-  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) ? "usado" : null;
+  // Un pedido escaneado puede perder el rótulo «USADO»: se reconoce también por «Renew», «Uso anterior» o el régimen R.E.B.U.
+  const señalesUsado = /PEDIDO\s+DE\s+VEHICULO\s+RENEW|\bUSO\s+ANTERIOR\b|REGIMEN\s+R\.?\s?E\.?\s?B\.?\s?U|VEHICULOS?\s+DE\s+OCASION/.test(sinAcentos(texto.slice(0, 6000)));
+  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : null;
   const mayus = sinAcentos(sinRetoma.join("\n"));
   const avisos: string[] = [];
   const estructura = leerEstructuraRenault(lineas);
@@ -227,13 +239,13 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   }
 
   // Un pedido de vehículo nuevo no tiene matrícula (la del usado de retoma se trata aparte)
-  const matricula = tipoPedido === "nuevo" ? null : (lineasBusqueda.flatMap((l) => (/\b[A-HJ-NP-Z0-9]{17}\b/i.test(l) ? [] : matriculasEnTexto(l)))[0] ?? null);
+  const matricula = tipoPedido === "nuevo" ? null : (lineasBusqueda.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
 
   let retoma: DatosPedido["retoma"] = null;
   if (lineasRetoma.length > 0) {
-    const cuerpo = lineasRetoma.slice(1).map(sinCorreos);
+    const cuerpo = lineasRetoma.map(sinCorreos);
     const vinRetoma = sinAcentos(cuerpo.join("\n")).match(/(?<![A-Z0-9])([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])/)?.[1] ?? null;
-    const matriculaRetoma = cuerpo.flatMap((l) => (/\b[A-HJ-NP-Z0-9]{17}\b/i.test(l) ? [] : matriculasEnTexto(l)))[0] ?? null;
+    const matriculaRetoma = cuerpo.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null;
     const resumen = cuerpo.map((l) => l.replace(/\s{2,}-?[\d.]+,\d{2}\s*€?\s*$/, "").replace(/\s{2,}/g, " ").trim()).filter(Boolean).slice(0, 3).join(" · ").slice(0, 140) || null;
     retoma = { matricula: matriculaRetoma, vin: vinRetoma, texto: resumen };
   }
