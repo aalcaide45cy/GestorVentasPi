@@ -269,7 +269,7 @@ export default function PanelCopias() {
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={() => crear(false)} title="Hace ahora una copia completa de toda la aplicación (clientes, expedientes, planes, usuarios, ajustes…). Se comprueba que sea legible antes de darla por buena. Úsala antes de cambios importantes o de duplicar muchos expedientes.">
-          {trabajando === "crear" ? "Creando copia…" : "Crear copia ahora"}
+          {trabajando === "crear" ? "Creando copia…" : "Crear copia TOTAL ahora (todo)"}
         </button>
         {drive?.conectado && !drive.requiereReconexion && (
           <button type="button" className="btn btn-secondary" disabled={trabajando !== null} onClick={() => crear(true)}>
@@ -295,7 +295,7 @@ export default function PanelCopias() {
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", padding: "8px 12px", border: "1px solid var(--primary)", borderRadius: "var(--radius-sm)", background: "rgba(var(--primary-rgb), 0.08)" }}>
           <strong style={{ fontSize: "0.85rem" }}>{seleccion.length} seleccionada(s)</strong>
           <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem" }} disabled={trabajando !== null || descargables.length === 0} onClick={descargarLote} title="Descarga a tu equipo los archivos .dump marcados, uno detrás de otro (solo las copias válidas)">
-            ⬇️ Descargar ({descargables.length})
+            ⬇️ Descargar copias TOTALES ({descargables.length})
           </button>
           {drive?.conectado && !drive.requiereReconexion && (
             <>

@@ -182,6 +182,8 @@ export const clientes = pgTable(
     tiendaId: integer("tienda_id").references(() => tiendas.idTienda),
     /** Adjunto (miniatura) con la cara del cliente, tomada del DNI. */
     fotoAdjuntoId: integer("foto_adjunto_id"),
+    /** Notas libres sobre el cliente. */
+    comentarios: text("comentarios"),
     /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
@@ -236,6 +238,8 @@ export const expedientes = pgTable(
     fechaEntrega: date("fecha_entrega"),
     fechaRci: date("fecha_rci"),
     fechaFacturacion: date("fecha_facturacion"),
+    /** Notas libres sobre el expediente. */
+    comentarios: text("comentarios"),
     matricula: varchar("matricula", { length: 50 }),
     idTipoDeVenta: integer("id_tipo_de_venta").references(() => tipoDeVenta.idTipoDeVenta),
     idEstadoVehiculo: integer("id_estado_vehiculo").references(() => estadoVehiculo.idEstadoVehiculo),
@@ -391,7 +395,7 @@ export const commissionPlans = pgTable("commission_plans", {
   tramoMax: integer("tramo_max").notNull().default(3),
   puntosPorPedido: integer("puntos_por_pedido").notNull().default(0),
   /** Fecha que hace contar a un usado: «cobro» (la de siempre) o «facturacion». */
-  voFecha: varchar("vo_fecha", { length: 12 }).notNull().default("cobro"),
+  voFecha: varchar("vo_fecha", { length: 12 }).notNull().default("facturacion"),
   /** Puntos de los usados: «cuentan» (suman puntos al objetivo) o «no» (solo comisión). */
   voPuntosModo: varchar("vo_puntos_modo", { length: 10 }).notNull().default("cuentan"),
   /** Puntos por usado (centésimas); sin valor se usan los del modelo, la marca o el predeterminado. */
@@ -493,9 +497,11 @@ export const commissionFinanceRates = pgTable(
       .references(() => marcas.idMarca, { onDelete: "cascade" }),
     /** CREDITO | PREFERENCE | RENTING | CONTADO */
     tipoFinanciacion: varchar("tipo_financiacion", { length: 20 }).notNull(),
+    /** A qué coches se aplica: VN (nuevos), VO (usados) o TODOS. */
+    aplicaA: varchar("aplica_a", { length: 5 }).notNull().default("VN"),
     importe: integer("importe").notNull().default(0),
   },
-  (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion)],
+  (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion, t.aplicaA)],
 );
 
 export const commissionPreferenceRules = pgTable("commission_preference_rules", {
@@ -505,6 +511,8 @@ export const commissionPreferenceRules = pgTable("commission_preference_rules", 
   idMarca: integer("id_marca").references(() => marcas.idMarca, { onDelete: "cascade" }),
   idModelo: integer("id_modelo").references(() => modelos.idModelo, { onDelete: "cascade" }),
   tipoFinanciacion: varchar("tipo_financiacion", { length: 20 }),
+  /** A qué coches se aplica: VN (nuevos), VO (usados) o TODOS. */
+  aplicaA: varchar("aplica_a", { length: 5 }).notNull().default("VN"),
   importe: integer("importe").notNull().default(0),
   activa: boolean("activa").notNull().default(true),
 });

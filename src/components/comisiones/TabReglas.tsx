@@ -5,6 +5,7 @@ import { BotonMini, InputCentesimas, Seccion } from "./campos";
 import { reglaNueva, type PropsPestana } from "./tipos";
 
 const TIPOS = ["CREDITO", "PREFERENCE", "RENTING", "CONTADO"] as const;
+const APLICA = [["VN", "Nuevos (VN)"], ["VO", "Usados (VO)"], ["TODOS", "Nuevos y usados"]] as const;
 const ETIQUETA: Record<(typeof TIPOS)[number], string> = { CREDITO: "Crédito", PREFERENCE: "Preference", RENTING: "Renting", CONTADO: "Contado" };
 
 /** Financiación / Reglas del Plan. */
@@ -18,7 +19,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
           <BotonMini
             onClick={() => {
               const marca = cat.marcas[0];
-              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", importe: 0 }] }));
+              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 0 }] }));
             }}
           >
             + Añadir incentivo
@@ -31,6 +32,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
               <tr>
                 <th>Marca</th>
                 <th>Tipo de financiación</th>
+                <th title="A qué coches afecta esta regla: nuevos, usados o los dos">Se aplica a</th>
                 <th>Importe (€)</th>
                 <th />
               </tr>
@@ -57,6 +59,15 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                     </select>
                   </td>
                   <td>
+                    <select className="form-input" style={{ minWidth: "150px" }} value={f.aplicaA} onChange={(e) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, aplicaA: e.target.value as typeof f.aplicaA } : x)) }))} title="Los usados (VO) tienen su propio sistema de financiación: crea una línea para usados si quieres que cobren incentivo">
+                      {APLICA.map(([v, t]) => (
+                        <option key={v} value={v}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
                     <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
                   </td>
                   <td>
@@ -73,7 +84,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
               ))}
               {plan.financiacion.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)" }}>
                     Sin incentivos de financiación en el plan.
                   </td>
                 </tr>
@@ -86,7 +97,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
       <Seccion
         titulo="Reglas Preference / BOX3"
         ayuda="Se aplica solo la regla más específica: marca + modelo, después modelo, después marca y por último la general."
-        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, importe: 0, activa: true }] }))}>+ Nueva regla</BotonMini>}
+        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, aplicaA: "VN", importe: 0, activa: true }] }))}>+ Nueva regla</BotonMini>}
       >
         <div className="table-container">
           <table className="table-premium table-compact">
@@ -95,6 +106,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                 <th>Nombre</th>
                 <th>Marca</th>
                 <th>Modelo</th>
+                <th title="A qué coches afecta esta regla: nuevos, usados o los dos">Se aplica a</th>
                 <th>Importe (€)</th>
                 <th>Activa</th>
                 <th />
@@ -131,6 +143,15 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                       </select>
                     </td>
                     <td>
+                      <select className="form-input" style={{ minWidth: "150px" }} value={r.aplicaA} onChange={(e) => set({ aplicaA: e.target.value as typeof r.aplicaA })}>
+                        {APLICA.map(([v, t]) => (
+                          <option key={v} value={v}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
                       <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />
                     </td>
                     <td>
@@ -151,7 +172,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
               })}
               {plan.preference.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)" }}>
                     Sin reglas de Preference / BOX3 en el plan.
                   </td>
                 </tr>

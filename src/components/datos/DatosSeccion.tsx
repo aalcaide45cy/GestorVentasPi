@@ -769,7 +769,7 @@ export function BotonesDatosSeccion({ seccion, alCambiar, planesIniciales }: { s
     <>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setModal("exportar")} title={`Descarga un archivo .json con ${seccion === "planes" ? "los planes que elijas (todos o uno a uno)" : `los ${s.plural}`}. No borra ni cambia nada.`}>
-          📤 Exportar
+          📤 Exportar SOLO {seccion === "planes" ? "planes" : s.plural}
         </button>
         {s.importable && (
           <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setModal("importar")} title={`Carga ${s.plural} desde un archivo .json exportado antes. Verás una vista previa y no se aplica nada sin tu confirmación.`}>

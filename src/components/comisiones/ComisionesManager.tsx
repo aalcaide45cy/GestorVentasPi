@@ -214,7 +214,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
                       Duplicar
                     </BotonMini>
                     <BotonMini titulo="Descarga solo este plan como archivo .json (se puede importar en otra instalación o en esta con «Importar»)." onClick={() => void exportarUno(p)}>
-                      Exportar
+                      Exportar SOLO este plan
                     </BotonMini>
                     <BotonMini peligro onClick={() => setABorrar(p)}>
                       Eliminar

@@ -9,9 +9,9 @@ import { construirCsvClientes, interpretarCsvClientes } from "@/lib/csv-clientes
 import { descargarTexto } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
 import type { ClienteDto, ExpedienteDto, TiendaDto } from "@/lib/dto";
-import { BotonLeerDni, BotonLeerPedido, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import { BotonLeerDni, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
-import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
+import type { ResultadoDni } from "@/lib/servicios/documentos";
 import NombreConFoto from "./documentos/FotoCliente";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import { BadgeEstado, BadgeTipoVenta, mensajeDeError } from "./expedientes/comun";
@@ -79,6 +79,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [domicilio, setDomicilio] = useState("");
   const [poblacion, setPoblacion] = useState("");
   const [codigoPostal, setCodigoPostal] = useState("");
+  const [comentarios, setComentarios] = useState("");
   const [tiendaId, setTiendaId] = useState("");
   const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
   const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
@@ -117,6 +118,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     setDomicilio(c.domicilio ?? "");
     setPoblacion(c.poblacion ?? "");
     setCodigoPostal(c.codigo_postal ?? "");
+    setComentarios(c.comentarios ?? "");
     setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
     setEmails(emailsDeCliente(c));
     setTelefonos(telefonosDeCliente(c));
@@ -142,6 +144,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           domicilio: domicilio.trim() || null,
           poblacion: poblacion.trim() || null,
           codigo_postal: codigoPostal.trim() || null,
+          comentarios: comentarios.trim() || null,
           tienda_id: tiendaId ? Number(tiendaId) : null,
           emails: emailsOk.map((e) => ({ email: e.valor.trim(), tipo: e.tipo })),
           telefonos: telefonosOk.map((t) => ({ telefono: t.valor.trim(), tipo: t.tipo })),
@@ -164,7 +167,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
         setClientes((prev) =>
           prev.map((c) =>
             c.id === seleccionado.id
-              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, domicilio: domicilio.trim() || null, poblacion: poblacion.trim() || null, codigo_postal: codigoPostal.trim() || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
+              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, domicilio: domicilio.trim() || null, poblacion: poblacion.trim() || null, codigo_postal: codigoPostal.trim() || null, comentarios: comentarios.trim() || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
               : c,
           ),
         );
@@ -213,21 +216,8 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   };
 
   const alLeerDni = (r: ResultadoDni) => {
-    if (r.datos.dni) setDni(r.datos.dni);
-    if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
-    if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
     registrarDocumentos(r.adjuntos.map((a) => ({ id: a.id, nombre: a.nombre })), r.fotoId);
-    mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos antes de guardar.");
-  };
-
-  const alLeerPedido = (r: ResultadoPedido) => {
-    const d = r.datos;
-    if (d.dni && !dni.trim()) setDni(d.dni);
-    if (d.cliente && !nombre.trim()) setNombre(d.cliente);
-    if (d.telefono && telefonos.every((t) => !t.valor.trim())) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
-    if (d.email && emails.every((e) => !e.valor.trim())) setEmails([{ valor: d.email, tipo: "Principal" }]);
-    registrarDocumentos([{ id: r.adjunto.id, nombre: r.adjunto.nombre }]);
-    mostrar(d.avisos.length ? `Pedido leído. ${d.avisos[0]}` : "Pedido leído: revisa los datos antes de guardar.");
+    mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
   };
 
   const enviarFormulario = async (ev: FormEvent) => {
@@ -457,7 +447,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                 🗑️ Eliminar Seleccionados
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                📤 Exportar Seleccionados (CSV)
+                📤 Exportar SOLO clientes seleccionados (CSV)
               </button>
             </>
           )}
@@ -468,7 +458,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
             + Registrar Nuevo Cliente
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(false)} style={{ padding: "8px 14px", fontSize: "0.85rem" }}>
-            📤 Exportar (CSV)
+            📤 Exportar SOLO clientes (CSV)
           </button>
           <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
             📥 Importar CSV
@@ -708,12 +698,11 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       )}
 
       {formulario && (
-        <Modal titulo={formulario === "editar" ? "Editar Cliente" : "Registrar Nuevo Cliente"} ancho="600px" tamanoTitulo="1.25rem">
+        <Modal titulo={formulario === "editar" ? "Editar Cliente" : "Registrar Nuevo Cliente"} ancho="1000px" tamanoTitulo="1.25rem">
           <form onSubmit={enviarFormulario} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <BotonLeerDni disabled={cargando} alLeer={alLeerDni} />
-                <BotonLeerPedido disabled={cargando} alLeer={alLeerPedido} />
                 {formulario !== "editar" && <ZonaDocumentosVarios disabled={cargando} alSubir={anadirPendientes} />}
               </div>
               <ListaPendientes docs={pendientes.map((id) => ({ id, nombre: nombresPend[id] ?? `Documento ${id}` }))} alQuitar={(id) => void quitarPendiente(id)} />
@@ -722,7 +711,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                   ? "Los documentos que subas aquí se guardan al momento con este cliente."
                   : pendientes.length > 0
                     ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.`
-                    : "Arrastra el DNI (rellena los datos y guarda la foto), el pedido (rellena los datos) o documentos varios. Se lee en este equipo."}
+                    : "Arrastra el DNI para guardarlo y tomar la foto del cliente (los datos se escriben a mano) o documentos varios."}
               </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -766,8 +755,14 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                 </select>
               </div>
             </div>
-            <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
-            <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
+              <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
+              <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Comentarios</label>
+              <textarea className="form-input" rows={4} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre el cliente…" style={{ resize: "vertical", minHeight: "90px" }} />
+            </div>
             {formulario === "editar" && seleccionado && <VisorAdjuntos key={refrescoAdjuntos} idCliente={seleccionado.id} />}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
               <button type="button" className="btn btn-secondary" onClick={() => setFormulario(null)} disabled={cargando}>

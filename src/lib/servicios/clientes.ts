@@ -28,6 +28,7 @@ export const esquemaCliente = z.object({
   domicilio: textoOpcional(255).optional(),
   poblacion: textoOpcional(120).optional(),
   codigo_postal: textoOpcional(10).optional(),
+  comentarios: textoOpcional(5000).optional(),
   tienda_id: idOpcional.optional(),
   emails: z.array(esquemaEmail).max(50).optional(),
   telefonos: z.array(esquemaTelefono).max(50).optional(),
@@ -84,6 +85,7 @@ export async function crearCliente(
         domicilio: entrada.domicilio ?? null,
         poblacion: entrada.poblacion ?? null,
         codigoPostal: entrada.codigo_postal ?? null,
+        comentarios: entrada.comentarios ?? null,
         tiendaId: entrada.tienda_id ?? tiendaPorDefecto,
       })
       .returning();
@@ -110,6 +112,7 @@ export async function actualizarCliente(ej: Ejecutor, id: number, entrada: Entra
         ...(entrada.domicilio !== undefined ? { domicilio: entrada.domicilio } : {}),
         ...(entrada.poblacion !== undefined ? { poblacion: entrada.poblacion } : {}),
         ...(entrada.codigo_postal !== undefined ? { codigoPostal: entrada.codigo_postal } : {}),
+        ...(entrada.comentarios !== undefined ? { comentarios: entrada.comentarios } : {}),
         tiendaId: entrada.tienda_id ?? null,
       })
       .where(eq(clientes.id, id));

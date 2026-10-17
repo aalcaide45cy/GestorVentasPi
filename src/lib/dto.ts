@@ -27,6 +27,7 @@ export interface ClienteDto {
   tienda_id: number | null;
   /** Adjunto con la foto del cliente (se ve al pasar el ratón), si se ha leído su DNI. */
   foto_id?: number | null;
+  comentarios?: string | null;
   emails: EmailDto[];
   telefonos: TelefonoDto[];
 }
@@ -94,6 +95,7 @@ export interface ExpedienteDto {
   fecha_facturacion: string | null;
   matricula: string | null;
   vin: string | null;
+  comentarios?: string | null;
   cobrado_otra_fecha: boolean;
   fecha_cobrado: string | null;
   comision_cobrada: boolean;

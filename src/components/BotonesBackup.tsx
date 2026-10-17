@@ -98,7 +98,7 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
         disabled={ocupado || deshabilitado}
         title="Descarga un archivo .json con los datos básicos: tiendas, usuarios, clientes, expedientes, catálogos y ajustes. NO incluye planes de comisionamiento, liquidaciones, puntos, documentos adjuntos, rejillas ni plantillas: para una copia de TODO usa la copia completa (.dump) de Configuración › BBDD. Incluye contraseñas cifradas y secretos del doble factor: guárdalo en un sitio seguro (y guarda también el .env). No borra nada."
       >
-        💾 Exportar datos básicos (JSON)
+        💾 Exportar SOLO datos básicos (JSON, no es copia total)
       </button>
       <label
         className="btn"

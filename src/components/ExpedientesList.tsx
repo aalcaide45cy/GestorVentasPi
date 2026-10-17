@@ -950,7 +950,7 @@ export default function ExpedientesList({
                 </button>
               )}
               <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                📤 Exportar Seleccionados (CSV)
+                📤 Exportar SOLO expedientes seleccionados (CSV)
               </button>
               <button
                 type="button"
@@ -1033,7 +1033,7 @@ export default function ExpedientesList({
               <GrupoDatos titulo="📤 Sacar expedientes" ayuda="Descarga un archivo con los expedientes.">
                 <OpcionDatos
                   icono="📤"
-                  titulo="Exportar todo (CSV)"
+                  titulo="Exportar SOLO expedientes: todos (CSV)"
                   texto="Descarga todos los expedientes (los que ves con los filtros actuales) en un CSV que se abre con Excel."
                   ayuda="Descarga un archivo .csv en tu equipo con los expedientes de la tabla. No cambia nada en la aplicación."
                   alPulsar={() => {
@@ -1043,7 +1043,7 @@ export default function ExpedientesList({
                 />
                 <OpcionDatos
                   icono="☑️"
-                  titulo="Exportar seleccionados (CSV)"
+                  titulo="Exportar SOLO expedientes: los seleccionados (CSV)"
                   texto={seleccionados.length > 0 ? `Descarga solo los ${seleccionados.length} expedientes que has marcado.` : "Primero activa «Selección» en la barra y marca los expedientes que quieras."}
                   ayuda="Descarga solo los expedientes marcados. Requiere activar la selección masiva y marcar alguno."
                   deshabilitado={seleccionados.length === 0}

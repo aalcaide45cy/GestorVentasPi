@@ -469,6 +469,12 @@ function comisionesVo(plan: PlanMotor, vendedor: VendedorMotor, vo: Info[], mes:
 /* Financiación y Preference (8.3 y 8.4)                               */
 /* ------------------------------------------------------------------ */
 
+/** ¿Una regla marcada para VN, VO o todos vale para este coche? Sin marca, vale para los nuevos. */
+function aplica(aplicaA: "VN" | "VO" | "TODOS" | undefined, clase: string): boolean {
+  const a = aplicaA ?? "VN";
+  return a === "TODOS" || a === clase;
+}
+
 function especificidad(r: ReglaPreferenceMotor): number {
   if (r.idMarca !== null && r.idModelo !== null) return 4;
   if (r.idModelo !== null) return 3;
@@ -495,7 +501,8 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
   const cat = e.categoriaVenta;
   if (cat === null || !FINANCIADAS.includes(cat)) return res; // CONTADO no genera incentivo
 
-  const tarifa = plan.financiacionPorMarcaTipo.find((f) => f.idMarca === e.idMarca && f.tipo === cat);
+  const tarifa = plan.financiacionPorMarcaTipo.find((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e.clase));
+  if (!tarifa && e.clase === "VO") return res; // los usados solo cobran financiación si hay una regla que se aplique a usados
   if (!tarifa) {
     res.push(mk("financiacion", `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
   } else {
@@ -508,6 +515,7 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
       .filter(
         (r) =>
           r.activa !== false &&
+          aplica(r.aplicaA, e.clase) &&
           (r.idMarca === null || r.idMarca === e.idMarca) &&
           (r.idModelo === null || r.idModelo === e.idModelo) &&
           (r.tipo === null || r.tipo === "PREFERENCE"),

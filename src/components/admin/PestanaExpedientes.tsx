@@ -7,7 +7,7 @@ import {
   CLAVE_RECORDAR_FILTROS,
   leerPredefinidos,
 } from "@/lib/filtros-expedientes";
-import { usePreferencia } from "@/lib/preferencias";
+import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
 import { estiloPanel } from "./utilidades";
 
 const OPCIONES_INICIO = [
@@ -31,6 +31,8 @@ const estiloOpcion = (activa: boolean) =>
 /** Pestaña «Expedientes»: paginación por defecto de la lista (se guarda en el navegador). */
 export default function PestanaExpedientes() {
   const { mostrar } = useToast();
+  const [retrasoFoto, guardarRetrasoFoto] = usePreferencia(CLAVE_RETRASO_FOTO);
+  const segundosFoto = retrasoFoto !== null && Number(retrasoFoto) >= 0 ? Number(retrasoFoto) : RETRASO_FOTO_POR_DEFECTO;
   const [guardado, guardar] = usePreferencia("exp-default-page-size");
   const tamano = Number(guardado) > 0 ? Number(guardado) : 20;
 
@@ -109,6 +111,17 @@ export default function PestanaExpedientes() {
             Actualmente configurado en <strong style={{ color: "var(--primary)" }}>{tamano}</strong> expedientes por página. Este valor se aplica al cargar la pestaña de expedientes por primera vez.
           </span>
         </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>🖼️ Foto del cliente al pasar el ratón</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>Si dejas el ratón encima del nombre de un cliente (lista de clientes o expedientes) aparece una ventanita con su foto, tomada del DNI. Aquí eliges cuántos segundos hay que esperar (0 = al instante). Se guarda en este navegador.</p>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.9rem" }}>
+          Segundos de espera:
+          <input type="number" className="form-input" min={0} max={30} step={0.5} style={{ width: "90px" }} value={segundosFoto} onChange={(e) => guardarRetrasoFoto(String(Math.max(0, Math.min(30, Number(e.target.value) || 0))))} />
+        </label>
       </div>
 
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>

@@ -31,6 +31,7 @@ const camposComunes = {
   id_estado_vehiculo: idOpcional.optional(),
   matricula: textoOpcional(50).optional(),
   vin: textoOpcional(100).optional(),
+  comentarios: textoOpcional(5000).optional(),
   cobrado_otra_fecha: booleano,
   ...camposFecha,
 };
@@ -141,6 +142,7 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     fecha_facturacion: e.fechaFacturacion,
     matricula: e.matricula,
     vin: e.vin,
+    comentarios: e.comentarios,
     cobrado_otra_fecha: e.cobradoOtraFecha,
     fecha_cobrado: e.fechaCobrado,
     comision_cobrada: e.comisionCobrada,

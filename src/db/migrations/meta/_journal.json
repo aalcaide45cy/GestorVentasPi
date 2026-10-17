@@ -127,6 +127,20 @@
       "when": 1792263520802,
       "tag": "0017_nice_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792267452609,
+      "tag": "0018_nostalgic_major_mapleleaf",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792267635630,
+      "tag": "0019_careless_switch",
+      "breakpoints": true
     }
   ]
 }

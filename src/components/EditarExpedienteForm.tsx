@@ -101,8 +101,10 @@ export default function EditarExpedienteForm({
   const [fEntrega, setFEntrega] = useState(expediente.fecha_entrega ?? "");
   const [matricula, setMatricula] = useState(expediente.matricula ?? "");
   const [vin, setVin] = useState(expediente.vin ?? "");
-  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(expediente.cobrado_otra_fecha);
-  const [fCobrado, setFCobrado] = useState(expediente.fecha_cobrado ?? "");
+  const [comentarios, setComentarios] = useState(expediente.comentarios ?? "");
+  // La fecha de cobro ya no existe en la aplicación: solo cuentan las fechas del expediente
+  const cobradoOtraFecha = false;
+  const fCobrado = "";
 
   const [com, setCom] = useState<ComisionForm>(comisionInicial(expediente));
   const comOriginal = useMemo(() => JSON.stringify(comisionInicial(expediente)), [expediente]);
@@ -146,6 +148,7 @@ export default function EditarExpedienteForm({
       fCobrado !== (expediente.fecha_cobrado ?? "") ||
       matricula !== (expediente.matricula ?? "") ||
       vin !== (expediente.vin ?? "") ||
+      comentarios !== (expediente.comentarios ?? "") ||
       JSON.stringify(com) !== comOriginal
     );
   };
@@ -258,6 +261,7 @@ export default function EditarExpedienteForm({
         fecha_entrega: fEntrega || null,
         matricula: matricula || null,
         vin: vin || null,
+        comentarios: comentarios.trim() || null,
         cobrado_otra_fecha: cobradoOtraFecha,
         fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
         puntos: com.puntos,
@@ -588,19 +592,16 @@ export default function EditarExpedienteForm({
                 compacta
                 disabled={cargando}
                 alLeer={async (r) => {
-                  if (r.datos.dni) setDni(r.datos.dni);
-                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
-                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
                   try {
                     await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
                     setVersionAdjuntos((v) => v + 1);
                   } catch (e) {
                     mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
                   }
-                  mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos y pulsa «Guardar Cambios».");
+                  mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
                 }}
               />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI para rellenar los datos del cliente (se guardan al pulsar «Guardar Cambios»).</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI para guardarlo y tomar la foto del cliente (los datos se escriben a mano).</span>
             </div>
 
             <div className="rejilla-ficha">
@@ -734,6 +735,10 @@ export default function EditarExpedienteForm({
               {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
               {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
             </div>
+            <div className="form-group" style={{ marginTop: "16px", marginBottom: 0 }}>
+              <label className="form-label">Comentarios del expediente</label>
+              <textarea className="form-input" rows={3} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre este expediente…" style={{ resize: "vertical", minHeight: "80px" }} />
+            </div>
           </div>
 
           {/* FECHAS */}
@@ -755,30 +760,6 @@ export default function EditarExpedienteForm({
               {campo("Fecha Matriculación", fecha(fMat, cambiarMatriculacion))}
               {campo("Fecha Facturación", fecha(fFact, setFFact))}
               {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
-
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.02)", padding: "8px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", justifySelf: "start", gridColumn: "1 / -1" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <input
-                    type="checkbox"
-                    id="cobradoOtraFecha"
-                    checked={cobradoOtraFecha}
-                    onChange={(e) => {
-                      setCobradoOtraFecha(e.target.checked);
-                      if (!e.target.checked) setFCobrado("");
-                    }}
-                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                  />
-                  <label htmlFor="cobradoOtraFecha" style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", userSelect: "none" }}>
-                    Expediente cobrado en otra fecha
-                  </label>
-                </div>
-                {cobradoOtraFecha && (
-                  <div className="form-group" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-                    <label className="form-label" style={{ fontSize: "0.78rem", marginBottom: 0, whiteSpace: "nowrap" }}>Fecha de Cobrado</label>
-                    <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} required />
-                  </div>
-                )}
-              </div>
 
               {rciObligatoria() && (
                 <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", color: "var(--danger)", fontSize: "0.85rem", fontWeight: 600 }}>

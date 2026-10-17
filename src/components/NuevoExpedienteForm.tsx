@@ -72,6 +72,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
   const [fEntrega, setFEntrega] = useState("");
   const [matricula, setMatricula] = useState("");
   const [vin, setVin] = useState("");
+  const [comentarios, setComentarios] = useState("");
   // Documentos leídos (DNI, pedido) y aún sin vincular: se vinculan al guardar el expediente
   const [pendientes, setPendientes] = useState<number[]>([]);
   const [nombresPend, setNombresPend] = useState<Record<number, string>>({});
@@ -246,6 +247,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
             fecha_entrega: fEntrega || null,
             matricula: matricula || null,
             vin: vin || null,
+            comentarios: comentarios.trim() || null,
           },
         }),
       });
@@ -397,13 +399,9 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
                 compacta
                 disabled={cargando}
                 alLeer={(r) => {
-                  if (r.datos.dni) setDni(r.datos.dni);
-                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
-                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
                   setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
                   setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(r.adjuntos.map((a) => [a.id, a.nombre])) }));
-                  setAvisoLectura(r.datos.avisos[0] ?? null);
-                  mostrar("DNI leído: revisa los datos antes de guardar.");
+                  mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
                 }}
               />
               <ZonaDocumentosVarios
@@ -603,6 +601,10 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               )}
               {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
               {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
+              <div style={{ gridColumn: "1 / -1" }} className="form-group">
+                <label className="form-label">Comentarios del expediente</label>
+                <textarea className="form-input" rows={3} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre este expediente…" style={{ resize: "vertical", minHeight: "80px" }} />
+              </div>
             </div>
           </div>
 

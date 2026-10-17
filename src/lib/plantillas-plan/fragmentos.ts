@@ -94,8 +94,8 @@ export function extraer(plan: PlanEditable, cat: CatalogoNombres, comps: Compone
   if (tiene("opcionesUsados")) f.opcionesUsados = { voFecha: plan.voFecha, voPuntosModo: plan.voPuntosModo, voPuntos: plan.voPuntos };
   if (tiene("usados")) f.usados = plan.usados.map((u) => ({ ...u }));
   if (tiene("patrones")) f.patrones = plan.patrones.map((p) => ({ ...p, tiers: p.tiers.map((t) => ({ ...t })) }));
-  if (tiene("financiacion")) f.financiacion = plan.financiacion.flatMap((x) => { const m = marca(x.idMarca); return m ? [{ marca: m, tipoFinanciacion: x.tipoFinanciacion, importe: x.importe }] : []; });
-  if (tiene("preference")) f.preference = plan.preference.map((p) => { const mo = modelo(p.idModelo); return { nombre: p.nombre, marca: mo?.marca ?? marca(p.idMarca), modelo: mo?.modelo ?? null, tipoFinanciacion: p.tipoFinanciacion, importe: p.importe, activa: p.activa }; });
+  if (tiene("financiacion")) f.financiacion = plan.financiacion.flatMap((x) => { const m = marca(x.idMarca); return m ? [{ marca: m, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe }] : []; });
+  if (tiene("preference")) f.preference = plan.preference.map((p) => { const mo = modelo(p.idModelo); return { nombre: p.nombre, marca: mo?.marca ?? marca(p.idMarca), modelo: mo?.modelo ?? null, tipoFinanciacion: p.tipoFinanciacion, aplicaA: p.aplicaA, importe: p.importe, activa: p.activa }; });
   const regla = (r: PlanEditable["reglas"][number]) => {
     const mo = modelo(r.idModelo);
     const { idMarca, idModelo, ...resto } = r;
@@ -175,7 +175,7 @@ export function aplicar(plan: PlanEditable, f: Fragmento, cat: CatalogoNombres, 
   if (quiere("usados") && f.usados) p.usados = lista("usados", p.usados, f.usados.map((x) => ({ valor: { ...x }, etiqueta: x.subtipo })), (x) => norm(x.subtipo));
   if (quiere("patrones") && f.patrones) p.patrones = lista("patrones", p.patrones, f.patrones.map((x) => ({ valor: { ...x, tiers: x.tiers.map((t) => ({ ...t })) }, etiqueta: x.nombre })), (x) => norm(x.nombre));
   if (quiere("financiacion") && f.financiacion)
-    p.financiacion = lista("financiacion", p.financiacion, f.financiacion.map((x) => { const id = marcaId(x.marca); return { valor: id === null ? null : { idMarca: id, tipoFinanciacion: x.tipoFinanciacion, importe: x.importe }, etiqueta: `Marca «${x.marca}» (${x.tipoFinanciacion.toLowerCase()})` }; }), (x) => `${x.idMarca}|${x.tipoFinanciacion}`);
+    p.financiacion = lista("financiacion", p.financiacion, f.financiacion.map((x) => { const id = marcaId(x.marca); return { valor: id === null ? null : { idMarca: id, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe }, etiqueta: `Marca «${x.marca}» (${x.tipoFinanciacion.toLowerCase()}, ${x.aplicaA})` }; }), (x) => `${x.idMarca}|${x.tipoFinanciacion}|${x.aplicaA}`);
   /** Regla (o bonus) con marca y modelo por nombre → con ids; nula si el nombre de marca o modelo no existe aquí. */
   const resolverRegla = (r: NonNullable<Fragmento["reglas"]>[number]): PlanEditable["reglas"][number] | null => {
     const idM = r.marca === null ? null : marcaId(r.marca);
@@ -195,9 +195,9 @@ export function aplicar(plan: PlanEditable, f: Fragmento, cat: CatalogoNombres, 
         const idM = x.marca === null ? null : marcaId(x.marca);
         const idMo = x.modelo === null ? null : modeloId(x.marca, x.modelo);
         const roto = (x.marca !== null && idM === null) || (x.modelo !== null && idMo === null);
-        return { valor: roto ? null : { nombre: x.nombre, idMarca: idM, idModelo: idMo, tipoFinanciacion: x.tipoFinanciacion, importe: x.importe, activa: x.activa }, etiqueta: x.nombre ?? [x.marca, x.modelo].filter(Boolean).join(" ") ?? "Regla Preference" };
+        return { valor: roto ? null : { nombre: x.nombre, idMarca: idM, idModelo: idMo, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe, activa: x.activa }, etiqueta: x.nombre ?? [x.marca, x.modelo].filter(Boolean).join(" ") ?? "Regla Preference" };
       }),
-      (x) => `${norm(x.nombre ?? "")}|${x.idMarca ?? ""}|${x.idModelo ?? ""}|${x.tipoFinanciacion ?? ""}`,
+      (x) => `${norm(x.nombre ?? "")}|${x.idMarca ?? ""}|${x.idModelo ?? ""}|${x.tipoFinanciacion ?? ""}|${x.aplicaA}`,
     );
   if (quiere("reglas") && f.reglas) p.reglas = lista("reglas", p.reglas, f.reglas.map((r) => ({ valor: resolverRegla(r), etiqueta: r.nombre })), claveRegla);
   if (quiere("bonus") && f.bonus) p.bonus = lista("bonus", p.bonus, f.bonus.map((r) => ({ valor: resolverRegla(r), etiqueta: r.nombre })), claveRegla);

@@ -558,3 +558,22 @@ describe("VN: el mes de comisionado es el de la facturación", () => {
     expect(agosto.lineas.filter((l) => l.cuenta).map((l) => l.idExpediente)).toEqual([2]);
   });
 });
+
+describe("financiación según nuevos o usados", () => {
+  const fin = (aplicaA: "VN" | "VO" | "TODOS") => plan({ financiacionPorMarcaTipo: [{ idMarca: 1, tipo: "CREDITO", aplicaA, importe: 5000 }] });
+  const credito = (clase: "VN" | "VO") =>
+    exp(1, { clase, categoriaVenta: "CREDITO", fechaRci: "2026-06-10", fechaMatriculacion: "2026-06-10", fechaFacturacion: "2026-06-10", fechaCobro: "2026-06-10" });
+  const importeFin = (p: PlanMotor, clase: "VN" | "VO") =>
+    calcularMes(p, V, "2026-06", [credito(clase)]).lineas[0].conceptos.filter((c) => c.concepto === "financiacion").reduce((s, c) => s + c.importe, 0);
+
+  it("una regla para nuevos no paga a un usado", () => {
+    expect(importeFin(fin("VN"), "VN")).toBe(5000);
+    expect(importeFin(fin("VN"), "VO")).toBe(0);
+  });
+  it("una regla para usados no paga a un nuevo, y «todos» paga a los dos", () => {
+    expect(importeFin(fin("VO"), "VO")).toBe(5000);
+    expect(importeFin(fin("VO"), "VN")).toBe(0);
+    expect(importeFin(fin("TODOS"), "VN")).toBe(5000);
+    expect(importeFin(fin("TODOS"), "VO")).toBe(5000);
+  });
+});

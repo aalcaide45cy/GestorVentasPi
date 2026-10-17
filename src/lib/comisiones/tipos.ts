@@ -95,6 +95,8 @@ export interface PatronVoMotor {
 export interface FinanciacionMotor {
   idMarca: number;
   tipo: CategoriaVenta;
+  /** A qué coches se aplica (por defecto, los nuevos). */
+  aplicaA?: "VN" | "VO" | "TODOS";
   importe: Centimos;
 }
 
@@ -104,6 +106,8 @@ export interface ReglaPreferenceMotor {
   idMarca: number | null;
   idModelo: number | null;
   tipo: CategoriaVenta | null;
+  /** A qué coches se aplica (por defecto, los nuevos). */
+  aplicaA?: "VN" | "VO" | "TODOS";
   importe: Centimos;
   activa?: boolean;
 }

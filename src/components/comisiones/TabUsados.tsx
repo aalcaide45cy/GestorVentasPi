@@ -21,7 +21,7 @@ export default function TabUsados({ plan, setPlan }: PropsPestana) {
   const tarifasActivas = plan.usados.filter((u) => u.activo);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <Seccion titulo="¿Cuánto cobra un usado? Así se decide" ayuda="La aplicación mira estas reglas por orden y usa la primera que encuentra. Todo se calcula con la fecha que elijas abajo (facturación o cobro).">
+      <Seccion titulo="¿Cuánto cobra un usado? Así se decide" ayuda="La aplicación mira estas reglas por orden y usa la primera que encuentra. Un usado cuenta en el mes de su fecha de facturación.">
         <ol style={{ margin: 0, paddingLeft: "20px", fontSize: "0.88rem", lineHeight: 1.7 }}>
           <li>
             <b>Comisión a mano</b> en el expediente (casilla «Comisión del coche a mano»): si está rellena, manda siempre.
@@ -45,9 +45,8 @@ export default function TabUsados({ plan, setPlan }: PropsPestana) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Fecha que hace contar a un usado</label>
-            <select className="form-input" value={plan.voFecha} onChange={(e) => setPlan((p) => ({ ...p, voFecha: e.target.value as "cobro" | "facturacion" }))} title="Un usado cuenta en el mes de esta fecha. Si el expediente se cobra en otra fecha, manda esa">
+            <select className="form-input" value={plan.voFecha} onChange={(e) => setPlan((p) => ({ ...p, voFecha: e.target.value as "cobro" | "facturacion" }))} title="Un usado cuenta en el mes de su fecha de facturación">
               <option value="facturacion">Fecha de facturación (cuando ya está facturado)</option>
-              <option value="cobro">Fecha de cobro</option>
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>

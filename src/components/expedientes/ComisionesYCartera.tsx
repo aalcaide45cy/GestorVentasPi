@@ -301,7 +301,6 @@ const columnasCartera: ColumnaTabla<ExpedienteDto>[] = [
   { clave: "pedido", etiqueta: "F. pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => fechaCorta(e.fecha_expediente) },
   { clave: "afectacion", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => <strong>{fechaCorta(e.fecha_afectacion)}</strong> },
   { clave: "matriculacion", etiqueta: "F. matriculación", valor: (e) => e.fecha_matriculacion ?? "", celda: (e) => fechaCorta(e.fecha_matriculacion) },
-  { clave: "cobro", etiqueta: "Cobro otra fecha", valor: (e) => (e.cobrado_otra_fecha ? (e.fecha_cobrado ?? "") : ""), celda: (e) => (e.cobrado_otra_fecha ? fechaCorta(e.fecha_cobrado) : "—"), ayuda: "Fecha en la que se cobra el expediente cuando es distinta de la habitual («Expediente cobrado en otra fecha»)" },
   {
     clave: "situacion",
     etiqueta: "Situación",

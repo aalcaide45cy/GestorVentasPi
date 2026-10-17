@@ -102,7 +102,7 @@ function TarjetaSeccion({ s, copias, alAbrir }: { s: SeccionDatos; copias: numbe
       </div>
       <div style={{ display: "grid", gridTemplateColumns: s.importable ? "repeat(3, 1fr)" : "1fr", gap: "8px", marginTop: "auto" }}>
         <button type="button" className="btn btn-secondary" style={{ ...botonChico, padding: "8px 6px" }} onClick={() => alAbrir("exportar")} title={`Descarga un archivo .json con ${s.seccion === "planes" ? "los planes que elijas (todos o uno a uno)" : `los ${s.plural}`} (${cuantos(s.registros, s)}). No borra ni cambia nada.${s.aviso ? ` ${s.aviso}` : ""}`}>
-          📤 Exportar
+          📤 Exportar SOLO {s.plural}
         </button>
         {s.importable ? (
           <>

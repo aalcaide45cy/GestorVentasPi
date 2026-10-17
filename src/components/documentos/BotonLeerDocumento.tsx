@@ -58,7 +58,7 @@ function ZonaLeer<T>({ tipo, titulo, ayuda, icono, multiple, alLeer, disabled, c
 type PropsPublicas<T> = Omit<Props<T>, "tipo" | "titulo" | "ayuda" | "icono" | "multiple"> & { etiqueta?: string };
 
 export const BotonLeerDni = (p: PropsPublicas<ResultadoDni>) => (
-  <ZonaLeer<ResultadoDni> tipo="dni" icono="🪪" titulo={p.etiqueta ?? "Leer DNI"} ayuda="Arrastra la foto o el PDF del DNI (puedes soltar anverso y reverso a la vez). Se lee en este equipo, rellena los datos del cliente y guarda su foto." multiple alLeer={p.alLeer} disabled={p.disabled} compacta={p.compacta} />
+  <ZonaLeer<ResultadoDni> tipo="dni" icono="🪪" titulo={p.etiqueta ?? "Leer DNI"} ayuda="Arrastra la foto o el PDF del DNI (puedes soltar anverso y reverso a la vez). Se guarda el documento y la foto del cliente; los datos no se rellenan." multiple alLeer={p.alLeer} disabled={p.disabled} compacta={p.compacta} />
 );
 export const BotonLeerPedido = (p: PropsPublicas<ResultadoPedido>) => (
   <ZonaLeer<ResultadoPedido> tipo="pedido" icono="📄" titulo={p.etiqueta ?? "Leer pedido"} ayuda="Arrastra el pedido (PDF o foto). Se lee en este equipo y rellena los datos del cliente y del expediente." alLeer={p.alLeer} disabled={p.disabled} compacta={p.compacta} />
