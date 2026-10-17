@@ -101,7 +101,8 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
       const esPref = categoria === "PREFERENCE";
       const esCredito = categoria === "CREDITO" || categoria === "RENTING";
       const estado = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() ?? "";
-      const esVn = estado === "nuevo" || estado === "demo";
+      // Nuevo o usado lo decide la clase del estado (Configuración › Estados): demo, KM0, buyback… son usados
+      const esVn = e.estadoVehiculo ? e.estadoVehiculo.clase === "VN" : estado === "nuevo";
       const fechaMat = e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion;
 
       if (enMes(fechaMat, anio, mes)) {
