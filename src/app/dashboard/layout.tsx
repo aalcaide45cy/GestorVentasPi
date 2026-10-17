@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 import BotonMenuMovil from "@/components/BotonMenuMovil";
+import AyudaBotones from "@/components/AyudaBotones";
 import LaboratorioComisiones from "@/components/LaboratorioComisiones";
 import Sidebar from "@/components/Sidebar";
 import { versionDeLaApp } from "@/lib/version";
@@ -115,6 +116,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {children}
         </main>
 
+        <AyudaBotones />
         {esRolActivo(normalizarRol(user.rol)) && <LaboratorioComisiones esAdministrador={esAdministrador(normalizarRol(user.rol))} />}
       </div>
     </ToastProvider>

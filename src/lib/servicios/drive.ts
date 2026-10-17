@@ -1,12 +1,12 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { open, stat } from "node:fs/promises";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { conexionDrive, copiasSeguridad } from "@/db/schema";
 import { cifrar, descifrar } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
-import { dirCopias, obtenerCopia } from "./copias";
+import { dirCopias, leerAjustesCopias, obtenerCopia } from "./copias";
 
 /** Conexión con Google Drive (13.4): OAuth 2.0 de servidor web, alcance mínimo `drive.file`, solo se guarda el refresh token (cifrado). */
 
@@ -133,12 +133,13 @@ async function asegurarCarpeta(ej: Ejecutor, token: string): Promise<string> {
     const r = await api(token, `${API}/files/${c.carpetaId}?fields=id,trashed`);
     if (r.ok && !((await r.json()) as { trashed?: boolean }).trashed) return c.carpetaId;
   }
-  const q = encodeURIComponent(`name='${NOMBRE_CARPETA}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const nombreCarpeta = (await leerAjustesCopias(ej)).driveCarpeta;
+  const q = encodeURIComponent(`name='${nombreCarpeta.replace(/['\\]/g, "\\$&")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
   const buscar = await api(token, `${API}/files?q=${q}&fields=files(id)&spaces=drive`);
   let id: string | undefined;
   if (buscar.ok) id = ((await buscar.json()) as { files?: { id: string }[] }).files?.[0]?.id;
   if (!id) {
-    const crear = await api(token, `${API}/files?fields=id`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: NOMBRE_CARPETA, mimeType: "application/vnd.google-apps.folder" }) });
+    const crear = await api(token, `${API}/files?fields=id`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: nombreCarpeta, mimeType: "application/vnd.google-apps.folder" }) });
     if (!crear.ok) throw new HttpError(502, "No se pudo crear la carpeta en Google Drive");
     id = ((await crear.json()) as { id: string }).id;
   }
@@ -200,6 +201,26 @@ export async function subirCopiaADrive(ej: Ejecutor, idCopia: number, espera = 1
   const id = await subirReanudable(token, path.join(/*turbopackIgnore: true*/ dirCopias(), fila.nombre), fila.nombre, carpeta, espera);
   await ej.update(copiasSeguridad).set({ driveFileId: id, subidaDriveEn: new Date() }).where(eq(copiasSeguridad.id, idCopia));
   return { driveFileId: id };
+}
+
+/**
+ * ¿Toca subir a Drive la copia automática de hoy? «todas»: siempre; «semanal»/«mensual»: solo si hace una semana (o un mes) que
+ * no se sube ninguna, para no llenar el Drive con una copia diaria.
+ */
+export async function tocaSubirAutomatica(ej: Ejecutor, frecuencia: "todas" | "semanal" | "mensual", ahora = new Date()): Promise<boolean> {
+  if (frecuencia === "todas") return true;
+  const [u] = await ej.select({ cuando: sql<Date | null>`max(${copiasSeguridad.subidaDriveEn})` }).from(copiasSeguridad);
+  if (!u?.cuando) return true;
+  const dias = frecuencia === "semanal" ? 6.5 : 27;
+  return ahora.getTime() - new Date(u.cuando).getTime() >= dias * 86_400_000;
+}
+
+/** Quita una copia de Drive (el archivo local se conserva) y la marca como no subida. */
+export async function quitarDeDrive(ej: Ejecutor, idCopia: number): Promise<void> {
+  const { fila } = await obtenerCopia(ej, idCopia);
+  if (!fila.driveFileId) return;
+  await borrarEnDrive(ej, [fila.driveFileId]);
+  await ej.update(copiasSeguridad).set({ driveFileId: null, subidaDriveEn: null }).where(eq(copiasSeguridad.id, idCopia));
 }
 
 /** Borra de Drive archivos de la propia carpeta (nunca otros). */

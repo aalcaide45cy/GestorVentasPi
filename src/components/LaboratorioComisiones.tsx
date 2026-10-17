@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as EventoPuntero, type ReactNode } from "react";
 import { InputCentesimas, InputEntero } from "@/components/comisiones/campos";
+import AvisoComision from "@/components/expedientes/AvisoComision";
+import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { CambiosEscenario, ResultadoMes } from "@/lib/comisiones";
 import { contarCambios } from "@/lib/comisiones";
@@ -12,7 +14,8 @@ import type { PlanEditableEscenario, RespuestaEscenario } from "@/lib/servicios/
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 const TRAMOS = [-4, -3, -2, -1, 0, 1, 2, 3];
-const CLAVE_ABIERTO = "laboratorio-abierto";
+export const CLAVE_ABIERTO = "laboratorio-abierto";
+const CLAVE_ANCHO = "laboratorio-ancho";
 /** Preferencia del navegador (se cambia en «Mis Datos»): "false" oculta el botón Laboratorio. */
 export const CLAVE_MOSTRAR_LABORATORIO = "laboratorio-mostrar";
 
@@ -70,6 +73,37 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
   const [recalcular, setRecalcular] = useState(0);
   const [secciones, setSecciones] = useState<Record<Seccion, boolean>>({ objetivo: true, tasas: false, reglas: false, promos: false, tarifas: false, lineas: false });
   const ultima = useRef(0);
+  // Cajón lateral derecho: su ancho se cambia arrastrando el borde izquierdo y se recuerda en este navegador
+  const [anchoGuardado, guardarAncho] = usePreferencia(CLAVE_ANCHO);
+  const [anchoVivo, setAnchoVivo] = useState<number | null>(null);
+  const [ampliado, setAmpliado] = useState(false);
+  const anchoBase = Math.max(380, Math.min(Number(anchoGuardado) || 600, 1400));
+  const ancho = anchoVivo ?? (ampliado ? 1000 : anchoBase);
+  const iniciarTamano = (ev: EventoPuntero<HTMLElement>) => {
+    ev.preventDefault();
+    const maximo = () => Math.max(380, window.innerWidth - 80);
+    const mover = (e: PointerEvent) => setAnchoVivo(Math.max(380, Math.min(window.innerWidth - e.clientX, maximo())));
+    const soltar = (e: PointerEvent) => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      guardarAncho(String(Math.round(Math.max(380, Math.min(window.innerWidth - e.clientX, maximo())))));
+      setAmpliado(false);
+      setAnchoVivo(null);
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+  };
+  const cerrar = () => guardarAbierto("false");
+
+  // Esc cierra el laboratorio (salvo que haya una ventana de diálogo abierta encima)
+  useEffect(() => {
+    if (abiertoGuardado !== "true") return;
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !document.querySelector("[role='dialog']")) guardarAbierto("false");
+    };
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, [abiertoGuardado, guardarAbierto]);
 
   const nCambios = contarCambios(cambios);
 
@@ -152,21 +186,16 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
 
   if (mostrarGuardado === "false") return null;
 
-  if (!abierto) {
-    return (
-      <button type="button" onClick={() => guardarAbierto("true")} className="btn btn-primary" title="Abre el laboratorio: toca reglas y mira cómo se mueven las comisiones" style={{ position: "fixed", right: "16px", bottom: "16px", zIndex: 900, padding: "10px 16px", borderRadius: "999px", boxShadow: "var(--shadow-glow)" }}>
-        🧪 Laboratorio{nCambios > 0 ? ` (${nCambios})` : ""}
-      </button>
-    );
-  }
+  if (!abierto) return null;
 
   return (
     <aside
       className="glass-panel laboratorio-panel"
       aria-label="Laboratorio de comisiones"
-      style={{ position: "fixed", right: "16px", bottom: "16px", zIndex: 900, width: "min(600px, calc(100vw - 32px))", maxHeight: "calc(100dvh - 32px)", overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "0 12px 40px rgba(0,0,0,0.45)" }}
+      style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: `min(${ancho}px, 100vw)`, zIndex: 900, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "-12px 0 40px rgba(0,0,0,0.45)", borderRadius: "var(--radius-md) 0 0 var(--radius-md)" }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <div onPointerDown={iniciarTamano} className="laboratorio-borde" title="Arrastra el borde para cambiar el ancho del laboratorio" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "8px", cursor: "ew-resize", touchAction: "none", zIndex: 2 }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", position: "sticky", top: "-16px", zIndex: 1, background: "var(--bg-card)", padding: "16px 0 8px", margin: "-16px 0 0" }}>
         <strong style={{ fontSize: "1.05rem" }}>🧪 Laboratorio de comisiones</strong>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" onClick={() => setCambios(sinCambios)} disabled={nCambios === 0} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Vuelve a los valores reales del plan">
@@ -175,8 +204,11 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
           <button type="button" className="btn btn-secondary" onClick={() => setRecalcular((n) => n + 1)} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Vuelve a leer los expedientes y recalcular (por si has cambiado fechas)">
             ⟳
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => guardarAbierto("false")} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Plegar el laboratorio (los cambios se conservan)">
-            ▾ Plegar
+          <button type="button" className="btn btn-secondary" onClick={() => setAmpliado((a) => !a)} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title={ampliado ? "Vuelve al ancho de antes" : "Ensancha el laboratorio para ver mejor las tablas"}>
+            {ampliado ? "⇥ Estrechar" : "⇤ Ampliar"}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={cerrar} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Cierra el laboratorio (también con Esc). Se abre otra vez desde «Laboratorio» en el menú lateral; los cambios de prueba se conservan">
+            ✕ Cerrar
           </button>
         </div>
       </div>
@@ -206,14 +238,14 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
         <>
           <div className="rejilla-propia laboratorio-totales" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
             {[
-              { t: "Puntos", real: puntos(base.puntosMes), nuevo: puntos(esc.puntosMes), d: <Delta valor={esc.puntosMes - base.puntosMes} formato={(n) => puntos(Math.abs(n))} /> },
-              { t: "Tramo", real: etiquetaTramo(base.tramo), nuevo: etiquetaTramo(esc.tramo), d: <Delta valor={esc.tramo - base.tramo} formato={(n) => String(Math.abs(n))} /> },
+              { t: "Puntos", ef: efectoPuntos(esc.puntosMes, esc.objetivoX), real: puntos(base.puntosMes), nuevo: puntos(esc.puntosMes), d: <Delta valor={esc.puntosMes - base.puntosMes} formato={(n) => puntos(Math.abs(n))} /> },
+              { t: "Tramo", ef: efectoTramo(esc.tramo), real: etiquetaTramo(base.tramo), nuevo: etiquetaTramo(esc.tramo), d: <Delta valor={esc.tramo - base.tramo} formato={(n) => String(Math.abs(n))} /> },
               { t: "Bruto", real: euros(base.bruto), nuevo: euros(esc.bruto), d: <Delta valor={esc.bruto - base.bruto} formato={(n) => euros(Math.abs(n))} /> },
               { t: "Neto (se cobra el mes siguiente)", real: euros(base.neto), nuevo: euros(esc.neto), d: <Delta valor={esc.neto - base.neto} formato={(n) => euros(Math.abs(n))} /> },
             ].map((x) => (
               <div key={x.t} className="glass-panel" style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "2px" }}>
                 <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: 600 }}>{x.t}</span>
-                <span style={{ fontSize: "1.25rem", fontWeight: 700 }}>{x.nuevo}</span>
+                <span className={x.ef?.className} style={{ fontSize: "1.25rem", fontWeight: 700, ...(x.ef?.style ?? {}) }} title={x.ef?.titulo}>{x.nuevo}</span>
                 <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>real {x.real}</span>
                 <span style={{ fontSize: "0.78rem" }}>{x.d}</span>
               </div>
@@ -352,7 +384,7 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
                     const real = base.lineas.find((x) => x.idExpediente === l.idExpediente)?.importe ?? 0;
                     return (
                       <tr key={l.idExpediente} style={{ borderTop: "1px solid var(--border-light)" }}>
-                        <td style={celda}><Link href={`/dashboard/expedientes/editar/${l.idExpediente}`} style={{ color: "inherit" }}>#{l.idExpediente} · {l.clase}{l.cuenta ? "" : " (otros conceptos)"}</Link></td>
+                        <td style={celda}><Link href={`/dashboard/expedientes/editar/${l.idExpediente}`} style={{ color: "inherit" }}>{datos?.expedientes[String(l.idExpediente)] ? `${datos.expedientes[String(l.idExpediente)].cliente} · ${datos.expedientes[String(l.idExpediente)].vehiculo}` : `Expediente ${l.idExpediente}`} · {l.clase}{l.cuenta ? "" : " (otros conceptos)"}</Link></td>
                         <td style={{ ...celda, textAlign: "right" }}>{puntos(l.puntos)}</td>
                         <td style={{ ...celda, textAlign: "right" }}>{euros(real)}</td>
                         <td style={{ ...celda, textAlign: "right", fontWeight: 700, color: l.importe > real ? "var(--success)" : l.importe < real ? "var(--danger)" : undefined }}>{euros(l.importe)}</td>
@@ -365,9 +397,10 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
           </Bloque>
 
           {esc.avisos.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <strong style={{ fontSize: "0.8rem", color: "var(--warning)" }}>Avisos del cálculo ({esc.avisos.length})</strong>
               {esc.avisos.map((a) => (
-                <span key={a} style={{ color: "var(--warning)", fontSize: "0.78rem" }}>⚠ {a}</span>
+                <AvisoComision key={a} texto={a} expedientes={datos?.expedientes} />
               ))}
             </div>
           )}

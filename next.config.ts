@@ -41,6 +41,8 @@ const cabeceras = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Oculta el círculo «N» de Next.js que sale solo en desarrollo (en la aplicación instalada no existe)
+  devIndicators: false,
   // OCR de la rejilla (Tesseract en WebAssembly, lectura de PDF y lienzo nativo): se cargan desde node_modules en tiempo de ejecución
   serverExternalPackages: ["tesseract.js", "pdfjs-dist", "@napi-rs/canvas"],
   outputFileTracingIncludes: {

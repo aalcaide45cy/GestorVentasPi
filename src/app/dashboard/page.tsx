@@ -9,6 +9,7 @@ import { resumenPanel } from "@/lib/servicios/expedientes-lectura";
 import { cargarDatosPanel } from "@/lib/servicios/panel";
 import { calcularVendedorMes } from "@/lib/servicios/liquidaciones";
 import { avisosRejilla } from "@/lib/servicios/rejillas";
+import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, nombreMes, puntos } from "@/lib/formato";
 
 export const dynamic = "force-dynamic";
@@ -132,9 +133,30 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
               <circle cx="12" cy="12" r="2" />
             </Icono>
           </div>
-          <h2 style={estiloNumero}>{hayPlan ? `${puntos(motor.puntosMes)} / ${puntos(motor.objetivoX)}` : "—"}</h2>
+          <h2 style={estiloNumero}>
+            {hayPlan ? (
+              <>
+                <span className={efectoPuntos(motor.puntosMes, motor.objetivoX).className} style={efectoPuntos(motor.puntosMes, motor.objetivoX).style} title={efectoPuntos(motor.puntosMes, motor.objetivoX).titulo}>
+                  {puntos(motor.puntosMes)}
+                </span>{" "}
+                / {puntos(motor.objetivoX)}
+              </>
+            ) : (
+              "—"
+            )}
+          </h2>
           <p style={estiloPie}>
-            {hayPlan ? `Tramo ${etiquetaTramo(motor.tramo)} · comisión estimada ${euros(motor.neto)}` : `Sin plan de comisionamiento para ${nombreMes(mesIso)}`}
+            {hayPlan ? (
+              <>
+                Tramo{" "}
+                <strong className={efectoTramo(motor.tramo).className} style={efectoTramo(motor.tramo).style} title={efectoTramo(motor.tramo).titulo}>
+                  {etiquetaTramo(motor.tramo)}
+                </strong>{" "}
+                · comisión estimada {euros(motor.neto)}
+              </>
+            ) : (
+              `Sin plan de comisionamiento para ${nombreMes(mesIso)}`
+            )}
           </p>
         </div>
 

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import BotonApagar from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
+import { CLAVE_ABIERTO, CLAVE_MOSTRAR_LABORATORIO } from "@/components/LaboratorioComisiones";
 import { usePreferencia } from "@/lib/preferencias";
 import { fijarMenuAbierto, useMovil } from "@/lib/movil";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
@@ -40,10 +41,28 @@ interface EnlaceNavProps {
   children: ReactNode;
 }
 
-function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavProps) {
+function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda, punto }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string; punto?: string }) {
+  const ruta = usePathname();
+  if (alPulsar) {
+    return (
+      <button
+        type="button"
+        onClick={alPulsar}
+        className="glass-panel-interactive"
+        aria-pressed={activo}
+        title={ayuda ?? titulo}
+        style={{ display: "flex", alignItems: "center", justifyContent: colapsado ? "center" : "flex-start", gap: "12px", padding: "12px 16px", borderRadius: "var(--radius-sm)", fontSize: "0.95rem", fontWeight: 500, color: activo ? "var(--primary)" : "var(--text-secondary)", background: activo ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.01)", border: "1px solid transparent", cursor: "pointer", width: "100%", textAlign: "left", fontFamily: "inherit" }}
+      >
+        <svg {...iconoProps}>{children}</svg>
+        {!colapsado && <span>{titulo}</span>}
+      </button>
+    );
+  }
+  const enSeccion = href === "/dashboard" ? ruta === "/dashboard" : ruta === href || ruta.startsWith(`${href}/`);
   return (
     <Link
       href={href}
+      aria-current={enSeccion ? "page" : undefined}
       className="glass-panel-interactive"
       style={{
         display: "flex",
@@ -53,15 +72,16 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavPro
         padding: "12px 16px",
         borderRadius: "var(--radius-sm)",
         fontSize: "0.95rem",
-        fontWeight: 500,
-        color: "var(--text-secondary)",
-        background: "rgba(255, 255, 255, 0.01)",
+        color: enSeccion ? "var(--primary)" : "var(--text-secondary)",
+        fontWeight: enSeccion ? 700 : 500,
+        background: enSeccion ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.01)",
         border: "1px solid transparent",
       }}
-      title={colapsado ? titulo : undefined}
+      title={punto ?? (colapsado ? titulo : undefined)}
     >
       <svg {...iconoProps}>{children}</svg>
       {!colapsado && <span>{titulo}</span>}
+      {punto && <span aria-label={punto} style={{ marginLeft: colapsado ? 0 : "auto", width: "10px", height: "10px", borderRadius: "50%", background: "var(--danger, #ef4444)", boxShadow: "0 0 6px var(--danger, #ef4444)", flexShrink: 0 }} />}
       {insignia !== undefined && insignia > 0 && (
         <span
           title={`${insignia} validación(es) de comisiones pendiente(s)`}
@@ -77,10 +97,13 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavPro
 export default function Sidebar({ user, version }: SidebarProps) {
   const [colapsadoGuardado, guardarColapsado] = usePreferencia("sidebar-collapsed");
   const movil = useMovil();
+  const [labAbierto, fijarLabAbierto] = usePreferencia(CLAVE_ABIERTO);
+  const [labMostrar] = usePreferencia(CLAVE_MOSTRAR_LABORATORIO);
   // En móvil el menú es un cajón: siempre con textos (la preferencia de colapsar solo vale en escritorio)
   const isCollapsed = colapsadoGuardado === "true" && !movil;
   const router = useRouter();
   const ruta = usePathname();
+  const { datos: avisoCopias } = useCarga<{ excede: boolean; motivo: string | null } | null>(esAdministrador(normalizarRol(user.rol)) ? `/api/admin/copias/aviso?r=${ruta}` : null, null);
 
   // Al cambiar de página el cajón del móvil se cierra
   useEffect(() => {
@@ -349,7 +372,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
           )}
 
           {isAdmin && (
-            <EnlaceNav href="/dashboard/admin" titulo="Configuración" colapsado={isCollapsed}>
+            <EnlaceNav href="/dashboard/admin" titulo="Configuración" colapsado={isCollapsed} punto={avisoCopias?.excede ? (avisoCopias.motivo ?? "Hay demasiadas copias de seguridad") : undefined}>
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </EnlaceNav>
@@ -378,6 +401,23 @@ export default function Sidebar({ user, version }: SidebarProps) {
                 <polyline points="10 9 9 9 8 9" />
               </EnlaceNav>
             </>
+          )}
+          {isVendedorOrUp && labMostrar !== "false" && (
+            <EnlaceNav
+              href="#"
+              titulo="Laboratorio"
+              colapsado={isCollapsed}
+              activo={labAbierto === "true"}
+              ayuda="Abre o cierra el laboratorio de comisiones: toca reglas y mira cómo se mueven los puntos, el tramo y la comisión sin guardar nada"
+              alPulsar={() => {
+                fijarLabAbierto(labAbierto === "true" ? "false" : "true");
+                if (movil) fijarMenuAbierto(false);
+              }}
+            >
+              <path d="M9 3h6" />
+              <path d="M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3" />
+              <path d="M7.5 15h9" />
+            </EnlaceNav>
           )}
         </nav>
       </div>

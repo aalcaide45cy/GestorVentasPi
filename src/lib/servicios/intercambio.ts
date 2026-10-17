@@ -11,6 +11,8 @@ import {
   expedientes,
   marcas,
   modelos,
+  plantillasPlan,
+  plantillasTarifasVn,
   rejillaFilas,
   rejillas,
   telefonosClientes,
@@ -22,6 +24,8 @@ import {
 import { HttpError } from "@/lib/auth/sesion";
 import { conRecalculo } from "./liquidaciones";
 import { esquemaPlan, guardarPlan, leerPlan, type PlanEditable } from "./planes";
+import { esquemaPlantillaPlan } from "./plantillas-plan";
+import { esquemaPlantilla } from "./plantillas-tarifas";
 
 /**
  * Exportar e importar los datos por secciones (clientes, expedientes, catálogos, planes de comisionamiento…) en un formato JSON
@@ -31,7 +35,7 @@ import { esquemaPlan, guardarPlan, leerPlan, type PlanEditable } from "./planes"
 
 export const FORMATO = "gv-seccion-1";
 
-export const SECCIONES = ["clientes", "expedientes", "marcas_modelos", "tipos_venta", "estados", "tiendas", "planes", "rejillas", "ajustes", "usuarios"] as const;
+export const SECCIONES = ["clientes", "expedientes", "marcas_modelos", "tipos_venta", "estados", "tiendas", "planes", "plantillas_tarifas", "plantillas_plan", "rejillas", "ajustes", "usuarios"] as const;
 export type Seccion = (typeof SECCIONES)[number];
 export type Modo = "anadir" | "actualizar" | "sustituir";
 
@@ -55,6 +59,8 @@ export const INFO_SECCIONES: Record<Seccion, InfoSeccion> = {
   estados: { titulo: "Estados de vehículo", plural: "estados de vehículo", descripcion: "Nuevo, usado, KM0, demo…, con su clase (VN o VO).", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
   tiendas: { titulo: "Tiendas", plural: "tiendas", descripcion: "Las tiendas o concesiones y su ciudad.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
   planes: { titulo: "Planes de comisionamiento", plural: "planes de comisionamiento", descripcion: "Planes completos (objetivos, tarifas, reglas, bonus…). Se pueden exportar uno, varios o todos; las marcas, modelos y vendedores se identifican por su nombre o correo.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones y objetivos de los vendedores: es información confidencial." },
+  plantillas_tarifas: { titulo: "Plantillas de tarifas VN", plural: "plantillas de tarifas", descripcion: "Las plantillas de «Tarifas de modelos VN por tramo» (marcas y modelos por nombre e importes). Sirven para recomponer las tarifas de cualquier plan.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones: es información confidencial." },
+  plantillas_plan: { titulo: "Plantillas de planes", plural: "plantillas de planes", descripcion: "Las plantillas de partes de un plan (objetivo, usados, reglas, bonus, penalizaciones, notas…) y del plan completo. Marcas, modelos y vendedores por nombre.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones y objetivos de los vendedores: es información confidencial." },
   rejillas: { titulo: "Cotejo de pagos (rejillas)", plural: "rejillas", descripcion: "Las hojas de comisiones de la empresa que has guardado para cotejar los pagos de cada mes.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones de los vendedores." },
   ajustes: { titulo: "Ajustes de la aplicación", plural: "ajustes", descripcion: "Ajustes generales guardados en la base de datos (se excluyen las claves, tokens y contraseñas).", importable: true, modos: ["anadir", "actualizar"], aviso: null },
   usuarios: { titulo: "Usuarios y vendedores", plural: "usuarios", descripcion: "Nombre, correo, rol, tipo de vendedor y tiendas de cada usuario. Sin contraseñas ni datos de doble factor. Solo se exporta, para consulta: los usuarios se crean desde Configuración › Usuarios.", importable: false, modos: [], aviso: "Contiene correos y datos de los usuarios (nunca contraseñas ni secretos)." },
@@ -168,6 +174,8 @@ export async function resumenSecciones(ej: Ejecutor): Promise<{ seccion: Seccion
     estados: await cuenta(ej.select({ n }).from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn))),
     tiendas: await cuenta(ej.select({ n }).from(tiendas).where(isNull(tiendas.eliminadoEn))),
     planes: await cuenta(ej.select({ n }).from(commissionPlans)),
+    plantillas_tarifas: await cuenta(ej.select({ n }).from(plantillasTarifasVn)),
+    plantillas_plan: await cuenta(ej.select({ n }).from(plantillasPlan)),
     rejillas: await cuenta(ej.select({ n }).from(rejillas)),
     ajustes: (await ajustesExportables(ej)).length,
     usuarios: await cuenta(ej.select({ n }).from(usuarios)),
@@ -229,6 +237,12 @@ export async function exportarSeccion(ej: Ejecutor, seccion: Seccion, opciones: 
       mapas = r.mapas;
       break;
     }
+    case "plantillas_tarifas":
+      datos = (await ej.select().from(plantillasTarifasVn).orderBy(plantillasTarifasVn.nombre)).map((p) => ({ nombre: p.nombre, descripcion: p.descripcion, datos: p.datos }));
+      break;
+    case "plantillas_plan":
+      datos = (await ej.select().from(plantillasPlan).orderBy(plantillasPlan.ambito, plantillasPlan.nombre)).map((p) => ({ ambito: p.ambito, nombre: p.nombre, descripcion: p.descripcion, datos: p.datos }));
+      break;
     case "rejillas":
       datos = await exportarRejillas(ej);
       break;
@@ -418,6 +432,10 @@ async function ejecutarImportacion(tx: Ejecutor, idAdmin: number, p: z.infer<typ
       return importarTiendas(tx, p.datos, modo, inf);
     case "planes":
       return importarPlanes(tx, p.datos, p.mapas, modo, inf);
+    case "plantillas_tarifas":
+      return importarPlantillasTarifas(tx, p.datos, modo, inf);
+    case "plantillas_plan":
+      return importarPlantillasPlan(tx, p.datos, modo, inf);
     case "rejillas":
       return importarRejillas(tx, p.datos, modo, inf);
     case "ajustes":
@@ -1073,6 +1091,96 @@ async function importarPlanes(tx: Ejecutor, datos: unknown[], mapasCrudos: unkno
     }
     inf.nuevos++;
     nota(inf, "nuevo", `${p.nombre} (${p.fechaInicio} a ${p.fechaFin}): plan nuevo`);
+  }
+  return inf;
+}
+
+/* ---- Plantillas de tarifas VN ---- */
+
+async function importarPlantillasTarifas(tx: Ejecutor, datos: unknown[], modo: Modo, inf: Informe): Promise<Informe> {
+  const existentes = await tx.select().from(plantillasTarifasVn);
+  const vistos = new Set<string>();
+  for (let i = 0; i < datos.length; i++) {
+    const r = esquemaPlantilla.safeParse(datos[i]);
+    if (!r.success) {
+      error(inf, `${filaN(i)}: ${motivoZod(r.error)}`);
+      continue;
+    }
+    const f = r.data;
+    if (vistos.has(norm(f.nombre))) {
+      error(inf, `${filaN(i)}: la plantilla «${f.nombre}» está repetida en el archivo.`);
+      continue;
+    }
+    vistos.add(norm(f.nombre));
+    if (f.datos.tarifas.length === 0) {
+      error(inf, `${filaN(i)}: la plantilla «${f.nombre}» no tiene tarifas.`);
+      continue;
+    }
+    const existente = existentes.find((e) => norm(e.nombre) === norm(f.nombre));
+    if (!existente) {
+      await tx.insert(plantillasTarifasVn).values({ nombre: f.nombre, descripcion: vacioANull(f.descripcion), sistema: false, datos: f.datos });
+      inf.nuevos++;
+      nota(inf, "nuevo", `${f.nombre} (${f.datos.tarifas.length} tarifas): plantilla nueva`);
+      continue;
+    }
+    if (existente.sistema) {
+      inf.omitidos++;
+      nota(inf, "omite", `${f.nombre}: es una plantilla incluida con la aplicación y no se modifica`);
+      continue;
+    }
+    if (modo === "anadir") {
+      inf.omitidos++;
+      nota(inf, "omite", `${f.nombre}: ya existe`);
+      continue;
+    }
+    if (JSON.stringify(existente.datos) === JSON.stringify(f.datos) && (existente.descripcion ?? null) === vacioANull(f.descripcion)) {
+      inf.sinCambios++;
+      continue;
+    }
+    await tx.update(plantillasTarifasVn).set({ descripcion: vacioANull(f.descripcion), datos: f.datos, actualizadaEn: new Date() }).where(eq(plantillasTarifasVn.id, existente.id));
+    inf.actualizados++;
+    nota(inf, "actualiza", `${f.nombre}: se actualiza`);
+  }
+  return inf;
+}
+
+/* ---- Plantillas de planes ---- */
+
+async function importarPlantillasPlan(tx: Ejecutor, datos: unknown[], modo: Modo, inf: Informe): Promise<Informe> {
+  const existentes = await tx.select().from(plantillasPlan);
+  const vistos = new Set<string>();
+  for (let i = 0; i < datos.length; i++) {
+    const r = esquemaPlantillaPlan.safeParse(datos[i]);
+    if (!r.success) {
+      error(inf, `${filaN(i)}: ${motivoZod(r.error)}`);
+      continue;
+    }
+    const f = r.data;
+    const clave = `${f.ambito}|${norm(f.nombre)}`;
+    if (vistos.has(clave)) {
+      error(inf, `${filaN(i)}: la plantilla «${f.nombre}» (${f.ambito}) está repetida en el archivo.`);
+      continue;
+    }
+    vistos.add(clave);
+    const existente = existentes.find((e) => e.ambito === f.ambito && norm(e.nombre) === norm(f.nombre));
+    if (!existente) {
+      await tx.insert(plantillasPlan).values({ ambito: f.ambito, nombre: f.nombre, descripcion: vacioANull(f.descripcion), datos: f.datos });
+      inf.nuevos++;
+      nota(inf, "nuevo", `${f.nombre} (${f.ambito}): plantilla nueva`);
+      continue;
+    }
+    if (modo === "anadir") {
+      inf.omitidos++;
+      nota(inf, "omite", `${f.nombre} (${f.ambito}): ya existe`);
+      continue;
+    }
+    if (JSON.stringify(existente.datos) === JSON.stringify(f.datos) && (existente.descripcion ?? null) === vacioANull(f.descripcion)) {
+      inf.sinCambios++;
+      continue;
+    }
+    await tx.update(plantillasPlan).set({ descripcion: vacioANull(f.descripcion), datos: f.datos, actualizadaEn: new Date() }).where(eq(plantillasPlan.id, existente.id));
+    inf.actualizados++;
+    nota(inf, "actualiza", `${f.nombre} (${f.ambito}): se actualiza`);
   }
   return inf;
 }

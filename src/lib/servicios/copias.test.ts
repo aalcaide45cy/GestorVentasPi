@@ -108,7 +108,7 @@ describe("copias vacías o rotas (sin PostgreSQL)", () => {
 
 describe("ajustes", () => {
   it("valores por defecto y guardado validado", async () => {
-    expect(await leerAjustesCopias(db)).toEqual({ automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false });
+    expect(await leerAjustesCopias(db)).toEqual({ automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0 });
     await guardarAjustesCopias(db, { automatica: false, hora: "04:15", retDiarias: 7, retSemanales: 2, retMensuales: 3, driveAutomatica: true });
     expect((await leerAjustesCopias(db)).hora).toBe("04:15");
     await expect(guardarAjustesCopias(db, { automatica: true, hora: "25:99", retDiarias: 7, retSemanales: 2, retMensuales: 3, driveAutomatica: false })).rejects.toThrow();

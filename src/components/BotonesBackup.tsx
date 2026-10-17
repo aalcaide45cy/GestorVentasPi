@@ -54,9 +54,11 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
     const archivo = entrada.files?.[0];
     if (!archivo) return;
     const ok = window.confirm(
-      "¡ATENCIÓN! Estás a punto de restaurar una copia COMPLETA en JSON.\n\n" +
-        "Esto SUSTITUIRÁ todos los datos actuales (tiendas, usuarios, clientes, expedientes…) por los del archivo " + archivo.name + ".\n" +
-        "Antes de empezar se hará automáticamente una copia de seguridad del estado actual, con la que podrás volver atrás.\n\n" +
+      "¡ATENCIÓN! Estás a punto de importar una copia de DATOS BÁSICOS en JSON.\n\n" +
+        "Esto SUSTITUIRÁ tiendas, usuarios, clientes, expedientes y catálogos por los del archivo " + archivo.name + ".\n\n" +
+        "Y además BORRARÁ lo que este archivo NO contiene y no se recupera con él: planes de comisionamiento, liquidaciones, libro de puntos, documentos adjuntos (DNI, pedidos), rejillas del cotejo, plantillas y copias internas.\n\n" +
+        "Antes de empezar se hará automáticamente una copia de seguridad COMPLETA (.dump) del estado actual, con la que podrás volver atrás desde Configuración › BBDD.\n" +
+        "Si lo que quieres es recuperarlo TODO, usa mejor «Restaurar» una copia completa (.dump).\n\n" +
         "¿Seguro que quieres continuar?",
     );
     if (!ok) {
@@ -94,16 +96,16 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
         onClick={exportar}
         style={{ padding: "8px 14px", fontSize: "0.85rem", backgroundColor: "rgba(124, 58, 237, 0.08)", border: "1px solid rgba(124, 58, 237, 0.2)", color: "var(--primary)", fontWeight: 500 }}
         disabled={ocupado || deshabilitado}
-        title="Descarga un archivo .json con TODOS los datos de la aplicación (tiendas, usuarios, clientes, expedientes, catálogos…). Úsalo para guardar o llevar los datos a otro equipo. Ojo: incluye las contraseñas cifradas y los secretos del doble factor, así que guárdalo en un sitio seguro (y guarda también el .env). No borra nada."
+        title="Descarga un archivo .json con los datos básicos: tiendas, usuarios, clientes, expedientes, catálogos y ajustes. NO incluye planes de comisionamiento, liquidaciones, puntos, documentos adjuntos, rejillas ni plantillas: para una copia de TODO usa la copia completa (.dump) de Configuración › BBDD. Incluye contraseñas cifradas y secretos del doble factor: guárdalo en un sitio seguro (y guarda también el .env). No borra nada."
       >
-        💾 Exportar todo (JSON)
+        💾 Exportar datos básicos (JSON)
       </button>
       <label
         className="btn"
-        title="Sustituye TODOS los datos actuales por los de un archivo .json de «Exportar todo». Es lo más delicado: antes se hace una copia de seguridad automática y te pide confirmar. Para recuperar solo una parte (clientes, planes…) usa la importación de cada sección."
+        title="Sustituye los datos básicos (tiendas, usuarios, clientes, expedientes, catálogos) por los de un archivo .json y BORRA planes, liquidaciones, puntos y documentos, que el archivo no trae. Es lo más delicado: antes se hace una copia completa (.dump) automática y te pide confirmar. Para recuperar solo una parte usa la importación de cada sección; para recuperarlo todo, restaura una copia .dump."
         style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)", fontWeight: 500 }}
       >
-        🔄 Importar todo (JSON, sustituye todo)
+        🔄 Importar datos básicos (JSON, sustituye)
         <input type="file" accept=".json" onChange={restaurar} style={{ display: "none" }} disabled={ocupado || deshabilitado} />
       </label>
     </>

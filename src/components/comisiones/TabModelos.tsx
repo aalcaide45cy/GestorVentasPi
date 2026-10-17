@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { InputCentesimas, BotonMini, Seccion } from "./campos";
+import BarraPlantillas from "./PlantillasTarifas";
 import { tramosDe, type Plan, type PropsPestana } from "./tipos";
 import { etiquetaTramo } from "@/lib/formato";
 
@@ -11,8 +12,18 @@ type Importes = Tarifa["importes"];
 /** Lo último que se copió: una fila (una tasa) o un modelo entero (las dos filas). */
 type Portapapeles = { tipo: "fila"; importes: Importes } | { tipo: "modelo"; cumplida: Importes; noCumplida: Importes } | null;
 
-export default function TabModelos({ plan, setPlan, cat }: PropsPestana) {
+export default function TabModelos({ plan, setPlan, cat: catBase }: PropsPestana) {
   const tramos = tramosDe(plan);
+  // Marcas y modelos creados desde una plantilla: se ven al instante, sin esperar a que la página recargue el catálogo
+  const [ampliado, setAmpliado] = useState<{ marcas: PropsPestana["cat"]["marcas"]; modelos: PropsPestana["cat"]["modelos"] } | null>(null);
+  const cat = useMemo(
+    () => ({
+      ...catBase,
+      marcas: [...catBase.marcas, ...(ampliado?.marcas ?? []).filter((m) => !catBase.marcas.some((x) => x.id === m.id))],
+      modelos: [...catBase.modelos, ...(ampliado?.modelos ?? []).filter((m) => !catBase.modelos.some((x) => x.id === m.id))],
+    }),
+    [catBase, ampliado],
+  );
   const [portapapeles, setPortapapeles] = useState<Portapapeles>(null);
   const tarifa = (idModelo: number, cumplida: boolean): Tarifa | undefined => plan.tarifasVN.find((t) => t.idModelo === idModelo && t.tasaCumplida === cumplida);
 
@@ -87,6 +98,9 @@ export default function TabModelos({ plan, setPlan, cat }: PropsPestana) {
         <p style={{ color: "var(--text-secondary)", margin: 0 }}>
           Define las tarifas de comisiones de coches nuevos agrupados por marcas. Importe de la comisión del coche VN por modelo y tramo. Cada modelo tiene 2 líneas: una para cuando la tasa de intervención real de la marca en el mes alcanza el objetivo, y otra para cuando no lo alcanza. El tramo (X-4 … X+3) sale de los puntos del mes frente al objetivo X del plan. Un hueco significa «sin tarifa» (0 € con aviso). Una línea desmarcada en «Activo» se ignora.
         </p>
+        <div style={{ margin: "12px 0 0" }}>
+          <BarraPlantillas plan={plan} setPlan={setPlan} cat={cat} alAmpliarCatalogo={(marcas, modelos) => setAmpliado({ marcas, modelos })} />
+        </div>
         {portapapeles && (
           <p style={{ margin: "8px 0 0", fontSize: "0.85rem", color: "var(--primary)" }}>
             📋 Copiado: {portapapeles.tipo === "fila" ? "una fila" : "un modelo (las dos filas)"}. Pulsa «Pegar» donde quieras ponerlo.{" "}
@@ -186,7 +200,15 @@ export default function TabModelos({ plan, setPlan, cat }: PropsPestana) {
           </Seccion>
         );
       })}
-      {marcasConModelos.length === 0 && <p>No hay modelos dados de alta: créalos en Configuración → Modelos.</p>}
+      {marcasConModelos.length === 0 && (
+        <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "12px", alignItems: "flex-start" }}>
+          <div style={{ fontWeight: 700 }}>Todavía no hay marcas ni modelos con «Sist. Comisiones» activado</div>
+          <div style={{ color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            Puedes darlos de alta en Configuración → Marcas y Modelos, o crearlos ahora desde una plantilla de tarifas: elegirás qué marcas y modelos quieres crear y recibirán sus tarifas.
+          </div>
+          <BarraPlantillas plan={plan} setPlan={setPlan} cat={cat} soloAplicar alAmpliarCatalogo={(marcas, modelos) => setAmpliado({ marcas, modelos })} />
+        </div>
+      )}
     </div>
   );
 }

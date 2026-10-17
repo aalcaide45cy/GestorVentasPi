@@ -46,7 +46,7 @@ export default function PestanaExpedientes() {
     mostrar("Guardado.");
   };
   const [recordarGuardado, guardarRecordar] = usePreferencia(CLAVE_RECORDAR_FILTROS);
-  const recordar = recordarGuardado === "true";
+  const recordar = recordarGuardado !== "false";
   const elegirRecordar = (v: boolean) => {
     guardarRecordar(v ? "true" : "false");
     mostrar("Guardado.");

@@ -5,7 +5,8 @@ import { auditar } from "@/lib/auditoria";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerJson, manejar } from "@/lib/http";
 import { asegurarCopiaReciente } from "@/lib/servicios/copias";
-import { SECCIONES, importarSeccion } from "@/lib/servicios/intercambio";
+import { crearCopiaInterna } from "@/lib/servicios/copias-seccion";
+import { SECCIONES, importarSeccion, type Seccion } from "@/lib/servicios/intercambio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
@@ -34,6 +35,9 @@ export const POST = manejar(async (req: Request) => {
     try {
       const c = await asegurarCopiaReciente(db, admin.idUsuario, e.modo === "anadir" ? 15 : 0);
       copia = { nombre: c.nombre, creadaAhora: c.creadaAhora };
+      // Además, una copia interna de la sección tal como está ahora, para poder volver atrás solo con esta parte
+      const seccion = (e.paquete as { seccion?: string } | null)?.seccion;
+      if (seccion && (SECCIONES as readonly string[]).includes(seccion)) await crearCopiaInterna(db, seccion as Seccion, admin.idUsuario, "Estado anterior a una importación", "automatica");
     } catch (err) {
       throw new HttpError(409, `No se ha importado nada porque no se pudo hacer la copia de seguridad previa. ${err instanceof Error ? err.message : ""}`.trim());
     }

@@ -118,10 +118,15 @@ export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, e
                   <td>
                     <input type="checkbox" checked={r.activa} onChange={(e) => set(i, { activa: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
                   </td>
-                  <td>
-                    <BotonMini peligro onClick={() => onChange(reglas.filter((_, j) => j !== i))}>
-                      Quitar
-                    </BotonMini>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <BotonMini titulo="Crea una copia de esta línea justo debajo, para cambiar solo lo que haga falta" onClick={() => onChange([...reglas.slice(0, i + 1), { ...r, nombre: r.nombre ? `${r.nombre} (copia)` : r.nombre }, ...reglas.slice(i + 1)])}>
+                        Duplicar
+                      </BotonMini>
+                      <BotonMini peligro onClick={() => onChange(reglas.filter((_, j) => j !== i))}>
+                        Quitar
+                      </BotonMini>
+                    </div>
                   </td>
                 </tr>
               ),
