@@ -42,6 +42,7 @@ interface EnlaceNavProps {
 }
 
 function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string }) {
+  const ruta = usePathname();
   if (alPulsar) {
     return (
       <button
@@ -57,9 +58,11 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, acti
       </button>
     );
   }
+  const enSeccion = href === "/dashboard" ? ruta === "/dashboard" : ruta === href || ruta.startsWith(`${href}/`);
   return (
     <Link
       href={href}
+      aria-current={enSeccion ? "page" : undefined}
       className="glass-panel-interactive"
       style={{
         display: "flex",
@@ -69,9 +72,9 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, acti
         padding: "12px 16px",
         borderRadius: "var(--radius-sm)",
         fontSize: "0.95rem",
-        fontWeight: 500,
-        color: "var(--text-secondary)",
-        background: "rgba(255, 255, 255, 0.01)",
+        color: enSeccion ? "var(--primary)" : "var(--text-secondary)",
+        fontWeight: enSeccion ? 700 : 500,
+        background: enSeccion ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.01)",
         border: "1px solid transparent",
       }}
       title={colapsado ? titulo : undefined}
