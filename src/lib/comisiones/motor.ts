@@ -34,8 +34,8 @@ interface Info {
 }
 
 /** Evento principal del coche (12.3, paso 1). */
-function infoDe(e: ExpedienteMotor): Info {
-  const { fecha, usaCobro } = fechaQueCuenta(e);
+function infoDe(e: ExpedienteMotor, voFecha: "cobro" | "facturacion" = "cobro"): Info {
+  const { fecha, usaCobro } = fechaQueCuenta(e, voFecha);
   const mes = mesDe(fecha);
   return {
     e,
@@ -92,7 +92,7 @@ export function calcularMes(
 
   const avisos: string[] = [];
   const mis = expedientes.filter((e) => e.idVendedor === vendedor.id).sort((a, b) => a.id - b.id);
-  const infos = mis.map(infoDe);
+  const infos = mis.map((e) => infoDe(e, plan.voFecha));
   const cuentan = infos.filter((i) => i.mesComputo === mes);
 
   const lineas = new Map<number, LineaExpediente>();
@@ -149,10 +149,12 @@ export function calcularMes(
       if (e.idPromocion !== null) avisos.push(`Expediente ${e.id}: la promoción ${e.idPromocion} no existe en el plan; se usan sus puntos propios o por defecto`);
       p =
         enteroValido(e.puntos) ??
+        (e.clase === "VO" ? (enteroValido(plan.voPuntos ?? undefined) ?? undefined) : undefined) ??
         (e.idModelo !== null ? plan.puntosPorDefectoModelo[e.idModelo] : undefined) ??
         (e.idMarca !== null ? plan.puntosPorDefectoMarca[e.idMarca] : undefined) ??
         PUNTOS_DEFECTO;
     }
+    if (e.clase === "VO" && plan.voPuntosModo === "no") continue; // en este plan los usados no suman puntos
     puntosCoches += p;
     anotar(i, {
       concepto: "puntos_coche",

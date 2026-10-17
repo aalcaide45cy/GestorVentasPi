@@ -178,7 +178,7 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
             nombreEstadoVehiculo: e.nombre_estado_vehiculo,
             predeterminado: !!e.predeterminado,
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
-            subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
+            subtipoVo: e.clase === "VN" ? null : (e.subtipo_vo ?? (e.clase ? "USADO" : claseEstado(e.nombre_estado_vehiculo).subtipo)),
             color: e.color ?? null,
           })
           .returning();
@@ -232,7 +232,7 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
             nombreEstadoVehiculo: e.nombre_estado_vehiculo,
             predeterminado: e.predeterminado,
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
-            subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
+            subtipoVo: e.clase === "VN" ? null : (e.subtipo_vo ?? (e.clase ? "USADO" : claseEstado(e.nombre_estado_vehiculo).subtipo)),
             color: e.color,
           })
           .where(eq(estadoVehiculo.idEstadoVehiculo, e.id))

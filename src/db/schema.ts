@@ -390,6 +390,12 @@ export const commissionPlans = pgTable("commission_plans", {
   tramoMin: integer("tramo_min").notNull().default(-4),
   tramoMax: integer("tramo_max").notNull().default(3),
   puntosPorPedido: integer("puntos_por_pedido").notNull().default(0),
+  /** Fecha que hace contar a un usado: «cobro» (la de siempre) o «facturacion». */
+  voFecha: varchar("vo_fecha", { length: 12 }).notNull().default("cobro"),
+  /** Puntos de los usados: «cuentan» (suman puntos al objetivo) o «no» (solo comisión). */
+  voPuntosModo: varchar("vo_puntos_modo", { length: 10 }).notNull().default("cuentan"),
+  /** Puntos por usado (centésimas); sin valor se usan los del modelo, la marca o el predeterminado. */
+  voPuntos: integer("vo_puntos"),
   penalizacionImporte: integer("penalizacion_importe").notNull().default(0),
   penalizacionTitulo: text("penalizacion_titulo"),
   penalizacionDescripcion: text("penalizacion_descripcion"),

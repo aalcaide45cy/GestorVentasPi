@@ -4,7 +4,7 @@ import { fechaQueCuenta, mesDe } from "./util";
 
 /** Meses en los que un expediente genera algo: pedido, afectación, RCI y mes de cómputo. */
 export function mesesDeExpediente(e: ExpedienteMotor): Mes[] {
-  const meses = [e.fechaExpediente, e.fechaAfectacion, e.fechaRci, fechaQueCuenta(e).fecha, e.fechaCobro].map(mesDe);
+  const meses = [e.fechaExpediente, e.fechaAfectacion, e.fechaRci, fechaQueCuenta(e).fecha, e.fechaCobro, e.fechaFacturacion].map(mesDe);
   return [...new Set(meses.filter((m): m is Mes => m !== null))].sort();
 }
 

@@ -19,6 +19,10 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const [nombreEdicion, setNombreEdicion] = useState("");
   const [predeterminadoEdicion, setPredeterminadoEdicion] = useState(false);
   const [color, setColor] = useState("");
+  const [clase, setClase] = useState<"VN" | "VO">("VN");
+  const [subtipo, setSubtipo] = useState("USADO");
+  const [claseEdicion, setClaseEdicion] = useState<"VN" | "VO">("VN");
+  const [subtipoEdicion, setSubtipoEdicion] = useState("USADO");
   const [colorEdicion, setColorEdicion] = useState("");
 
   const valor = (e: EstadoVehiculoDto): string | number => (orden.campo === "nombre" ? e.nombre_estado_vehiculo : e.id_estado_vehiculo);
@@ -31,7 +35,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const crear = async (ev: FormEvent) => {
     ev.preventDefault();
     const ok = await ejecutar(async () => {
-      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "POST", { tipo: "estado_vehiculo", nombre_estado_vehiculo: nombre, predeterminado, color: color || null }, "Error al crear el estado");
+      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "POST", { tipo: "estado_vehiculo", nombre_estado_vehiculo: nombre, predeterminado, color: color || null, clase, subtipo_vo: clase === "VO" ? subtipo.trim().toUpperCase() || "USADO" : null }, "Error al crear el estado");
       setEstados((prev) => [...(n.predeterminado ? prev.map((e) => ({ ...e, predeterminado: false })) : prev), n]);
     }, "Estado de vehículo creado con éxito");
     if (ok) {
@@ -48,7 +52,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
       const n = await llamar<EstadoVehiculoDto>(
         "/api/admin/catalogos",
         "PUT",
-        { tipo: "estado_vehiculo", id: editando, nombre_estado_vehiculo: nombreEdicion, predeterminado: predeterminadoEdicion, color: colorEdicion || null },
+        { tipo: "estado_vehiculo", id: editando, nombre_estado_vehiculo: nombreEdicion, predeterminado: predeterminadoEdicion, color: colorEdicion || null, clase: claseEdicion, subtipo_vo: claseEdicion === "VO" ? subtipoEdicion.trim().toUpperCase() || "USADO" : null },
         "Error al actualizar el estado",
       );
       aplicar(n);
@@ -61,7 +65,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
       const n = await llamar<EstadoVehiculoDto>(
         "/api/admin/catalogos",
         "PUT",
-        { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: e.nombre_estado_vehiculo, predeterminado: !e.predeterminado },
+        { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: e.nombre_estado_vehiculo, predeterminado: !e.predeterminado, clase: e.clase === "VO" ? "VO" : "VN", subtipo_vo: e.subtipo_vo },
         "Error al actualizar el estado",
       );
       aplicar(n);
@@ -85,6 +89,24 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
           <input type="checkbox" id="chkNuevoEstadoPredeterminado" checked={predeterminado} onChange={(e) => setPredeterminado(e.target.checked)} style={estiloCheck} />
           <label htmlFor="chkNuevoEstadoPredeterminado" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }}>Predeterminado</label>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Nuevo (VN) o Usado (VO). Usado, KM0, Demo y Buyback son coches usados: el sistema usa esto para distinguir nuevos de usados en comisiones y puntos">
+          Tipo
+          <select className="form-input" value={clase} onChange={(e) => setClase(e.target.value as "VN" | "VO")} style={{ padding: "4px 8px" }}>
+            <option value="VN">Nuevo (VN)</option>
+            <option value="VO">Usado (VO)</option>
+          </select>
+        </label>
+        {clase === "VO" && (
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Subtipo para las tarifas de usados del plan (USADO, KM0, DEMO, BUYBACK…)">
+            Subtipo
+            <input className="form-input" list="subtipos-estado" value={subtipo} onChange={(e) => setSubtipo(e.target.value)} style={{ width: "120px", padding: "4px 8px" }} />
+          </label>
+        )}
+        <datalist id="subtipos-estado">
+          {["USADO", "KM0", "DEMO", "BUYBACK"].map((x) => (
+            <option key={x} value={x} />
+          ))}
+        </datalist>
         <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Color de la etiqueta de este estado en las listas. Si no eliges ninguno se usa el de siempre">
           Color
           <input type="color" value={color || "#3b82f6"} onChange={(e) => setColor(e.target.value)} style={{ width: "36px", height: "28px", padding: 0, border: "none", background: "none", cursor: "pointer" }} />
@@ -104,6 +126,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
           <thead>
             <tr>
               <Cabecera etiqueta="Nombre Estado" campo="nombre" orden={orden} />
+              <th>Tipo</th>
               <th>Color</th>
               <th>Predeterminado</th>
               <th>Acciones</th>
@@ -125,6 +148,19 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                     </form>
                   ) : (
                     <span style={{ fontWeight: 600 }}>{e.nombre_estado_vehiculo}</span>
+                  )}
+                </td>
+                <td>
+                  {editando === e.id_estado_vehiculo ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <select className="form-input" value={claseEdicion} onChange={(ev) => setClaseEdicion(ev.target.value as "VN" | "VO")} style={{ padding: "4px 8px", fontSize: "0.8rem" }}>
+                        <option value="VN">Nuevo (VN)</option>
+                        <option value="VO">Usado (VO)</option>
+                      </select>
+                      {claseEdicion === "VO" && <input className="form-input" list="subtipos-estado" value={subtipoEdicion} onChange={(ev) => setSubtipoEdicion(ev.target.value)} style={{ width: "100px", padding: "4px 8px", fontSize: "0.8rem" }} title="Subtipo para las tarifas de usados" />}
+                    </span>
+                  ) : (
+                    <span style={{ fontWeight: 700, color: e.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{e.clase === "VO" ? `Usado${e.subtipo_vo ? ` · ${e.subtipo_vo}` : ""}` : "Nuevo"}</span>
                   )}
                 </td>
                 <td>
@@ -168,6 +204,8 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                         setNombreEdicion(e.nombre_estado_vehiculo);
                         setPredeterminadoEdicion(!!e.predeterminado);
                         setColorEdicion(e.color ?? "");
+                        setClaseEdicion(e.clase === "VO" ? "VO" : "VN");
+                        setSubtipoEdicion(e.subtipo_vo ?? "USADO");
                       }}
                       style={{ padding: "6px 12px", fontSize: "0.8rem" }}
                     >

@@ -150,6 +150,12 @@ export interface PlanMotor {
   tramoMax: number;
   puntosPorPedido: Centesimas;
   penalizacionImporte: Centimos;
+  /** Fecha que hace contar a un usado (VO): «cobro» (por defecto) o «facturacion». */
+  voFecha?: "cobro" | "facturacion";
+  /** «cuentan» (por defecto): un usado suma puntos como cualquier coche; «no»: no suma puntos. */
+  voPuntosModo?: "cuentan" | "no";
+  /** Puntos que suma cada usado (centésimas); sin valor, los del modelo, la marca o el predeterminado. */
+  voPuntos?: Centesimas | null;
   /** Objetivo X por vendedor (clave = id del vendedor). */
   objetivos: Record<number, ObjetivoVendedorMotor>;
   puntosPorDefectoModelo: Record<number, Centesimas>;

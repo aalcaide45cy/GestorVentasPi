@@ -337,6 +337,28 @@ describe("comisión VO (T19–T20)", () => {
   });
 });
 
+describe("opciones de los usados en el plan (fecha y puntos)", () => {
+  const usado = (id: number, extra: Partial<ExpedienteMotor> = {}) => exp(id, { clase: "VO", subtipoVO: "KM0", fechaCobro: "2026-07-05", ...extra });
+
+  it("por defecto un usado cuenta por su fecha de cobro y suma 1 punto", () => {
+    const r = calcularMes(plan(), V, "2026-07", [usado(1, { fechaFacturacion: "2026-06-20" })]);
+    expect(r.puntosMes).toBe(100);
+    expect(calcularMes(plan(), V, "2026-06", [usado(1, { fechaFacturacion: "2026-06-20" })]).puntosMes).toBe(0);
+  });
+  it("con fecha de facturación cuenta en el mes de facturación, y si se cobra en otra fecha manda el cobro", () => {
+    const p = plan({ voFecha: "facturacion" });
+    expect(calcularMes(p, V, "2026-06", [usado(1, { fechaFacturacion: "2026-06-20" })]).puntosMes).toBe(100);
+    expect(calcularMes(p, V, "2026-07", [usado(1, { fechaFacturacion: "2026-06-20" })]).puntosMes).toBe(0);
+    expect(calcularMes(p, V, "2026-07", [usado(1, { fechaFacturacion: "2026-06-20", cobradoOtraFecha: true })]).puntosMes).toBe(100);
+  });
+  it("puntos por usado configurables o sin puntos", () => {
+    expect(calcularMes(plan({ voPuntos: 250 }), V, "2026-07", [usado(1), usado(2)]).puntosMes).toBe(500);
+    const sin = calcularMes(plan({ voPuntosModo: "no" }), V, "2026-07", [usado(1), exp(2, { fechaMatriculacion: "2026-07-10", puntos: 100 })]);
+    expect(sin.puntosMes).toBe(100); // solo suma el nuevo
+    expect(sin.lineas.find((l) => l.idExpediente === 1)?.cuenta).toBe(true); // el usado sigue contando para su comisión
+  });
+});
+
 describe("totales (T21–T22)", () => {
   it("T21 bruto 1.795,00 · penalización 150,00 · neto 1.645,00", () => {
     const p = plan({

@@ -74,7 +74,7 @@ function usePlantillas(ambito: Ambito, version: number) {
   return lista;
 }
 
-const ES_UNICO: Componente[] = ["resumen", "penalizacion", "notas"];
+const ES_UNICO: Componente[] = ["resumen", "penalizacion", "notas", "opcionesUsados"];
 
 /* ------------------------------------------------------------------ */
 

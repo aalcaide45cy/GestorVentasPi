@@ -7,6 +7,34 @@ export default function TabUsados({ plan, setPlan }: PropsPestana) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <Seccion
+        titulo="Cómo cuentan los usados"
+        ayuda="Usado, KM0, Demo y Buyback son lo mismo: coches de ocasión (VO). Elige cuándo cuenta cada uno y si suma puntos al objetivo del vendedor. Qué estados son nuevos o usados se define en Configuración › Estados."
+      >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px" }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Fecha que hace contar a un usado</label>
+            <select className="form-input" value={plan.voFecha} onChange={(e) => setPlan((p) => ({ ...p, voFecha: e.target.value as "cobro" | "facturacion" }))} title="Un usado cuenta en el mes de esta fecha. Si el expediente se cobra en otra fecha, manda esa">
+              <option value="facturacion">Fecha de facturación (cuando ya está facturado)</option>
+              <option value="cobro">Fecha de cobro</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Puntos de los usados</label>
+            <select className="form-input" value={plan.voPuntosModo} onChange={(e) => setPlan((p) => ({ ...p, voPuntosModo: e.target.value as "cuentan" | "no" }))} title="Si cada usado suma puntos al objetivo X del vendedor o solo da comisión">
+              <option value="cuentan">Suman puntos al objetivo</option>
+              <option value="no">No suman puntos (solo comisión)</option>
+            </select>
+          </div>
+          {plan.voPuntosModo === "cuentan" && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Puntos por cada usado</label>
+              <InputCentesimas valor={plan.voPuntos ?? 100} onChange={(v) => setPlan((p) => ({ ...p, voPuntos: v ?? 100 }))} />
+            </div>
+          )}
+        </div>
+      </Seccion>
+
+      <Seccion
         titulo="Tarifas de Vehículos Usados (BB / KM0 / etc.)"
         ayuda="Para vendedores de VN que venden VO: cada subtipo tiene su propio contador. Primera unidad, resto y mínimo de unidades (0 = sin mínimo)."
         acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, usados: [...p.usados, { subtipo: "KM0", importePrimera: 0, importeResto: 0, minAplicar: 0, activo: true }] }))}>+ Añadir subtipo</BotonMini>}
