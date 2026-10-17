@@ -31,6 +31,7 @@ import ModalContrasteListado from "./expedientes/ModalContrasteListado";
 import { leerListadoVentas, type ResultadoContraste } from "@/lib/contraste-listado";
 import ModalConflictoExcel, { type ConflictoExcel } from "./expedientes/ModalConflictoExcel";
 import ModalEdicionMasiva, { type CambiosMasivos } from "./expedientes/ModalEdicionMasiva";
+import PanelInferior from "./expedientes/PanelInferior";
 import ResumenMensual, { MESES } from "./expedientes/ResumenMensual";
 import { useEdicionFechas } from "./expedientes/useEdicionFechas";
 
@@ -802,27 +803,8 @@ export default function ExpedientesList({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      {/* BUSCADOR GENERAL */}
-      <div className="glass-panel" style={{ padding: "8px 14px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Buscador Global:</span>
-        <input
-          type="text"
-          className="form-input"
-          placeholder="Busca por cliente, matrícula, DNI, vendedor, VIN..."
-          value={busqueda}
-          onChange={(e) => {
-            setBusqueda(e.target.value);
-            setPagina(1);
-          }}
-          style={{ flex: 1, padding: "5px 12px" }}
-        />
-        {busqueda && (
-          <button type="button" className="btn btn-secondary" onClick={() => setBusqueda("")} style={{ padding: "8px 14px", fontSize: "0.85rem" }}>
-            Limpiar
-          </button>
-        )}
-      </div>
-
+      {/* Cabecera fija: herramientas y filtros se quedan arriba al bajar por la lista (el buscador global es el del encabezado de la aplicación) */}
+      <div style={{ position: "sticky", top: 0, zIndex: 40, background: "var(--bg-app)", paddingBottom: "6px", display: "flex", flexDirection: "column", gap: "10px" }}>
       {/* BARRA DE HERRAMIENTAS */}
       <div
         style={{
@@ -1313,9 +1295,11 @@ export default function ExpedientesList({
 
       {totalEnBd !== undefined && totalEnBd > expedientes.length && (
         <div style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.9rem" }}>
-          ⚠️ Se muestran los {expedientes.length.toLocaleString("es-ES")} expedientes más recientes de {totalEnBd.toLocaleString("es-ES")}. Para localizar uno anterior usa el buscador global (arriba) o la ficha del cliente.
+          ⚠️ Se muestran los {expedientes.length.toLocaleString("es-ES")} expedientes más recientes de {totalEnBd.toLocaleString("es-ES")}. Para localizar uno anterior usa el buscador de arriba o la ficha del cliente.
         </div>
       )}
+
+      </div>
 
       {/* TABLA */}
       <div className="glass-panel" style={{ padding: "8px" }}>
@@ -1541,7 +1525,9 @@ export default function ExpedientesList({
         />
       </div>
 
-      <ResumenMensual expedientes={expedientes} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
+      <PanelInferior>
+        <ResumenMensual expedientes={expedientes} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
+      </PanelInferior>
 
       {modales}
 
