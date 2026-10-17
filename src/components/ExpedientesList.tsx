@@ -1063,8 +1063,8 @@ export default function ExpedientesList({
                   <BotonesDatosSeccion seccion="expedientes" />
                 </div>
                 <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ fontWeight: 600 }}>💾 Copia completa de toda la aplicación (JSON)</div>
-                  <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Incluye todos los datos, también contraseñas cifradas y secretos del doble factor: guárdala en un sitio seguro. La copia más segura es la .dump de Configuración › BBDD.</div>
+                  <div style={{ fontWeight: 600 }}>💾 Datos básicos de la aplicación (JSON)</div>
+                  <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Incluye tiendas, usuarios, clientes, expedientes y catálogos, pero NO planes, liquidaciones, puntos ni documentos; trae contraseñas cifradas y secretos del doble factor, así que guárdalo en un sitio seguro. La copia de TODO es la .dump de Configuración › BBDD.</div>
                   <BotonesBackup deshabilitado={cargando} />
                 </div>
               </GrupoDatos>
