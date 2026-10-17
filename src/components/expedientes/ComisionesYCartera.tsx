@@ -121,6 +121,14 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
     const suma = (...ids: string[]) => linea.conceptos.filter((c) => ids.includes(c.concepto)).reduce((t, c) => t + c.importe, 0);
     return { linea, e: porId.get(linea.idExpediente), coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial") };
   });
+  // Tasa de intervención financiera del mes: coches financiados / coches que cuentan, sumando todas las marcas
+  const tasas = hayPlan ? resultado.tasaIntervencion : [];
+  const tasaNum = tasas.reduce((t, x) => t + x.numerador, 0);
+  const tasaDen = tasas.reduce((t, x) => t + x.denominador, 0);
+  const tasaTotal = tasaDen > 0 ? (tasaNum / tasaDen) * 100 : null;
+  const colorTasa = tasas.length === 0 ? undefined : tasas.every((x) => x.cumplida) ? "var(--success)" : "var(--warning)";
+  const nombreMarca = (id: number) => [...porId.values()].find((e) => e.modelo?.marca?.id_marca === id)?.modelo?.marca?.nombre ?? `Marca ${id}`;
+  const textoTasa = tasas.length === 0 ? "Sin coches con financiación calculable este mes" : `Coches financiados entre los que cuentan: ${tasas.map((x) => `${nombreMarca(x.idMarca)} ${x.numerador}/${x.denominador}${x.porcentaje !== null ? ` (${String(x.porcentaje).replace(".", ",")} %)` : ""} ${x.cumplida ? "✅ objetivo cumplido" : "❌ objetivo no cumplido"}`).join(" · ")}`;
   const efP = efectoPuntos(hayPlan ? resultado.puntosMes : null, hayPlan ? resultado.objetivoX : null);
   const efT = efectoTramo(hayPlan ? resultado.tramo : null);
   return (
@@ -145,6 +153,10 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
               </Indicador>
               <Indicador etiqueta="Tramo" ayuda={efT.titulo || "Tramo del mes"}>
                 <span className={efT.className} style={efT.style}>{etiquetaTramo(resultado.tramo)}</span>
+              </Indicador>
+              <Indicador etiqueta="Tasa int. financiera" ayuda={textoTasa}>
+                {tasaTotal === null ? <span style={{ color: "var(--text-muted)" }}>—</span> : <span style={{ color: colorTasa }}>{`${tasaTotal.toFixed(1).replace(".", ",")} %`}</span>}
+                {tasaDen > 0 && <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaNum}/{tasaDen}</span>}
               </Indicador>
               <Indicador etiqueta="Bruto" ayuda="Comisión antes de penalizaciones">
                 {euros(resultado.bruto)}

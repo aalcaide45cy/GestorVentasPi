@@ -1,5 +1,6 @@
 "use client";
 
+import ComisionadoExpediente from "@/components/expedientes/ComisionadoExpediente";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
@@ -805,6 +806,8 @@ export default function EditarExpedienteForm({
             <VisorAdjuntos key={versionAdjuntos} idExpediente={expediente.id_expediente} titulo="📎 Documentos del expediente (DNI, pedido, PDF…)" />
           </div>
         </div>
+
+        <ComisionadoExpediente idExpediente={expediente.id_expediente} />
 
         <BloqueComisionamiento
           valor={com}
