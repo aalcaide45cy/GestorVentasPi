@@ -141,6 +141,13 @@
       "when": 1792267635630,
       "tag": "0019_careless_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792268999600,
+      "tag": "0020_square_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

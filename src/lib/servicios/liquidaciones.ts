@@ -43,7 +43,7 @@ import {
 /** Desplazamiento para que los ids de `commission_bonus_rules` no choquen con los de `commission_rules`. */
 const DESPLAZAMIENTO_BONUS = 1_000_000;
 
-const aplicaDe = (v: string): "VN" | "VO" | "TODOS" => (v === "VO" ? "VO" : v === "TODOS" ? "TODOS" : "VN");
+const aplicaDe = (v: string): string => v || "VN";
 const CATEGORIAS: CategoriaVenta[] = ["CONTADO", "CREDITO", "PREFERENCE", "RENTING"];
 const categoria = (v: string | null | undefined): CategoriaVenta | null => (CATEGORIAS.includes(v as CategoriaVenta) ? (v as CategoriaVenta) : null);
 
@@ -71,7 +71,7 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     id,
     nombre: r.nombre,
     evento: r.evento as ReglaBonusMotor["evento"],
-    tipoVehiculo: r.tipoVehiculo as ReglaBonusMotor["tipoVehiculo"],
+    tipoVehiculo: r.tipoVehiculo,
     fechaInicio: r.fechaInicio,
     fechaFin: r.fechaFin,
     idMarca: r.idMarca,
@@ -102,7 +102,7 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     promociones: promos.map((x) => ({ id: x.id, nombre: x.nombre, puntosEspeciales: x.puntosEspeciales, minimoUnidades: x.minimoUnidades, puntosSiNoCumple: x.puntosSiNoCumple })),
     tarifasVN: tarifas.map((t) => ({ idModelo: t.idModelo, tasaCumplida: t.tasaCumplida, importes: t.importes, activo: t.activo })),
     tarifasUsadosPorSubtipo: usados.map((u) => ({ subtipo: u.subtipo, importePrimera: u.importePrimera, importeResto: u.importeResto, minAplicar: u.minAplicar, activo: u.activo })),
-    patronesVO: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, activo: x.activo, tiers: x.tiers })),
+    patronesVO: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
     financiacionPorMarcaTipo: fin.flatMap((f) => {
       const tipo = categoria(f.tipoFinanciacion);
       return tipo ? [{ idMarca: f.idMarca, tipo, aplicaA: aplicaDe(f.aplicaA), importe: f.importe }] : [];

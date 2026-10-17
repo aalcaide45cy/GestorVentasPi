@@ -18,7 +18,7 @@ import type {
   TasaMarcaResultado,
   VendedorMotor,
 } from "./tipos";
-import { enteroValido, etiquetaTramo, fechaQueCuenta, floorDiv, limitar, mesDe, mesEnRango, sumarMeses } from "./util";
+import { ambitoCoincide, enteroValido, etiquetaTramo, fechaQueCuenta, floorDiv, limitar, mesDe, mesEnRango, sumarMeses } from "./util";
 
 const FINANCIADAS: CategoriaVenta[] = ["CREDITO", "PREFERENCE", "RENTING"];
 const PUNTOS_DEFECTO: Centesimas = 100;
@@ -361,8 +361,7 @@ function aplicaRegla(
       break;
   }
   if (fecha === null) return null;
-  if (r.tipoVehiculo === "nuevo" && e.clase !== "VN") return null;
-  if (r.tipoVehiculo === "usado" && e.clase !== "VO") return null;
+  if (!ambitoCoincide(r.tipoVehiculo, e.clase, e.subtipoVO)) return null;
   if (r.fechaInicio && fecha < r.fechaInicio) return null;
   if (r.fechaFin && fecha > r.fechaFin) return null;
   if (r.idMarca !== null && r.idMarca !== e.idMarca) return null;
@@ -434,7 +433,8 @@ function comisionesVo(plan: PlanMotor, vendedor: VendedorMotor, vo: Info[], mes:
       const k = idx + 1;
       let importe = VO_SIN_ESCALA;
       if (tiers.length > 0) {
-        const t = tiers.find((x) => x.unidad === k) ?? tiers[tiers.length - 1];
+        // Rotativo: la unidad 4 vuelve a cobrar como la 1, la 5 como la 2…; si no, desde el último escalón se repite el último
+        const t = tiers.find((x) => x.unidad === k) ?? (patron?.rotativo ? tiers[(k - 1) % tiers.length] : tiers[tiers.length - 1]);
         importe = t.importe;
       }
       const v = enteroValido(importe);
@@ -468,9 +468,8 @@ function comisionesVo(plan: PlanMotor, vendedor: VendedorMotor, vo: Info[], mes:
 /* ------------------------------------------------------------------ */
 
 /** ¿Una regla marcada para VN, VO o todos vale para este coche? Sin marca, vale para los nuevos. */
-function aplica(aplicaA: "VN" | "VO" | "TODOS" | undefined, clase: string): boolean {
-  const a = aplicaA ?? "VN";
-  return a === "TODOS" || a === clase;
+function aplica(aplicaA: string | undefined, e: ExpedienteMotor): boolean {
+  return ambitoCoincide(aplicaA ?? "VN", e.clase, e.subtipoVO);
 }
 
 function especificidad(r: ReglaPreferenceMotor): number {
@@ -499,7 +498,7 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
   const cat = e.categoriaVenta;
   if (cat === null || !FINANCIADAS.includes(cat)) return res; // CONTADO no genera incentivo
 
-  const tarifa = plan.financiacionPorMarcaTipo.find((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e.clase));
+  const tarifa = plan.financiacionPorMarcaTipo.find((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e));
   if (!tarifa && e.clase === "VO") return res; // los usados solo cobran financiación si hay una regla que se aplique a usados
   if (!tarifa) {
     res.push(mk("financiacion", `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
@@ -513,7 +512,7 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
       .filter(
         (r) =>
           r.activa !== false &&
-          aplica(r.aplicaA, e.clase) &&
+          aplica(r.aplicaA, e) &&
           (r.idMarca === null || r.idMarca === e.idMarca) &&
           (r.idModelo === null || r.idModelo === e.idModelo) &&
           (r.tipo === null || r.tipo === "PREFERENCE"),

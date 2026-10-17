@@ -28,13 +28,14 @@ const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida");
 const fechaNull = z.union([fecha, z.literal("").transform(() => null), z.null()]).default(null);
 const entero = z.number().int();
 const idNull = z.number().int().positive().nullable().default(null);
-const aplicaA = z.enum(["VN", "VO", "TODOS"]);
+const SUBTIPO = "[A-Za-z0-9 _-]{1,30}";
+const aplicaA = z.string().regex(new RegExp(`^(VN|VO|TODOS|VO:${SUBTIPO})$`), "Ámbito no válido");
 const tipoFin = z.enum(["CONTADO", "CREDITO", "PREFERENCE", "RENTING"]);
 
 export const esquemaRegla = z.object({
   nombre: z.string().trim().min(1, "Falta el nombre de la regla").max(200),
   evento: z.enum(["pedido", "afectacion", "matriculacion", "cobro", "credito", "preference"]),
-  tipoVehiculo: z.enum(["nuevo", "usado", "cualquiera"]).default("cualquiera"),
+  tipoVehiculo: z.string().regex(new RegExp(`^(nuevo|usado|cualquiera|usado:${SUBTIPO})$`), "Tipo de vehículo no válido").default("cualquiera"),
   fechaInicio: fechaNull,
   fechaFin: fechaNull,
   idMarca: idNull,
@@ -90,7 +91,7 @@ export const esquemaPlanBase = z.object({
       .default([]),
     usados: z.array(z.object({ subtipo: z.string().trim().min(1).max(30), importePrimera: entero.min(0), importeResto: entero.min(0), minAplicar: entero.min(0).default(0), activo: z.boolean().default(true) })).default([]),
     patrones: z
-      .array(z.object({ nombre: z.string().trim().min(1).max(200), aplicaAVn: z.boolean().default(false), activo: z.boolean().default(true), tiers: z.array(z.object({ unidad: z.number().int().positive(), importe: entero.min(0) })).default([]) }))
+      .array(z.object({ nombre: z.string().trim().min(1).max(200), aplicaAVn: z.boolean().default(false), rotativo: z.boolean().default(false), activo: z.boolean().default(true), tiers: z.array(z.object({ unidad: z.number().int().positive(), importe: entero.min(0) })).default([]) }))
       .default([]),
     financiacion: z.array(z.object({ idMarca: z.number().int().positive(), tipoFinanciacion: tipoFin, aplicaA: aplicaA.default("VN"), importe: entero })).default([]),
     preference: z
@@ -160,7 +161,7 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
   const regla = (r: (typeof reglas)[number] | (typeof bonus)[number]) => ({
     nombre: r.nombre,
     evento: r.evento as "pedido",
-    tipoVehiculo: r.tipoVehiculo as "cualquiera",
+    tipoVehiculo: r.tipoVehiculo,
     fechaInicio: r.fechaInicio,
     fechaFin: r.fechaFin,
     idMarca: r.idMarca,
@@ -193,9 +194,9 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     tasas: tasas.map((x) => ({ idMarca: x.idMarca, tipoTasa: x.tipoTasa as "porcentaje", objetivo: x.objetivo, puntosDefecto: x.puntosDefecto })),
     tarifasVN: tarifas.map((x) => ({ idModelo: x.idModelo, tasaCumplida: x.tasaCumplida, importes: x.importes, activo: x.activo, orden: x.orden })),
     usados: usados.map((x) => ({ subtipo: x.subtipo, importePrimera: x.importePrimera, importeResto: x.importeResto, minAplicar: x.minAplicar, activo: x.activo })),
-    patrones: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, activo: x.activo, tiers: x.tiers })),
-    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", aplicaA: (x.aplicaA === "VO" ? "VO" : x.aplicaA === "TODOS" ? "TODOS" : "VN") as "VN" | "VO" | "TODOS", importe: x.importe })),
-    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, aplicaA: (x.aplicaA === "VO" ? "VO" : x.aplicaA === "TODOS" ? "TODOS" : "VN") as "VN" | "VO" | "TODOS", importe: x.importe, activa: x.activa })),
+    patrones: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
+    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", aplicaA: x.aplicaA || "VN", importe: x.importe })),
+    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, aplicaA: x.aplicaA || "VN", importe: x.importe, activa: x.activa })),
     reglas: reglas.map(regla),
     bonus: bonus.map(regla),
     pendientes: pend.map((x) => ({ concepto: x.concepto, importe: x.importe, mesOrigen: x.mesOrigen })),

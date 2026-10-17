@@ -569,3 +569,36 @@ describe("financiación según nuevos o usados", () => {
     expect(importeFin(fin("TODOS"), "VO")).toBe(5000);
   });
 });
+
+describe("patrones de usados: rotativo o no", () => {
+  const VO: VendedorMotor = { id: 1, tipo: "VO", patronVo: "Estándar" };
+  const escala = [
+    { unidad: 1, importe: 15000 },
+    { unidad: 2, importe: 20000 },
+    { unidad: 3, importe: 25000 },
+  ];
+  const cobros = (rotativo: boolean) => {
+    const usados = [1, 2, 3, 4, 5].map((id) => exp(id, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: `2026-06-0${id}` }));
+    const r = calcularMes(plan({ patronesVO: [{ nombre: "Estándar", aplicaAVn: false, rotativo, tiers: escala }] }), VO, "2026-06", usados);
+    return r.lineas.map((l) => l.conceptos.find((c) => c.concepto === "vo")?.importe);
+  };
+  it("sin rotativo, desde el cuarto se repite el último escalón", () => {
+    expect(cobros(false)).toEqual([15000, 20000, 25000, 25000, 25000]);
+  });
+  it("con rotativo, el cuarto vuelve a cobrar como el primero", () => {
+    expect(cobros(true)).toEqual([15000, 20000, 25000, 15000, 20000]);
+  });
+});
+
+describe("reglas por subtipo de usado", () => {
+  const bonus = (tipoVehiculo: string) =>
+    plan({ reglasYBonus: [regla({ id: 1, evento: "matriculacion", tipoVehiculo, importe: 1000 })] });
+  const importe = (tipoVehiculo: string, subtipo: string | null, clase: "VN" | "VO" = "VO") =>
+    calcularMes(bonus(tipoVehiculo), V, "2026-06", [exp(1, { clase, subtipoVO: subtipo, fechaFacturacion: "2026-06-10" })]).bruto;
+  it("una regla de un subtipo solo vale para ese subtipo", () => {
+    expect(importe("usado:KM0", "KM0")).toBeGreaterThanOrEqual(1000);
+    expect(importe("usado:KM0", "DEMO")).toBeLessThan(1000);
+    expect(importe("usado", "DEMO")).toBeGreaterThanOrEqual(1000);
+    expect(importe("nuevo", "KM0")).toBeLessThan(1000);
+  });
+});

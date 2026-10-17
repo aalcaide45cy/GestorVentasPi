@@ -1,11 +1,11 @@
 "use client";
 
 import EditorReglas from "./EditorReglas";
+import SelectorVehiculo from "./SelectorVehiculo";
 import { BotonMini, InputCentesimas, Seccion } from "./campos";
 import { reglaNueva, type PropsPestana } from "./tipos";
 
 const TIPOS = ["CREDITO", "PREFERENCE", "RENTING", "CONTADO"] as const;
-const APLICA = [["VN", "Nuevos (VN)"], ["VO", "Usados (VO)"], ["TODOS", "Nuevos y usados"]] as const;
 const ETIQUETA: Record<(typeof TIPOS)[number], string> = { CREDITO: "Crédito", PREFERENCE: "Preference", RENTING: "Renting", CONTADO: "Contado" };
 
 /** Financiación / Reglas del Plan. */
@@ -59,13 +59,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                     </select>
                   </td>
                   <td>
-                    <select className="form-input" style={{ minWidth: "150px" }} value={f.aplicaA} onChange={(e) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, aplicaA: e.target.value as typeof f.aplicaA } : x)) }))} title="Los usados (VO) tienen su propio sistema de financiación: crea una línea para usados si quieres que cobren incentivo">
-                      {APLICA.map(([v, t]) => (
-                        <option key={v} value={v}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                    <SelectorVehiculo estilo="financiacion" valor={f.aplicaA} alCambiar={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, aplicaA: v } : x)) }))} />
                   </td>
                   <td>
                     <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
@@ -143,13 +137,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                       </select>
                     </td>
                     <td>
-                      <select className="form-input" style={{ minWidth: "150px" }} value={r.aplicaA} onChange={(e) => set({ aplicaA: e.target.value as typeof r.aplicaA })}>
-                        {APLICA.map(([v, t]) => (
-                          <option key={v} value={v}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
+                      <SelectorVehiculo estilo="financiacion" valor={r.aplicaA} alCambiar={(v) => set({ aplicaA: v })} />
                     </td>
                     <td>
                       <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />

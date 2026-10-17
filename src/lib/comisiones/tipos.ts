@@ -85,6 +85,8 @@ export interface TarifaUsadoMotor {
 export interface PatronVoMotor {
   nombre: string;
   aplicaAVn: boolean;
+  /** Rotativo: tras el último escalón se vuelve al primero. Si no, se repite el último. */
+  rotativo?: boolean;
   activo?: boolean;
   tiers: { unidad: number; importe: Centimos }[];
 }
@@ -93,7 +95,7 @@ export interface FinanciacionMotor {
   idMarca: number;
   tipo: CategoriaVenta;
   /** A qué coches se aplica (por defecto, los nuevos). */
-  aplicaA?: "VN" | "VO" | "TODOS";
+  aplicaA?: string;
   importe: Centimos;
 }
 
@@ -104,7 +106,7 @@ export interface ReglaPreferenceMotor {
   idModelo: number | null;
   tipo: CategoriaVenta | null;
   /** A qué coches se aplica (por defecto, los nuevos). */
-  aplicaA?: "VN" | "VO" | "TODOS";
+  aplicaA?: string;
   importe: Centimos;
   activa?: boolean;
 }
@@ -113,7 +115,8 @@ export interface ReglaBonusMotor {
   id: number;
   nombre: string;
   evento: EventoRegla;
-  tipoVehiculo: "nuevo" | "usado" | "cualquiera";
+  /** cualquiera | nuevo | usado | usado:SUBTIPO */
+  tipoVehiculo: string;
   fechaInicio: Fecha | null;
   fechaFin: Fecha | null;
   idMarca: number | null;

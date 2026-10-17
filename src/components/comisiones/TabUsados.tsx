@@ -116,8 +116,8 @@ export default function TabUsados({ plan, setPlan }: PropsPestana) {
 
       <Seccion
         titulo="Patrones de Comisionamiento Progresivos VO"
-        ayuda="Escala por número de usado del mes, ordenados por fecha (usado 1 → X €, 2 → Y €…). Pasado el último escalón se repite el último; sin escalones se pagan 150,00 € por unidad. Se aplica a los vendedores de VO y, a los de VN, solo si el patrón marca «Aplica a vendedores VN» y es el asignado al usuario."
-        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, patrones: [...p.patrones, { nombre: "Estándar VO", aplicaAVn: false, activo: true, tiers: [{ unidad: 1, importe: 15000 }] }] }))}>+ Nuevo patrón</BotonMini>}
+        ayuda="Escala por número de usado del mes, ordenados por fecha de facturación (usado 1 → X €, 2 → Y €…). Pasado el último escalón se repite el último; con «Rotativo» se vuelve a empezar por el primero (150 / 200 / 250 → el 4.º cobra 150 €). Sin escalones se pagan 150,00 € por unidad. Se aplica a los vendedores de VO y, a los de VN, solo si el patrón marca «Aplica a vendedores VN» y es el asignado al usuario."
+        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, patrones: [...p.patrones, { nombre: "Estándar VO", aplicaAVn: false, rotativo: false, activo: true, tiers: [{ unidad: 1, importe: 15000 }] }] }))}>+ Nuevo patrón</BotonMini>}
       >
         {plan.patrones.map((pt, i) => {
           const set = (c: Partial<typeof pt>) => setPlan((p) => ({ ...p, patrones: p.patrones.map((x, j) => (j === i ? { ...x, ...c } : x)) }));
@@ -127,6 +127,9 @@ export default function TabUsados({ plan, setPlan }: PropsPestana) {
                 <input className="form-input" style={{ width: "220px" }} value={pt.nombre} onChange={(e) => set({ nombre: e.target.value })} placeholder="Nombre del patrón" />
                 <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <input type="checkbox" checked={pt.aplicaAVn} onChange={(e) => set({ aplicaAVn: e.target.checked })} /> Aplica a vendedores VN
+                </label>
+                <label style={{ display: "flex", gap: "6px", alignItems: "center" }} title="Con «rotativo», tras el último escalón se vuelve a empezar: con 150 / 200 / 250 €, el 4.º usado del mes cobra 150 €, el 5.º 200 €… Sin rotativo, del 4.º en adelante se sigue cobrando el último (250 €).">
+                  <input type="checkbox" checked={pt.rotativo} onChange={(e) => set({ rotativo: e.target.checked })} /> Rotativo
                 </label>
                 <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <input type="checkbox" checked={pt.activo} onChange={(e) => set({ activo: e.target.checked })} /> Activo

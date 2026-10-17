@@ -483,6 +483,8 @@ export const commissionVoPatterns = pgTable("commission_vo_patterns", {
   idPlan: refPlan(),
   nombre: text("nombre").notNull(),
   aplicaAVn: boolean("aplica_a_vn").notNull().default(false),
+  /** Rotativo: tras el último escalón se vuelve a empezar por el primero (si no, se repite el último). */
+  rotativo: boolean("rotativo").notNull().default(false),
   activo: boolean("activo").notNull().default(true),
   tiers: jsonb("tiers").$type<{ unidad: number; importe: number }[]>().notNull().default([]),
 });
@@ -497,8 +499,8 @@ export const commissionFinanceRates = pgTable(
       .references(() => marcas.idMarca, { onDelete: "cascade" }),
     /** CREDITO | PREFERENCE | RENTING | CONTADO */
     tipoFinanciacion: varchar("tipo_financiacion", { length: 20 }).notNull(),
-    /** A qué coches se aplica: VN (nuevos), VO (usados) o TODOS. */
-    aplicaA: varchar("aplica_a", { length: 5 }).notNull().default("VN"),
+    /** A qué coches se aplica: VN (nuevos), VO (usados), VO:SUBTIPO o TODOS. */
+    aplicaA: varchar("aplica_a", { length: 40 }).notNull().default("VN"),
     importe: integer("importe").notNull().default(0),
   },
   (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion, t.aplicaA)],
@@ -511,8 +513,8 @@ export const commissionPreferenceRules = pgTable("commission_preference_rules", 
   idMarca: integer("id_marca").references(() => marcas.idMarca, { onDelete: "cascade" }),
   idModelo: integer("id_modelo").references(() => modelos.idModelo, { onDelete: "cascade" }),
   tipoFinanciacion: varchar("tipo_financiacion", { length: 20 }),
-  /** A qué coches se aplica: VN (nuevos), VO (usados) o TODOS. */
-  aplicaA: varchar("aplica_a", { length: 5 }).notNull().default("VN"),
+  /** A qué coches se aplica: VN (nuevos), VO (usados), VO:SUBTIPO o TODOS. */
+  aplicaA: varchar("aplica_a", { length: 40 }).notNull().default("VN"),
   importe: integer("importe").notNull().default(0),
   activa: boolean("activa").notNull().default(true),
 });
@@ -523,8 +525,8 @@ const columnasRegla = () => ({
   nombre: text("nombre").notNull(),
   /** pedido | afectacion | matriculacion | cobro | credito | preference */
   evento: varchar("evento", { length: 20 }).notNull(),
-  /** nuevo | usado | cualquiera */
-  tipoVehiculo: varchar("tipo_vehiculo", { length: 20 }).notNull().default("cualquiera"),
+  /** nuevo | usado | usado:SUBTIPO | cualquiera */
+  tipoVehiculo: varchar("tipo_vehiculo", { length: 40 }).notNull().default("cualquiera"),
   fechaInicio: date("fecha_inicio"),
   fechaFin: date("fecha_fin"),
   idMarca: integer("id_marca").references(() => marcas.idMarca, { onDelete: "cascade" }),

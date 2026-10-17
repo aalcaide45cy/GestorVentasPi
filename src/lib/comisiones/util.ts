@@ -52,6 +52,19 @@ export function sumar(importes: Centimos[]): Centimos {
 }
 
 /**
+ * ¿Vale un ámbito para este coche? Reglas: cualquiera | nuevo | usado | usado:SUBTIPO. Financiación: TODOS | VN | VO | VO:SUBTIPO.
+ * Un subtipo concreto solo vale para usados de ese subtipo.
+ */
+export function ambitoCoincide(valor: string | undefined, clase: string, subtipo: string | null | undefined): boolean {
+  const v = (valor ?? "").trim().toLowerCase();
+  if (v === "" || v === "cualquiera" || v === "todos") return true;
+  const [base, sub] = v.split(":");
+  if (base === "nuevo" || base === "vn") return clase === "VN";
+  if (base === "usado" || base === "vo") return clase === "VO" && (!sub || sub === (subtipo ?? "").trim().toLowerCase());
+  return false;
+}
+
+/**
  * Fecha que hace contar a un coche (12.3, paso 1), nuevo o usado: la de facturación (en un VN, por defecto igual a la de
  * matriculación; si el vendedor la cambia a mano, manda ella) y, sin facturación, la de matriculación. La fecha de cobro no existe.
  */

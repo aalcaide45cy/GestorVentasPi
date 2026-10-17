@@ -1,5 +1,6 @@
 "use client";
 
+import SelectorVehiculo from "./SelectorVehiculo";
 import { BotonMini, InputCentesimas } from "./campos";
 import type { CatalogosComisiones, Regla } from "./tipos";
 
@@ -64,11 +65,7 @@ export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, e
                     </select>
                   </td>
                   <td>
-                    <select className="form-input" style={{ minWidth: "105px" }} value={r.tipoVehiculo} onChange={(e) => set(i, { tipoVehiculo: e.target.value as Regla["tipoVehiculo"] })}>
-                      <option value="cualquiera">Cualquiera</option>
-                      <option value="nuevo">Nuevo (VN)</option>
-                      <option value="usado">Usado (VO)</option>
-                    </select>
+                    <SelectorVehiculo estilo="regla" ancho="150px" valor={r.tipoVehiculo} alCambiar={(v) => set(i, { tipoVehiculo: v })} />
                   </td>
                   <td>
                     <select className="form-input" style={{ minWidth: "115px" }} value={r.tasaIntervencion} onChange={(e) => set(i, { tasaIntervencion: e.target.value as Regla["tasaIntervencion"] })}>
