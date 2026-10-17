@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { BotonesDatosSeccion, descargarSeccion } from "@/components/datos/DatosSeccion";
 import { useToast } from "@/components/Toast";
@@ -26,6 +26,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
   const { mostrar } = useToast();
   const [editando, setEditando] = useState<{ plan: Plan | null; solapados: string[] } | null>(null);
   const [aBorrar, setABorrar] = useState<ResumenPlan | null>(null);
+  const [pestanaInicial, setPestanaInicial] = useState<string | undefined>(undefined);
 
   const { datos: planes, recargar: cargar } = useCarga<ResumenPlan[]>(esAdmin ? "/api/comisiones/planes" : null, []);
   const { datos: mias } = useCarga<LiquidacionResumen[]>(esAdmin ? null : "/api/comisiones/liquidaciones", []);
@@ -39,6 +40,24 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
       mostrar(textoError(e), "error");
     }
   };
+
+  // Enlace desde el desglose de un expediente: ?plan=ID&tab=usados abre ese plan en esa pestaña
+  useEffect(() => {
+    if (!esAdmin) return;
+    const q = new URLSearchParams(window.location.search);
+    const id = Number(q.get("plan"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    void (async () => {
+      try {
+        const { data } = await llamar<Plan>(`/api/comisiones/planes?id=${id}`);
+        setPestanaInicial(q.get("tab") ?? undefined);
+        setEditando({ plan: data, solapados: [] });
+      } catch (e) {
+        mostrar(textoError(e), "error");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esAdmin]);
 
   /** Abre una copia independiente del plan (sin guardar): mismos valores, como borrador, sin liquidaciones ni pendientes. */
   const duplicar = async (p: ResumenPlan) => {
@@ -81,6 +100,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
         inicial={editando.plan}
         cat={cat}
         solapados={editando.solapados}
+        pestanaInicial={pestanaInicial}
         onGuardado={async (id) => {
           const resumen = (await llamar<ResumenPlan[]>("/api/comisiones/planes")).data.find((p) => p.idPlan === id);
           if (resumen) await abrir(resumen);

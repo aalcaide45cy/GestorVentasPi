@@ -49,7 +49,7 @@ export function simularExpediente(
   expedienteEditado: ExpedienteMotor,
   restoExpedientes: ExpedienteMotor[],
 ): Simulacion {
-  const { fecha, usaCobro } = fechaQueCuenta(expedienteEditado);
+  const { fecha, usaCobro } = fechaQueCuenta(expedienteEditado, plan?.voFecha);
   const mes = mesDe(fecha);
   if (!mes) {
     return { mes: null, resultado: null, linea: null, aviso: usaCobro ? "Falta la fecha de cobro: el coche aún no cuenta en ningún mes" : "Falta la fecha de facturación (o de matriculación): el coche aún no cuenta en ningún mes" };

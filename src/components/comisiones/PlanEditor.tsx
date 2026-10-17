@@ -38,6 +38,8 @@ interface Props {
   solapados: string[];
   onGuardado: (idPlan: number) => void;
   onVolver: () => void;
+  /** Pestaña con la que se abre (por ejemplo desde un enlace del desglose de un expediente). */
+  pestanaInicial?: string;
 }
 
 const PLAN_VACIO = (): Plan => {
@@ -76,11 +78,11 @@ const PLAN_VACIO = (): Plan => {
 };
 
 /** Editor de un plan con las 9 pestañas del original. */
-export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolver }: Props) {
+export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolver, pestanaInicial }: Props) {
   const { mostrar } = useToast();
   const [plan, setPlanEstado] = useState<Plan>(inicial ?? PLAN_VACIO());
   const [guardado, setGuardado] = useState(JSON.stringify(inicial && inicial.idPlan !== 0 ? inicial : null));
-  const [pestana, setPestana] = useState<IdPestana>("resumen");
+  const [pestana, setPestana] = useState<IdPestana>(PESTANAS.some((p) => p.id === pestanaInicial) ? (pestanaInicial as IdPestana) : "resumen");
   const [guardando, setGuardando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
   // Fechas bloqueadas por defecto: con el candado cerrado solo se cambian con las flechas

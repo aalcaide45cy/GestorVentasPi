@@ -47,12 +47,26 @@ interface Desglose {
   mes: string | null;
   aviso: string | null;
   hayPlan: boolean;
+  idPlan?: number | null;
+  nombrePlan?: string | null;
   tramo: number | null;
   puntosMes: number | null;
   objetivoX: number | null;
   linea: { importe: number; puntos: number; conceptos: { concepto: string; descripcion: string; importe: number; puntos: number; aviso?: string }[] } | null;
   avisos: string[];
 }
+
+/** Pestaña del plan donde se define cada tipo de línea del desglose. */
+const PESTANA_DE_CONCEPTO: Record<string, string> = {
+  coche_vn: "modelos",
+  vo: "usados",
+  financiacion: "reglas",
+  preference: "reglas",
+  regla: "bonus",
+  puntos_coche: "modelos",
+  puntos_pedido: "objetivo",
+  puntos_regla: "bonus",
+};
 
 export const comisionInicial = (e: {
   puntos: number | null;
@@ -207,6 +221,17 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
                   <tr key={i}>
                     <td>
                       {c.descripcion}
+                      {desglose.idPlan && PESTANA_DE_CONCEPTO[c.concepto] && (
+                        <a
+                          href={`/dashboard/comisiones?plan=${desglose.idPlan}&tab=${PESTANA_DE_CONCEPTO[c.concepto]}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ marginLeft: "8px", fontSize: "0.78rem", color: "var(--primary)" }}
+                          title={`Abre el plan «${desglose.nombrePlan ?? ""}» en la pestaña donde se define esta regla (en otra pestaña, sin perder lo que estás editando)`}
+                        >
+                          Ver regla ↗
+                        </a>
+                      )}
                       {c.aviso && <div style={{ color: "var(--warning)", fontSize: "0.8rem" }}>⚠️ {c.aviso}</div>}
                     </td>
                     <td style={{ textAlign: "right" }}>{c.puntos ? `${puntos(c.puntos)} pts` : ""}</td>

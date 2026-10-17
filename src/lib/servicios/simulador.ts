@@ -5,6 +5,7 @@ import { estadoVehiculo, modelos, tipoDeVenta, usuarios } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { simularExpediente, type Clase, type CategoriaVenta, type ExpedienteMotor } from "@/lib/comisiones";
 import { cargarExpedientesMotor, planDelMes } from "./liquidaciones";
+import { fechaQueCuenta } from "@/lib/comisiones/util";
 
 const fecha = z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal(""), z.null()]).optional();
 const entero = z.number().int().nullable().optional();
@@ -62,14 +63,32 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
     conceptosEspeciales: (entrada.conceptos_especiales ?? []).map((c) => ({ titulo: c.titulo, importe: c.importe_centimos, evento: c.evento })),
   };
   const vendedor = { id: entrada.id_usuario, tipo: (u.tipo === "VO" ? "VO" : "VN") as Clase, patronVo: u.patron };
-  const clave = (motor.clase === "VO" || motor.cobradoOtraFecha ? motor.fechaCobro : motor.fechaMatriculacion)?.slice(0, 7) ?? null;
-  const plan = clave ? await planDelMes(ej, clave) : null;
+  // El mes en que cuenta un usado depende del plan (cobro o facturación): se prueba con cada fecha candidata
+  const candidatas = [fechaQueCuenta(motor).fecha, ...(motor.clase === "VO" ? [fechaQueCuenta(motor, "facturacion").fecha] : [])].map((x) => x?.slice(0, 7) ?? null);
+  let clave = candidatas[0] ?? null;
+  let plan = clave ? await planDelMes(ej, clave) : null;
+  if (!plan || fechaQueCuenta(motor, plan.voFecha).fecha?.slice(0, 7) !== clave) {
+    for (const c of candidatas.slice(1)) {
+      const p = c ? await planDelMes(ej, c) : null;
+      if (p && c && fechaQueCuenta(motor, p.voFecha).fecha?.slice(0, 7) === c) {
+        clave = c;
+        plan = p;
+        break;
+      }
+    }
+  }
   const resto = clave ? await cargarExpedientesMotor(ej, entrada.id_usuario, { desde: clave, hasta: clave }) : [];
   const sim = simularExpediente(plan, vendedor, motor, resto);
+  // La comisión de un usado se genera en el mes de cobro: sin fecha de cobro el desglose lo explica en vez de quedarse mudo
+  if (sim.linea && motor.clase === "VO" && !motor.fechaCobro) {
+    sim.linea = { ...sim.linea, conceptos: [...sim.linea.conceptos, { concepto: "vo", descripcion: "Comisión del usado", importe: 0, puntos: 0, evento: "COBRO", mesEvento: sim.mes ?? "", aviso: "Pendiente: la comisión de un usado se genera al poner la fecha de cobro (se cobra según el patrón de usados del plan)." }] };
+  }
   return {
     mes: sim.mes,
     aviso: sim.aviso,
     hayPlan: plan !== null,
+    idPlan: plan?.idPlan ?? null,
+    nombrePlan: plan?.nombre ?? null,
     tramo: sim.resultado?.tramo ?? null,
     puntosMes: sim.resultado?.puntosMes ?? null,
     objetivoX: sim.resultado?.objetivoX ?? null,
