@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type KeyboardEvent } from "react";
+import { usePreferencia } from "@/lib/preferencias";
 import { useCarga } from "@/components/comisiones/useCarga";
 import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
@@ -43,14 +44,26 @@ const estiloTarjeta = { padding: "16px", display: "flex", flexDirection: "column
 const estiloEtiqueta = { fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 } as const;
 const estiloPie = { display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)" } as const;
 
+/** Año y mes recordados («AAAA-MM»); si no hay o no valen, el mes actual. */
+function mesGuardado(guardado: string | null, hoy: Date): { anio: number; mes: number } {
+  const partes = (guardado ?? "").split("-");
+  const a = Number(partes[0]);
+  const m = Number(partes[1]);
+  return partes.length === 2 && a > 1900 && a < 3000 && m >= 1 && m <= 12 ? { anio: a, mes: m } : { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
+}
+
 /**
  * «Detalle y Resumen Estadístico»: recuentos del mes elegido.
  * Puntos, tramo y comisión estimada salen del motor de comisiones (el mismo que la liquidación).
  */
 export default function ResumenMensual({ expedientes: todos, anios, vendedor, esAdministrador }: Props) {
   const hoy = new Date();
-  const [anio, setAnio] = useState(hoy.getFullYear());
-  const [mes, setMes] = useState(hoy.getMonth() + 1);
+  // El mes elegido se recuerda en este navegador: al volver de otra pantalla sigue el último que se puso
+  const [guardado, guardarMes] = usePreferencia("exp-resumen-mes");
+  const { anio, mes } = mesGuardado(guardado, hoy);
+  const fijarMes = (a: number, m: number) => guardarMes(`${a}-${String(m).padStart(2, "0")}`);
+  const setMes = (m: number) => fijarMes(anio, m);
+  const setAnio = (a: number) => fijarMes(a, mes);
 
   const mover = (delta: number) => {
     let m = mes + delta;
@@ -62,8 +75,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
       m = 1;
       a += 1;
     }
-    setMes(m);
-    setAnio(a);
+    fijarMes(a, m);
   };
 
   // Las estadísticas y las comisiones son del vendedor elegido en el filtro (por defecto, el usuario actual)
@@ -174,7 +186,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
                 <span style={{ fontSize: "0.82rem", fontWeight: 800, color: "#1a1a1a", background: "var(--warning)", borderRadius: "999px", padding: "3px 12px" }} title={`Los datos de abajo son de ${MESES[mes - 1]} ${anio}, no del mes en curso`}>
                   ⚠️ Estás viendo otro mes: {MESES[mes - 1]} {anio}
                 </span>
-                <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.75rem" }} onClick={() => { setMes(hoy.getMonth() + 1); setAnio(hoy.getFullYear()); }} title={`Vuelve a ${MESES[hoy.getMonth()]} ${hoy.getFullYear()}, el mes en curso`}>
+                <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.75rem" }} onClick={() => fijarMes(hoy.getFullYear(), hoy.getMonth() + 1)} title={`Vuelve a ${MESES[hoy.getMonth()]} ${hoy.getFullYear()}, el mes en curso`}>
                   Volver a {MESES[hoy.getMonth()]} {hoy.getFullYear()}
                 </button>
               </>
@@ -189,8 +201,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
             type="button"
             className="btn btn-secondary"
             onClick={() => {
-              setMes(hoy.getMonth() + 1);
-              setAnio(hoy.getFullYear());
+              fijarMes(hoy.getFullYear(), hoy.getMonth() + 1);
             }}
             style={botonMes}
           >
