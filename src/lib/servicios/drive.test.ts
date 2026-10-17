@@ -4,9 +4,9 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { conexionDrive, copiasSeguridad } from "@/db/schema";
+import { ajustes, conexionDrive, copiasSeguridad } from "@/db/schema";
 import { reiniciarBd } from "../../../tests/ayudas";
-import { borrarEnDrive, completarConexion, crearState, desconectar, estadoDrive, subirCopiaADrive, urlAutorizacion, validarState } from "./drive";
+import { borrarCredenciales, borrarEnDrive, completarConexion, crearState, desconectar, estadoDrive, guardarCredenciales, leerCredenciales, origenDe, subirCopiaADrive, urlAutorizacion, urlRedireccion, validarState } from "./drive";
 
 let dir = "";
 beforeAll(() => {
@@ -79,10 +79,10 @@ async function copiaLocal(contenido: Buffer) {
 describe("OAuth", () => {
   it("la URL pide alcance mínimo, acceso offline y consentimiento, y el state firmado caduca y es del usuario", () => {
     const state = crearState(7);
-    const u = new URL(urlAutorizacion(state));
+    const u = new URL(urlAutorizacion(state, { id: "id-cliente", secreto: "secreto-cliente", origen: "env" }, "https://gestor.ejemplo.ts.net/"));
     expect(u.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/drive.file");
     expect(u.searchParams.get("access_type")).toBe("offline");
-    expect(u.searchParams.get("prompt")).toBe("consent");
+    expect(u.searchParams.get("prompt")).toBe("consent select_account");
     expect(u.searchParams.get("redirect_uri")).toBe("https://gestor.ejemplo.ts.net/api/admin/drive/callback");
     expect(validarState(state, 7)).toBe(true);
     expect(validarState(state, 8)).toBe(false);
@@ -92,7 +92,7 @@ describe("OAuth", () => {
 
   it("guarda solo el refresh token, cifrado, y desconecta", async () => {
     simularGoogle();
-    const r = await completarConexion(db, "codigo-de-google");
+    const r = await completarConexion(db, "codigo-de-google", "https://gestor.ejemplo.ts.net");
     expect(r.email).toBe("alfonso@gmail.com");
     const [c] = await db.select().from(conexionDrive);
     expect(c.refreshTokenCifrado).not.toContain("refresco-secreto");
@@ -104,14 +104,34 @@ describe("OAuth", () => {
 
   it("sin refresh token pide volver a conectar", async () => {
     simularGoogle({ refresh: false });
-    await expect(completarConexion(db, "x")).rejects.toMatchObject({ status: 400 });
+    await expect(completarConexion(db, "x", "https://gestor.ejemplo.ts.net")).rejects.toMatchObject({ status: 400 });
+  });
+});
+
+describe("credenciales de Google guardadas en la aplicación", () => {
+  it("se guardan con el secreto cifrado, mandan sobre el .env y se pueden borrar", async () => {
+    await expect(guardarCredenciales(db, "no-vale", "secreto-largo-123")).rejects.toMatchObject({ status: 400 });
+    await guardarCredenciales(db, "123-abc.apps.googleusercontent.com", "GOCSPX-secreto-largo");
+    expect(await leerCredenciales(db)).toMatchObject({ id: "123-abc.apps.googleusercontent.com", secreto: "GOCSPX-secreto-largo", origen: "aplicacion" });
+    const [f] = await db.select().from(ajustes).where(eq(ajustes.clave, "drive_client_secreto"));
+    expect(f.valor).not.toContain("GOCSPX");
+    expect(await estadoDrive(db)).toMatchObject({ configurado: true, clientId: "123-abc.apps.googleusercontent.com", credencialesEn: "aplicacion" });
+    await borrarCredenciales(db);
+    expect(await leerCredenciales(db)).toMatchObject({ origen: "env" }); // vuelve a las del .env si las hay
+  });
+
+  it("la dirección de vuelta sale de la cabecera de la petición, también detrás de un túnel", () => {
+    const peticion = (h: Record<string, string>) => new Request("http://localhost:3000/api/x", { headers: h });
+    expect(origenDe(peticion({ host: "localhost:3000" }))).toBe("http://localhost:3000");
+    expect(origenDe(peticion({ host: "interno", "x-forwarded-proto": "https", "x-forwarded-host": "gestor.ejemplo.ts.net" }))).toBe("https://gestor.ejemplo.ts.net");
+    expect(urlRedireccion("https://gestor.ejemplo.ts.net/")).toBe("https://gestor.ejemplo.ts.net/api/admin/drive/callback");
   });
 });
 
 describe("subida y borrado", () => {
   it("sube por trozos a la carpeta propia, reintenta fallos y anota el id", async () => {
     const llamadas = simularGoogle({ fallosPrimerTrozo: 1 });
-    await completarConexion(db, "c");
+    await completarConexion(db, "c", "https://gestor.ejemplo.ts.net");
     const f = await copiaLocal(Buffer.alloc(600 * 1024, 7));
     const r = await subirCopiaADrive(db, f.id, 1);
     expect(r.driveFileId).toBe("archivo-1");
@@ -129,7 +149,7 @@ describe("subida y borrado", () => {
 
   it("con el permiso revocado marca «reconectar» y no rompe", async () => {
     simularGoogle();
-    await completarConexion(db, "c");
+    await completarConexion(db, "c", "https://gestor.ejemplo.ts.net");
     simularGoogle({ invalidGrant: true });
     const f = await copiaLocal(Buffer.alloc(1000, 1));
     await expect(subirCopiaADrive(db, f.id, 1)).rejects.toMatchObject({ status: 409 });
@@ -138,7 +158,7 @@ describe("subida y borrado", () => {
 
   it("solo borra archivos de la carpeta propia", async () => {
     const llamadas = simularGoogle();
-    await completarConexion(db, "c");
+    await completarConexion(db, "c", "https://gestor.ejemplo.ts.net");
     const n = await borrarEnDrive(db, ["archivo-1", "otro"]);
     expect(n).toBe(1);
     expect(llamadas.filter((l) => l.metodo === "DELETE")).toHaveLength(1);

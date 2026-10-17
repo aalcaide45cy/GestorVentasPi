@@ -33,6 +33,8 @@ export default function PanelCopias() {
   const [marcadas, setMarcadas] = useState<number[]>([]);
   const [form, setForm] = useState({ password: "", codigo: "", confirmacion: "", claveOrigen: "" });
   const [claveNueva, setClaveNueva] = useState("");
+  const [cliente, setCliente] = useState({ id: "", secreto: "" });
+  const urlVuelta = typeof window === "undefined" ? "" : `${window.location.origin}/api/admin/drive/callback`;
   const [edicion, setEdicion] = useState<Partial<AjustesCopias>>({});
   const ajustes: AjustesCopias | null = datos.ajustes ? { ...datos.ajustes, ...edicion } : null;
 
@@ -193,6 +195,30 @@ export default function PanelCopias() {
       const { data } = await llamar<{ url: string }>("/api/admin/drive/conectar");
       window.location.href = data.url;
     });
+
+  const guardarCredenciales = () =>
+    accion("credenciales", async () => {
+      await llamar("/api/admin/drive/credenciales", { method: "POST", cuerpo: { clientId: cliente.id, clientSecret: cliente.secreto } });
+      setCliente({ id: "", secreto: "" });
+      return "Credenciales guardadas. Ya puedes pulsar «Conectar con Google Drive».";
+    });
+
+  const borrarCredenciales = () => {
+    if (!window.confirm("¿Borrar las credenciales de Google guardadas? Tendrás que volver a escribirlas para conectar.")) return;
+    void accion("credenciales-borrar", async () => {
+      await llamar("/api/admin/drive/credenciales", { method: "DELETE" });
+      return "Credenciales borradas.";
+    });
+  };
+
+  const copiarUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(urlVuelta);
+      mostrar("Dirección copiada.");
+    } catch {
+      mostrar("No se pudo copiar: selecciónala y copia a mano.", "error");
+    }
+  };
 
   const desconectarDrive = () => {
     if (!window.confirm("¿Desconectar Google Drive? Las copias ya subidas no se borran.")) return;
@@ -440,15 +466,52 @@ export default function PanelCopias() {
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", borderTop: "1px solid var(--border)", paddingTop: "14px" }}>
         <h4>☁️ Google Drive</h4>
         {drive && !drive.configurado && (
-          <p style={{ color: "var(--text-secondary)", margin: 0 }}>
-            Falta configurar GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y PUBLIC_URL en el fichero .env (la guía de instalación explica cómo crearlos en Google Cloud). Sin Drive todo sigue funcionando: descarga las copias desde aquí.
-          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "14px 16px" }}>
+            <b>Conectar Google Drive: solo la primera vez</b>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+              Google exige que cada instalación tenga su propia «llave» para acceder a tu Drive. Se crea una sola vez, gratis, en 5 pasos; después solo pulsarás «Conectar», elegirás tu cuenta y darás permiso. Sin Drive todo sigue funcionando: descarga las copias desde aquí.
+            </p>
+            <ol style={{ margin: 0, paddingLeft: "20px", fontSize: "0.85rem", lineHeight: 1.7 }}>
+              <li>
+                <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>Crea un proyecto en Google Cloud</a> (ponle el nombre que quieras, por ejemplo «GestorVentas»).
+              </li>
+              <li>
+                <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>Activa «Google Drive API»</a> en ese proyecto.
+              </li>
+              <li>
+                <a href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>Configura la pantalla de consentimiento</a>: tipo «Externo», un nombre y tu correo. Después añade tu correo como usuario de prueba o pulsa «Publicar aplicación» para que el permiso no caduque.
+              </li>
+              <li>
+                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>Crea un «ID de cliente de OAuth»</a> de tipo «Aplicación web» y en «URI de redirección autorizados» pega esta dirección:
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "4px" }}>
+                  <code style={{ background: "var(--bg-card)", padding: "4px 8px", borderRadius: "4px", fontSize: "0.8rem", wordBreak: "break-all" }}>{urlVuelta}</code>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.75rem" }} onClick={() => void copiarUrl()} title="Copia la dirección para pegarla en Google">
+                    Copiar
+                  </button>
+                </div>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Si entras a la aplicación por otra dirección (Tailscale, un dominio…), haz este paso desde esa dirección para que coincida.</span>
+              </li>
+              <li>Copia el «ID de cliente» y el «Secreto» que te da Google y pégalos aquí:</li>
+            </ol>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              <input className="form-input" placeholder="ID de cliente (termina en .apps.googleusercontent.com)" value={cliente.id} onChange={(e) => setCliente({ ...cliente, id: e.target.value })} style={{ minWidth: "300px", flex: 1 }} />
+              <input className="form-input" type="password" autoComplete="off" placeholder="Secreto de cliente" value={cliente.secreto} onChange={(e) => setCliente({ ...cliente, secreto: e.target.value })} style={{ minWidth: "200px" }} />
+              <button type="button" className="btn btn-primary" disabled={trabajando !== null || !cliente.id.trim() || cliente.secreto.trim().length < 10} onClick={guardarCredenciales} title="Guarda las credenciales dentro de la aplicación (el secreto se guarda cifrado)">
+                Guardar
+              </button>
+            </div>
+          </div>
         )}
         {drive?.configurado && !drive.conectado && (
-          <div>
-            <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={conectarDrive}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={conectarDrive} title="Se abre una ventana de Google: eliges tu cuenta y das permiso. La carpeta de las copias se crea sola con el nombre que pongas en los ajustes de arriba">
               Conectar con Google Drive
             </button>
+            {drive.credencialesEn === "aplicacion" && (
+              <button type="button" className="btn btn-secondary" disabled={trabajando !== null} onClick={borrarCredenciales} title="Borra el ID y el secreto guardados para escribir otros">
+                Cambiar credenciales
+              </button>
+            )}
           </div>
         )}
         {drive?.conectado && (
@@ -457,6 +520,11 @@ export default function PanelCopias() {
             {drive.requiereReconexion && (
               <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={conectarDrive}>
                 Reconectar con Google Drive
+              </button>
+            )}
+            {!drive.requiereReconexion && (
+              <button type="button" className="btn btn-secondary" disabled={trabajando !== null} onClick={conectarDrive} title="Abre Google para elegir otra cuenta (las copias nuevas irán a esa cuenta)">
+                Cambiar de cuenta
               </button>
             )}
             <button type="button" className="btn btn-secondary" disabled={trabajando !== null} onClick={desconectarDrive}>

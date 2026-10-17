@@ -3,7 +3,7 @@ import { open, stat } from "node:fs/promises";
 import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
-import { conexionDrive, copiasSeguridad } from "@/db/schema";
+import { ajustes, conexionDrive, copiasSeguridad } from "@/db/schema";
 import { cifrar, descifrar } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { dirCopias, leerAjustesCopias, obtenerCopia } from "./copias";
@@ -19,11 +19,55 @@ export const NOMBRE_CARPETA = "GestorVentasPi-Copias";
 /** Tamaño de trozo: múltiplo de 256 KiB, como exige la subida reanudable. */
 const trozo = (): number => Number(process.env.DRIVE_TROZO) || 8 * 1024 * 1024;
 
-export function driveConfigurado(): boolean {
-  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.PUBLIC_URL);
+export interface CredencialesGoogle {
+  id: string;
+  secreto: string;
+  /** De dónde salen: de la aplicación (se escriben en Configuración) o del archivo .env. */
+  origen: "aplicacion" | "env";
 }
 
-export const urlRedireccion = (): string => `${(process.env.PUBLIC_URL ?? "").replace(/\/+$/, "")}/api/admin/drive/callback`;
+const CLAVE_CLIENT_ID = "drive_client_id";
+const CLAVE_CLIENT_SECRETO = "drive_client_secreto";
+
+/** Credenciales OAuth de Google: las guardadas en la aplicación y, si no hay, las del .env (compatibilidad). */
+export async function leerCredenciales(ej: Ejecutor): Promise<CredencialesGoogle | null> {
+  const filas = await ej.select().from(ajustes);
+  const id = filas.find((f) => f.clave === CLAVE_CLIENT_ID)?.valor;
+  const cif = filas.find((f) => f.clave === CLAVE_CLIENT_SECRETO)?.valor;
+  if (id && cif) {
+    try {
+      return { id, secreto: descifrar(cif, "drive"), origen: "aplicacion" };
+    } catch {
+      /* clave de cifrado distinta (copia de otra instalación): hay que volver a escribirlas */
+    }
+  }
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) return { id: process.env.GOOGLE_CLIENT_ID, secreto: process.env.GOOGLE_CLIENT_SECRET, origen: "env" };
+  return null;
+}
+
+export async function guardarCredenciales(ej: Ejecutor, id: string, secreto: string): Promise<void> {
+  const limpio = { id: id.trim(), secreto: secreto.trim() };
+  if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(limpio.id)) throw new HttpError(400, "El ID de cliente no parece válido: termina en «.apps.googleusercontent.com».");
+  if (limpio.secreto.length < 10) throw new HttpError(400, "Falta el secreto de cliente.");
+  await ej.insert(ajustes).values({ clave: CLAVE_CLIENT_ID, valor: limpio.id }).onConflictDoUpdate({ target: ajustes.clave, set: { valor: limpio.id } });
+  const cif = cifrar(limpio.secreto, "drive");
+  await ej.insert(ajustes).values({ clave: CLAVE_CLIENT_SECRETO, valor: cif }).onConflictDoUpdate({ target: ajustes.clave, set: { valor: cif } });
+}
+
+export async function borrarCredenciales(ej: Ejecutor): Promise<void> {
+  await ej.delete(ajustes).where(eq(ajustes.clave, CLAVE_CLIENT_ID));
+  await ej.delete(ajustes).where(eq(ajustes.clave, CLAVE_CLIENT_SECRETO));
+}
+
+/** Dirección pública con la que se está usando la aplicación (detrás de Tailscale o Cloudflare llega en las cabeceras). */
+export function origenDe(req: Request): string {
+  const h = req.headers;
+  const proto = h.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const host = h.get("x-forwarded-host")?.split(",")[0]?.trim() ?? h.get("host") ?? new URL(req.url).host;
+  return `${proto ?? new URL(req.url).protocol.replace(":", "")}://${host}`;
+}
+
+export const urlRedireccion = (origen: string): string => `${origen.replace(/\/+$/, "")}/api/admin/drive/callback`;
 
 /* ---- «state» firmado contra CSRF ---- */
 
@@ -47,14 +91,14 @@ export function validarState(state: string, idUsuario: number, ahora = Date.now(
   return Number(partes[0]) === idUsuario && Number(partes[1]) > ahora;
 }
 
-export function urlAutorizacion(state: string): string {
+export function urlAutorizacion(state: string, cred: CredencialesGoogle, origen: string): string {
   const p = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID ?? "",
-    redirect_uri: urlRedireccion(),
+    client_id: cred.id,
+    redirect_uri: urlRedireccion(origen),
     response_type: "code",
     scope: ALCANCE,
     access_type: "offline",
-    prompt: "consent",
+    prompt: "consent select_account",
     include_granted_scopes: "true",
     state,
   });
@@ -63,8 +107,8 @@ export function urlAutorizacion(state: string): string {
 
 /* ---- Tokens ---- */
 
-async function pedirToken(cuerpo: Record<string, string>): Promise<{ access_token: string; refresh_token?: string; error?: string }> {
-  const r = await fetch(URL_TOKEN, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID ?? "", client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "", ...cuerpo }) });
+async function pedirToken(cred: CredencialesGoogle, cuerpo: Record<string, string>): Promise<{ access_token: string; refresh_token?: string; error?: string }> {
+  const r = await fetch(URL_TOKEN, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: cred.id, client_secret: cred.secreto, ...cuerpo }) });
   const json = (await r.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; error?: string; error_description?: string };
   if (!r.ok || !json.access_token) {
     const e = new HttpError(r.status === 400 || r.status === 401 ? 401 : 502, json.error_description ?? json.error ?? "Google no aceptó la petición");
@@ -75,8 +119,10 @@ async function pedirToken(cuerpo: Record<string, string>): Promise<{ access_toke
 }
 
 /** Guarda la conexión tras el consentimiento de Google. */
-export async function completarConexion(ej: Ejecutor, codigo: string): Promise<{ email: string | null }> {
-  const t = await pedirToken({ grant_type: "authorization_code", code: codigo, redirect_uri: urlRedireccion() });
+export async function completarConexion(ej: Ejecutor, codigo: string, origen: string): Promise<{ email: string | null }> {
+  const cred = await leerCredenciales(ej);
+  if (!cred) throw new HttpError(409, "Faltan las credenciales de Google: escríbelas en Configuración › Copias de seguridad › Google Drive.");
+  const t = await pedirToken(cred, { grant_type: "authorization_code", code: codigo, redirect_uri: urlRedireccion(origen) });
   if (!t.refresh_token) throw new HttpError(400, "Google no ha devuelto permiso permanente. Vuelve a conectar y acepta todos los permisos.");
   let email: string | null = null;
   try {
@@ -100,19 +146,24 @@ export interface EstadoDrive {
   requiereReconexion: boolean;
   email: string | null;
   carpetaId: string | null;
+  /** Id de cliente guardado (nunca el secreto) y de dónde sale. */
+  clientId: string | null;
+  credencialesEn: "aplicacion" | "env" | null;
 }
 
 export async function estadoDrive(ej: Ejecutor): Promise<EstadoDrive> {
   const [c] = await ej.select().from(conexionDrive).where(eq(conexionDrive.id, 1));
-  return { configurado: driveConfigurado(), conectado: Boolean(c), requiereReconexion: c?.requiereReconexion ?? false, email: c?.email ?? null, carpetaId: c?.carpetaId ?? null };
+  const cred = await leerCredenciales(ej);
+  return { clientId: cred?.id ?? null, credencialesEn: cred?.origen ?? null, configurado: Boolean(cred), conectado: Boolean(c), requiereReconexion: c?.requiereReconexion ?? false, email: c?.email ?? null, carpetaId: c?.carpetaId ?? null };
 }
 
 async function tokenDeAcceso(ej: Ejecutor): Promise<string> {
   const [c] = await ej.select().from(conexionDrive).where(eq(conexionDrive.id, 1));
   if (!c) throw new HttpError(409, "Google Drive no está conectado");
-  if (!driveConfigurado()) throw new HttpError(409, "Faltan GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET o PUBLIC_URL en la configuración");
+  const cred = await leerCredenciales(ej);
+  if (!cred) throw new HttpError(409, "Faltan las credenciales de Google (Configuración › Copias de seguridad › Google Drive)");
   try {
-    return (await pedirToken({ grant_type: "refresh_token", refresh_token: descifrar(c.refreshTokenCifrado, "drive") })).access_token;
+    return (await pedirToken(cred, { grant_type: "refresh_token", refresh_token: descifrar(c.refreshTokenCifrado, "drive") })).access_token;
   } catch (e) {
     if ((e as { invalidGrant?: boolean }).invalidGrant) {
       await ej.update(conexionDrive).set({ requiereReconexion: true }).where(eq(conexionDrive.id, 1));

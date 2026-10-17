@@ -3,13 +3,13 @@ import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
 import { manejar } from "@/lib/http";
-import { desconectar, estadoDrive } from "@/lib/servicios/drive";
+import { desconectar, estadoDrive, origenDe, urlRedireccion } from "@/lib/servicios/drive";
 
 export const dynamic = "force-dynamic";
 
-export const GET = manejar(async () => {
+export const GET = manejar(async (req: Request) => {
   await requireSession("administrador");
-  return NextResponse.json({ success: true, data: await estadoDrive(db) });
+  return NextResponse.json({ success: true, data: { ...(await estadoDrive(db)), urlRedireccion: urlRedireccion(origenDe(req)) } });
 });
 
 /** Desconectar Google Drive (borra el refresh token guardado). */
