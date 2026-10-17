@@ -130,7 +130,8 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
   };
 
   const r = datos;
-  const filas = (r?.filas ?? []).filter((f) => filtro === "todos" || f.estado !== "ok");
+  const esDuplicada = (f: { duplicadaEn: string[]; repetidaEnHoja: boolean }) => f.duplicadaEn.length > 0 || f.repetidaEnHoja;
+  const filas = (r?.filas ?? []).filter((f) => filtro === "todos" || f.estado !== "ok" || esDuplicada(f));
   const cabeceras = borrador?.matriz?.[borrador.mapeo?.filaCabecera ?? 0] ?? [];
   const selectorColumna = (valor: number | null, onChange: (v: number | null) => void) => (
     <select className="form-input" value={valor ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}>
@@ -298,6 +299,7 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
               { t: "Faltan en la hoja", v: r.resumen.faltan, c: "var(--danger, #ef4444)" },
               { t: "No están en la app", v: r.resumen.sobran + r.resumen.otroMes, c: "var(--warning)" },
               { t: "Sin importe", v: r.resumen.sinImporte, c: "var(--warning)" },
+              { t: "Posibles duplicados", v: r.resumen.duplicados, c: "var(--danger, #ef4444)" },
             ].map((x) => (
               <div key={x.t} className="glass-panel" style={{ padding: "12px 14px" }}>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{x.t}</div>
@@ -319,10 +321,15 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
               ❌ <b>{r.resumen.faltan} coche(s) tienen comisión en la app pero no aparecen en la hoja de la empresa.</b> Revisa si se han quedado sin comisionar y márcalos como «reclamado» cuando lo comuniques.
             </div>
           )}
+          {r.resumen.duplicados > 0 && (
+            <div role="alert" style={{ padding: "12px 16px", borderLeft: "4px solid var(--danger, #ef4444)", background: "rgba(239, 68, 68, 0.08)", borderRadius: "var(--radius-sm)" }}>
+              🔁 <b>{r.resumen.duplicados} coche(s) parecen duplicados.</b> Su matrícula aparece también en la hoja de otro mes que tienes guardada, o está repetida con el mismo concepto e importe en esta hoja. Si la empresa te ha pagado dos veces el mismo coche, o lo ha movido de un mes a otro, aquí lo verás marcado con 🔁.
+            </div>
+          )}
           <div style={{ display: "flex", gap: "6px" }}>
             {(["incidencias", "todos"] as const).map((f) => (
               <button key={f} type="button" className={`btn ${filtro === f ? "btn-primary" : "btn-secondary"}`} style={{ padding: "6px 12px" }} onClick={() => setFiltro(f)}>
-                {f === "incidencias" ? `Incidencias (${r.filas.filter((x) => x.estado !== "ok").length})` : `Todos (${r.filas.length})`}
+                {f === "incidencias" ? `Incidencias (${r.filas.filter((x) => x.estado !== "ok" || esDuplicada(x)).length})` : `Todos (${r.filas.length})`}
               </button>
             ))}
           </div>
@@ -350,6 +357,11 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
                         </Link>
                       ) : (
                         f.matricula
+                      )}
+                      {esDuplicada(f) && (
+                        <span title={[f.duplicadaEn.length > 0 ? `También sale en la hoja de ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "", f.repetidaEnHoja ? "Está repetida con el mismo concepto e importe en esta hoja" : ""].filter(Boolean).join(". ")} style={{ marginLeft: "6px", fontSize: "0.72rem", fontWeight: 700, color: "var(--danger, #ef4444)", border: "1px solid var(--danger, #ef4444)", borderRadius: "999px", padding: "1px 7px", whiteSpace: "nowrap" }}>
+                          🔁 {f.duplicadaEn.length > 0 ? `también en ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "repetida"}
+                        </span>
                       )}
                     </td>
                     <td>{f.cliente ?? "—"}</td>

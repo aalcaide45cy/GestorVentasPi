@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { clientes, commissionLiquidations, expedientes, rejillaFilas, rejillas, tipoDeVenta, usuarios, validacionesComision } from "@/db/schema";
@@ -65,6 +65,10 @@ export interface FilaComprobacion {
   validacion: EstadoValidacion;
   validacionManual: boolean;
   notaValidacion: string | null;
+  /** Meses cuyas otras hojas guardadas traen también esta matrícula (posible coche duplicado de un mes a otro). */
+  duplicadaEn: string[];
+  /** La matrícula sale más de una vez con el mismo concepto e importe dentro de esta hoja. */
+  repetidaEnHoja: boolean;
 }
 
 export interface ResultadoRejilla {
@@ -73,7 +77,7 @@ export interface ResultadoRejilla {
   hayLiquidacion: boolean;
   rejilla: { id: number; origen: string; nombreArchivo: string | null; creadaEn: string; totalHoja: number | null; filas: number } | null;
   filas: FilaComprobacion[];
-  resumen: { cuadran: number; distintos: number; faltan: number; sobran: number; sinImporte: number; otroMes: number; importeApp: number; importeHoja: number; diferencia: number; pendientes: number };
+  resumen: { duplicados: number; cuadran: number; distintos: number; faltan: number; sobran: number; sinImporte: number; otroMes: number; importeApp: number; importeHoja: number; diferencia: number; pendientes: number };
 }
 
 const PROBLEMAS: EstadoComprobacion[] = ["falta_en_hoja", "distinto", "sin_importe", "no_en_app", "otro_mes"];
@@ -168,7 +172,7 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
 
   const filas: FilaComprobacion[] = [];
   const usadas = new Set<string>();
-  const construir = (base: Omit<FilaComprobacion, "validacion" | "validacionManual" | "notaValidacion" | "diferencia">): FilaComprobacion => {
+  const construir = (base: Omit<FilaComprobacion, "validacion" | "validacionManual" | "notaValidacion" | "diferencia" | "duplicadaEn" | "repetidaEnHoja">): FilaComprobacion => {
     const v = base.idExpediente !== null ? manual.get(base.idExpediente) : undefined;
     return {
       ...base,
@@ -176,6 +180,8 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
       validacion: v ? (v.estado as EstadoValidacion) : base.estado === "ok" ? "pagado" : "pendiente",
       validacionManual: !!v,
       notaValidacion: v?.nota ?? null,
+      duplicadaEn: [],
+      repetidaEnHoja: false,
     };
   };
 
@@ -243,6 +249,29 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     );
   }
 
+  // Posibles duplicados: la misma matrícula en la hoja de otro mes, o repetida con lo mismo dentro de esta hoja
+  const otrasHojas = await ej
+    .select({ mes: rejillas.mes, matricula: rejillaFilas.matricula })
+    .from(rejillaFilas)
+    .innerJoin(rejillas, eq(rejillas.id, rejillaFilas.idRejilla))
+    .where(and(eq(rejillas.idUsuario, idUsuario), ne(rejillas.mes, mes)));
+  const mesesPorMatricula = new Map<string, Set<string>>();
+  for (const o of otrasHojas) {
+    const k = normalizarMatricula(o.matricula);
+    if (k) mesesPorMatricula.set(k, (mesesPorMatricula.get(k) ?? new Set()).add(o.mes));
+  }
+  const veces = new Map<string, number>();
+  for (const f of hojaFilas) {
+    const k = `${normalizarMatricula(f.matricula)}|${(f.concepto ?? "").trim().toLowerCase()}|${f.importe ?? ""}`;
+    veces.set(k, (veces.get(k) ?? 0) + 1);
+  }
+  for (const f of filas) {
+    const k = normalizarMatricula(f.matricula);
+    if (!k) continue;
+    f.duplicadaEn = [...(mesesPorMatricula.get(k) ?? [])].sort();
+    f.repetidaEnHoja = [...veces.entries()].some(([clave, n]) => n > 1 && clave.startsWith(`${k}|`));
+  }
+
   filas.sort((a, b) => Number(!PROBLEMAS.includes(a.estado)) - Number(!PROBLEMAS.includes(b.estado)) || a.matricula.localeCompare(b.matricula));
 
   const cuenta = (e: EstadoComprobacion) => filas.filter((f) => f.estado === e).length;
@@ -253,6 +282,7 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     rejilla: cab ? { id: cab.id, origen: cab.origen, nombreArchivo: cab.nombreArchivo, creadaEn: cab.creadaEn.toISOString(), totalHoja: cab.totalHoja, filas: hojaFilas.length } : null,
     filas,
     resumen: {
+      duplicados: filas.filter((f) => f.duplicadaEn.length > 0 || f.repetidaEnHoja).length,
       cuadran: cuenta("ok"),
       distintos: cuenta("distinto"),
       faltan: cuenta("falta_en_hoja"),
