@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
 import type { AjustesCopias, CopiaDto, EstadoCopias } from "@/lib/servicios/copias";
-import type { EstadoDrive } from "@/lib/servicios/drive";
+import type { EstadoDrive, InicioDispositivo, SondeoDispositivo } from "@/lib/servicios/drive";
 
 interface Datos {
   copias: CopiaDto[];
@@ -190,8 +190,57 @@ export default function PanelCopias() {
       return "Ajustes de copias guardados.";
     });
 
+  // Conexión con código (llave de la aplicación): se enseña el código y se pregunta a Google hasta que se dé permiso
+  const [dispositivo, setDispositivo] = useState<InicioDispositivo | null>(null);
+  useEffect(() => {
+    if (!dispositivo) return;
+    let vigente = true;
+    let espera = dispositivo.intervalo;
+    const limite = Date.now() + dispositivo.caduca * 1000;
+    const preguntar = async () => {
+      if (!vigente) return;
+      if (Date.now() > limite) {
+        setDispositivo(null);
+        mostrar("El código ha caducado. Pulsa «Conectar» para pedir otro.", "error");
+        return;
+      }
+      try {
+        const { data } = await llamar<SondeoDispositivo>("/api/admin/drive/dispositivo", { method: "PUT", cuerpo: { codigoDispositivo: dispositivo.codigoDispositivo } });
+        if (!vigente) return;
+        if (data.estado === "conectado") {
+          setDispositivo(null);
+          mostrar(`Google Drive conectado${data.email ? ` como ${data.email}` : ""}.`);
+          recargar();
+          return;
+        }
+        if (data.estado === "denegado" || data.estado === "caducado") {
+          setDispositivo(null);
+          mostrar(data.estado === "denegado" ? "Has rechazado el permiso en Google." : "El código ha caducado. Pulsa «Conectar» para pedir otro.", "error");
+          return;
+        }
+        if (data.estado === "lento") espera += 5;
+      } catch (e) {
+        if (!vigente) return;
+        setDispositivo(null);
+        mostrar(textoError(e), "error");
+        return;
+      }
+      setTimeout(() => void preguntar(), espera * 1000);
+    };
+    const t = setTimeout(() => void preguntar(), espera * 1000);
+    return () => {
+      vigente = false;
+      clearTimeout(t);
+    };
+  }, [dispositivo, mostrar, recargar]);
+
   const conectarDrive = () =>
     accion("conectar", async () => {
+      if (datos.drive?.credencialesEn === "env") {
+        const { data } = await llamar<InicioDispositivo>("/api/admin/drive/dispositivo", { method: "POST" });
+        setDispositivo(data);
+        return;
+      }
       const { data } = await llamar<{ url: string }>("/api/admin/drive/conectar");
       window.location.href = data.url;
     });
@@ -509,7 +558,26 @@ export default function PanelCopias() {
             </div>
           </div>
         )}
-        {drive?.configurado && !drive.conectado && (
+        {dispositivo && (
+          <div role="status" style={{ display: "flex", flexDirection: "column", gap: "10px", border: "2px solid var(--primary)", borderRadius: "var(--radius-sm)", padding: "16px 18px" }}>
+            <b>Conecta tu Google Drive en 3 pasos</b>
+            <ol style={{ margin: 0, paddingLeft: "20px", lineHeight: 1.8 }}>
+              <li>
+                Abre <a href={dispositivo.url} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", fontWeight: 700 }}>{dispositivo.url.replace("https://", "")}</a> (desde este equipo o desde tu móvil).
+              </li>
+              <li>
+                Escribe este código: <code style={{ fontSize: "1.6rem", fontWeight: 800, letterSpacing: "3px", background: "var(--bg-card)", padding: "4px 12px", borderRadius: "6px" }}>{dispositivo.codigoUsuario}</code>
+              </li>
+              <li>Elige tu cuenta de Google y pulsa «Permitir». Esta pantalla se actualiza sola.</li>
+            </ol>
+            <div>
+              <button type="button" className="btn btn-secondary" onClick={() => setDispositivo(null)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+        {drive?.configurado && !drive.conectado && !dispositivo && (
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={conectarDrive} title="Se abre una ventana de Google: eliges tu cuenta y das permiso. La carpeta de las copias se crea sola con el nombre que pongas en los ajustes de arriba">
               Conectar con Google Drive

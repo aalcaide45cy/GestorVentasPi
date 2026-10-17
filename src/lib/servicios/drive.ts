@@ -123,6 +123,11 @@ export async function completarConexion(ej: Ejecutor, codigo: string, origen: st
   const cred = await leerCredenciales(ej);
   if (!cred) throw new HttpError(409, "Faltan las credenciales de Google: escríbelas en Configuración › Copias de seguridad › Google Drive.");
   const t = await pedirToken(cred, { grant_type: "authorization_code", code: codigo, redirect_uri: urlRedireccion(origen) });
+  return guardarConexion(ej, t);
+}
+
+/** Guarda la conexión con los permisos que acaba de dar Google (flujo web o código de dispositivo). */
+async function guardarConexion(ej: Ejecutor, t: { access_token: string; refresh_token?: string }): Promise<{ email: string | null }> {
   if (!t.refresh_token) throw new HttpError(400, "Google no ha devuelto permiso permanente. Vuelve a conectar y acepta todos los permisos.");
   let email: string | null = null;
   try {
@@ -134,6 +139,64 @@ export async function completarConexion(ej: Ejecutor, codigo: string, origen: st
   const valores = { refreshTokenCifrado: cifrar(t.refresh_token, "drive"), email, carpetaId: null, conectadaEn: new Date(), requiereReconexion: false };
   await ej.insert(conexionDrive).values({ id: 1, ...valores }).onConflictDoUpdate({ target: conexionDrive.id, set: valores });
   return { email };
+}
+
+export interface InicioDispositivo {
+  /** Código corto que la persona escribe en la página de Google. */
+  codigoUsuario: string;
+  /** Página de Google donde se escribe (google.com/device). */
+  url: string;
+  /** Identificador interno para preguntar si ya se ha dado permiso. */
+  codigoDispositivo: string;
+  /** Segundos que hay que esperar entre preguntas. */
+  intervalo: number;
+  /** Segundos que dura el código. */
+  caduca: number;
+}
+
+const URL_DISPOSITIVO = "https://oauth2.googleapis.com/device/code";
+
+/**
+ * Conexión sin direcciones de vuelta (ideal para la Raspberry): Google da un código corto, la persona lo escribe en
+ * google.com/device desde cualquier móvil u ordenador, elige su cuenta y da permiso. Necesita una «llave» de tipo
+ * «dispositivos de entrada limitada».
+ */
+export async function iniciarDispositivo(ej: Ejecutor): Promise<InicioDispositivo> {
+  const cred = await leerCredenciales(ej);
+  if (!cred) throw new HttpError(409, "Faltan las credenciales de Google.");
+  const r = await fetch(URL_DISPOSITIVO, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: cred.id, scope: ALCANCE }) });
+  const j = (await r.json().catch(() => ({}))) as { device_code?: string; user_code?: string; verification_url?: string; expires_in?: number; interval?: number; error?: string; error_description?: string };
+  if (!r.ok || !j.device_code || !j.user_code) {
+    throw new HttpError(502, j.error === "invalid_client" || j.error === "unauthorized_client" ? "Esta llave de Google no sirve para conectar con código. Hace falta una de tipo «dispositivos de entrada limitada»." : (j.error_description ?? j.error ?? "Google no ha dado el código de conexión"));
+  }
+  return { codigoUsuario: j.user_code, url: j.verification_url ?? "https://www.google.com/device", codigoDispositivo: j.device_code, intervalo: Math.max(3, j.interval ?? 5), caduca: j.expires_in ?? 1800 };
+}
+
+export type SondeoDispositivo = { estado: "pendiente" | "lento" | "denegado" | "caducado" } | { estado: "conectado"; email: string | null };
+
+/** Pregunta a Google si la persona ya ha dado permiso; si sí, guarda la conexión. */
+export async function sondearDispositivo(ej: Ejecutor, codigoDispositivo: string): Promise<SondeoDispositivo> {
+  const cred = await leerCredenciales(ej);
+  if (!cred) throw new HttpError(409, "Faltan las credenciales de Google.");
+  const r = await fetch(URL_TOKEN, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: cred.id, client_secret: cred.secreto, device_code: codigoDispositivo, grant_type: "urn:ietf:params:oauth:grant-type:device_code" }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; error?: string };
+  if (r.ok && j.access_token) return { estado: "conectado", ...(await guardarConexion(ej, { access_token: j.access_token, refresh_token: j.refresh_token })) };
+  switch (j.error) {
+    case "authorization_pending":
+      return { estado: "pendiente" };
+    case "slow_down":
+      return { estado: "lento" };
+    case "access_denied":
+      return { estado: "denegado" };
+    case "expired_token":
+      return { estado: "caducado" };
+    default:
+      throw new HttpError(502, "Google no ha aceptado la conexión. Vuelve a intentarlo.");
+  }
 }
 
 export async function desconectar(ej: Ejecutor): Promise<void> {

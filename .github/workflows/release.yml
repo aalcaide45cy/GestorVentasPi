@@ -43,6 +43,8 @@ jobs:
           build-args: |
             VERSION=${{ steps.v.outputs.version }}
             COMMIT=${{ github.sha }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
           tags: |
             ghcr.io/aalcaide45cy/gestorventaspi:${{ steps.v.outputs.version }}
             ghcr.io/aalcaide45cy/gestorventaspi:latest
