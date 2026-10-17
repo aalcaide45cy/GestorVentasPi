@@ -1430,7 +1430,7 @@ export default function ExpedientesList({
                           </td>
                       ),
                       estado: mostrarCol("estado") && (
-                          <td>
+                          <td style={{ textAlign: "center" }}>
                             <BadgeEstado exp={exp} />
                           </td>
                       ),

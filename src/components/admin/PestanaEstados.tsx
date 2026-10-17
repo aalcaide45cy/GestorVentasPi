@@ -9,6 +9,38 @@ interface Props {
   setEstados: (fn: (prev: EstadoVehiculoDto[]) => EstadoVehiculoDto[]) => void;
 }
 
+const NUEVO_SUBTIPO = "__nuevo__";
+
+/**
+ * Subtipo de un estado usado: agrupa estados que comparten tarifa en la pestaña «Usados / VO» del plan (por ejemplo KM0, DEMO o
+ * BUYBACK). Se elige de la lista de los que ya existen o se escribe uno nuevo.
+ */
+function SelectorSubtipo({ valor, alCambiar, opciones, pequeno }: { valor: string; alCambiar: (v: string) => void; opciones: string[]; pequeno?: boolean }) {
+  const [escribiendo, setEscribiendo] = useState(false);
+  const estilo = { padding: "4px 8px", fontSize: pequeno ? "0.8rem" : "0.9rem" } as const;
+  if (escribiendo) {
+    return (
+      <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
+        <input className="form-input" autoFocus value={valor} onChange={(e) => alCambiar(e.target.value.toUpperCase())} placeholder="NUEVO SUBTIPO" style={{ ...estilo, width: "130px" }} title="Nombre del subtipo nuevo (se usará para sus tarifas en el plan)" />
+        <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => setEscribiendo(false)} title="Volver a la lista de subtipos">
+          ✕
+        </button>
+      </span>
+    );
+  }
+  const lista = valor && !opciones.includes(valor) ? [...opciones, valor] : opciones;
+  return (
+    <select className="form-input" value={valor} onChange={(e) => (e.target.value === NUEVO_SUBTIPO ? (alCambiar(""), setEscribiendo(true)) : alCambiar(e.target.value))} style={estilo} title="Subtipo de usado: estados con el mismo subtipo comparten tarifa en la pestaña «Usados / VO» del plan">
+      {lista.map((x) => (
+        <option key={x} value={x}>
+          {x}
+        </option>
+      ))}
+      <option value={NUEVO_SUBTIPO}>➕ Crear subtipo nuevo…</option>
+    </select>
+  );
+}
+
 /** Pestaña «Estados» del vehículo. Solo uno puede ser el predeterminado. */
 export default function PestanaEstados({ estados, setEstados }: Props) {
   const { cargando, llamar, ejecutar } = usePeticion();
@@ -25,6 +57,8 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const [subtipoEdicion, setSubtipoEdicion] = useState("USADO");
   const [colorEdicion, setColorEdicion] = useState("");
 
+  // Subtipos que ya existen (los de los estados creados y los habituales): se eligen en una lista, o se crea uno nuevo
+  const subtipos = [...new Set(["USADO", "KM0", "DEMO", "BUYBACK", ...estados.map((e) => e.subtipo_vo).filter((x): x is string => !!x)])];
   const valor = (e: EstadoVehiculoDto): string | number => (orden.campo === "nombre" ? e.nombre_estado_vehiculo : e.id_estado_vehiculo);
   const ordenados = [...estados].sort((a, b) => comparar(valor(a), valor(b), orden.asc));
 
@@ -99,14 +133,9 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
         {clase === "VO" && (
           <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Subtipo para las tarifas de usados del plan (USADO, KM0, DEMO, BUYBACK…)">
             Subtipo
-            <input className="form-input" list="subtipos-estado" value={subtipo} onChange={(e) => setSubtipo(e.target.value)} style={{ width: "120px", padding: "4px 8px" }} />
+            <SelectorSubtipo valor={subtipo} alCambiar={setSubtipo} opciones={subtipos} />
           </label>
         )}
-        <datalist id="subtipos-estado">
-          {["USADO", "KM0", "DEMO", "BUYBACK"].map((x) => (
-            <option key={x} value={x} />
-          ))}
-        </datalist>
         <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Color de la etiqueta de este estado en las listas. Si no eliges ninguno se usa el de siempre">
           Color
           <input type="color" value={color || "#3b82f6"} onChange={(e) => setColor(e.target.value)} style={{ width: "36px", height: "28px", padding: 0, border: "none", background: "none", cursor: "pointer" }} />
@@ -157,7 +186,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                         <option value="VN">Nuevo (VN)</option>
                         <option value="VO">Usado (VO)</option>
                       </select>
-                      {claseEdicion === "VO" && <input className="form-input" list="subtipos-estado" value={subtipoEdicion} onChange={(ev) => setSubtipoEdicion(ev.target.value)} style={{ width: "100px", padding: "4px 8px", fontSize: "0.8rem" }} title="Subtipo para las tarifas de usados" />}
+                      {claseEdicion === "VO" && <SelectorSubtipo valor={subtipoEdicion} alCambiar={setSubtipoEdicion} opciones={subtipos} pequeno />}
                     </span>
                   ) : (
                     <span style={{ fontWeight: 700, color: e.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{e.clase === "VO" ? `Usado${e.subtipo_vo ? ` · ${e.subtipo_vo}` : ""}` : "Nuevo"}</span>

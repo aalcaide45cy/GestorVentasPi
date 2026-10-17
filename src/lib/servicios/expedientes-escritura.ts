@@ -42,11 +42,9 @@ async function tiendaUnica(ej: Ejecutor, idUsuario: number): Promise<number | nu
 async function resolverEstado(ej: Ejecutor, id: number | null | undefined, nombre?: string): Promise<number | null> {
   if (id) return id;
   if (nombre?.toLowerCase() === "usado") {
-    const [e] = await ej
-      .select()
-      .from(estadoVehiculo)
-      .where(ilike(estadoVehiculo.nombreEstadoVehiculo, "usado"))
-      .limit(1);
+    // «Usado» se busca por su clase (VO), no por el nombre: así se puede renombrar el estado (por ejemplo a «VO»)
+    const usados = await ej.select().from(estadoVehiculo).where(and(eq(estadoVehiculo.clase, "VO"), isNull(estadoVehiculo.eliminadoEn)));
+    const e = usados.find((x) => x.subtipoVo === "USADO") ?? usados.find((x) => x.nombreEstadoVehiculo.toLowerCase() === "usado") ?? usados[0];
     return e?.idEstadoVehiculo ?? null;
   }
   const [def] = await ej.select().from(estadoVehiculo).where(eq(estadoVehiculo.predeterminado, true)).limit(1);
