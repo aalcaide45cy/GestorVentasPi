@@ -285,7 +285,7 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Botón **Contrastar listado** en Expedientes (solo lectura).
 - Pruebas: 342 en verde (nuevas: `cotejo-pagos`, `contraste-listado`, `servicios/cotejo`).
 
-## Versión 1.0.18 (17/10/2026, sin publicar)
+## Versión 1.0.18 (17/10/2026)
 
 - **Copias internas por sección**: se guardan dentro de la aplicación (tabla `copias_seccion`), con lista, buscador y filtros (origen, fechas), descargar, restaurar con vista previa y borrar; se hacen solas antes de cada importación (se conservan las últimas 20 por sección).
 - **Datos por secciones reorganizado** (Configuración › BBDD): secciones agrupadas, tarjetas iguales y botones Exportar | Importar | Copias; los mismos botones están en Clientes, Planes, Cotejo, catálogos y en la ventana «Importar y exportar» de Expedientes.
@@ -295,3 +295,4 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Laboratorio**: se mueve, se redimensiona, «Cerrar» lo recoloca; los avisos dicen cliente, vehículo y matrícula.
 - **Ayuda emergente** de reserva en todos los botones que no tenían.
 - Pruebas: nuevas `copias-seccion`, `plantillas-tarifas` y `plantillas-plan`.
+- Añadido después: comisionado desde «Editar expediente», tasa de intervención financiera en Comisiones, tablas con buscador en el desglose y la cartera, selección en lote de copias de seguridad, clave de recuperación para restaurar copias en cualquier instalación y aviso claro del JSON de datos básicos.
