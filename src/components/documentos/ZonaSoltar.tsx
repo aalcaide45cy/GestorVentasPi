@@ -53,7 +53,7 @@ export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocu
         recibir(e.dataTransfer.files);
       }}
       style={{
-        ...(compacta ? { flex: "0 0 auto", padding: "8px 14px", flexDirection: "row", gap: "10px" } : { flex: "1 1 180px", minWidth: "160px", padding: "14px 12px" }),
+        ...(compacta ? { flex: "0 0 auto", padding: "6px 14px", flexDirection: "row", gap: "10px", justifyContent: "center" } : { flex: "1 1 180px", minWidth: "160px", padding: "14px 12px" }),
         textAlign: "center",
         borderRadius: "var(--radius-sm)",
         border: `2px dashed ${encima ? "var(--primary)" : "var(--border-light)"}`,

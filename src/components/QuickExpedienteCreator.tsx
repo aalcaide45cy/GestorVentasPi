@@ -26,21 +26,21 @@ const estiloTarjetaMarca = {
   flexShrink: 1,
   flexBasis: "350px",
   maxWidth: "100%",
-  padding: "20px",
+  padding: "12px 14px",
   background: "rgba(255, 255, 255, 0.01)",
   border: "1px solid var(--border-light)",
   borderRadius: "var(--radius-md)",
   display: "flex",
   flexDirection: "column",
-  gap: "16px",
+  gap: "10px",
 } as const;
 
 const estiloTituloMarca = {
-  fontSize: "1.1rem",
+  fontSize: "1rem",
   fontWeight: 700,
   color: "var(--primary)",
   borderBottom: "1px solid var(--border-light)",
-  paddingBottom: "10px",
+  paddingBottom: "6px",
   margin: 0,
   display: "flex",
   alignItems: "center",
@@ -131,8 +131,8 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
             }}
             disabled={cargandoModelo !== null || leyendoPedido}
             style={{
-              fontSize: "0.75rem",
-              padding: "8px 4px",
+              fontSize: "0.72rem",
+              padding: "5px 4px",
               flex: "1 1 0px",
               minWidth: "0",
               display: "flex",
@@ -176,10 +176,10 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
   );
 
   return (
-    <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div className="glass-panel" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
         <div>
-          <h3 style={{ fontSize: "1.2rem", marginBottom: "4px" }}>Acceso Rápido a Modelos</h3>
+          <h3 style={{ fontSize: "1.05rem", marginBottom: "2px" }}>Acceso Rápido a Modelos</h3>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
             Crea expedientes de venta de forma instantánea pulsando en el método de pago bajo cada modelo, o arrastrando el pedido del cliente sobre el modelo y pago que quieras.
           </p>
@@ -318,7 +318,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       </div>
 
       <div style={{ display: "flex" }}>
-        <ZonaPedidos />
+        <ZonaPedidos compacta />
       </div>
 
       <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
@@ -333,24 +333,24 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
               </svg>
               {marca.nombre}
             </h4>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", width: "100%" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", width: "100%" }}>
               {marca.modelos.map((modelo) => (
                 <div
                   key={modelo.id_modelo}
                   className="glass-panel-interactive"
                   style={{
-                    padding: "16px",
+                    padding: "8px 10px",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "12px",
+                    gap: "6px",
                     background: "rgba(255, 255, 255, 0.02)",
                     border: "1px solid var(--border-light)",
-                    flex: "1 1 200px",
-                    minWidth: "160px",
+                    flex: "1 1 175px",
+                    minWidth: "175px",
                     maxWidth: "100%",
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text-primary)" }}>{modelo.nombre_modelo}</div>
+                  <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>{modelo.nombre_modelo}</div>
                   {botonesTipo(modelo.id_modelo, modelo.nombre_modelo)}
                 </div>
               ))}
@@ -373,16 +373,16 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
             <div
               className="glass-panel-interactive"
               style={{
-                padding: "16px",
+                padding: "8px 10px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "12px",
+                gap: "6px",
                 background: "rgba(255, 255, 255, 0.02)",
                 border: "1px solid var(--border-light)",
                 width: "100%",
               }}
             >
-              <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text-primary)" }}>Vehículo Usado (VO)</div>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>Vehículo Usado (VO)</div>
               {botonesTipo(null, "Vehículo Usado (VO)", "usado")}
             </div>
           </div>

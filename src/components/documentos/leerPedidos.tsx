@@ -85,7 +85,7 @@ export function useLeerPedidos() {
 }
 
 /** Cuadro para arrastrar uno o varios pedidos (PDF o foto) de golpe. */
-export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clientes" }: { etiqueta?: string }) {
+export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clientes", compacta = false }: { etiqueta?: string; compacta?: boolean }) {
   const { leer, leyendo, textoProgreso } = useLeerPedidos();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: "1 1 180px", minWidth: "160px" }}>
@@ -94,6 +94,7 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
         titulo={etiqueta}
         ayuda="Arrastra uno o varios pedidos (PDF o foto). Se leen en este equipo y quedan en la cola de pedidos: de cada uno eliges qué datos se aplican y si crea un expediente nuevo."
         multiple
+        compacta={compacta}
         ocupado={leyendo}
         textoOcupado={textoProgreso}
         alSoltar={(f) => leer(f)}
