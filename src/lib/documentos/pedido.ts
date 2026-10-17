@@ -127,12 +127,34 @@ interface Estructura {
 }
 
 /** Pedido de Renault/Dacia: bloque «CLIENTE» a la izquierda, establecimiento a la derecha, «RESUMEN» con el modelo. */
+/**
+ * El OCR pierde la «@» de los correos o la confunde con «E», «Q», «G», «©» o un espacio, y a veces deforma el dominio
+ * («hoimail», «gnail»). Si el resto cuadra con un proveedor conocido, se recompone el correo.
+ */
+function repararCorreo(c: string): string | null {
+  const m = c.trim().match(/^([\w.+-]{3,}?)(?:\s+|[EQG©@])(g[mn]a[il1]l|h[o0][tli1]{0,2}mail|outlook|yahoo|icloud|live|msn|me)\.([a-z.]{2,})$/);
+  if (!m) return null;
+  const d = m[2].toLowerCase();
+  const dominio = d.startsWith("g") ? "gmail" : d.startsWith("h") ? "hotmail" : d;
+  return `${m[1]}@${dominio}.${m[3]}`.toLowerCase();
+}
+
 function leerEstructuraRenault(lineas: string[]): Estructura | null {
   const iCliente = lineas.findIndex((l) => /^CLIENTE\b/.test(l.trim()) && /ESTABLECIMIENTO/i.test(l));
   if (iCliente < 0) return null;
   const bloque = lineas.slice(iCliente + 1);
   const iResumen = bloque.findIndex((l) => /^RESUMEN\b/.test(l.trim()));
-  const datos = iResumen >= 0 ? bloque.slice(0, iResumen) : bloque.slice(0, 12);
+  let datos = iResumen >= 0 ? bloque.slice(0, iResumen) : bloque.slice(0, 12);
+  // En un escaneo, la rayita o el logotipo de encima del nombre salen como una línea de basura: se salta hasta la línea del
+  // cliente («Sr. D. …», «Sra. Doña …») o, si no hay tratamiento, hasta la primera que parezca un nombre
+  const esNombre = (l: string) => {
+    const c = primeraColumna(l).trim();
+    const letras = (c.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g) ?? []).length;
+    return c.length >= 5 && /\s/.test(c) && letras / c.length >= 0.85 && !/\d/.test(c);
+  };
+  const iNombre = datos.findIndex((l) => HONORIFICO.test(primeraColumna(l).trim()));
+  const iPlausible = iNombre >= 0 ? iNombre : datos.findIndex(esNombre);
+  if (iPlausible > 0 && iPlausible < 4) datos = datos.slice(iPlausible);
 
   const e: Estructura = { numeroPedido: null, cliente: null, dni: null, domicilio: null, telefono: null, email: null, vendedor: null, fecha: null, plazo: null, modeloLinea: null };
   const num = lineas.join("\n").match(/N[úu]mero\s+Pedido\s+(\d{5,})/i);
@@ -151,8 +173,8 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   e.telefono = tel ? tel.replace(/\s/g, "") : null;
   const mail = col.slice(iCP + 1).find((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c));
   // El OCR suele perder la «@» (y a veces la deja como «Q»): «luisimarino gmail.com»
-  const mailSinArroba = col.slice(iCP + 1).map((c) => c.match(/^([\w.+-]+)\s+((?:gmail|hotmail|outlook|yahoo|icloud|live|msn)\.[a-z.]+)$/i)).find(Boolean);
-  e.email = mail ?? (mailSinArroba ? `${mailSinArroba[1]}@${mailSinArroba[2]}`.toLowerCase() : null);
+  const mailSinArroba = col.slice(iCP + 1).map(repararCorreo).find(Boolean);
+  e.email = mail ?? mailSinArroba ?? null;
   // Vendedor: el nombre que precede a la línea con su correo y teléfono (la segunda dirección de correo del bloque)
   const iVend = datos.findIndex((l, i) => i > 0 && /@|[a-z]Q[a-z]+\.(?:es|com)\b/.test(l) && /\d{9}/.test(l));
   if (iVend > 0) e.vendedor = primeraColumna(datos[iVend - 1]) || null;
@@ -218,7 +240,7 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   const cabecera = sinAcentos(texto.slice(0, 1500));
   // Un pedido escaneado puede perder el rótulo «USADO»: se reconoce también por «Renew», «Uso anterior» o el régimen R.E.B.U.
   const señalesUsado = /PEDIDO\s+DE\s+VEHICULO\s+RENEW|\bUSO\s+ANTERIOR\b|REGIMEN\s+R\.?\s?E\.?\s?B\.?\s?U|VEHICULOS?\s+DE\s+OCASION/.test(sinAcentos(texto.slice(0, 6000)));
-  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : null;
+  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : /^Modelo:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a:/im.test(texto.slice(0, 4000)) ? "nuevo" : null; // sin rótulo, la hoja con «Modelo / Color / Tapicería» es la de un coche nuevo
   const mayus = sinAcentos(sinRetoma.join("\n"));
   const avisos: string[] = [];
   const estructura = leerEstructuraRenault(lineas);

@@ -234,3 +234,34 @@ describe("pedido de vehículo usado con retoma", () => {
     expect(parsearPedido("PEDIDO DE VEHÍCULO\nUso Anterior  Particular\nMatrícula  3881LYM", catalogo).tipoPedido).toBe("usado");
   });
 });
+
+describe("pedidos escaneados con ruido de OCR", () => {
+  const texto = [
+    "PEDIDO DE VEHÍCULO NUEVO",
+    "Emitido: Sábado, 05 Sep 2026 11:31 hs.",
+    "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+    "rr roo iovmicicco o rP|f[f[táTZZzZzT7rnvYÁcioóo>e?oe>r£..£xY  —",
+    "Sra. Doña Maria Jose Acuña Abadia  AUTOCARPE CONCESIONARIO, S.L.",
+    "00687749A  B83747626",
+    "Avenida Moratalaz, 135, 5, A  CLAVO, 22-26",
+    "Madrid, Madrid (28030)  Rivas - Vaciamadrid, Madrid (28522)",
+    "600345731  Tel.: 916665058",
+    "mjacunEhotmail.com  LaV:09:30a 13:30",
+    "Alfonso Alcaide Cornejo",
+    "alfonso.alcaideQautocarpe.es / 655455421",
+    "RESUMEN",
+  ].join("\n");
+  it("salta la línea de basura de encima del nombre y recompone el correo", () => {
+    const d = parsearPedido(texto, catalogo);
+    expect(d.cliente).toBe("Maria Jose Acuña Abadia");
+    expect(d.email).toBe("mjacun@hotmail.com");
+  });
+  it("recompone correos con «G» en vez de «@» y dominios deformados", () => {
+    const t = texto.replace("mjacunEhotmail.com", "f.mayor.casadoGhoimail.com");
+    expect(parsearPedido(t, catalogo).email).toBe("f.mayor.casado@hotmail.com");
+  });
+  it("sin rótulo de tipo, la hoja de «Modelo / Tapicería» es de un coche nuevo", () => {
+    const t = ["Número Pedido 14216411", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Sra. Doña Luisa Rodriguez", "RESUMEN", "Modelo:  DACIA NUEVO SANDERO Expression  16.138,02 €", "Color:  Blanco  0,00 €", "Tapicería:  Tela  0,00 €"].join("\n");
+    expect(parsearPedido(t, catalogo).tipoPedido).toBe("nuevo");
+  });
+});
