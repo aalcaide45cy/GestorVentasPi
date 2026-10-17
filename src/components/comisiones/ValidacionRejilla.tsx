@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ResumenLiquidacion from "@/components/cotejo/ResumenLiquidacion";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { codigoExpediente } from "@/lib/date-utils";
@@ -195,6 +196,10 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
             </p>
           ) : null}
           {borrador.aviso && <p style={{ margin: 0, color: "var(--warning)", fontSize: "0.9rem" }}>{borrador.aviso}</p>}
+          <details>
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>🧮 Ver mi liquidación de {nombreMes(mes)} para ir cotejando mientras revisas</summary>
+            <ResumenLiquidacion usuario={usuario} mes={mes} />
+          </details>
           {borrador.matriz && borrador.mapeo && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
               <div>
@@ -321,6 +326,7 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
               ❌ <b>{r.resumen.faltan} coche(s) tienen comisión en la app pero no aparecen en la hoja de la empresa.</b> Revisa si se han quedado sin comisionar y márcalos como «reclamado» cuando lo comuniques.
             </div>
           )}
+          <ResumenLiquidacion usuario={usuario} mes={mes} />
           {r.sinMatricula.length > 0 && (
             <div role="status" style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning, #eab308)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)" }}>
               🔎 <b>{r.sinMatricula.length} usado(s) de este mes no tienen matrícula</b>: {r.sinMatricula.map((u) => `${u.cliente ?? "Sin cliente"} (exp. ${u.idExpediente})`).join(", ")}. No es obligatoria al crear el expediente, pero sin ella no se puede cruzar con la hoja de la empresa: añádela cuando la tengas.

@@ -7,6 +7,7 @@ import type { ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import CotejoPagos from "./CotejoPagos";
 import MiMes from "./MiMes";
+import MisRejillas from "./MisRejillas";
 
 interface Props {
   expedientes: ExpedienteDto[];
@@ -22,6 +23,7 @@ const PESTANAS = [
   { id: "mes", icono: "📅", titulo: "Mi mes", ayuda: "Tu resumen del mes y la lista de coches para ir cotejándola a mano con la hoja de la empresa." },
   { id: "pago", icono: "🚗", titulo: "¿Me han pagado cada coche?", ayuda: "Subes la hoja de la empresa (PDF o foto) y la app lee las matrículas: te dice qué coches vendidos no te han pagado." },
   { id: "importes", icono: "✅", titulo: "¿Cuadran los importes?", ayuda: "Cruza la hoja de la empresa con tu liquidación de un mes, por matrícula e importe: faltan, sobran, distintos o duplicados." },
+  { id: "rejillas", icono: "📁", titulo: "Mis rejillas", ayuda: "Todas las rejillas que has guardado, por mes: para verlas, buscar en ellas, ordenarlas y cambiarles el mes." },
   { id: "nomina", icono: "💶", titulo: "Mi nómina", ayuda: "Compara tu nómina con la liquidación, concepto a concepto: marca cada uno cuando lo veas cobrado." },
 ] as const;
 
@@ -63,6 +65,7 @@ export default function CotejoHub({ expedientes, vendedores, nombreActual, esAdm
       {activa === "mes" && <MiMes expedientes={expedientes} vendedores={vendedores} nombreActual={nombreActual} esAdministrador={esAdministrador} />}
       {activa === "pago" && <CotejoPagos />}
       {activa === "importes" && <ValidacionRejilla cat={cat} usuarioInicial={inicial} esAdmin={esAdministrador} />}
+      {activa === "rejillas" && <MisRejillas esAdministrador={esAdministrador} />}
       {activa === "nomina" && <CotejoCobros cat={cat} usuarioInicial={inicial} esAdmin={esAdministrador} />}
     </div>
   );
