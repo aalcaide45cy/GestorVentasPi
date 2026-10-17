@@ -3,6 +3,7 @@
   "version": "1.0.18",
   "private": true,
   "scripts": {
+    "predev": "tsx src/db/migrar.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
