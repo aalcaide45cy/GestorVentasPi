@@ -238,8 +238,8 @@ export function calcularMes(
     anotar(i, comisionVn(plan, vendedor, i.e, tramo, tasaDe(i.e.idMarca), mes));
   }
 
-  /* Paso 8.2: comisión VO (mes de cobro) */
-  const vo = infos.filter((i) => i.e.clase === "VO" && mesDe(i.e.fechaCobro) === mes);
+  /* Paso 8.2: comisión VO (en el mes que cuenta el usado: facturación o cobro, según el plan) */
+  const vo = infos.filter((i) => i.e.clase === "VO" && i.mesComputo === mes);
   for (const [i, c] of comisionesVo(plan, vendedor, vo, mes)) anotar(i, c);
 
   /* Pasos 8.3 y 8.4: financiación y Preference (mes de la fecha RCI) */
@@ -407,7 +407,7 @@ function comisionVn(plan: PlanMotor, vendedor: VendedorMotor, e: ExpedienteMotor
 function comisionesVo(plan: PlanMotor, vendedor: VendedorMotor, vo: Info[], mes: Mes): [Info, ConceptoLinea][] {
   const res: [Info, ConceptoLinea][] = [];
   if (vo.length === 0) return res;
-  const ordenados = [...vo].sort((a, b) => (a.e.fechaCobro ?? "").localeCompare(b.e.fechaCobro ?? "") || a.e.id - b.e.id);
+  const ordenados = [...vo].sort((a, b) => (a.fechaComputo ?? "").localeCompare(b.fechaComputo ?? "") || a.e.id - b.e.id);
   const mk = (descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
     concepto: "vo",
     descripcion,

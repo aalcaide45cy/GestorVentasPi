@@ -79,10 +79,6 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
   }
   const resto = clave ? await cargarExpedientesMotor(ej, entrada.id_usuario, { desde: clave, hasta: clave }) : [];
   const sim = simularExpediente(plan, vendedor, motor, resto);
-  // La comisión de un usado se genera en el mes de cobro: sin fecha de cobro el desglose lo explica en vez de quedarse mudo
-  if (sim.linea && motor.clase === "VO" && !motor.fechaCobro) {
-    sim.linea = { ...sim.linea, conceptos: [...sim.linea.conceptos, { concepto: "vo", descripcion: "Comisión del usado", importe: 0, puntos: 0, evento: "COBRO", mesEvento: sim.mes ?? "", aviso: "Pendiente: la comisión de un usado se genera al poner la fecha de cobro (se cobra según el patrón de usados del plan)." }] };
-  }
   return {
     mes: sim.mes,
     aviso: sim.aviso,

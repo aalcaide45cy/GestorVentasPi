@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { EstadoVehiculoDto } from "@/lib/dto";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
 
@@ -58,7 +58,31 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const [colorEdicion, setColorEdicion] = useState("");
 
   // Subtipos que ya existen (los de los estados creados y los habituales): se eligen en una lista, o se crea uno nuevo
-  const subtipos = [...new Set(["USADO", "KM0", "DEMO", "BUYBACK", ...estados.map((e) => e.subtipo_vo).filter((x): x is string => !!x)])];
+  const [lista, setLista] = useState<{ nombre: string; estados: number; tarifas: number }[]>([]);
+  const [nuevoSubtipo, setNuevoSubtipo] = useState("");
+  const [renombrando, setRenombrando] = useState<{ de: string; a: string } | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/admin/subtipos-vo");
+        if (r.ok && vigente) setLista(((await r.json()) as { data: { nombre: string; estados: number; tarifas: number }[] }).data);
+      } catch {
+        /* se usan los de los estados */
+      }
+    })();
+    return () => {
+      vigente = false;
+    };
+  }, [estados]);
+  const subtipos = [...new Set([...lista.map((s) => s.nombre), ...estados.map((e) => e.subtipo_vo).filter((x): x is string => !!x)])];
+  const gestionar = async (metodo: "POST" | "PUT" | "DELETE", cuerpo: object, exito: string) => {
+    const ok = await ejecutar(async () => {
+      setLista(await llamar<typeof lista>("/api/admin/subtipos-vo", metodo, cuerpo, "No se ha podido guardar el subtipo"));
+    }, exito);
+    if (ok && metodo === "PUT") window.location.reload();
+    return ok;
+  };
   const valor = (e: EstadoVehiculoDto): string | number => (orden.campo === "nombre" ? e.nombre_estado_vehiculo : e.id_estado_vehiculo);
   const ordenados = [...estados].sort((a, b) => comparar(valor(a), valor(b), orden.asc));
 
@@ -249,6 +273,62 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ ...estiloPanel, display: "flex", flexDirection: "column", gap: "12px" }}>
+        <h3 style={{ fontSize: "1.05rem" }}>Subtipos de usados</h3>
+        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+          Un subtipo agrupa estados de coche usado que cobran con la misma tarifa en el plan (por ejemplo KM0, DEMO o BUYBACK). Aquí los creas, les cambias el nombre (se cambia también en los estados y en las tarifas de los planes) o los borras si no se usan.
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {lista.map((s) => (
+            <span key={s.nombre} style={{ display: "inline-flex", alignItems: "center", gap: "6px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 10px", fontSize: "0.85rem" }}>
+              {renombrando?.de === s.nombre ? (
+                <>
+                  <input className="form-input" autoFocus value={renombrando.a} onChange={(e) => setRenombrando({ de: s.nombre, a: e.target.value.toUpperCase() })} style={{ width: "120px", padding: "2px 6px" }} />
+                  <button type="button" className="btn btn-primary" style={{ padding: "2px 8px", fontSize: "0.75rem" }} disabled={cargando || !renombrando.a.trim()} onClick={() => void gestionar("PUT", { de: s.nombre, a: renombrando.a }, "Subtipo renombrado")}>
+                    Guardar
+                  </button>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.75rem" }} onClick={() => setRenombrando(null)}>
+                    ✕
+                  </button>
+                </>
+              ) : (
+                <>
+                  <b>{s.nombre}</b>
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }} title="Estados del vehículo y tarifas de planes que lo usan">
+                    {s.estados} estado(s) · {s.tarifas} tarifa(s)
+                  </span>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.75rem" }} onClick={() => setRenombrando({ de: s.nombre, a: s.nombre })} title="Cambiar el nombre">
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ ...estiloBotonPeligro, padding: "2px 8px", fontSize: "0.75rem" }}
+                    disabled={cargando || s.estados > 0 || s.tarifas > 0}
+                    onClick={() => void gestionar("DELETE", { nombre: s.nombre }, "Subtipo eliminado")}
+                    title={s.estados > 0 || s.tarifas > 0 ? "No se puede borrar mientras lo use un estado o una tarifa" : "Borrar el subtipo"}
+                  >
+                    🗑️
+                  </button>
+                </>
+              )}
+            </span>
+          ))}
+        </div>
+        <form
+          style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}
+          onSubmit={async (ev) => {
+            ev.preventDefault();
+            if (await gestionar("POST", { nombre: nuevoSubtipo }, "Subtipo creado")) setNuevoSubtipo("");
+          }}
+        >
+          <input className="form-input" placeholder="Nuevo subtipo (ej. RENTING)" value={nuevoSubtipo} onChange={(e) => setNuevoSubtipo(e.target.value.toUpperCase())} style={{ minWidth: "220px" }} maxLength={30} />
+          <button type="submit" className="btn btn-primary" disabled={cargando || !nuevoSubtipo.trim()}>
+            + Añadir subtipo
+          </button>
+        </form>
       </div>
     </div>
   );

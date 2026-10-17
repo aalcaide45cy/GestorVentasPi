@@ -397,24 +397,31 @@ export default function PanelCopias() {
       {ajustes && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid var(--border)", paddingTop: "14px" }}>
           <h4>Copia automática y retención</h4>
+          <div style={{ background: "var(--bg-card)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "0.88rem", lineHeight: 1.6 }}>
+            <b>Resumen de lo que hará la aplicación:</b>{" "}
+            {ajustes.automatica ? `hace una copia todos los días a las ${ajustes.hora}` : "no hace copias automáticas (solo las que tú pidas)"}.
+            {" "}Conserva las últimas {ajustes.retDiarias} copias diarias{ajustes.retSemanales > 0 ? `, ${ajustes.retSemanales} semanales (la última de cada semana)` : ""}
+            {ajustes.retMensuales > 0 ? ` y ${ajustes.retMensuales} mensuales (la última de cada mes)` : ""}; las demás automáticas se borran solas. Las copias que haces a mano nunca se borran solas.
+            {" "}{ajustes.driveAutomatica ? `A Drive sube ${ajustes.driveFrecuencia === "todas" ? "todas las automáticas" : ajustes.driveFrecuencia === "semanal" ? "una automática a la semana" : "una automática al mes"}, en la carpeta «${ajustes.driveCarpeta}».` : "No sube nada a Drive por su cuenta."}
+          </div>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "end" }}>
             <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <input type="checkbox" checked={ajustes.automatica} onChange={(e) => campoAjuste("automatica", e.target.checked)} /> Copia automática diaria
             </label>
             <div>
-              <label className="form-label">Hora</label>
+              <label className="form-label">Hora de la copia</label>
               <input className="form-input" type="time" value={ajustes.hora} onChange={(e) => campoAjuste("hora", e.target.value)} />
             </div>
             <div>
-              <label className="form-label">Diarias</label>
+              <label className="form-label" title="Cuántas copias de los últimos días se guardan">Guardar diarias (últimas)</label>
               <input className="form-input" type="number" min={1} style={{ width: "80px" }} value={ajustes.retDiarias} onChange={(e) => campoAjuste("retDiarias", Number(e.target.value))} />
             </div>
             <div>
-              <label className="form-label">Semanales</label>
+              <label className="form-label" title="Además de las diarias, la última copia de cada semana, durante este número de semanas">Guardar semanales</label>
               <input className="form-input" type="number" min={0} style={{ width: "80px" }} value={ajustes.retSemanales} onChange={(e) => campoAjuste("retSemanales", Number(e.target.value))} />
             </div>
             <div>
-              <label className="form-label">Mensuales</label>
+              <label className="form-label" title="Además, la última copia de cada mes, durante este número de meses">Guardar mensuales</label>
               <input className="form-input" type="number" min={0} style={{ width: "80px" }} value={ajustes.retMensuales} onChange={(e) => campoAjuste("retMensuales", Number(e.target.value))} />
             </div>
             <label style={{ display: "flex", gap: "6px", alignItems: "center" }} title="Sube a Google Drive las copias automáticas según la frecuencia que elijas. Las copias manuales las subes tú, una a una o en lote, con los botones de la lista">
