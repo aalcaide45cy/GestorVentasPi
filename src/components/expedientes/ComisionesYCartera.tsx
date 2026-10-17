@@ -10,7 +10,7 @@ import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import { usePreferencia } from "@/lib/preferencias";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import AvisoComision from "./AvisoComision";
-import { BadgeTipoVenta, TextoCopiable } from "./comun";
+import { BadgeEstado, BadgeTipoVenta, TextoCopiable } from "./comun";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -105,7 +105,7 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? f.info?.matricula ?? "", oculta: true },
   { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null) },
   { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.e?.tipoDeVenta?.nombre_tipo_venta ?? "", celda: (f) => (f.e?.tipoDeVenta ? <BadgeTipoVenta exp={f.e} /> : "—"), ayuda: "Forma de pago del expediente (contado, crédito, preference…)" },
-  { clave: "vnvo", etiqueta: "Nuevo / Usado", valor: (f) => (f.linea.clase === "VO" ? "Usado" : "Nuevo"), celda: (f) => <span style={{ fontWeight: 700, color: f.linea.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{f.linea.clase === "VO" ? "Usado (VO)" : "Nuevo (VN)"}</span>, ayuda: "Si el coche es nuevo (VN) o de ocasión (VO)" },
+  { clave: "vnvo", etiqueta: "Estado", valor: (f) => f.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.linea.clase === "VO" ? "Usado" : "Nuevo"), celda: (f) => (f.e?.estadoVehiculo ? <BadgeEstado exp={f.e} /> : <span style={{ fontWeight: 700, color: f.linea.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{f.linea.clase === "VO" ? "Usado" : "Nuevo"}</span>), ayuda: "Estado del vehículo del expediente, con el mismo color que en la lista de expedientes" },
   { clave: "cuenta", etiqueta: "Cuenta", valor: (f) => (f.linea.cuenta ? "Este mes" : "Otros conceptos"), ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes." },
   { clave: "puntos", etiqueta: "Puntos", valor: (f) => f.linea.puntos, celda: (f) => puntos(f.linea.puntos), alinear: "right", oculta: true },
   { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => centimos(f.coche), alinear: "right", ayuda: "Comisión del coche (tarifa VN o VO)" },
