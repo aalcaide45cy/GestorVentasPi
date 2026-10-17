@@ -1,4 +1,4 @@
-import { and, eq, ilike, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import {
   ajustes,
