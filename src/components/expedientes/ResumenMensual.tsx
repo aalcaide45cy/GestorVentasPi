@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, type KeyboardEvent } from "react";
 import { usePreferencia } from "@/lib/preferencias";
 import { useCarga } from "@/components/comisiones/useCarga";
 import type { ExpedienteDto } from "@/lib/dto";
@@ -132,8 +132,10 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
   }, [expedientes, anio, mes]);
 
   const { abierto: panelAbierto, alternar: alternarPanel } = usePlegable("resumen");
-  const [abierto, setAbierto] = useState<string | null>(null);
-  const alternar = (clave: string) => setAbierto((a) => (a === clave ? null : clave));
+  // La tarjeta de detalle abierta se recuerda en este navegador
+  const [abiertoGuardado, guardarAbierto] = usePreferencia("exp-resumen-detalle");
+  const abierto = abiertoGuardado === "" ? null : abiertoGuardado;
+  const alternar = (clave: string) => guardarAbierto(abierto === clave ? "" : clave);
 
   const tarjeta = (clave: string) => ({
     style: { ...estiloTarjeta, outline: abierto === clave ? "2px solid var(--primary)" : "none" },

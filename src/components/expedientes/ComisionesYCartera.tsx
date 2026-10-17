@@ -49,6 +49,8 @@ export function BotonPlegar({ abierto, alternar, titulo }: { abierto: boolean; a
 }
 
 interface TarjetaProps {
+  /** Identifica el desglose para recordar si está abierto (anterior / elegido). */
+  clave: string;
   titulo: string;
   mesTexto: string;
   pagoTexto: string;
@@ -108,8 +110,10 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
   { clave: "total", etiqueta: "Total", valor: (f) => f.linea.importe, celda: (f) => <strong>{euros(f.linea.importe)}</strong>, alinear: "right" },
 ];
 
-function TarjetaComision({ titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, aviso }: TarjetaProps) {
-  const [abierta, setAbierta] = useState(false);
+function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, aviso }: TarjetaProps) {
+  const [desgloseGuardado, guardarDesglose] = usePreferencia(`desglose-${clave}`);
+  const abierta = desgloseGuardado === "abierto";
+  const setAbierta = (v: boolean) => guardarDesglose(v ? "abierto" : "cerrado");
   const hayPlan = resultado !== null && resultado.idPlan !== null;
   const lineas = hayPlan ? resultado.lineas.filter((l) => l.importe !== 0 || l.cuenta) : [];
   const filasDesglose: FilaDesglose[] = lineas.map((linea) => {
@@ -236,6 +240,7 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
       </div>
       {abierto && <div style={{ display: "grid", gridTemplateColumns: esMesActual ? "repeat(auto-fit, minmax(min(420px, 100%), 1fr))" : "1fr", gap: "16px" }}>
         {esMesActual && <TarjetaComision
+          clave="anterior"
           titulo="Mes anterior (se cobra ahora)"
           mesTexto={etiquetaMes(previoReal.anio, previoReal.mes)}
           pagoTexto={`Nómina de ${etiquetaMes(pagoAnterior.anio, pagoAnterior.mes)}`}
@@ -244,6 +249,7 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
           porId={porId}
         />}
         <TarjetaComision
+          clave="elegido"
           titulo={esMesActual ? "Mes elegido (llevas generado)" : "Mes elegido (no es el mes actual)"}
           mesTexto={etiquetaMes(anio, mes)}
           pagoTexto={`Se cobrará en la nómina de ${etiquetaMes(pago.anio, pago.mes)}`}

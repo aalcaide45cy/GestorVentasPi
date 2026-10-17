@@ -274,6 +274,18 @@ export default function ExpedientesList({
   const tamano = tamanoElegido ?? (Number(tamanoGuardado) > 0 ? Number(tamanoGuardado) : 20);
 
   const [selectorColumnas, setSelectorColumnas] = useState(false);
+  // Paneles plegables de la pantalla (filtros, resumen, comisiones y cartera): un solo botón los pliega o despliega todos
+  const [pResumen, fijarPResumen] = usePreferencia("panel-resumen");
+  const [pComisiones, fijarPComisiones] = usePreferencia("panel-comisiones");
+  const [pCartera, fijarPCartera] = usePreferencia("panel-cartera");
+  const hayPanelAbierto = pResumen !== "cerrado" || pComisiones !== "cerrado" || pCartera !== "cerrado" || filtrosAbiertos;
+  const alternarPaneles = () => {
+    const v = hayPanelAbierto ? "cerrado" : "abierto";
+    fijarPResumen(v);
+    fijarPComisiones(v);
+    fijarPCartera(v);
+    fijarFiltrosAbiertos(hayPanelAbierto ? "false" : "true");
+  };
   const [menuDatos, setMenuDatos] = useState(false);
   const [seleccionActiva, setSeleccionActiva] = useState(false);
   const [borradoActivo, setBorradoActivo] = useState(false);
@@ -881,6 +893,15 @@ export default function ExpedientesList({
             {borradoActivo ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
           </button>
 
+          <button
+            type="button"
+            className="btn"
+            onClick={alternarPaneles}
+            style={botonHerramienta(false, "", "")}
+            title={hayPanelAbierto ? "Pliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera" : "Despliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera"}
+          >
+            {hayPanelAbierto ? "⇕ Plegar paneles" : "⇕ Desplegar paneles"}
+          </button>
           <button
             type="button"
             className="btn"
