@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import BotonApagar from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
+import { CLAVE_ABIERTO, CLAVE_MOSTRAR_LABORATORIO } from "@/components/LaboratorioComisiones";
 import { usePreferencia } from "@/lib/preferencias";
 import { fijarMenuAbierto, useMovil } from "@/lib/movil";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
@@ -40,7 +41,22 @@ interface EnlaceNavProps {
   children: ReactNode;
 }
 
-function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavProps) {
+function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string }) {
+  if (alPulsar) {
+    return (
+      <button
+        type="button"
+        onClick={alPulsar}
+        className="glass-panel-interactive"
+        aria-pressed={activo}
+        title={ayuda ?? titulo}
+        style={{ display: "flex", alignItems: "center", justifyContent: colapsado ? "center" : "flex-start", gap: "12px", padding: "12px 16px", borderRadius: "var(--radius-sm)", fontSize: "0.95rem", fontWeight: 500, color: activo ? "var(--primary)" : "var(--text-secondary)", background: activo ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.01)", border: "1px solid transparent", cursor: "pointer", width: "100%", textAlign: "left", fontFamily: "inherit" }}
+      >
+        <svg {...iconoProps}>{children}</svg>
+        {!colapsado && <span>{titulo}</span>}
+      </button>
+    );
+  }
   return (
     <Link
       href={href}
@@ -77,6 +93,8 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children }: EnlaceNavPro
 export default function Sidebar({ user, version }: SidebarProps) {
   const [colapsadoGuardado, guardarColapsado] = usePreferencia("sidebar-collapsed");
   const movil = useMovil();
+  const [labAbierto, fijarLabAbierto] = usePreferencia(CLAVE_ABIERTO);
+  const [labMostrar] = usePreferencia(CLAVE_MOSTRAR_LABORATORIO);
   // En móvil el menú es un cajón: siempre con textos (la preferencia de colapsar solo vale en escritorio)
   const isCollapsed = colapsadoGuardado === "true" && !movil;
   const router = useRouter();
@@ -378,6 +396,23 @@ export default function Sidebar({ user, version }: SidebarProps) {
                 <polyline points="10 9 9 9 8 9" />
               </EnlaceNav>
             </>
+          )}
+          {isVendedorOrUp && labMostrar !== "false" && (
+            <EnlaceNav
+              href="#"
+              titulo="Laboratorio"
+              colapsado={isCollapsed}
+              activo={labAbierto === "true"}
+              ayuda="Abre o cierra el laboratorio de comisiones: toca reglas y mira cómo se mueven los puntos, el tramo y la comisión sin guardar nada"
+              alPulsar={() => {
+                fijarLabAbierto(labAbierto === "true" ? "false" : "true");
+                if (movil) fijarMenuAbierto(false);
+              }}
+            >
+              <path d="M9 3h6" />
+              <path d="M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3" />
+              <path d="M7.5 15h9" />
+            </EnlaceNav>
           )}
         </nav>
       </div>

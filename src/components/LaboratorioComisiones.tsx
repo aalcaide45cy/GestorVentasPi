@@ -14,7 +14,8 @@ import type { PlanEditableEscenario, RespuestaEscenario } from "@/lib/servicios/
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 const TRAMOS = [-4, -3, -2, -1, 0, 1, 2, 3];
-const CLAVE_ABIERTO = "laboratorio-abierto";
+export const CLAVE_ABIERTO = "laboratorio-abierto";
+const CLAVE_ANCHO = "laboratorio-ancho";
 /** Preferencia del navegador (se cambia en «Mis Datos»): "false" oculta el botón Laboratorio. */
 export const CLAVE_MOSTRAR_LABORATORIO = "laboratorio-mostrar";
 
@@ -72,46 +73,37 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
   const [recalcular, setRecalcular] = useState(0);
   const [secciones, setSecciones] = useState<Record<Seccion, boolean>>({ objetivo: true, tasas: false, reglas: false, promos: false, tarifas: false, lineas: false });
   const ultima = useRef(0);
-  // Posición y tamaño de la ventana: null = sitio de siempre (abajo a la derecha). Se recoloca al cerrarla.
-  const [geom, setGeom] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const panel = useRef<HTMLElement | null>(null);
-
-  const rectActual = () => {
-    const r = panel.current?.getBoundingClientRect();
-    return r ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 16, y: 16, w: 600, h: 500 };
-  };
-  const iniciarMovimiento = (ev: EventoPuntero<HTMLElement>) => {
-    if ((ev.target as HTMLElement).closest("button, select, input, a")) return;
-    const base = rectActual();
-    const dx = ev.clientX - base.x;
-    const dy = ev.clientY - base.y;
-    const mover = (e: PointerEvent) => setGeom({ ...base, x: Math.max(0, Math.min(window.innerWidth - 120, e.clientX - dx)), y: Math.max(0, Math.min(window.innerHeight - 48, e.clientY - dy)) });
-    const soltar = () => {
+  // Cajón lateral derecho: su ancho se cambia arrastrando el borde izquierdo y se recuerda en este navegador
+  const [anchoGuardado, guardarAncho] = usePreferencia(CLAVE_ANCHO);
+  const [anchoVivo, setAnchoVivo] = useState<number | null>(null);
+  const [ampliado, setAmpliado] = useState(false);
+  const anchoBase = Math.max(380, Math.min(Number(anchoGuardado) || 600, 1400));
+  const ancho = anchoVivo ?? (ampliado ? 1000 : anchoBase);
+  const iniciarTamano = (ev: EventoPuntero<HTMLElement>) => {
+    ev.preventDefault();
+    const maximo = () => Math.max(380, window.innerWidth - 80);
+    const mover = (e: PointerEvent) => setAnchoVivo(Math.max(380, Math.min(window.innerWidth - e.clientX, maximo())));
+    const soltar = (e: PointerEvent) => {
       window.removeEventListener("pointermove", mover);
       window.removeEventListener("pointerup", soltar);
+      guardarAncho(String(Math.round(Math.max(380, Math.min(window.innerWidth - e.clientX, maximo())))));
+      setAmpliado(false);
+      setAnchoVivo(null);
     };
     window.addEventListener("pointermove", mover);
     window.addEventListener("pointerup", soltar);
-    ev.preventDefault();
   };
-  const iniciarTamano = (ev: EventoPuntero<HTMLElement>) => {
-    const base = rectActual();
-    const x0 = ev.clientX;
-    const y0 = ev.clientY;
-    const cambiar = (e: PointerEvent) => setGeom({ ...base, w: Math.max(360, Math.min(window.innerWidth - base.x, base.w + e.clientX - x0)), h: Math.max(280, Math.min(window.innerHeight - base.y, base.h + e.clientY - y0)) });
-    const soltar = () => {
-      window.removeEventListener("pointermove", cambiar);
-      window.removeEventListener("pointerup", soltar);
+  const cerrar = () => guardarAbierto("false");
+
+  // Esc cierra el laboratorio (salvo que haya una ventana de diálogo abierta encima)
+  useEffect(() => {
+    if (abiertoGuardado !== "true") return;
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !document.querySelector("[role='dialog']")) guardarAbierto("false");
     };
-    window.addEventListener("pointermove", cambiar);
-    window.addEventListener("pointerup", soltar);
-    ev.preventDefault();
-    ev.stopPropagation();
-  };
-  const cerrar = () => {
-    setGeom(null);
-    guardarAbierto("false");
-  };
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, [abiertoGuardado, guardarAbierto]);
 
   const nCambios = contarCambios(cambios);
 
@@ -194,23 +186,17 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
 
   if (mostrarGuardado === "false") return null;
 
-  if (!abierto) {
-    return (
-      <button type="button" onClick={() => guardarAbierto("true")} className="btn btn-primary" title="Abre el laboratorio: toca reglas y mira cómo se mueven las comisiones" style={{ position: "fixed", left: "28px", bottom: "112px", zIndex: 900, padding: "10px 16px", borderRadius: "999px", boxShadow: "var(--shadow-glow)" }}>
-        🧪 Laboratorio{nCambios > 0 ? ` (${nCambios})` : ""}
-      </button>
-    );
-  }
+  if (!abierto) return null;
 
   return (
     <aside
-      ref={panel}
       className="glass-panel laboratorio-panel"
       aria-label="Laboratorio de comisiones"
-      style={{ position: "fixed", ...(geom ? { left: geom.x, top: geom.y, width: geom.w, height: geom.h, maxHeight: "none" } : { right: "16px", bottom: "16px", width: "min(600px, calc(100vw - 32px))", maxHeight: "calc(100dvh - 32px)" }), zIndex: 900, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "0 12px 40px rgba(0,0,0,0.45)" }}
+      style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: `min(${ancho}px, 100vw)`, zIndex: 900, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "-12px 0 40px rgba(0,0,0,0.45)", borderRadius: "var(--radius-md) 0 0 var(--radius-md)" }}
     >
-      <div onPointerDown={iniciarMovimiento} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", cursor: "move", touchAction: "none" }} title="Arrastra aquí para mover la ventana">
-        <strong style={{ fontSize: "1.05rem" }}>⠿ 🧪 Laboratorio de comisiones</strong>
+      <div onPointerDown={iniciarTamano} className="laboratorio-borde" title="Arrastra el borde para cambiar el ancho del laboratorio" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "8px", cursor: "ew-resize", touchAction: "none", zIndex: 2 }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", position: "sticky", top: "-16px", zIndex: 1, background: "var(--bg-card)", padding: "16px 0 8px", margin: "-16px 0 0" }}>
+        <strong style={{ fontSize: "1.05rem" }}>🧪 Laboratorio de comisiones</strong>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" onClick={() => setCambios(sinCambios)} disabled={nCambios === 0} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Vuelve a los valores reales del plan">
             ↺ Restablecer{nCambios > 0 ? ` (${nCambios})` : ""}
@@ -218,12 +204,10 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
           <button type="button" className="btn btn-secondary" onClick={() => setRecalcular((n) => n + 1)} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Vuelve a leer los expedientes y recalcular (por si has cambiado fechas)">
             ⟳
           </button>
-          {geom && (
-            <button type="button" className="btn btn-secondary" onClick={() => setGeom(null)} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Devuelve la ventana a su sitio y tamaño de siempre (abajo a la derecha)">
-              ⤢ Recolocar
-            </button>
-          )}
-          <button type="button" className="btn btn-secondary" onClick={cerrar} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Cierra la ventana: vuelve el botón «Laboratorio» y al abrirla otra vez aparece en su sitio de siempre. Los cambios de prueba se conservan">
+          <button type="button" className="btn btn-secondary" onClick={() => setAmpliado((a) => !a)} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title={ampliado ? "Vuelve al ancho de antes" : "Ensancha el laboratorio para ver mejor las tablas"}>
+            {ampliado ? "⇥ Estrechar" : "⇤ Ampliar"}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={cerrar} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Cierra el laboratorio (también con Esc). Se abre otra vez desde «Laboratorio» en el menú lateral; los cambios de prueba se conservan">
             ✕ Cerrar
           </button>
         </div>
@@ -422,9 +406,6 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
           )}
         </>
       )}
-      <div onPointerDown={iniciarTamano} title="Arrastra para cambiar el tamaño de la ventana" style={{ position: "sticky", bottom: "-8px", alignSelf: "flex-end", width: "18px", height: "18px", cursor: "nwse-resize", touchAction: "none", color: "var(--text-muted)", lineHeight: "18px", textAlign: "right", flexShrink: 0 }}>
-        ◢
-      </div>
     </aside>
   );
 }
