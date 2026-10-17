@@ -144,7 +144,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
       {visibles.length === 0 ? (
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>{filas.length === 0 ? vacio : "Ningún resultado con esa búsqueda."}</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="tabla-scroll" style={{ ["--alto-tabla" as string]: "min(55vh, 420px)" }}>
           <table style={{ width: "100%", fontSize: "0.82rem", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ color: "var(--text-secondary)" }}>

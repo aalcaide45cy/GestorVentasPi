@@ -65,9 +65,9 @@ interface TarjetaProps {
 /** Cajita con un indicador (puntos, tramo, bruto…) para ver las cifras de un vistazo. */
 function Indicador({ etiqueta, ayuda, children }: { etiqueta: string; ayuda: string; children: ReactNode }) {
   return (
-    <div title={ayuda} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", gap: "2px" }}>
+    <div title={ayuda} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, overflow: "hidden" }}>
       <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{etiqueta}</span>
-      <span style={{ fontSize: "1.2rem", fontWeight: 800 }}>{children}</span>
+      <span style={{ fontSize: "clamp(0.95rem, 1.5vw, 1.2rem)", fontWeight: 800, overflowWrap: "anywhere", lineHeight: 1.2 }}>{children}</span>
     </div>
   );
 }
@@ -146,10 +146,10 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
           <div style={{ display: "flex", gap: "18px", alignItems: "stretch", flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minWidth: "150px" }}>
               <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>Neto a cobrar</span>
-              <h3 style={{ fontSize: "2.1rem", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1 }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
+              <h3 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", overflowWrap: "anywhere", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1 }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
               <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>💶 {pagoTexto}</span>
             </div>
-            <div style={{ flex: 1, minWidth: "260px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: "8px" }}>
+            <div style={{ flex: 1, minWidth: "260px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
               <Indicador etiqueta="Puntos" ayuda={efP.titulo || "Puntos del mes"}>
                 <span className={efP.className} style={efP.style}>{puntos(resultado.puntosMes)}</span>
                 <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> / {puntos(resultado.objetivoX)}</span>

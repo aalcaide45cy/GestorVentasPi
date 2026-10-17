@@ -139,7 +139,7 @@ export async function crearCatalogoFaltante(ej: Ejecutor, entrada: unknown): Pro
       let marca = ms.find((x) => norm(x.nombre) === norm(m.nombre));
       if (!marca) {
         // Una marca que viene de una plantilla de tarifas siempre participa en el sistema de comisiones
-        const [n] = await tx.insert(marcas).values({ nombre: m.nombre, activo: true, accesoRapido: m.accesoRapido, sistemaComisiones: true }).returning();
+        const [n] = await tx.insert(marcas).values({ nombre: m.nombre, activo: true, accesoRapido: true, sistemaComisiones: true }).returning();
         marca = n;
         ms.push(n);
         marcasCreadas++;
@@ -154,7 +154,7 @@ export async function crearCatalogoFaltante(ej: Ejecutor, entrada: unknown): Pro
       for (const nombre of m.modelos) {
         if (existentes.has(norm(nombre))) continue;
         existentes.add(norm(nombre));
-        const [n] = await tx.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: nombre, accesoRapido: m.accesoRapido, ordenAccesoRapido: m.accesoRapido ? siguiente++ : 0 }).returning();
+        const [n] = await tx.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: nombre, accesoRapido: true, ordenAccesoRapido: siguiente++ }).returning();
         mos.push(n);
         modelosCreados++;
       }

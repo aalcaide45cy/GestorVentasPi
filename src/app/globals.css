@@ -306,6 +306,10 @@ select, select option {
 .badge-vendedor { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.2); }
 .badge-invitado { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.2); }
 
+/* Tabla con scroll solo en las filas: la cabecera queda fija y la página no se alarga con miles de filas */
+.tabla-scroll { max-height: var(--alto-tabla, 68vh); overflow: auto; }
+.tabla-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
+
 /* Tablas */
 .table-container {
   overflow-x: auto;
