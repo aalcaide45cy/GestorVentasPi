@@ -30,7 +30,7 @@ const entero = z.number().int();
 const idNull = z.number().int().positive().nullable().default(null);
 const tipoFin = z.enum(["CONTADO", "CREDITO", "PREFERENCE", "RENTING"]);
 
-const esquemaRegla = z.object({
+export const esquemaRegla = z.object({
   nombre: z.string().trim().min(1, "Falta el nombre de la regla").max(200),
   evento: z.enum(["pedido", "afectacion", "matriculacion", "cobro", "credito", "preference"]),
   tipoVehiculo: z.enum(["nuevo", "usado", "cualquiera"]).default("cualquiera"),
@@ -46,8 +46,7 @@ const esquemaRegla = z.object({
   activa: z.boolean().default(true),
 });
 
-export const esquemaPlan = z
-  .object({
+export const esquemaPlanBase = z.object({
     nombre: z.string().trim().min(1, "Falta el nombre del plan").max(200),
     fechaInicio: fecha,
     fechaFin: fecha,
@@ -97,7 +96,9 @@ export const esquemaPlan = z
     reglas: z.array(esquemaRegla).default([]),
     bonus: z.array(esquemaRegla).default([]),
     pendientes: z.array(z.object({ concepto: z.string().trim().min(1).max(300), importe: entero, mesOrigen: z.string().regex(/^\d{4}-\d{2}$/).nullable().default(null) })).default([]),
-  })
+});
+
+export const esquemaPlan = esquemaPlanBase
   .refine((p) => p.fechaInicio <= p.fechaFin, { message: "La fecha de inicio no puede ser posterior a la de fin", path: ["fechaFin"] })
   .refine((p) => new Set(p.vendedores.map((v) => v.idUsuario)).size === p.vendedores.length, { message: "Hay vendedores repetidos en el objetivo", path: ["vendedores"] });
 

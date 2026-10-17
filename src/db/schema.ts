@@ -696,6 +696,62 @@ export const copiasSeguridad = pgTable(
   (t) => [uniqueIndex("copias_seguridad_nombre_uq").on(t.nombre), index("copias_seguridad_creada_idx").on(t.creadaEn)],
 );
 
+/** Copias «internas» de una sección de datos (clientes, planes…): se guardan dentro de la propia aplicación para restaurar esa sección sola. */
+export const copiasSeccion = pgTable(
+  "copias_seccion",
+  {
+    id: serial("id").primaryKey(),
+    /** Sección (clientes, expedientes, planes…). */
+    seccion: varchar("seccion", { length: 30 }).notNull(),
+    nombre: text("nombre").notNull(),
+    nota: text("nota"),
+    /** manual | automatica (la que se hace sola antes de importar o sustituir) */
+    origen: varchar("origen", { length: 12 }).notNull().default("manual"),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    creadaPor: integer("creada_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    registros: integer("registros").notNull(),
+    /** Tamaño del contenido en bytes. */
+    tamano: integer("tamano").notNull(),
+    /** El mismo paquete JSON que se descarga al exportar la sección. */
+    datos: jsonb("datos").$type<unknown>().notNull(),
+  },
+  (t) => [index("copias_seccion_seccion_idx").on(t.seccion, t.creadaEn)],
+);
+
+/** Plantillas de «Tarifas de modelos VN por tramo»: marcas y modelos por nombre, para aplicarlas a cualquier plan. */
+export const plantillasTarifasVn = pgTable(
+  "plantillas_tarifas_vn",
+  {
+    id: serial("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+    descripcion: text("descripcion"),
+    /** Plantilla incluida con la aplicación (no se puede borrar ni modificar). */
+    sistema: boolean("sistema").notNull().default(false),
+    datos: jsonb("datos").$type<unknown>().notNull(),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadaEn: timestamp("actualizada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("plantillas_tarifas_vn_nombre_uq").on(t.nombre)],
+);
+
+/**
+ * Plantillas de partes de un plan de comisionamiento. `ambito` es la pestaña (resumen, objetivo, usados, reglas, bonus,
+ * penalizaciones, notas) o «global» para el plan entero. Marcas, modelos y vendedores se guardan por nombre.
+ */
+export const plantillasPlan = pgTable(
+  "plantillas_plan",
+  {
+    id: serial("id").primaryKey(),
+    ambito: text("ambito").notNull(),
+    nombre: text("nombre").notNull(),
+    descripcion: text("descripcion"),
+    datos: jsonb("datos").$type<unknown>().notNull(),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadaEn: timestamp("actualizada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("plantillas_plan_ambito_nombre_uq").on(t.ambito, t.nombre)],
+);
+
 /** Conexión con Google Drive: solo se guarda el refresh token, cifrado. */
 export const conexionDrive = pgTable("conexion_drive", {
   id: integer("id").primaryKey().default(1),

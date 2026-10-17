@@ -1,6 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { ajustes, estadoVehiculo, marcas, modelos, tipoDeVenta } from "./schema";
+import { DESCRIPCION_PLANTILLA_GENERICA, NOMBRE_PLANTILLA_GENERICA, PLANTILLA_GENERICA } from "@/lib/plantillas-tarifas/generica";
+import { ajustes, estadoVehiculo, marcas, modelos, plantillasTarifasVn, tipoDeVenta } from "./schema";
 
 const ESTADOS_INICIALES = [
   { nombre: "Nuevo", clase: "VN", subtipo: null, predeterminado: true },
@@ -23,6 +24,12 @@ const TIPOS_VENTA_INICIALES = [
  */
 export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatabase<S>): Promise<void> {
   await db.transaction(async (tx) => {
+    // Plantilla genérica de tarifas VN (Renault y Dacia): se repone y actualiza con cada versión; las que haya creado el usuario no se tocan
+    await tx
+      .insert(plantillasTarifasVn)
+      .values({ nombre: NOMBRE_PLANTILLA_GENERICA, descripcion: DESCRIPCION_PLANTILLA_GENERICA, sistema: true, datos: PLANTILLA_GENERICA })
+      .onConflictDoUpdate({ target: plantillasTarifasVn.nombre, set: { descripcion: DESCRIPCION_PLANTILLA_GENERICA, datos: PLANTILLA_GENERICA, actualizadaEn: new Date() }, setWhere: eq(plantillasTarifasVn.sistema, true) });
+
     const [{ n: nEstados }] = await tx.select({ n: count() }).from(estadoVehiculo);
     if (nEstados === 0) {
       await tx.insert(estadoVehiculo).values(

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as EventoPuntero, type ReactNode } from "react";
 import { InputCentesimas, InputEntero } from "@/components/comisiones/campos";
+import AvisoComision from "@/components/expedientes/AvisoComision";
+import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { CambiosEscenario, ResultadoMes } from "@/lib/comisiones";
 import { contarCambios } from "@/lib/comisiones";
@@ -70,6 +72,46 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
   const [recalcular, setRecalcular] = useState(0);
   const [secciones, setSecciones] = useState<Record<Seccion, boolean>>({ objetivo: true, tasas: false, reglas: false, promos: false, tarifas: false, lineas: false });
   const ultima = useRef(0);
+  // Posición y tamaño de la ventana: null = sitio de siempre (abajo a la derecha). Se recoloca al cerrarla.
+  const [geom, setGeom] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const panel = useRef<HTMLElement | null>(null);
+
+  const rectActual = () => {
+    const r = panel.current?.getBoundingClientRect();
+    return r ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 16, y: 16, w: 600, h: 500 };
+  };
+  const iniciarMovimiento = (ev: EventoPuntero<HTMLElement>) => {
+    if ((ev.target as HTMLElement).closest("button, select, input, a")) return;
+    const base = rectActual();
+    const dx = ev.clientX - base.x;
+    const dy = ev.clientY - base.y;
+    const mover = (e: PointerEvent) => setGeom({ ...base, x: Math.max(0, Math.min(window.innerWidth - 120, e.clientX - dx)), y: Math.max(0, Math.min(window.innerHeight - 48, e.clientY - dy)) });
+    const soltar = () => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    ev.preventDefault();
+  };
+  const iniciarTamano = (ev: EventoPuntero<HTMLElement>) => {
+    const base = rectActual();
+    const x0 = ev.clientX;
+    const y0 = ev.clientY;
+    const cambiar = (e: PointerEvent) => setGeom({ ...base, w: Math.max(360, Math.min(window.innerWidth - base.x, base.w + e.clientX - x0)), h: Math.max(280, Math.min(window.innerHeight - base.y, base.h + e.clientY - y0)) });
+    const soltar = () => {
+      window.removeEventListener("pointermove", cambiar);
+      window.removeEventListener("pointerup", soltar);
+    };
+    window.addEventListener("pointermove", cambiar);
+    window.addEventListener("pointerup", soltar);
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
+  const cerrar = () => {
+    setGeom(null);
+    guardarAbierto("false");
+  };
 
   const nCambios = contarCambios(cambios);
 
@@ -162,12 +204,13 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
 
   return (
     <aside
+      ref={panel}
       className="glass-panel laboratorio-panel"
       aria-label="Laboratorio de comisiones"
-      style={{ position: "fixed", right: "16px", bottom: "16px", zIndex: 900, width: "min(600px, calc(100vw - 32px))", maxHeight: "calc(100dvh - 32px)", overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "0 12px 40px rgba(0,0,0,0.45)" }}
+      style={{ position: "fixed", ...(geom ? { left: geom.x, top: geom.y, width: geom.w, height: geom.h, maxHeight: "none" } : { right: "16px", bottom: "16px", width: "min(600px, calc(100vw - 32px))", maxHeight: "calc(100dvh - 32px)" }), zIndex: 900, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "0 12px 40px rgba(0,0,0,0.45)" }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-        <strong style={{ fontSize: "1.05rem" }}>🧪 Laboratorio de comisiones</strong>
+      <div onPointerDown={iniciarMovimiento} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", cursor: "move", touchAction: "none" }} title="Arrastra aquí para mover la ventana">
+        <strong style={{ fontSize: "1.05rem" }}>⠿ 🧪 Laboratorio de comisiones</strong>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" onClick={() => setCambios(sinCambios)} disabled={nCambios === 0} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Vuelve a los valores reales del plan">
             ↺ Restablecer{nCambios > 0 ? ` (${nCambios})` : ""}
@@ -175,8 +218,13 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
           <button type="button" className="btn btn-secondary" onClick={() => setRecalcular((n) => n + 1)} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Vuelve a leer los expedientes y recalcular (por si has cambiado fechas)">
             ⟳
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => guardarAbierto("false")} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Plegar el laboratorio (los cambios se conservan)">
-            ▾ Plegar
+          {geom && (
+            <button type="button" className="btn btn-secondary" onClick={() => setGeom(null)} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Devuelve la ventana a su sitio y tamaño de siempre (abajo a la derecha)">
+              ⤢ Recolocar
+            </button>
+          )}
+          <button type="button" className="btn btn-secondary" onClick={cerrar} style={{ padding: "5px 10px", fontSize: "0.8rem" }} title="Cierra la ventana: vuelve el botón «Laboratorio» y al abrirla otra vez aparece en su sitio de siempre. Los cambios de prueba se conservan">
+            ✕ Cerrar
           </button>
         </div>
       </div>
@@ -206,14 +254,14 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
         <>
           <div className="rejilla-propia laboratorio-totales" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
             {[
-              { t: "Puntos", real: puntos(base.puntosMes), nuevo: puntos(esc.puntosMes), d: <Delta valor={esc.puntosMes - base.puntosMes} formato={(n) => puntos(Math.abs(n))} /> },
-              { t: "Tramo", real: etiquetaTramo(base.tramo), nuevo: etiquetaTramo(esc.tramo), d: <Delta valor={esc.tramo - base.tramo} formato={(n) => String(Math.abs(n))} /> },
+              { t: "Puntos", ef: efectoPuntos(esc.puntosMes, esc.objetivoX), real: puntos(base.puntosMes), nuevo: puntos(esc.puntosMes), d: <Delta valor={esc.puntosMes - base.puntosMes} formato={(n) => puntos(Math.abs(n))} /> },
+              { t: "Tramo", ef: efectoTramo(esc.tramo), real: etiquetaTramo(base.tramo), nuevo: etiquetaTramo(esc.tramo), d: <Delta valor={esc.tramo - base.tramo} formato={(n) => String(Math.abs(n))} /> },
               { t: "Bruto", real: euros(base.bruto), nuevo: euros(esc.bruto), d: <Delta valor={esc.bruto - base.bruto} formato={(n) => euros(Math.abs(n))} /> },
               { t: "Neto (se cobra el mes siguiente)", real: euros(base.neto), nuevo: euros(esc.neto), d: <Delta valor={esc.neto - base.neto} formato={(n) => euros(Math.abs(n))} /> },
             ].map((x) => (
               <div key={x.t} className="glass-panel" style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "2px" }}>
                 <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: 600 }}>{x.t}</span>
-                <span style={{ fontSize: "1.25rem", fontWeight: 700 }}>{x.nuevo}</span>
+                <span className={x.ef?.className} style={{ fontSize: "1.25rem", fontWeight: 700, ...(x.ef?.style ?? {}) }} title={x.ef?.titulo}>{x.nuevo}</span>
                 <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>real {x.real}</span>
                 <span style={{ fontSize: "0.78rem" }}>{x.d}</span>
               </div>
@@ -352,7 +400,7 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
                     const real = base.lineas.find((x) => x.idExpediente === l.idExpediente)?.importe ?? 0;
                     return (
                       <tr key={l.idExpediente} style={{ borderTop: "1px solid var(--border-light)" }}>
-                        <td style={celda}><Link href={`/dashboard/expedientes/editar/${l.idExpediente}`} style={{ color: "inherit" }}>#{l.idExpediente} · {l.clase}{l.cuenta ? "" : " (otros conceptos)"}</Link></td>
+                        <td style={celda}><Link href={`/dashboard/expedientes/editar/${l.idExpediente}`} style={{ color: "inherit" }}>{datos?.expedientes[String(l.idExpediente)] ? `${datos.expedientes[String(l.idExpediente)].cliente} · ${datos.expedientes[String(l.idExpediente)].vehiculo}` : `Expediente ${l.idExpediente}`} · {l.clase}{l.cuenta ? "" : " (otros conceptos)"}</Link></td>
                         <td style={{ ...celda, textAlign: "right" }}>{puntos(l.puntos)}</td>
                         <td style={{ ...celda, textAlign: "right" }}>{euros(real)}</td>
                         <td style={{ ...celda, textAlign: "right", fontWeight: 700, color: l.importe > real ? "var(--success)" : l.importe < real ? "var(--danger)" : undefined }}>{euros(l.importe)}</td>
@@ -365,14 +413,18 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
           </Bloque>
 
           {esc.avisos.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <strong style={{ fontSize: "0.8rem", color: "var(--warning)" }}>Avisos del cálculo ({esc.avisos.length})</strong>
               {esc.avisos.map((a) => (
-                <span key={a} style={{ color: "var(--warning)", fontSize: "0.78rem" }}>⚠ {a}</span>
+                <AvisoComision key={a} texto={a} expedientes={datos?.expedientes} />
               ))}
             </div>
           )}
         </>
       )}
+      <div onPointerDown={iniciarTamano} title="Arrastra para cambiar el tamaño de la ventana" style={{ position: "sticky", bottom: "-8px", alignSelf: "flex-end", width: "18px", height: "18px", cursor: "nwse-resize", touchAction: "none", color: "var(--text-muted)", lineHeight: "18px", textAlign: "right", flexShrink: 0 }}>
+        ◢
+      </div>
     </aside>
   );
 }

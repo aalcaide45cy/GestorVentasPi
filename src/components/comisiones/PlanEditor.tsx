@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 import { llamar, textoError } from "./api";
+import PlantillasPlan from "./PlantillasPlan";
 import TabLiquidacion from "./TabLiquidacion";
 import TabModelos from "./TabModelos";
 import TabNotas from "./TabNotas";
@@ -11,6 +12,7 @@ import TabObjetivo from "./TabObjetivo";
 import { TabBonus, TabPenalizaciones, TabReglas } from "./TabReglas";
 import TabResumen from "./TabResumen";
 import TabUsados from "./TabUsados";
+import type { Ambito } from "@/lib/plantillas-plan/fragmentos";
 import type { CatalogosComisiones, Plan } from "./tipos";
 
 const PESTANAS = [
@@ -26,6 +28,9 @@ const PESTANAS = [
 ] as const;
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
+
+/** Ámbito de plantillas de cada pestaña (VN tiene sus propias plantillas de tarifas y Liquidación no se edita). */
+const AMBITO_PESTANA: Partial<Record<IdPestana, Ambito>> = { resumen: "resumen", objetivo: "objetivo", usados: "usados", reglas: "reglas", bonus: "bonus", penalizaciones: "penalizaciones", notas: "notas" };
 
 interface Props {
   inicial: Plan | null;
@@ -210,6 +215,11 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
             </button>
           );
         })}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px 24px", flexWrap: "wrap" }}>
+        {AMBITO_PESTANA[pestana] ? <PlantillasPlan key={pestana} ambito={AMBITO_PESTANA[pestana]!} plan={plan} setPlan={setPlan} cat={cat} /> : <span />}
+        <PlantillasPlan ambito="global" plan={plan} setPlan={setPlan} cat={cat} />
       </div>
 
       {pestana === "resumen" && <TabResumen {...props} solapados={solapados} />}

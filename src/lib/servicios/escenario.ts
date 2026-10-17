@@ -1,5 +1,7 @@
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
+import { clientes, expedientes as tablaExpedientes, marcas, modelos } from "@/db/schema";
 import { aplicarEscenario, calcularMes, contarCambios, mesDe, type CambiosEscenario, type ResultadoMes } from "@/lib/comisiones";
 import { fechaQueCuenta } from "@/lib/comisiones/util";
 import { HttpError } from "@/lib/auth/sesion";
@@ -51,6 +53,24 @@ export interface RespuestaEscenario {
   /** Resultado con los cambios aplicados. */
   escenario: ResultadoMes | null;
   cambios: number;
+  /** Datos legibles de los expedientes que aparecen en el resultado y en los avisos (cliente, vehículo, matrícula). */
+  expedientes: Record<string, { cliente: string; vehiculo: string; matricula: string | null }>;
+}
+
+/** Cliente, vehículo y matrícula de unos expedientes, para enseñar «Martín Álvaro · Renault Austral» en vez de un número. */
+export async function describirExpedientes(ej: Ejecutor, ids: number[]): Promise<RespuestaEscenario["expedientes"]> {
+  const unicos = [...new Set(ids)].slice(0, 500);
+  if (unicos.length === 0) return {};
+  const filas = await ej
+    .select({ id: tablaExpedientes.idExpediente, cliente: clientes.nombre, marca: marcas.nombre, modelo: modelos.nombreModelo, matricula: tablaExpedientes.matricula })
+    .from(tablaExpedientes)
+    .leftJoin(clientes, eq(clientes.id, tablaExpedientes.idCliente))
+    .leftJoin(modelos, eq(modelos.idModelo, tablaExpedientes.idModelo))
+    .leftJoin(marcas, eq(marcas.idMarca, modelos.marcaId))
+    .where(inArray(tablaExpedientes.idExpediente, unicos));
+  return Object.fromEntries(
+    filas.map((f) => [String(f.id), { cliente: f.cliente?.trim() || "Sin cliente", vehiculo: [f.marca, f.modelo].filter(Boolean).join(" ") || "sin modelo", matricula: f.matricula ?? null }]),
+  );
 }
 
 /** Calcula un mes con el plan real y con los cambios hipotéticos, sin guardar nada. */
@@ -58,7 +78,7 @@ export async function calcularEscenario(ej: Ejecutor, idVendedor: number, mes: s
   const vendedor = await cargarVendedor(ej, idVendedor);
   if (!vendedor) throw new HttpError(404, "Vendedor no encontrado");
   const plan = await planDelMes(ej, mes);
-  if (!plan) return { hayPlan: false, plan: null, base: null, escenario: null, cambios: 0 };
+  if (!plan) return { hayPlan: false, plan: null, base: null, escenario: null, cambios: 0, expedientes: {} };
   const expedientes = await cargarExpedientesMotor(ej, idVendedor, { desde: mes, hasta: mes });
   const base = calcularMes(plan, vendedor, mes, expedientes);
   const escenario = calcularMes(aplicarEscenario(plan, idVendedor, cambios), vendedor, mes, expedientes);
@@ -86,5 +106,6 @@ export async function calcularEscenario(ej: Ejecutor, idVendedor: number, mes: s
       })),
     ),
   };
-  return { hayPlan: true, plan: descripcion, base, escenario, cambios: contarCambios(cambios) };
+  const ids = [...escenario.lineas.map((l) => l.idExpediente), ...escenario.avisos.flatMap((a) => [...a.matchAll(/Expediente (\d+)/g)].map((m) => Number(m[1])))];
+  return { hayPlan: true, plan: descripcion, base, escenario, cambios: contarCambios(cambios), expedientes: await describirExpedientes(ej, ids) };
 }

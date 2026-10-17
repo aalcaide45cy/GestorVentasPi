@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties } from "react";
+import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
+import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
+import PanelColumnas, { normalizarOrden, type ConfigColumnas } from "@/components/expedientes/PanelColumnas";
 import { ModalConfirmar } from "@/components/Modal";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -100,16 +102,23 @@ type Visibles = Record<Columna, boolean>;
 const TODAS: Visibles = Object.fromEntries(COLUMNAS.map((c) => [c.clave, true])) as Visibles;
 /** Por defecto «Marca» y «Modelo» van por separado; la columna unificada «Marca y modelo» se activa desde «Columnas». */
 const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false };
-const MINIMAS: Visibles = Object.fromEntries(COLUMNAS.map((c) => [c.clave, c.clave === "cliente" || c.clave === "vendedor"])) as Visibles;
+const ORDEN_POR_DEFECTO: Columna[] = COLUMNAS.map((c) => c.clave);
+const solo = (claves: Columna[]): Visibles => Object.fromEntries(COLUMNAS.map((c) => [c.clave, claves.includes(c.clave)])) as Visibles;
+const VISTAS_INCLUIDAS: { id: string; nombre: string; ayuda: string; config: ConfigColumnas }[] = [
+  { id: "compacta", nombre: "Compacta", ayuda: "Cliente, marca y modelo juntos, tipo de venta, estado, vendedor y fecha de expediente.", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "marca_modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente"]) } },
+  { id: "fechas", nombre: "Seguimiento de fechas", ayuda: "Cliente, vehículo, vendedor y todas las fechas (expediente, afectación, RCI, matriculación, facturación, entrega).", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "marca_modelo", "vendedor", "fecha_expediente", "fecha_afectacion", "fecha_rci", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega"]) } },
+  { id: "contacto", nombre: "Contacto", ayuda: "Cliente, teléfono, email, vehículo y vendedor para llamar o escribir.", config: { orden: ["cliente", "telefono", "email", "marca_modelo", "vendedor", ...ORDEN_POR_DEFECTO.filter((c) => !["cliente", "telefono", "email", "marca_modelo", "vendedor"].includes(c))], visibles: solo(["cliente", "telefono", "email", "marca_modelo", "vendedor"]) } },
+  { id: "todas", nombre: "Todas las columnas", ayuda: "Todas las columnas, con marca y modelo por separado.", config: { orden: ORDEN_POR_DEFECTO, visibles: { ...TODAS, marca_modelo: false } } },
+];
 
 /** Ancho fijo de cada columna (px): la tabla no cambia de tamaño al ocultar entregados, filtrar u ordenar. */
 const ANCHO_COLUMNA: Record<Columna, number> = {
   cliente: 200,
   telefono: 112,
   email: 210,
-  marca: 100,
-  modelo: 190,
-  marca_modelo: 210,
+  marca: 90,
+  modelo: 150,
+  marca_modelo: 170,
   tipo_venta: 100,
   estado: 100,
   vendedor: 130,
@@ -130,6 +139,25 @@ function marcaYModelo(e: ExpedienteDto): string {
   const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   return sinAcentos(modelo).startsWith(sinAcentos(marca)) ? modelo : `${marca} ${modelo}`;
 }
+
+const ENCABEZADOS: Record<Columna, { etiqueta: string; fondo?: string }> = {
+  cliente: { etiqueta: "Cliente" },
+  telefono: { etiqueta: "Teléfono" },
+  email: { etiqueta: "Email" },
+  marca: { etiqueta: "Marca" },
+  modelo: { etiqueta: "Modelo" },
+  marca_modelo: { etiqueta: "Marca y modelo" },
+  tipo_venta: { etiqueta: "T. Venta" },
+  estado: { etiqueta: "Estado" },
+  vendedor: { etiqueta: "Vendedor" },
+  fecha_expediente: { etiqueta: "F. Exp.", fondo: FONDO_FECHA_A },
+  fecha_afectacion: { etiqueta: "F. Afect", fondo: FONDO_FECHA_B },
+  fecha_rci: { etiqueta: "F. RCI", fondo: FONDO_FECHA_A },
+  fecha_matriculacion: { etiqueta: "F. Mat", fondo: FONDO_FECHA_B },
+  fecha_facturacion: { etiqueta: "F. FAC.", fondo: FONDO_FECHA_A },
+  fecha_entrega: { etiqueta: "F. Entrega", fondo: FONDO_FECHA_B },
+  cobro: { etiqueta: "Comisionado", fondo: "rgba(128, 128, 128, 0.06)" },
+};
 
 const ANCHO_SELECCION = 40;
 const ANCHO_ACCIONES = 130;
@@ -157,7 +185,7 @@ const botonHerramienta = (activo: boolean, fondoActivo: string, colorActivo: str
   borderRadius: "var(--radius-sm)",
   fontWeight: 600,
 });
-const botonMes: CSSProperties = { padding: "3px 10px", fontSize: "0.8rem", fontWeight: 600 };
+const botonMes: CSSProperties = { padding: "3px 8px", fontSize: "0.75rem", fontWeight: 600 };
 const cajaMes: CSSProperties = {
   padding: "4px 10px",
   border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -233,11 +261,20 @@ export default function ExpedientesList({
       return POR_DEFECTO; // preferencia corrupta: se vuelve a lo habitual
     }
   }, [columnasGuardadas]);
+  const [ordenGuardado, fijarOrden] = usePreferencia("exp-column-order");
+  const orden = useMemo<Columna[]>(() => {
+    try {
+      return normalizarOrden(ordenGuardado ? (JSON.parse(ordenGuardado) as string[]) : null, ORDEN_POR_DEFECTO) as Columna[];
+    } catch {
+      return ORDEN_POR_DEFECTO;
+    }
+  }, [ordenGuardado]);
   const [tamanoGuardado] = usePreferencia("exp-default-page-size");
   const [tamanoElegido, setTamano] = useState<number | null>(null);
   const tamano = tamanoElegido ?? (Number(tamanoGuardado) > 0 ? Number(tamanoGuardado) : 20);
 
   const [selectorColumnas, setSelectorColumnas] = useState(false);
+  const [menuDatos, setMenuDatos] = useState(false);
   const [seleccionActiva, setSeleccionActiva] = useState(false);
   const [borradoActivo, setBorradoActivo] = useState(false);
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
@@ -671,7 +708,7 @@ export default function ExpedientesList({
   };
 
   /* ---------------- Render ---------------- */
-  const columnasActivas = COLUMNAS.filter((c) => (c.clave === "cobro" ? mostrarCobros : true) && visibles[c.clave] !== false);
+  const columnasActivas = orden.map((clave) => COLUMNAS.find((c) => c.clave === clave)!).filter((c) => (c.clave === "cobro" ? mostrarCobros : true) && visibles[c.clave] !== false);
   const totalColSpan = columnasActivas.length + (seleccionActiva ? 1 : 0) + 1;
   const mostrarCol = (c: Columna) => visibles[c] !== false && (c !== "cobro" || mostrarCobros);
 
@@ -707,8 +744,9 @@ export default function ExpedientesList({
     }
   };
 
-  const cambiarVisibles = (siguiente: Visibles) => {
-    fijarColumnas(JSON.stringify(siguiente));
+  const cambiarConfigColumnas = (c: ConfigColumnas) => {
+    fijarColumnas(JSON.stringify(c.visibles));
+    fijarOrden(JSON.stringify(c.orden));
   };
 
   const celdaFecha = (exp: ExpedienteDto, campo: CampoFecha, nombre: string, fondo: string) => (
@@ -827,62 +865,25 @@ export default function ExpedientesList({
             {borradoActivo ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
           </button>
 
-          <div style={{ position: "relative", display: "inline-block" }}>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => setSelectorColumnas(!selectorColumnas)}
-              style={botonHerramienta(selectorColumnas, "var(--primary)", "white")}
-              title="Ocultar o mostrar columnas de la tabla"
-            >
-              ⚙️ Columnas
-            </button>
-            {selectorColumnas && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 6px)",
-                  right: 0,
-                  zIndex: 999,
-                  minWidth: "220px",
-                  background: "#1e1e2d",
-                  border: "1px solid var(--border-light)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "14px",
-                  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.5)",
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", paddingBottom: "6px", borderBottom: "1px solid var(--border-light)" }}>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-primary)" }}>Visibilidad Columnas</span>
-                  <button type="button" onClick={() => setSelectorColumnas(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.9rem" }}>
-                    ✕
-                  </button>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "280px", overflowY: "auto" }}>
-                  {COLUMNAS.filter((c) => c.clave !== "cobro" || mostrarCobros).map((c) => (
-                    <label key={c.clave} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem", cursor: "pointer", color: "var(--text-primary)", userSelect: "none" }}>
-                      <input
-                        type="checkbox"
-                        checked={visibles[c.clave] !== false}
-                        onChange={(e) => cambiarVisibles({ ...visibles, [c.clave]: e.target.checked })}
-                        style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }}
-                      />
-                      {c.etiqueta}
-                    </label>
-                  ))}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-light)" }}>
-                  <button type="button" onClick={() => cambiarVisibles(TODAS)} style={{ background: "none", border: "none", color: "var(--primary)", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}>
-                    Mostrar Todas
-                  </button>
-                  <button type="button" onClick={() => cambiarVisibles(MINIMAS)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: "0.75rem", cursor: "pointer" }}>
-                    Mínimas
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setSelectorColumnas(true)}
+            style={botonHerramienta(selectorColumnas, "var(--primary)", "white")}
+            title="Ordena las columnas de la tabla (arrastrando), muéstralas u ocúltalas, vuelve a lo predeterminado o guarda tus propias vistas"
+          >
+            ⚙️ Columnas y vistas
+          </button>
+          {selectorColumnas && (
+            <PanelColumnas
+              columnas={COLUMNAS}
+              actual={{ orden, visibles }}
+              predeterminada={{ orden: ORDEN_POR_DEFECTO, visibles: POR_DEFECTO }}
+              vistasIncluidas={VISTAS_INCLUIDAS}
+              alCambiar={cambiarConfigColumnas}
+              alCerrar={() => setSelectorColumnas(false)}
+            />
+          )}
 
           {seleccionActiva && seleccionados.length > 0 && (
             <>
@@ -925,40 +926,115 @@ export default function ExpedientesList({
           )}
         </div>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <label
-            className="btn btn-secondary"
-            style={{ padding: "5px 10px", fontSize: "0.8rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)" }}
-          >
-            🟢 Importar Datos Excel
-            <input type="file" accept=".xlsx, .xls" onChange={importarExcel} style={{ display: "none" }} disabled={importandoExcel || cargando} />
-          </label>
-
-          <label
-            className="btn btn-secondary"
-            style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
-            title="Compara un listado de ventas en Excel con tus expedientes, sin cambiar nada"
-          >
-            🔎 Contrastar listado
-            <input type="file" accept=".xlsx, .xls" onChange={contrastarListado} style={{ display: "none" }} disabled={importandoExcel || cargando} />
-          </label>
-
-          {mostrarBotonesCsv && (
-            <>
-              <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(false)} style={{ padding: "5px 10px", fontSize: "0.8rem" }}>
-                📤 Exportar Todo (CSV)
-              </button>
-              <label className="btn btn-primary" style={{ padding: "5px 10px", fontSize: "0.8rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                📥 Importar CSV
-                <input type="file" accept=".csv" onChange={importarCsv} style={{ display: "none" }} disabled={cargando} />
-              </label>
-            </>
-          )}
-
-          {esAdministrador && <BotonesBackup deshabilitado={cargando} />}
-        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setMenuDatos(true)}
+          style={{ padding: "6px 14px", fontSize: "0.85rem" }}
+          title="Importar expedientes (Excel o CSV), contrastar un listado, exportar (CSV o JSON), copias internas y copia de seguridad: todo en una sola ventana, con la explicación de cada opción"
+        >
+          🗂️ Importar y exportar
+        </button>
       </div>
 
+      {menuDatos && (
+        <Modal
+          titulo="🗂️ Importar y exportar expedientes"
+          ancho="860px"
+          pie={
+            <button type="button" className="btn btn-secondary" onClick={() => setMenuDatos(false)}>
+              Cerrar
+            </button>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px", fontSize: "0.9rem" }}>
+            <GrupoDatos titulo="📥 Traer expedientes" ayuda="Para añadir ventas desde fuera de la aplicación.">
+              <OpcionDatos
+                icono="🟢"
+                titulo="Importar datos de Excel"
+                texto="Lee el listado de ventas en Excel (.xlsx) y crea o actualiza expedientes. Si hay conflictos te los enseña antes de cambiar nada."
+                ayuda="Elige un archivo Excel del listado de ventas. Crea los expedientes que no existan y te pregunta qué hacer con los que ya existen."
+                archivo=".xlsx, .xls"
+                deshabilitado={importandoExcel || cargando}
+                alElegir={(e) => {
+                  setMenuDatos(false);
+                  void importarExcel(e);
+                }}
+              />
+              {mostrarBotonesCsv && (
+                <OpcionDatos
+                  icono="📥"
+                  titulo="Importar CSV"
+                  texto="Carga expedientes desde un archivo CSV exportado antes con esta aplicación."
+                  ayuda="Elige un archivo .csv con el formato de «Exportar todo (CSV)». Te dice cuántos expedientes se crean antes de aplicarlo."
+                  archivo=".csv"
+                  deshabilitado={cargando}
+                  alElegir={(e) => {
+                    setMenuDatos(false);
+                    void importarCsv(e);
+                  }}
+                />
+              )}
+            </GrupoDatos>
+
+            <GrupoDatos titulo="🔎 Comprobar sin cambiar nada" ayuda="Para revisar, no modifica ningún expediente.">
+              <OpcionDatos
+                icono="🔎"
+                titulo="Contrastar listado"
+                texto="Compara un listado de ventas en Excel con tus expedientes y te dice qué falta o no coincide. No cambia nada."
+                ayuda="Elige el Excel de la empresa: se compara con tus expedientes y se muestra un informe. No se crea ni se modifica nada."
+                archivo=".xlsx, .xls"
+                deshabilitado={importandoExcel || cargando}
+                alElegir={(e) => {
+                  setMenuDatos(false);
+                  void contrastarListado(e);
+                }}
+              />
+            </GrupoDatos>
+
+            {mostrarBotonesCsv && (
+              <GrupoDatos titulo="📤 Sacar expedientes" ayuda="Descarga un archivo con los expedientes.">
+                <OpcionDatos
+                  icono="📤"
+                  titulo="Exportar todo (CSV)"
+                  texto="Descarga todos los expedientes (los que ves con los filtros actuales) en un CSV que se abre con Excel."
+                  ayuda="Descarga un archivo .csv en tu equipo con los expedientes de la tabla. No cambia nada en la aplicación."
+                  alPulsar={() => {
+                    setMenuDatos(false);
+                    exportarCsv(false);
+                  }}
+                />
+                <OpcionDatos
+                  icono="☑️"
+                  titulo="Exportar seleccionados (CSV)"
+                  texto={seleccionados.length > 0 ? `Descarga solo los ${seleccionados.length} expedientes que has marcado.` : "Primero activa «Selección» en la barra y marca los expedientes que quieras."}
+                  ayuda="Descarga solo los expedientes marcados. Requiere activar la selección masiva y marcar alguno."
+                  deshabilitado={seleccionados.length === 0}
+                  alPulsar={() => {
+                    setMenuDatos(false);
+                    exportarCsv(true);
+                  }}
+                />
+              </GrupoDatos>
+            )}
+
+            {esAdministrador && (
+              <GrupoDatos titulo="🗄️ Copias y traspaso entre instalaciones" ayuda="Solo administradores. Para guardar, recuperar o llevar los expedientes a otro equipo.">
+                <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ fontWeight: 600 }}>📁 Expedientes en archivo JSON y copias internas</div>
+                  <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Exporta o importa solo los expedientes (con vista previa y copia de seguridad automática) y guarda copias internas de esta sección dentro de la aplicación para restaurarlas cuando quieras.</div>
+                  <BotonesDatosSeccion seccion="expedientes" />
+                </div>
+                <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ fontWeight: 600 }}>💾 Copia completa de toda la aplicación (JSON)</div>
+                  <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Incluye todos los datos, también contraseñas cifradas y secretos del doble factor: guárdala en un sitio seguro. La copia más segura es la .dump de Configuración › BBDD.</div>
+                  <BotonesBackup deshabilitado={cargando} />
+                </div>
+              </GrupoDatos>
+            )}
+          </div>
+        </Modal>
+      )}
       {/* FILTRADO AVANZADO */}
       <div className="glass-panel" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
@@ -967,22 +1043,30 @@ export default function ExpedientesList({
           </h4>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <div style={cajaMes}>
-            <span style={textoCaja}>Comisionado:</span>
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "ant")} style={botonMes} title="Mes Anterior (-1)">←</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "actual")} style={botonMes} title="Mes Actual -1">Actual</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_comisionado", "sig")} style={botonMes} title="Mes Siguiente (+1)">→</button>
+          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }} title="Atajos para filtrar por mes sin abrir los desplegables">
+            Atajos de mes:
+          </span>
+          {(
+            [
+              { campo: "fecha_comisionado", etiqueta: "Se cobra en", ayuda: "expedientes comisionados (que se cobran) en el mes elegido; «Actual» es el mes en curso" },
+              { campo: "fecha_afectacion", etiqueta: "Afectados en", ayuda: "expedientes con fecha de afectación en el mes elegido" },
+            ] as const
+          ).map((g) => (
+            <div key={g.campo} style={cajaMes}>
+              <span style={textoCaja}>{g.etiqueta}</span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "ant")} style={botonMes} title={`Mes anterior: ${g.ayuda}`}>
+                  ◀ Anterior
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "actual")} style={botonMes} title={`Mes actual: ${g.ayuda}`}>
+                  Actual
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "sig")} style={botonMes} title={`Mes siguiente: ${g.ayuda}`}>
+                  Siguiente ▶
+                </button>
+              </div>
             </div>
-          </div>
-          <div style={cajaMes}>
-            <span style={textoCaja}>Afectación:</span>
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "ant")} style={botonMes} title="Mes Anterior (-1)">←</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "actual")} style={botonMes} title="Mes Actual Real">Actual</button>
-              <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro("fecha_afectacion", "sig")} style={botonMes} title="Mes Siguiente (+1)">→</button>
-            </div>
-          </div>
+          ))}
         </div>
           <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} style={{ padding: "4px 10px", fontSize: "0.75rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
             🧹 Limpiar Filtros
@@ -1219,22 +1303,9 @@ export default function ExpedientesList({
                     />
                   </th>
                 )}
-                {cabecera("cliente", "Cliente")}
-                {cabecera("telefono", "Teléfono")}
-                {cabecera("email", "Email")}
-                {cabecera("marca", "Marca")}
-                {cabecera("modelo", "Modelo")}
-                {cabecera("marca_modelo", "Marca y modelo")}
-                {cabecera("tipo_venta", "T. Venta")}
-                {cabecera("estado", "Estado")}
-                {cabecera("vendedor", "Vendedor")}
-                {cabecera("fecha_expediente", "F. Exp.", FONDO_FECHA_A)}
-                {cabecera("fecha_afectacion", "F. Afect", FONDO_FECHA_B)}
-                {cabecera("fecha_rci", "F. RCI", FONDO_FECHA_A)}
-                {cabecera("fecha_matriculacion", "F. Mat", FONDO_FECHA_B)}
-                {cabecera("fecha_facturacion", "F. FAC.", FONDO_FECHA_A)}
-                {cabecera("fecha_entrega", "F. Entrega", FONDO_FECHA_B)}
-                {cabecera("cobro", "Comisionado", "rgba(128, 128, 128, 0.06)")}
+                {columnasActivas.map((c) => (
+                  <Fragment key={c.clave}>{cabecera(c.clave, ENCABEZADOS[c.clave].etiqueta, ENCABEZADOS[c.clave].fondo)}</Fragment>
+                ))}
                 <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Acciones</th>
               </tr>
             </thead>
@@ -1261,88 +1332,93 @@ export default function ExpedientesList({
                         />
                       </td>
                     )}
-                    {mostrarCol("cliente") && (
-                      <td style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
-                        <CeldaCliente exp={exp} alAsignar={setAsignandoId} />
-                      </td>
-                    )}
-                    {mostrarCol("telefono") && (
-                      <td>
-                        {exp.cliente?.telefonos[0]?.telefono ? <TextoCopiable texto={exp.cliente.telefonos[0].telefono} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
-                      </td>
-                    )}
-                    {mostrarCol("email") && (
-                      <td>
-                        {exp.cliente?.emails[0]?.email ? <TextoCopiable texto={exp.cliente.emails[0].email} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
-                      </td>
-                    )}
-                    {mostrarCol("marca") && (
-                      <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre} /> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
-                    )}
-                    {mostrarCol("modelo") && (
-                      <td>
-                        {exp.modelo ? (
-                          <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
-                        ) : (
-                          <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
-                        )}
-                        {exp.copia_de && exp.copia_etiqueta && <span title={`Copia del expediente nº ${exp.copia_de} (hecha con «Duplicar»)`} style={{ display: "inline-block", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.04em", color: "var(--warning)", border: "1px solid var(--warning)", borderRadius: "4px", padding: "0 5px", marginTop: "2px" }}>COPIA de #{exp.copia_de}</span>}
-                        {exp.vin && <TextoCopiable texto={exp.vin} estilo={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</TextoCopiable>}
-                      </td>
-                    )}
-                    {mostrarCol("marca_modelo") && (
-                      <td>
-                        {marcaYModelo(exp) ? (
-                          <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
-                        ) : (
-                          <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca ni modelo)</span>
-                        )}
-                        {exp.copia_de && exp.copia_etiqueta && <span title={`Copia del expediente nº ${exp.copia_de} (hecha con «Duplicar»)`} style={{ display: "inline-block", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.04em", color: "var(--warning)", border: "1px solid var(--warning)", borderRadius: "4px", padding: "0 5px", marginTop: "2px" }}>COPIA de #{exp.copia_de}</span>}
-                        {exp.vin && <TextoCopiable texto={exp.vin} estilo={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</TextoCopiable>}
-                      </td>
-                    )}
-                    {mostrarCol("tipo_venta") && (
-                      <td>
-                        <BadgeTipoVenta exp={exp} />
-                      </td>
-                    )}
-                    {mostrarCol("estado") && (
-                      <td>
-                        <BadgeEstado exp={exp} />
-                      </td>
-                    )}
-                    {mostrarCol("vendedor") && (
-                      <td>
-                        {exp.usuario?.nombre ? <TextoCopiable texto={exp.usuario.nombre} estilo={{ fontSize: "0.9rem", fontWeight: 500 }} /> : <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>N/D</span>}
-                      </td>
-                    )}
-                    {mostrarCol("fecha_expediente") && (
-                      <td style={{ textAlign: "center", backgroundColor: FONDO_FECHA_A }}>
-                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
-                      </td>
-                    )}
-                    {mostrarCol("fecha_afectacion") && celdaFecha(exp, "fecha_afectacion", "Afectación", FONDO_FECHA_B)}
-                    {mostrarCol("fecha_rci") && celdaFecha(exp, "fecha_rci", "RCI", FONDO_FECHA_A)}
-                    {mostrarCol("fecha_matriculacion") && celdaFecha(exp, "fecha_matriculacion", "Matriculación", FONDO_FECHA_B)}
-                    {mostrarCol("fecha_facturacion") && celdaFecha(exp, "fecha_facturacion", "Facturación", FONDO_FECHA_A)}
-                    {mostrarCol("fecha_entrega") && celdaFecha(exp, "fecha_entrega", "Entrega", FONDO_FECHA_B)}
-                    {mostrarCol("cobro") && (
-                      <td style={{ textAlign: "center" }}>
-                        {exp.comisionado?.estado === "pagado" ? (
-                          <span className="badge" title={`Comisión pagada según el Cotejo de pagos de ${exp.comisionado.mes.split("-").reverse().join("/")}`} style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                            💰 Comisionado {exp.comisionado.mes.split("-").reverse().join("/")}
-                          </span>
-                        ) : exp.comisionado?.estado === "reclamado" ? (
-                          <span className="badge" title={`Comisión reclamada a la empresa (liquidación de ${exp.comisionado.mes.split("-").reverse().join("/")})`} style={{ fontSize: "0.75rem", backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
-                            ⚠️ Reclamado
-                          </span>
-                        ) : (
-                          <span className="badge" title="Todavía no está marcado como pagado en el Cotejo de pagos" style={{ fontSize: "0.75rem", backgroundColor: "rgba(128, 128, 128, 0.1)", color: "var(--text-muted)", border: "1px solid var(--border-light)" }}>
-                            Pendiente
-                          </span>
-                        )}
-                      </td>
-                    )}
+                    {(() => {
+                      const celdas: Record<Columna, ReactNode> = {
+                      cliente: mostrarCol("cliente") && (
+                          <td style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
+                            <CeldaCliente exp={exp} alAsignar={setAsignandoId} />
+                          </td>
+                      ),
+                      telefono: mostrarCol("telefono") && (
+                          <td>
+                            {exp.cliente?.telefonos[0]?.telefono ? <TextoCopiable texto={exp.cliente.telefonos[0].telefono} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
+                          </td>
+                      ),
+                      email: mostrarCol("email") && (
+                          <td>
+                            {exp.cliente?.emails[0]?.email ? <TextoCopiable texto={exp.cliente.emails[0].email} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
+                          </td>
+                      ),
+                      marca: mostrarCol("marca") && (
+                          <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre} /> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
+                      ),
+                      modelo: mostrarCol("modelo") && (
+                          <td>
+                            {exp.modelo ? (
+                              <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
+                            ) : (
+                              <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
+                            )}
+                            {exp.copia_de && exp.copia_etiqueta && <span title={`Copia del expediente nº ${exp.copia_de} (hecha con «Duplicar»)`} style={{ display: "inline-block", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.04em", color: "var(--warning)", border: "1px solid var(--warning)", borderRadius: "4px", padding: "0 5px", marginTop: "2px" }}>COPIA de #{exp.copia_de}</span>}
+                            {exp.vin && <TextoCopiable texto={exp.vin} estilo={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</TextoCopiable>}
+                          </td>
+                      ),
+                      marca_modelo: mostrarCol("marca_modelo") && (
+                          <td>
+                            {marcaYModelo(exp) ? (
+                              <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
+                            ) : (
+                              <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca ni modelo)</span>
+                            )}
+                            {exp.copia_de && exp.copia_etiqueta && <span title={`Copia del expediente nº ${exp.copia_de} (hecha con «Duplicar»)`} style={{ display: "inline-block", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.04em", color: "var(--warning)", border: "1px solid var(--warning)", borderRadius: "4px", padding: "0 5px", marginTop: "2px" }}>COPIA de #{exp.copia_de}</span>}
+                            {exp.vin && <TextoCopiable texto={exp.vin} estilo={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</TextoCopiable>}
+                          </td>
+                      ),
+                      tipo_venta: mostrarCol("tipo_venta") && (
+                          <td>
+                            <BadgeTipoVenta exp={exp} />
+                          </td>
+                      ),
+                      estado: mostrarCol("estado") && (
+                          <td>
+                            <BadgeEstado exp={exp} />
+                          </td>
+                      ),
+                      vendedor: mostrarCol("vendedor") && (
+                          <td>
+                            {exp.usuario?.nombre ? <TextoCopiable texto={exp.usuario.nombre} estilo={{ fontSize: "0.9rem", fontWeight: 500 }} /> : <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>N/D</span>}
+                          </td>
+                      ),
+                      fecha_expediente: mostrarCol("fecha_expediente") && (
+                          <td style={{ textAlign: "center", backgroundColor: FONDO_FECHA_A }}>
+                            <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
+                          </td>
+                      ),
+                      fecha_afectacion: mostrarCol("fecha_afectacion") && celdaFecha(exp, "fecha_afectacion", "Afectación", FONDO_FECHA_B),
+                      fecha_rci: mostrarCol("fecha_rci") && celdaFecha(exp, "fecha_rci", "RCI", FONDO_FECHA_A),
+                      fecha_matriculacion: mostrarCol("fecha_matriculacion") && celdaFecha(exp, "fecha_matriculacion", "Matriculación", FONDO_FECHA_B),
+                      fecha_facturacion: mostrarCol("fecha_facturacion") && celdaFecha(exp, "fecha_facturacion", "Facturación", FONDO_FECHA_A),
+                      fecha_entrega: mostrarCol("fecha_entrega") && celdaFecha(exp, "fecha_entrega", "Entrega", FONDO_FECHA_B),
+                      cobro: mostrarCol("cobro") && (
+                          <td style={{ textAlign: "center" }}>
+                            {exp.comisionado?.estado === "pagado" ? (
+                              <span className="badge" title={`Comisión pagada según el Cotejo de pagos de ${exp.comisionado.mes.split("-").reverse().join("/")}`} style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                                💰 Comisionado {exp.comisionado.mes.split("-").reverse().join("/")}
+                              </span>
+                            ) : exp.comisionado?.estado === "reclamado" ? (
+                              <span className="badge" title={`Comisión reclamada a la empresa (liquidación de ${exp.comisionado.mes.split("-").reverse().join("/")})`} style={{ fontSize: "0.75rem", backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                                ⚠️ Reclamado
+                              </span>
+                            ) : (
+                              <span className="badge" title="Todavía no está marcado como pagado en el Cotejo de pagos" style={{ fontSize: "0.75rem", backgroundColor: "rgba(128, 128, 128, 0.1)", color: "var(--text-muted)", border: "1px solid var(--border-light)" }}>
+                                Pendiente
+                              </span>
+                            )}
+                          </td>
+                      ),
+                      };
+                      return columnasActivas.map((c) => <Fragment key={c.clave}>{celdas[c.clave]}</Fragment>);
+                    })()}
                     <td>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
                         <Link
@@ -1578,3 +1654,47 @@ function aActualizacion(fila: FilaExcel, idCliente: number, idExpediente: number
     f_entrega: fila.f_entrega,
   };
 }
+
+/* ---------------- Piezas de la ventana «Importar y exportar» ---------------- */
+
+function GrupoDatos({ titulo, ayuda, children }: { titulo: string; ayuda: string; children: ReactNode }) {
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ display: "flex", gap: "10px", alignItems: "baseline", flexWrap: "wrap", borderBottom: "1px solid var(--border-light)", paddingBottom: "4px" }}>
+        <b>{titulo}</b>
+        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{ayuda}</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "10px" }} className="rejilla-propia">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Una opción: botón (o selector de archivo) con su nombre y una frase que explica qué hace. */
+function OpcionDatos({ icono, titulo, texto, ayuda, archivo, deshabilitado, alElegir, alPulsar }: { icono: string; titulo: string; texto: string; ayuda: string; archivo?: string; deshabilitado?: boolean; alElegir?: (e: ChangeEvent<HTMLInputElement>) => void; alPulsar?: () => void }) {
+  const estilo: CSSProperties = { display: "flex", gap: "10px", alignItems: "flex-start", textAlign: "left", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px", background: "rgba(255, 255, 255, 0.03)", color: "var(--text-primary)", cursor: deshabilitado ? "not-allowed" : "pointer", opacity: deshabilitado ? 0.5 : 1, width: "100%" };
+  const contenido = (
+    <>
+      <span style={{ fontSize: "1.3rem" }}>{icono}</span>
+      <span>
+        <b style={{ display: "block" }}>{titulo}</b>
+        <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>{texto}</span>
+      </span>
+    </>
+  );
+  if (archivo) {
+    return (
+      <label style={estilo} title={ayuda}>
+        {contenido}
+        <input type="file" accept={archivo} onChange={alElegir} style={{ display: "none" }} disabled={deshabilitado} />
+      </label>
+    );
+  }
+  return (
+    <button type="button" style={estilo} title={ayuda} disabled={deshabilitado} onClick={alPulsar}>
+      {contenido}
+    </button>
+  );
+}
+

@@ -284,3 +284,14 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - Pantalla **Cotejo de pagos**: subir rejillas escaneadas, revisar matrículas, guardar por mes y ver el cotejo en verde/amarillo/rojo (+ gris sin rejilla). Probado con las 9 rejillas reales: 58 de 68 matrículas exactas y el resto marcadas para revisar; el cotejo con los 2 listados señala 2 coches sin pagar en julio de 2026.
 - Botón **Contrastar listado** en Expedientes (solo lectura).
 - Pruebas: 342 en verde (nuevas: `cotejo-pagos`, `contraste-listado`, `servicios/cotejo`).
+
+## Versión 1.0.18 (17/10/2026, sin publicar)
+
+- **Copias internas por sección**: se guardan dentro de la aplicación (tabla `copias_seccion`), con lista, buscador y filtros (origen, fechas), descargar, restaurar con vista previa y borrar; se hacen solas antes de cada importación (se conservan las últimas 20 por sección).
+- **Datos por secciones reorganizado** (Configuración › BBDD): secciones agrupadas, tarjetas iguales y botones Exportar | Importar | Copias; los mismos botones están en Clientes, Planes, Cotejo, catálogos y en la ventana «Importar y exportar» de Expedientes.
+- **Plantillas de tarifas VN** (tabla `plantillas_tarifas_vn`): genérica de Renault y Dacia incluida (con Dacia Striker), aplicar con ventana por modelo (nuevo / sustituye / ya igual, crear marcas y modelos que falten), guardar las tarifas del plan como plantilla, gestionar, exportar e importar.
+- **Plantillas de plan** (tabla `plantillas_plan`): por pestaña (Resumen, Objetivo, Usados, Financ/Reglas, Bonus, Penalizaciones, Notas) y del plan completo; marcas, modelos y vendedores por nombre; aplicar eligiendo partes y «reemplazar / añadir lo que falta»; exportar e importar.
+- **Expedientes**: «Columnas y vistas» (ordenar arrastrando, mostrar/ocultar, restaurar predeterminado, vistas incluidas y propias); botones de importar y exportar reunidos en una ventana; atajos de mes más claros; aviso visible cuando se mira otro mes; panel Comisiones con indicadores; colores y efectos por tramo y por puntos.
+- **Laboratorio**: se mueve, se redimensiona, «Cerrar» lo recoloca; los avisos dicen cliente, vehículo y matrícula.
+- **Ayuda emergente** de reserva en todos los botones que no tenían.
+- Pruebas: nuevas `copias-seccion`, `plantillas-tarifas` y `plantillas-plan`.

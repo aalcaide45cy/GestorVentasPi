@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Modal from "@/components/Modal";
+import { BotonesDatosSeccion, descargarSeccion } from "@/components/datos/DatosSeccion";
 import { useToast } from "@/components/Toast";
 import { euros, etiquetaTramo, nombreMes, puntos } from "@/lib/formato";
 import type { LiquidacionResumen, PrevisionMes } from "@/lib/servicios/comisiones-gestion";
@@ -48,6 +49,16 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
       mostrar("Copia del plan abierta: cambia el nombre y las fechas y pulsa «Guardar plan».", "exito");
     } catch (e) {
       mostrar(textoError(e), "error");
+    }
+  };
+
+  /** Descarga un único plan como archivo .json. */
+  const exportarUno = async (p: ResumenPlan) => {
+    try {
+      const r = await descargarSeccion({ seccion: "planes", plural: "planes de comisionamiento" }, [p.idPlan]);
+      mostrar(`✅ Plan «${p.nombre}» exportado al archivo ${r.nombre}.`);
+    } catch (e) {
+      mostrar(`No se ha exportado nada. ${textoError(e)}`, "error");
     }
   };
 
@@ -142,9 +153,12 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
       <Seccion
         titulo="Planes de Comisionamiento"
         acciones={
-          <button type="button" className="btn btn-primary" onClick={() => setEditando({ plan: null, solapados: [] })}>
-            + Nuevo plan
-          </button>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            <BotonesDatosSeccion seccion="planes" alCambiar={cargar} />
+            <button type="button" className="btn btn-primary" onClick={() => setEditando({ plan: null, solapados: [] })}>
+              + Nuevo plan
+            </button>
+          </div>
         }
       >
         <div className="table-container">
@@ -174,10 +188,13 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
                   <td>{p.estado}</td>
                   <td>{p.vendedores}</td>
                   <td>{p.liquidaciones}</td>
-                  <td style={{ display: "flex", gap: "6px" }}>
+                  <td style={{ display: "flex", gap: "6px", flexWrap: "wrap", minWidth: "200px" }}>
                     <BotonMini onClick={() => abrir(p)}>Abrir</BotonMini>
                     <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => duplicar(p)}>
                       Duplicar
+                    </BotonMini>
+                    <BotonMini titulo="Descarga solo este plan como archivo .json (se puede importar en otra instalación o en esta con «Importar»)." onClick={() => void exportarUno(p)}>
+                      Exportar
                     </BotonMini>
                     <BotonMini peligro onClick={() => setABorrar(p)}>
                       Eliminar

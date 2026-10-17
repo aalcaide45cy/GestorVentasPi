@@ -3,6 +3,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { useCarga } from "@/components/comisiones/useCarga";
 import type { ExpedienteDto } from "@/lib/dto";
+import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
 import { BotonPlegar, PanelCartera, PanelComisiones, firmaExpedientes, usePlegable } from "./ComisionesYCartera";
@@ -150,6 +151,9 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
   const lista = abierto ? r.listas[abierto] : undefined;
   const detalleMotor = abierto === "puntos" || abierto === "tramo" || abierto === "comision";
 
+  const esMesActual = anio === hoy.getFullYear() && mes === hoy.getMonth() + 1;
+  const efPuntos = efectoPuntos(m?.puntosMes, m?.objetivoX);
+  const efTramo = efectoTramo(m?.tramo);
   const listaAnios = anios.includes(anio) ? anios : [anio, ...anios].sort((a, b) => b - a);
   const botonMes = { padding: "3px 10px", fontSize: "0.8rem", whiteSpace: "nowrap" } as const;
 
@@ -160,6 +164,22 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         <div>
           <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
+          <div style={{ marginTop: "6px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            {esMesActual ? (
+              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--success)", border: "1px solid var(--success)", borderRadius: "999px", padding: "2px 10px" }} title="Estás viendo el mes en curso">
+                📅 {MESES[mes - 1]} {anio} · mes actual
+              </span>
+            ) : (
+              <>
+                <span style={{ fontSize: "0.82rem", fontWeight: 800, color: "#1a1a1a", background: "var(--warning)", borderRadius: "999px", padding: "3px 12px" }} title={`Los datos de abajo son de ${MESES[mes - 1]} ${anio}, no del mes en curso`}>
+                  ⚠️ Estás viendo otro mes: {MESES[mes - 1]} {anio}
+                </span>
+                <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.75rem" }} onClick={() => { setMes(hoy.getMonth() + 1); setAnio(hoy.getFullYear()); }} title={`Vuelve a ${MESES[hoy.getMonth()]} ${hoy.getFullYear()}, el mes en curso`}>
+                  Volver a {MESES[hoy.getMonth()]} {hoy.getFullYear()}
+                </button>
+              </>
+            )}
+          </div>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button type="button" className="btn btn-secondary" onClick={() => mover(-1)} style={botonMes}>
@@ -197,7 +217,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
       </div>
 
-      {panelAbierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
+      {panelAbierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", ...(esMesActual ? {} : { outline: "2px dashed var(--warning)", outlineOffset: "6px", borderRadius: "var(--radius-md)" }) }}>
         <div className="glass-panel-interactive" {...tarjeta("afectados")}>
           <span style={estiloEtiqueta}>AFECTADOS EN EL MES</span>
           <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{r.afectados}</h3>
@@ -231,12 +251,22 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
         <div className="glass-panel-interactive" {...tarjeta("puntos")}>
           <span style={estiloEtiqueta}>PUNTOS / OBJETIVO</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{m ? `${puntos(m.puntosMes)} / ${puntos(m.objetivoX)}` : "—"}</h3>
+          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>
+            {m ? (
+              <>
+                <span className={efPuntos.className} style={efPuntos.style} title={efPuntos.titulo}>{puntos(m.puntosMes)}</span> / {puntos(m.objetivoX)}
+              </>
+            ) : (
+              "—"
+            )}
+          </h3>
           <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{m ? "Puntos del mes frente a tu objetivo X" : "No hay plan para este mes"}</span>
         </div>
         <div className="glass-panel-interactive" {...tarjeta("tramo")}>
           <span style={estiloEtiqueta}>TRAMO DEL MES</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>{m ? etiquetaTramo(m.tramo) : "—"}</h3>
+          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>
+            {m ? <span className={efTramo.className} style={efTramo.style} title={efTramo.titulo}>{etiquetaTramo(m.tramo)}</span> : "—"}
+          </h3>
           <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Respecto a X, redondeo hacia abajo</span>
         </div>
         <div className="glass-panel-interactive" {...tarjeta("comision")}>

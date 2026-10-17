@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { Seccion } from "@/lib/servicios/intercambio";
 import type { EstadoVehiculoDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
+import { BotonesDatosSeccion } from "./datos/DatosSeccion";
 import PestanaBbdd from "./admin/PestanaBbdd";
 import PestanaEstados from "./admin/PestanaEstados";
 import PestanaExpedientes from "./admin/PestanaExpedientes";
@@ -33,6 +35,8 @@ const PESTANAS: { clave: Pestana; etiqueta: string }[] = [
   { clave: "temas", etiqueta: "🎨 Tema" },
 ];
 
+const SECCION_DE_PESTANA: Partial<Record<Pestana, Seccion>> = { marcas: "marcas_modelos", modelos: "marcas_modelos", tiendas: "tiendas", pagos: "tipos_venta", estados: "estados" };
+
 /** Catálogos y ajustes del sistema, en pestañas (solo administrador). */
 export default function AdminCatalogosForm({
   marcasIniciales,
@@ -58,6 +62,13 @@ export default function AdminCatalogosForm({
           </button>
         ))}
       </div>
+
+      {SECCION_DE_PESTANA[pestana] && (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "-12px" }}>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Datos de esta pestaña:</span>
+          <BotonesDatosSeccion key={pestana} seccion={SECCION_DE_PESTANA[pestana]} alCambiar={() => window.location.reload()} />
+        </div>
+      )}
 
       {pestana === "marcas" && <PestanaMarcas marcas={marcas} setMarcas={setMarcas} />}
       {pestana === "modelos" && <PestanaModelos marcas={marcas} setMarcas={setMarcas} />}
