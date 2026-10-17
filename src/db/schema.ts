@@ -90,6 +90,8 @@ export const estadoVehiculo = pgTable("estado_vehiculo", {
   clase: varchar("clase", { length: 2 }).notNull().default("VN"),
   /** USADO | KM0 | DEMO | BUYBACK … */
   subtipoVo: varchar("subtipo_vo", { length: 30 }),
+  /** Color de la etiqueta en las listas (#RRGGBB); sin color se usa el de siempre. */
+  color: varchar("color", { length: 7 }),
   /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
   eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });

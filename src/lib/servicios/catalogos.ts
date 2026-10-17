@@ -40,6 +40,7 @@ export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
     predeterminado: z.boolean().optional(),
     clase: z.enum(CLASES).optional(),
     subtipo_vo: textoOpcional(30).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido").nullish(),
   }),
 ]);
 export type EntradaCrearCatalogo = z.infer<typeof esquemaCrearCatalogo>;
@@ -75,6 +76,7 @@ export const esquemaActualizarCatalogo = z.discriminatedUnion("tipo", [
     predeterminado: z.boolean().optional(),
     clase: z.enum(CLASES).optional(),
     subtipo_vo: textoOpcional(30).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido").nullish(),
   }),
 ]);
 export type EntradaActualizarCatalogo = z.infer<typeof esquemaActualizarCatalogo>;
@@ -177,6 +179,7 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
             predeterminado: !!e.predeterminado,
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
             subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
+            color: e.color ?? null,
           })
           .returning();
         return estadoDto(n);
@@ -230,6 +233,7 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
             predeterminado: e.predeterminado,
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
             subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
+            color: e.color,
           })
           .where(eq(estadoVehiculo.idEstadoVehiculo, e.id))
           .returning();

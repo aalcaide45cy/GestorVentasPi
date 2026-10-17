@@ -18,6 +18,8 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState("");
   const [predeterminadoEdicion, setPredeterminadoEdicion] = useState(false);
+  const [color, setColor] = useState("");
+  const [colorEdicion, setColorEdicion] = useState("");
 
   const valor = (e: EstadoVehiculoDto): string | number => (orden.campo === "nombre" ? e.nombre_estado_vehiculo : e.id_estado_vehiculo);
   const ordenados = [...estados].sort((a, b) => comparar(valor(a), valor(b), orden.asc));
@@ -29,12 +31,13 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const crear = async (ev: FormEvent) => {
     ev.preventDefault();
     const ok = await ejecutar(async () => {
-      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "POST", { tipo: "estado_vehiculo", nombre_estado_vehiculo: nombre, predeterminado }, "Error al crear el estado");
+      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "POST", { tipo: "estado_vehiculo", nombre_estado_vehiculo: nombre, predeterminado, color: color || null }, "Error al crear el estado");
       setEstados((prev) => [...(n.predeterminado ? prev.map((e) => ({ ...e, predeterminado: false })) : prev), n]);
     }, "Estado de vehículo creado con éxito");
     if (ok) {
       setNombre("");
       setPredeterminado(false);
+      setColor("");
     }
   };
 
@@ -45,7 +48,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
       const n = await llamar<EstadoVehiculoDto>(
         "/api/admin/catalogos",
         "PUT",
-        { tipo: "estado_vehiculo", id: editando, nombre_estado_vehiculo: nombreEdicion, predeterminado: predeterminadoEdicion },
+        { tipo: "estado_vehiculo", id: editando, nombre_estado_vehiculo: nombreEdicion, predeterminado: predeterminadoEdicion, color: colorEdicion || null },
         "Error al actualizar el estado",
       );
       aplicar(n);
@@ -82,6 +85,15 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
           <input type="checkbox" id="chkNuevoEstadoPredeterminado" checked={predeterminado} onChange={(e) => setPredeterminado(e.target.checked)} style={estiloCheck} />
           <label htmlFor="chkNuevoEstadoPredeterminado" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }}>Predeterminado</label>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Color de la etiqueta de este estado en las listas. Si no eliges ninguno se usa el de siempre">
+          Color
+          <input type="color" value={color || "#3b82f6"} onChange={(e) => setColor(e.target.value)} style={{ width: "36px", height: "28px", padding: 0, border: "none", background: "none", cursor: "pointer" }} />
+          {color && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => setColor("")} title="Quitar el color elegido">
+              ✕
+            </button>
+          )}
+        </label>
         <button type="submit" className="btn btn-primary" disabled={cargando}>
           + Crear Estado
         </button>
@@ -92,6 +104,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
           <thead>
             <tr>
               <Cabecera etiqueta="Nombre Estado" campo="nombre" orden={orden} />
+              <th>Color</th>
               <th>Predeterminado</th>
               <th>Acciones</th>
             </tr>
@@ -112,6 +125,24 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                     </form>
                   ) : (
                     <span style={{ fontWeight: 600 }}>{e.nombre_estado_vehiculo}</span>
+                  )}
+                </td>
+                <td>
+                  {editando === e.id_estado_vehiculo ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <input type="color" value={colorEdicion || "#3b82f6"} onChange={(ev) => setColorEdicion(ev.target.value)} style={{ width: "36px", height: "28px", padding: 0, border: "none", background: "none", cursor: "pointer" }} title="Color de la etiqueta de este estado" />
+                      {colorEdicion && (
+                        <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => setColorEdicion("")} title="Quitar el color y usar el de siempre">
+                          ✕
+                        </button>
+                      )}
+                    </span>
+                  ) : e.color ? (
+                    <span className="badge" style={{ background: e.color, color: "#fff", padding: "3px 10px", fontSize: "0.72rem" }}>
+                      {e.nombre_estado_vehiculo}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>por defecto</span>
                   )}
                 </td>
                 <td>
@@ -136,6 +167,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                         setEditando(e.id_estado_vehiculo);
                         setNombreEdicion(e.nombre_estado_vehiculo);
                         setPredeterminadoEdicion(!!e.predeterminado);
+                        setColorEdicion(e.color ?? "");
                       }}
                       style={{ padding: "6px 12px", fontSize: "0.8rem" }}
                     >

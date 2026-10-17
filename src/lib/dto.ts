@@ -64,6 +64,7 @@ export interface EstadoVehiculoDto {
   predeterminado: boolean | null;
   clase: string;
   subtipo_vo: string | null;
+  color: string | null;
 }
 
 export interface TiendaDto {

@@ -86,6 +86,7 @@ export function estadoDto(e: typeof estadoVehiculo.$inferSelect): EstadoVehiculo
     predeterminado: e.predeterminado,
     clase: e.clase,
     subtipo_vo: e.subtipoVo,
+    color: e.color,
   };
 }
 

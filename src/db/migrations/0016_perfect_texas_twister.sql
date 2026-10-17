@@ -1,0 +1,1 @@
+ALTER TABLE "estado_vehiculo" ADD COLUMN "color" varchar(7);

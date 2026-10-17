@@ -32,6 +32,14 @@ export function BadgeTipoVenta({ exp }: { exp: ExpedienteDto }) {
 export function BadgeEstado({ exp }: { exp: ExpedienteDto }) {
   if (!exp.estadoVehiculo) return <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>;
   const esNuevo = exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === "nuevo";
+  const color = exp.estadoVehiculo.color;
+  if (color) {
+    return (
+      <span className="badge" style={{ fontSize: "0.7rem", padding: "3px 8px", backgroundColor: color, color: "#fff" }}>
+        {exp.estadoVehiculo.nombre_estado_vehiculo}
+      </span>
+    );
+  }
   return (
     <span className={`badge badge-${esNuevo ? "tienda" : "vendedor"}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
       {exp.estadoVehiculo.nombre_estado_vehiculo}
