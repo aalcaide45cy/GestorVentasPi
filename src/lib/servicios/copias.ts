@@ -8,7 +8,7 @@ import { Readable } from "node:stream";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { ajustes, copiasSeguridad } from "@/db/schema";
+import { ajustes, conexionDrive, copiasSeguridad } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { verificarPassword } from "@/lib/auth/password";
@@ -243,10 +243,18 @@ export const esquemaAjustesCopias = z.object({
   retSemanales: z.number().int().min(0).max(104),
   retMensuales: z.number().int().min(0).max(120),
   driveAutomatica: z.boolean(),
+  /** Qué copias automáticas se suben a Drive: todas, solo una a la semana o solo una al mes. */
+  driveFrecuencia: z.enum(["todas", "semanal", "mensual"]).default("todas"),
+  /** Nombre de la carpeta de Drive donde se guardan (la crea la aplicación si no existe). */
+  driveCarpeta: z.string().trim().min(1, "Falta el nombre de la carpeta").max(100).default("GestorVentasPi-Copias"),
+  /** Aviso (punto rojo en Configuración) cuando hay más copias que estas (0 = sin aviso). */
+  avisoMaxCopias: z.number().int().min(0).max(1000).default(40),
+  /** Aviso cuando las copias ocupan más GB que estos (0 = sin aviso). */
+  avisoMaxGb: z.number().int().min(0).max(10000).default(0),
 });
 export type AjustesCopias = z.infer<typeof esquemaAjustesCopias>;
 
-export const AJUSTES_POR_DEFECTO: AjustesCopias = { automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false };
+export const AJUSTES_POR_DEFECTO: AjustesCopias = { automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0 };
 
 const CLAVES: Record<keyof AjustesCopias, string> = {
   automatica: "backup_auto",
@@ -255,6 +263,10 @@ const CLAVES: Record<keyof AjustesCopias, string> = {
   retSemanales: "backup_ret_semanales",
   retMensuales: "backup_ret_mensuales",
   driveAutomatica: "backup_drive_auto",
+  driveFrecuencia: "backup_drive_frecuencia",
+  driveCarpeta: "backup_drive_carpeta",
+  avisoMaxCopias: "backup_aviso_max_copias",
+  avisoMaxGb: "backup_aviso_max_gb",
 };
 
 export async function leerAjustesCopias(ej: Ejecutor): Promise<AjustesCopias> {
@@ -273,11 +285,18 @@ export async function leerAjustesCopias(ej: Ejecutor): Promise<AjustesCopias> {
     retSemanales: num("retSemanales", d.retSemanales),
     retMensuales: num("retMensuales", d.retMensuales),
     driveAutomatica: bool("driveAutomatica", d.driveAutomatica),
+    driveFrecuencia: (["todas", "semanal", "mensual"] as const).find((f) => f === mapa.get(CLAVES.driveFrecuencia)) ?? d.driveFrecuencia,
+    driveCarpeta: mapa.get(CLAVES.driveCarpeta)?.trim() || d.driveCarpeta,
+    avisoMaxCopias: num("avisoMaxCopias", d.avisoMaxCopias),
+    avisoMaxGb: num("avisoMaxGb", d.avisoMaxGb),
   };
 }
 
 export async function guardarAjustesCopias(ej: Ejecutor, entrada: unknown): Promise<AjustesCopias> {
   const a = esquemaAjustesCopias.parse(entrada);
+  const antes = await leerAjustesCopias(ej);
+  // Si cambia el nombre de la carpeta de Drive, la siguiente subida busca o crea la nueva
+  if (antes.driveCarpeta !== a.driveCarpeta) await ej.update(conexionDrive).set({ carpetaId: null }).where(eq(conexionDrive.id, 1));
   for (const k of Object.keys(CLAVES) as (keyof AjustesCopias)[]) {
     const valor = String(a[k]);
     await ej.insert(ajustes).values({ clave: CLAVES[k], valor }).onConflictDoUpdate({ target: ajustes.clave, set: { valor } });
@@ -649,4 +668,15 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
     await rm(/*turbopackIgnore: true*/ ficheroMantenimiento(), { force: true });
   }
   return { previa: previa.nombre, recifrado };
+}
+
+/** Aviso de que hay más copias (o más GB) de los que el administrador quiere conservar. */
+export async function avisoEspacioCopias(ej: Ejecutor): Promise<{ excede: boolean; copias: number; gb: number; motivo: string | null }> {
+  const [a, lista] = await Promise.all([leerAjustesCopias(ej), listarCopias(ej)]);
+  const copias = lista.length;
+  const gb = lista.reduce((t, c) => t + c.tamano, 0) / 1024 ** 3;
+  const motivos: string[] = [];
+  if (a.avisoMaxCopias > 0 && copias > a.avisoMaxCopias) motivos.push(`hay ${copias} copias de seguridad (el aviso salta a partir de ${a.avisoMaxCopias})`);
+  if (a.avisoMaxGb > 0 && gb > a.avisoMaxGb) motivos.push(`las copias ocupan ${gb.toFixed(1).replace(".", ",")} GB (el aviso salta a partir de ${a.avisoMaxGb} GB)`);
+  return { excede: motivos.length > 0, copias, gb: Math.round(gb * 100) / 100, motivo: motivos.length ? `Borra copias antiguas: ${motivos.join(" y ")}.` : null };
 }

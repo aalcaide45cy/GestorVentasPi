@@ -2,7 +2,7 @@ import { and, eq, gte } from "drizzle-orm";
 import { db, type Ejecutor } from "@/db";
 import { copiasSeguridad } from "@/db/schema";
 import { anotarError, aplicarRetencion, crearCopia, leerAjustesCopias } from "./copias";
-import { borrarEnDrive, estadoDrive, subirCopiaADrive } from "./drive";
+import { borrarEnDrive, estadoDrive, subirCopiaADrive, tocaSubirAutomatica } from "./drive";
 
 const REINTENTO_MS = 30 * 60 * 1000;
 let ultimoIntentoFallido = 0;
@@ -29,7 +29,7 @@ export async function copiaAutomaticaSiToca(ej: Ejecutor, ahora = new Date(), re
     const drive = await estadoDrive(ej);
     if (drive.conectado) {
       try {
-        if (a.driveAutomatica && !drive.requiereReconexion) await subirCopiaADrive(ej, copia.id);
+        if (a.driveAutomatica && !drive.requiereReconexion && (await tocaSubirAutomatica(ej, a.driveFrecuencia))) await subirCopiaADrive(ej, copia.id);
         if (retencion.driveFileIds.length > 0 && !drive.requiereReconexion) await borrarEnDrive(ej, retencion.driveFileIds);
       } catch (e) {
         await anotarError(ej, `Copia local hecha, pero Google Drive falló: ${e instanceof Error ? e.message : "error desconocido"}`);

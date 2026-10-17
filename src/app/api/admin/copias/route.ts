@@ -4,6 +4,7 @@ import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdQuery, manejar } from "@/lib/http";
 import { borrarCopia, borrarCopiasInvalidas, crearCopia, estadoCopias, leerAjustesCopias, listarCopias } from "@/lib/servicios/copias";
+import { avisoEspacioCopias } from "@/lib/servicios/copias";
 import { estadoClaveRecuperacion } from "@/lib/servicios/clave-recuperacion";
 import { borrarEnDrive, estadoDrive, subirCopiaADrive } from "@/lib/servicios/drive";
 
@@ -12,8 +13,8 @@ export const maxDuration = 600;
 
 export const GET = manejar(async () => {
   await requireSession("administrador");
-  const [copias, estado, ajustes, drive, claveRecuperacion] = await Promise.all([listarCopias(db), estadoCopias(db), leerAjustesCopias(db), estadoDrive(db), estadoClaveRecuperacion(db)]);
-  return NextResponse.json({ success: true, data: { copias, estado, ajustes, drive, claveRecuperacion } });
+  const [copias, estado, ajustes, drive, claveRecuperacion, aviso] = await Promise.all([listarCopias(db), estadoCopias(db), leerAjustesCopias(db), estadoDrive(db), estadoClaveRecuperacion(db), avisoEspacioCopias(db)]);
+  return NextResponse.json({ success: true, data: { copias, estado, ajustes, drive, claveRecuperacion, aviso } });
 });
 
 /** «Crear copia ahora» (y, si se pide, subirla a Drive). */

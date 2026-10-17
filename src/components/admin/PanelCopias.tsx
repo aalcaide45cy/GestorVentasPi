@@ -15,9 +15,10 @@ interface Datos {
   ajustes: AjustesCopias | null;
   drive: EstadoDrive | null;
   claveRecuperacion: { configurada: boolean } | null;
+  aviso: { excede: boolean; copias: number; gb: number; motivo: string | null } | null;
 }
 
-const VACIO: Datos = { copias: [], estado: null, ajustes: null, drive: null, claveRecuperacion: null };
+const VACIO: Datos = { copias: [], estado: null, ajustes: null, drive: null, claveRecuperacion: null, aviso: null };
 
 const tamanoLegible = (b: number): string => (b >= 1048576 ? `${(b / 1048576).toLocaleString("es-ES", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024)).toLocaleString("es-ES")} KB`);
 const fechaLegible = (iso: string): string => new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
@@ -93,6 +94,35 @@ export default function PanelCopias() {
       }
       return `Se han pedido ${descargables.length} descarga(s). Si tu navegador pregunta, permite las descargas múltiples.`;
     });
+
+  const subidas = seleccion.filter((c) => !c.enDrive && c.archivoPresente && c.estado === "ok");
+  const enDriveSel = seleccion.filter((c) => c.enDrive);
+  const driveLote = (quitar: boolean) => {
+    const lista = quitar ? enDriveSel : subidas;
+    if (quitar && !window.confirm(`¿Quitar ${lista.length} copia(s) de Google Drive? Los archivos del servidor se conservan.`)) return;
+    void accion(quitar ? "lote-quitar" : "lote-subir", async () => {
+      let hechas = 0;
+      const fallos: string[] = [];
+      for (const c of lista) {
+        try {
+          await llamar(quitar ? "/api/admin/drive/quitar" : "/api/admin/drive/subir", { method: "POST", cuerpo: { id: c.id } });
+          hechas++;
+        } catch (e) {
+          fallos.push(`${c.nombre}: ${textoError(e)}`);
+        }
+      }
+      if (fallos.length > 0) throw new Error(`${hechas} hechas y ${fallos.length} fallaron. ${fallos[0]}`);
+      return quitar ? `${hechas} copia(s) quitada(s) de Drive.` : `${hechas} copia(s) subida(s) a Drive.`;
+    });
+  };
+
+  const quitarUna = (c: CopiaDto) => {
+    if (!window.confirm(`¿Quitar la copia ${c.nombre} de Google Drive? El archivo del servidor se conserva.`)) return;
+    void accion(`quitar${c.id}`, async () => {
+      await llamar("/api/admin/drive/quitar", { method: "POST", cuerpo: { id: c.id } });
+      return "Copia quitada de Google Drive.";
+    });
+  };
 
   const borrarLote = () => {
     const validasRestantes = datos.copias.filter((c) => c.estado === "ok" && !marcadas.includes(c.id)).length;
@@ -229,12 +259,28 @@ export default function PanelCopias() {
         </span>
       </div>
 
+      {datos.aviso?.excede && (
+        <div role="alert" style={{ padding: "10px 12px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", fontSize: "0.85rem" }}>
+          🔴 {datos.aviso.motivo}
+        </div>
+      )}
+
       {seleccion.length > 0 && (
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", padding: "8px 12px", border: "1px solid var(--primary)", borderRadius: "var(--radius-sm)", background: "rgba(var(--primary-rgb), 0.08)" }}>
           <strong style={{ fontSize: "0.85rem" }}>{seleccion.length} seleccionada(s)</strong>
           <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem" }} disabled={trabajando !== null || descargables.length === 0} onClick={descargarLote} title="Descarga a tu equipo los archivos .dump marcados, uno detrás de otro (solo las copias válidas)">
             ⬇️ Descargar ({descargables.length})
           </button>
+          {drive?.conectado && !drive.requiereReconexion && (
+            <>
+              <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem" }} disabled={trabajando !== null || subidas.length === 0} onClick={() => driveLote(false)} title="Sube a Google Drive las copias marcadas que todavía no están allí">
+                ☁️ Subir a Drive ({subidas.length})
+              </button>
+              <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem" }} disabled={trabajando !== null || enDriveSel.length === 0} onClick={() => driveLote(true)} title="Quita de Google Drive las copias marcadas; los archivos del servidor se conservan">
+                🚫 Quitar de Drive ({enDriveSel.length})
+              </button>
+            </>
+          )}
           <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem", color: "var(--danger)" }} disabled={trabajando !== null} onClick={borrarLote} title="Borra del servidor (y de Google Drive si están allí) todas las copias marcadas. Te pide confirmar">
             🗑️ Borrar ({seleccion.length})
           </button>
@@ -293,6 +339,11 @@ export default function PanelCopias() {
                           {trabajando === `drive${c.id}` ? "Subiendo…" : "Subir a Drive"}
                         </button>
                       )}
+                      {drive?.conectado && !drive.requiereReconexion && c.enDrive && (
+                        <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando !== null} onClick={() => quitarUna(c)} title="Quita esta copia de Google Drive; el archivo del servidor se conserva">
+                          {trabajando === `quitar${c.id}` ? "Quitando…" : "Quitar de Drive"}
+                        </button>
+                      )}
                       <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setRestaurar(c)} title="Devuelve TODA la aplicación al estado de esta copia (se pierde lo hecho después). Antes se guarda una copia automática del estado actual. Pide contraseña y doble factor.">
                         Restaurar
                       </button>
@@ -340,9 +391,29 @@ export default function PanelCopias() {
               <label className="form-label">Mensuales</label>
               <input className="form-input" type="number" min={0} style={{ width: "80px" }} value={ajustes.retMensuales} onChange={(e) => campoAjuste("retMensuales", Number(e.target.value))} />
             </div>
-            <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <label style={{ display: "flex", gap: "6px", alignItems: "center" }} title="Sube a Google Drive las copias automáticas según la frecuencia que elijas. Las copias manuales las subes tú, una a una o en lote, con los botones de la lista">
               <input type="checkbox" checked={ajustes.driveAutomatica} onChange={(e) => campoAjuste("driveAutomatica", e.target.checked)} /> Subir a Drive automáticamente
             </label>
+            <div>
+              <label className="form-label">Qué subir a Drive</label>
+              <select className="form-input" value={ajustes.driveFrecuencia} disabled={!ajustes.driveAutomatica} onChange={(e) => campoAjuste("driveFrecuencia", e.target.value as AjustesCopias["driveFrecuencia"])} title="De las copias automáticas diarias, cuáles se suben a Drive">
+                <option value="todas">Todas las automáticas</option>
+                <option value="semanal">Una a la semana</option>
+                <option value="mensual">Una al mes</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Carpeta de Drive</label>
+              <input className="form-input" value={ajustes.driveCarpeta} maxLength={100} onChange={(e) => campoAjuste("driveCarpeta", e.target.value)} style={{ minWidth: "200px" }} title="Nombre de la carpeta de tu Drive donde se guardan las copias. Si no existe, la aplicación la crea. Si la cambias, las copias nuevas van a la carpeta nueva y las que ya estaban se quedan en la anterior" />
+            </div>
+            <div>
+              <label className="form-label">Avisar a partir de (copias)</label>
+              <input className="form-input" type="number" min={0} style={{ width: "100px" }} value={ajustes.avisoMaxCopias} onChange={(e) => campoAjuste("avisoMaxCopias", Number(e.target.value))} title="Cuando haya más copias que este número aparece un punto rojo en «Configuración». 0 = sin aviso" />
+            </div>
+            <div>
+              <label className="form-label">o a partir de (GB)</label>
+              <input className="form-input" type="number" min={0} style={{ width: "90px" }} value={ajustes.avisoMaxGb} onChange={(e) => campoAjuste("avisoMaxGb", Number(e.target.value))} title="Cuando las copias ocupen más GB que este número aparece un punto rojo en «Configuración». 0 = sin aviso" />
+            </div>
             <button type="button" className="btn btn-secondary" disabled={trabajando !== null} onClick={guardarAjustes}>
               Guardar ajustes
             </button>

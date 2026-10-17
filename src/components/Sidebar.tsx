@@ -41,7 +41,7 @@ interface EnlaceNavProps {
   children: ReactNode;
 }
 
-function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string }) {
+function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda, punto }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string; punto?: string }) {
   const ruta = usePathname();
   if (alPulsar) {
     return (
@@ -77,10 +77,11 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, acti
         background: enSeccion ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.01)",
         border: "1px solid transparent",
       }}
-      title={colapsado ? titulo : undefined}
+      title={punto ?? (colapsado ? titulo : undefined)}
     >
       <svg {...iconoProps}>{children}</svg>
       {!colapsado && <span>{titulo}</span>}
+      {punto && <span aria-label={punto} style={{ marginLeft: colapsado ? 0 : "auto", width: "10px", height: "10px", borderRadius: "50%", background: "var(--danger, #ef4444)", boxShadow: "0 0 6px var(--danger, #ef4444)", flexShrink: 0 }} />}
       {insignia !== undefined && insignia > 0 && (
         <span
           title={`${insignia} validación(es) de comisiones pendiente(s)`}
@@ -102,6 +103,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
   const isCollapsed = colapsadoGuardado === "true" && !movil;
   const router = useRouter();
   const ruta = usePathname();
+  const { datos: avisoCopias } = useCarga<{ excede: boolean; motivo: string | null } | null>(esAdministrador(normalizarRol(user.rol)) ? `/api/admin/copias/aviso?r=${ruta}` : null, null);
 
   // Al cambiar de página el cajón del móvil se cierra
   useEffect(() => {
@@ -370,7 +372,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
           )}
 
           {isAdmin && (
-            <EnlaceNav href="/dashboard/admin" titulo="Configuración" colapsado={isCollapsed}>
+            <EnlaceNav href="/dashboard/admin" titulo="Configuración" colapsado={isCollapsed} punto={avisoCopias?.excede ? (avisoCopias.motivo ?? "Hay demasiadas copias de seguridad") : undefined}>
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </EnlaceNav>
