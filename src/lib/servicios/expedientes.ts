@@ -20,6 +20,7 @@ const camposFecha = {
   fecha_entrega: fechaOpcional.optional(),
   fecha_rci: fechaOpcional.optional(),
   fecha_facturacion: fechaOpcional.optional(),
+  fecha_cobrado: fechaOpcional.optional(),
 };
 
 const camposComunes = {
@@ -31,6 +32,7 @@ const camposComunes = {
   matricula: textoOpcional(50).optional(),
   vin: textoOpcional(100).optional(),
   comentarios: textoOpcional(5000).optional(),
+  cobrado_otra_fecha: booleano,
   ...camposFecha,
 };
 
@@ -141,6 +143,8 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     matricula: e.matricula,
     vin: e.vin,
     comentarios: e.comentarios,
+    cobrado_otra_fecha: e.cobradoOtraFecha,
+    fecha_cobrado: e.fechaCobrado,
     comision_cobrada: e.comisionCobrada,
     copia_de: e.copiaDe,
     copia_etiqueta: e.copiaEtiqueta,

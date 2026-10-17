@@ -27,7 +27,7 @@ const fechaCorta = (f: string | null) => (f ? f.split("-").reverse().join("/") :
 export function firmaExpedientes(lista: ExpedienteDto[]): string {
   let h = 5381;
   for (const e of lista) {
-    const s = `${e.id_expediente}|${e.fecha_expediente}|${e.fecha_afectacion}|${e.fecha_matriculacion}|${e.fecha_facturacion}|${e.fecha_rci}|${e.puntos}|${e.id_modelo}|${e.id_tipo_de_venta}|${e.id_estado_vehiculo}|${e.id_promocion}|${e.comision_coche_manual}|${e.comision_financiacion_manual}|${e.conceptos_especiales.length}|${e.id_usuario}`;
+    const s = `${e.id_expediente}|${e.fecha_expediente}|${e.fecha_afectacion}|${e.fecha_matriculacion}|${e.fecha_facturacion}|${e.fecha_rci}|${e.fecha_cobrado}|${e.cobrado_otra_fecha}|${e.puntos}|${e.id_modelo}|${e.id_tipo_de_venta}|${e.id_estado_vehiculo}|${e.id_promocion}|${e.comision_coche_manual}|${e.comision_financiacion_manual}|${e.conceptos_especiales.length}|${e.id_usuario}`;
     for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   }
   return `${lista.length}-${(h >>> 0).toString(36)}`;
@@ -301,6 +301,7 @@ const columnasCartera: ColumnaTabla<ExpedienteDto>[] = [
   { clave: "pedido", etiqueta: "F. pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => fechaCorta(e.fecha_expediente) },
   { clave: "afectacion", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => <strong>{fechaCorta(e.fecha_afectacion)}</strong> },
   { clave: "matriculacion", etiqueta: "F. matriculación", valor: (e) => e.fecha_matriculacion ?? "", celda: (e) => fechaCorta(e.fecha_matriculacion) },
+  { clave: "cobro", etiqueta: "Cobro otra fecha", valor: (e) => (e.cobrado_otra_fecha ? (e.fecha_cobrado ?? "") : ""), celda: (e) => (e.cobrado_otra_fecha ? fechaCorta(e.fecha_cobrado) : "—"), ayuda: "Fecha en la que se cobra el expediente cuando es distinta de la habitual («Expediente cobrado en otra fecha»)" },
   {
     clave: "situacion",
     etiqueta: "Situación",

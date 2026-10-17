@@ -124,7 +124,7 @@ describe("conversión", () => {
     expect((await e(10)).puntos).toBeNull();
     // El 0 se conserva y la demo pasa a VO con fecha de cobro = facturación
     expect((await e(13)).puntos).toBe(0);
-    expect((await e(13)).fechaFacturacion).toBe("2026-06-20");
+    expect((await e(13)).fechaCobrado).toBe("2026-06-20");
     const [demo] = await db.select().from(estadoVehiculo).where(eq(estadoVehiculo.idEstadoVehiculo, 2));
     expect(demo).toMatchObject({ clase: "VO", subtipoVo: "DEMO" });
     // Importes manuales en céntimos y conceptos adicionales convertidos

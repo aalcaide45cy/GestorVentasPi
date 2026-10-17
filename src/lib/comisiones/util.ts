@@ -65,9 +65,11 @@ export function ambitoCoincide(valor: string | undefined, clase: string, subtipo
 }
 
 /**
- * Fecha que hace contar a un coche (12.3, paso 1), nuevo o usado: la de facturación (en un VN, por defecto igual a la de
- * matriculación; si el vendedor la cambia a mano, manda ella) y, sin facturación, la de matriculación. La fecha de cobro no existe.
+ * Fecha que hace contar a un coche (12.3, paso 1). Un usado (VO) cuenta por su fecha de facturación (sin ella, la de matriculación);
+ * su fecha de cobro no se usa. Un nuevo (VN) cuenta por la de facturación (por defecto igual a la de matriculación; si el vendedor
+ * la cambia a mano, manda ella) y, si marca «cobrado en otra fecha», por la fecha de cobro.
  */
-export function fechaQueCuenta(e: { fechaMatriculacion: Fecha | null; fechaFacturacion?: Fecha | null }): { fecha: Fecha | null } {
-  return { fecha: e.fechaFacturacion ?? e.fechaMatriculacion };
+export function fechaQueCuenta(e: { clase: string; cobradoOtraFecha: boolean; fechaCobro: Fecha | null; fechaMatriculacion: Fecha | null; fechaFacturacion?: Fecha | null }): { fecha: Fecha | null; usaCobro: boolean } {
+  const usaCobro = e.clase !== "VO" && e.cobradoOtraFecha;
+  return { fecha: usaCobro ? e.fechaCobro : (e.fechaFacturacion ?? e.fechaMatriculacion), usaCobro };
 }

@@ -109,13 +109,13 @@ describe("carga de expedientes por mes", () => {
   it("el resultado de un mes es idéntico cargando solo sus expedientes o todos los del vendedor", async () => {
     const esc = await escenario();
     const v = esc.v1.idUsuario;
-    // Julio: matriculados, uno solo con pedido en julio y matriculación en septiembre, uno facturado en julio
+    // Julio: matriculados, uno solo con pedido en julio y matriculación en septiembre, uno cobrado en otra fecha
     await nuevoExpediente(esc, v, "2026-07-10");
     await nuevoExpediente(esc, v, "2026-07-20", 160000);
     const pedidoJulioMatSep = await nuevoExpediente(esc, v, "2026-09-02");
     await db.update(expedientes).set({ fechaExpediente: "2026-07-15" }).where(eq(expedientes.idExpediente, pedidoJulioMatSep.idExpediente));
     const otraFecha = await nuevoExpediente(esc, v, "2026-06-28");
-    await db.update(expedientes).set({ fechaFacturacion: "2026-07-31" }).where(eq(expedientes.idExpediente, otraFecha.idExpediente));
+    await db.update(expedientes).set({ cobradoOtraFecha: true, fechaCobrado: "2026-07-31" }).where(eq(expedientes.idExpediente, otraFecha.idExpediente));
     // Fuera de julio: no deben influir ni cargarse
     await nuevoExpediente(esc, v, "2026-05-05");
     await nuevoExpediente(esc, v, "2026-08-30");

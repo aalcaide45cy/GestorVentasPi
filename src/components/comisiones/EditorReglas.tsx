@@ -8,6 +8,7 @@ const EVENTOS: { v: Regla["evento"]; t: string }[] = [
   { v: "pedido", t: "Pedido" },
   { v: "afectacion", t: "Afectación" },
   { v: "matriculacion", t: "Matriculación (VO: cobro)" },
+  { v: "cobro", t: "Cobro" },
   { v: "credito", t: "Crédito / financiación" },
   { v: "preference", t: "Preference" },
 ];

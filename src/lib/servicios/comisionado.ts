@@ -32,7 +32,7 @@ export const esquemaComisionado = z.object({
 
 async function cargar(ej: Ejecutor, idExpediente: number) {
   const [e] = await ej
-    .select({ idUsuario: expedientes.idUsuario, mat: expedientes.fechaMatriculacion, fac: expedientes.fechaFacturacion })
+    .select({ idUsuario: expedientes.idUsuario, mat: expedientes.fechaMatriculacion, fac: expedientes.fechaFacturacion, otra: expedientes.cobradoOtraFecha, cobro: expedientes.fechaCobrado })
     .from(expedientes)
     .where(and(eq(expedientes.idExpediente, idExpediente), isNull(expedientes.eliminadoEn)));
   if (!e) throw new HttpError(404, "Expediente no encontrado");
@@ -46,7 +46,7 @@ function comprobarPermiso(u: UsuarioActual, idVendedor: number | null): void {
 export async function estadoComisionado(ej: Ejecutor, u: UsuarioActual, idExpediente: number): Promise<EstadoComisionado> {
   const e = await cargar(ej, idExpediente);
   comprobarPermiso(u, e.idUsuario);
-  const base = (e.fac ?? e.mat)?.slice(0, 7) ?? null;
+  const base = (e.otra ? e.cobro : (e.fac ?? e.mat))?.slice(0, 7) ?? null;
   const hoy = new Date().toISOString().slice(0, 7);
   const mesSugerido = base ?? sumarMeses(hoy, -1);
 

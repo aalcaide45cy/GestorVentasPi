@@ -107,6 +107,8 @@ export async function crearExpediente(
         comentarios: e.comentarios ?? null,
         idTipoDeVenta: e.id_tipo_de_venta ?? null,
         idEstadoVehiculo: idEstado,
+        cobradoOtraFecha: e.cobrado_otra_fecha ?? false,
+        fechaCobrado: e.fecha_cobrado ?? null,
       })
       .returning({ id: expedientes.idExpediente });
     return { valor: nuevo.id, idsDespues: [nuevo.id] };
@@ -254,9 +256,11 @@ export async function actualizarExpedientes(
     fechaEntrega: e.fecha_entrega,
     fechaRci: e.fecha_rci,
     fechaFacturacion: e.fecha_facturacion,
+    fechaCobrado: e.fecha_cobrado,
     matricula: e.matricula,
     vin: e.vin,
     comentarios: e.comentarios,
+    cobradoOtraFecha: e.cobrado_otra_fecha,
     comisionCobrada: e.comision_cobrada,
     comisionCocheCobrada: e.comision_coche_cobrada,
     comisionUsadoCobrada: e.comision_usado_cobrada,

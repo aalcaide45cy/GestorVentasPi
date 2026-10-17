@@ -57,6 +57,8 @@ function exp(id: number, o: Partial<ExpedienteMotor> = {}): ExpedienteMotor {
     fechaAfectacion: null,
     fechaRci: null,
     fechaMatriculacion: null,
+    fechaCobro: null,
+    cobradoOtraFecha: false,
     puntos: null,
     idPromocion: null,
     comisionCocheManual: null,
@@ -140,7 +142,7 @@ describe("puntos y calendario (T8–T16)", () => {
   });
 
   it("T9 pedido y matriculación en el mismo mes cuentan una vez", () => {
-    const r = calcularMes(plan({ puntosPorPedido: 100 }), V, "2026-06", [exp(1, { fechaExpediente: "2026-06-02" })]);
+    const r = calcularMes(plan({ puntosPorPedido: 100 }), V, "2026-06", [exp(1, { fechaExpediente: "2026-06-02", fechaMatriculacion: "2026-06-20" })]);
     expect(r.puntosMes).toBe(100);
   });
 
@@ -179,24 +181,24 @@ describe("puntos y calendario (T8–T16)", () => {
     expect(r.lineas.map((l) => l.puntos)).toEqual([150, 120, 100]);
   });
 
-  it("T14 VN matriculado 12/02 y facturado 20/01: manda la facturación", () => {
-    const base = { fechaMatriculacion: "2026-02-12", fechaFacturacion: "2026-01-20" };
+  it("T14 VN matriculado 12/02 y cobrado 20/01", () => {
+    const base = { fechaMatriculacion: "2026-02-12", fechaCobro: "2026-01-20" };
     const enero = plan({ fechaInicio: "2026-01-01", fechaFin: "2026-01-31" });
     const febrero = plan({ fechaInicio: "2026-02-01", fechaFin: "2026-02-28" });
-    const con = [exp(1, { ...base })];
+    const con = [exp(1, { ...base, cobradoOtraFecha: true })];
     expect(calcularMes(enero, V, "2026-01", con).puntosMes).toBe(100);
     expect(calcularMes(febrero, V, "2026-02", con).puntosMes).toBe(0);
-    const sin = [exp(1, { fechaMatriculacion: "2026-02-12" })];
+    const sin = [exp(1, base)];
     expect(calcularMes(enero, V, "2026-01", sin).puntosMes).toBe(0);
     expect(calcularMes(febrero, V, "2026-02", sin).puntosMes).toBe(100);
     expect(calcularMes(enero, V, "2026-01", con).mesPago).toBe("2026-02");
   });
 
-  it("T15 VN sin facturación ni matriculación no cuenta en ningún mes (aviso)", () => {
-    const e = [exp(1, { fechaExpediente: "2026-06-02" })];
+  it("T15 VN con casilla y sin fecha de cobro no cuenta en ningún mes (aviso)", () => {
+    const e = [exp(1, { fechaExpediente: "2026-06-02", fechaMatriculacion: "2026-06-20", cobradoOtraFecha: true })];
     const r = calcularMes(plan(), V, "2026-06", e);
     expect(r.puntosMes).toBe(0);
-    expect(r.avisos.some((a) => a.includes("falta fecha de facturación"))).toBe(true);
+    expect(r.avisos.some((a) => a.includes("falta fecha de cobro"))).toBe(true);
   });
 
   it("T16 cada concepto en el mes de su evento", () => {
@@ -338,10 +340,10 @@ describe("comisión VO (T19–T20)", () => {
 describe("opciones de los usados en el plan (puntos)", () => {
   const usado = (id: number, extra: Partial<ExpedienteMotor> = {}) => exp(id, { clase: "VO", subtipoVO: "KM0", fechaFacturacion: "2026-07-05", ...extra });
 
-  it("un usado cuenta por su fecha de facturación y suma 1 punto", () => {
-    const r = calcularMes(plan(), V, "2026-06", [usado(1, { fechaFacturacion: "2026-06-20" })]);
-    expect(r.puntosMes).toBe(100);
-    expect(calcularMes(plan(), V, "2026-07", [usado(1, { fechaFacturacion: "2026-06-20" })]).puntosMes).toBe(0);
+  it("un usado cuenta por su fecha de facturación y suma 1 punto; su fecha de cobro no cuenta", () => {
+    const u = usado(1, { fechaFacturacion: "2026-06-20", fechaCobro: "2026-07-05", cobradoOtraFecha: true });
+    expect(calcularMes(plan(), V, "2026-06", [u]).puntosMes).toBe(100);
+    expect(calcularMes(plan(), V, "2026-07", [u]).puntosMes).toBe(0);
   });
   it("puntos por usado configurables o sin puntos", () => {
     expect(calcularMes(plan({ voPuntos: 250 }), V, "2026-07", [usado(1), usado(2)]).puntosMes).toBe(500);
@@ -384,7 +386,7 @@ describe("totales (T21–T22)", () => {
   });
   it("las penalizaciones dinámicas restan del bruto", () => {
     const p = plan({ reglasYBonus: [regla({ id: 1, evento: "cobro", importe: 5000, esPenalizacion: true })] });
-    const r = calcularMes(p, V, "2026-06", [exp(1, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: "2026-06-05", comisionCocheManual: 20000 })]);
+    const r = calcularMes(p, V, "2026-06", [exp(1, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: "2026-06-05", fechaCobro: "2026-06-05", comisionCocheManual: 20000 })]);
     expect(r.bruto).toBe(15000);
   });
 });
@@ -554,7 +556,7 @@ describe("VN: el mes de comisionado es el de la facturación", () => {
 describe("financiación según nuevos o usados", () => {
   const fin = (aplicaA: "VN" | "VO" | "TODOS") => plan({ financiacionPorMarcaTipo: [{ idMarca: 1, tipo: "CREDITO", aplicaA, importe: 5000 }] });
   const credito = (clase: "VN" | "VO") =>
-    exp(1, { clase, categoriaVenta: "CREDITO", fechaRci: "2026-06-10", fechaMatriculacion: "2026-06-10", fechaFacturacion: "2026-06-10" });
+    exp(1, { clase, categoriaVenta: "CREDITO", fechaRci: "2026-06-10", fechaMatriculacion: "2026-06-10", fechaFacturacion: "2026-06-10", fechaCobro: "2026-06-10" });
   const importeFin = (p: PlanMotor, clase: "VN" | "VO") =>
     calcularMes(p, V, "2026-06", [credito(clase)]).lineas[0].conceptos.filter((c) => c.concepto === "financiacion").reduce((s, c) => s + c.importe, 0);
 

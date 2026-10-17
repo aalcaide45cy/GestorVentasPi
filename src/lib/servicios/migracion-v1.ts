@@ -61,9 +61,6 @@ const numNull = (v: unknown): number | null => (v === null || v === undefined ||
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : null);
 const fecha = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
 const bool = (v: unknown, def = false): boolean => (typeof v === "boolean" ? v : def);
-/** Fecha de facturación nueva: lo que en la app antigua contaba por «cobro» (usados, o cobrados en otra fecha) pasa a facturación. */
-const facturacionNueva = (e: Record<string, unknown>): string | null =>
-  e._clase === "VO" || bool(e.cobrado_otra_fecha) ? ((e.fecha_cobrado_nuevo as string | null) ?? fecha(e.fecha_facturacion)) : fecha(e.fecha_facturacion);
 const euroACentimos = (v: unknown): number => Math.round(num(v) * 100);
 const filas = (copia: CopiaV1, clave: string): Fila[] => (copia.data[clave] ?? []) as Fila[];
 
@@ -283,7 +280,8 @@ export function transformarCopiaV1(copia: CopiaV1, ctx: ContextoUsuarios): Datos
     let idPromocion: number | null = null;
     const cupo = num(e.min_coches_multiplicador);
     if (cupo > 0 && e.puntos_nuevo !== null) {
-      const fechaCuenta = facturacionNueva(e) ?? fecha(e.fecha_matriculacion);
+      const usaCobro = e._clase === "VO" || bool(e.cobrado_otra_fecha);
+      const fechaCuenta = usaCobro ? e.fecha_cobrado_nuevo : fecha(e.fecha_matriculacion);
       const plan = planDeFecha(fechaCuenta);
       if (!plan) {
         avisos.push(`Expediente ${num(e.id_expediente)}: tiene cupo pero no cuenta en ningún plan; conserva sus puntos propios.`);
@@ -624,11 +622,14 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
       fechaMatriculacion: fecha(e.fecha_matriculacion),
       fechaEntrega: fecha(e.fecha_entrega),
       fechaRci: fecha(e.fecha_rci),
-      fechaFacturacion: facturacionNueva(e),
+      // Un usado de la app antigua contaba por su fecha de cobro: ahora cuenta por la de facturación
+      fechaFacturacion: e._clase === "VO" ? ((e.fecha_cobrado_nuevo as string | null) ?? fecha(e.fecha_facturacion)) : fecha(e.fecha_facturacion),
       matricula: str(e.matricula),
       idTipoDeVenta: numNull(e.id_tipo_de_venta),
       idEstadoVehiculo: numNull(e.id_estado_vehiculo),
       vin: str(e.vin),
+      cobradoOtraFecha: bool(e.cobrado_otra_fecha),
+      fechaCobrado: (e.fecha_cobrado_nuevo as string | null) ?? null,
       comisionCobrada: bool(e.comision_cobrada),
       comisionCocheCobrada: bool(e.comision_coche_cobrada),
       comisionUsadoCobrada: bool(e.comision_usado_cobrada),
@@ -840,11 +841,14 @@ async function anadirCopiaV1(ej: Ejecutor, idAdmin: number, copia: CopiaV1, sel:
             fechaMatriculacion: fecha(e.fecha_matriculacion),
             fechaEntrega: fecha(e.fecha_entrega),
             fechaRci: fecha(e.fecha_rci),
-            fechaFacturacion: facturacionNueva(e),
+            // Un usado de la app antigua contaba por su fecha de cobro: ahora cuenta por la de facturación
+      fechaFacturacion: e._clase === "VO" ? ((e.fecha_cobrado_nuevo as string | null) ?? fecha(e.fecha_facturacion)) : fecha(e.fecha_facturacion),
             matricula: str(e.matricula),
             idTipoDeVenta: mTipo.get(num(e.id_tipo_de_venta)) ?? null,
             idEstadoVehiculo: mEstado.get(num(e.id_estado_vehiculo)) ?? null,
             vin: str(e.vin),
+            cobradoOtraFecha: bool(e.cobrado_otra_fecha),
+            fechaCobrado: (e.fecha_cobrado_nuevo as string | null) ?? null,
             comisionCobrada: bool(e.comision_cobrada),
             comisionCocheCobrada: bool(e.comision_coche_cobrada),
             comisionUsadoCobrada: bool(e.comision_usado_cobrada),

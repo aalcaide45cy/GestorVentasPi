@@ -40,7 +40,7 @@ export default function TabUsados({ plan, setPlan }: PropsPestana) {
 
       <Seccion
         titulo="Cómo cuentan los usados"
-        ayuda="Usado, KM0, Demo y Buyback son lo mismo: coches de ocasión (VO). Un usado cuenta en el mes de su fecha de facturación. Aquí eliges si suma puntos al objetivo del vendedor. Qué estados son nuevos o usados se define en Configuración › Estados."
+        ayuda="Usado, KM0, Demo y Buyback son lo mismo: coches de ocasión (VO). Elige cuándo cuenta cada uno y si suma puntos al objetivo del vendedor. Qué estados son nuevos o usados se define en Configuración › Estados."
       >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>

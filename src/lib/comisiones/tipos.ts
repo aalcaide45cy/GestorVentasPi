@@ -42,6 +42,9 @@ export interface ExpedienteMotor {
    * la de matriculación, pero se puede cambiar a mano). Sin facturación, cuenta la matriculación.
    */
   fechaFacturacion?: Fecha | null;
+  /** `fecha_cobrado` del expediente. */
+  fechaCobro: Fecha | null;
+  cobradoOtraFecha: boolean;
   /** `null` = usar los puntos por defecto; 0 es un valor válido. */
   puntos: Centesimas | null;
   idPromocion: number | null;

@@ -49,6 +49,8 @@ function exp(id: number, o: Partial<ExpedienteMotor> = {}): ExpedienteMotor {
     fechaAfectacion: null,
     fechaRci: null,
     fechaMatriculacion: null,
+    fechaCobro: null,
+    cobradoOtraFecha: false,
     puntos: null,
     idPromocion: null,
     comisionCocheManual: null,
@@ -91,9 +93,9 @@ describe("2. Cuándo cuenta un coche", () => {
     const sinFactura = exp(2, { fechaMatriculacion: "2026-06-10" });
     expect(calcularMes(plan(), V, "2026-06", [sinFactura]).lineas[0].cuenta).toBe(true);
   });
-  it("VO y «cobrado en otra fecha»: cuentan por la fecha de cobro", () => {
+  it("un usado cuenta por su fecha de facturación; un nuevo «cobrado en otra fecha», por la de cobro", () => {
     const vo = exp(1, { clase: "VO", fechaFacturacion: "2026-06-20", fechaMatriculacion: "2026-05-01" });
-    const vnCobro = exp(2, { fechaFacturacion: "2026-06-21", fechaMatriculacion: "2026-05-02" });
+    const vnCobro = exp(2, { fechaCobro: "2026-06-21", fechaMatriculacion: "2026-05-02", cobradoOtraFecha: true });
     const r = calcularMes(plan(), V, MES, [vo, vnCobro]);
     expect(r.lineas.filter((l) => l.cuenta).length).toBe(2);
   });

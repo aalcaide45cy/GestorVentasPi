@@ -20,6 +20,8 @@ function expediente(parcial: Partial<ExpedienteDto> = {}): ExpedienteDto {
     fecha_facturacion: null,
     matricula: "1234ABC",
     vin: "VF1XYZ",
+    cobrado_otra_fecha: false,
+    fecha_cobrado: null,
     comision_cobrada: false,
     comision_coche_cobrada: false,
     comision_usado_cobrada: false,

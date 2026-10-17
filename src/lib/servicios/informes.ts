@@ -90,12 +90,13 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
         or(
           and(gte(expedientes.fechaMatriculacion, inicio), lte(expedientes.fechaMatriculacion, finMes)),
           and(gte(expedientes.fechaFacturacion, inicio), lte(expedientes.fechaFacturacion, finMes)),
-          and(isNull(expedientes.fechaMatriculacion), isNull(expedientes.fechaFacturacion)),
+          and(gte(expedientes.fechaCobrado, inicio), lte(expedientes.fechaCobrado, finMes)),
+          and(isNull(expedientes.fechaMatriculacion), isNull(expedientes.fechaCobrado)),
         ),
       ),
     );
 
-  const fechaCuenta = (x: (typeof filasExp)[number]) => (x.e.fechaFacturacion ?? x.e.fechaMatriculacion);
+  const fechaCuenta = (x: (typeof filasExp)[number]) => (x.clase !== "VO" && x.e.cobradoOtraFecha ? x.e.fechaCobrado : (x.e.fechaFacturacion ?? x.e.fechaMatriculacion));
   const enPeriodo = (d: string | null) => d !== null && d >= inicio && d <= finMes;
   const matriculadosFilas = filasExp.filter((x) => enPeriodo(fechaCuenta(x)));
   const carteraFilas = filasExp.filter((x) => fechaCuenta(x) === null && x.e.fechaExpediente !== null);

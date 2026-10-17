@@ -102,6 +102,8 @@ export default function EditarExpedienteForm({
   const [matricula, setMatricula] = useState(expediente.matricula ?? "");
   const [vin, setVin] = useState(expediente.vin ?? "");
   const [comentarios, setComentarios] = useState(expediente.comentarios ?? "");
+  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(expediente.cobrado_otra_fecha);
+  const [fCobrado, setFCobrado] = useState(expediente.fecha_cobrado ?? "");
 
   const [com, setCom] = useState<ComisionForm>(comisionInicial(expediente));
   const comOriginal = useMemo(() => JSON.stringify(comisionInicial(expediente)), [expediente]);
@@ -141,6 +143,8 @@ export default function EditarExpedienteForm({
       fMat !== (expediente.fecha_matriculacion ?? "") ||
       fFact !== (expediente.fecha_facturacion ?? "") ||
       fEntrega !== (expediente.fecha_entrega ?? "") ||
+      cobradoOtraFecha !== expediente.cobrado_otra_fecha ||
+      fCobrado !== (expediente.fecha_cobrado ?? "") ||
       matricula !== (expediente.matricula ?? "") ||
       vin !== (expediente.vin ?? "") ||
       comentarios !== (expediente.comentarios ?? "") ||
@@ -149,7 +153,7 @@ export default function EditarExpedienteForm({
   };
 
   const mismoMesPedidoMatricula = (): boolean => {
-    const mat = fMat;
+    const mat = cobradoOtraFecha && fCobrado ? fCobrado : fMat;
     if (!fExp || !mat) return false;
     const [ea, em] = fExp.split("-");
     const [ma, mm] = mat.split("-");
@@ -257,6 +261,8 @@ export default function EditarExpedienteForm({
         matricula: matricula || null,
         vin: vin || null,
         comentarios: comentarios.trim() || null,
+        cobrado_otra_fecha: cobradoOtraFecha,
+        fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
         puntos: com.puntos,
         id_promocion: com.id_promocion,
         comision_coche_manual: com.comision_coche_manual,
@@ -754,6 +760,32 @@ export default function EditarExpedienteForm({
               {campo("Fecha Facturación", fecha(fFact, setFFact))}
               {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
 
+              {estadosVehiculo.find((x) => x.id === Number(estado))?.clase !== "VO" && (
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.02)", padding: "8px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", justifySelf: "start", gridColumn: "1 / -1" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <input
+                    type="checkbox"
+                    id="cobradoOtraFecha"
+                    checked={cobradoOtraFecha}
+                    onChange={(e) => {
+                      setCobradoOtraFecha(e.target.checked);
+                      if (!e.target.checked) setFCobrado("");
+                    }}
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <label htmlFor="cobradoOtraFecha" style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", userSelect: "none" }}>
+                    Expediente cobrado en otra fecha
+                  </label>
+                </div>
+                {cobradoOtraFecha && (
+                  <div className="form-group" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                    <label className="form-label" style={{ fontSize: "0.78rem", marginBottom: 0, whiteSpace: "nowrap" }}>Fecha de Cobrado</label>
+                    <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} required />
+                  </div>
+                )}
+                </div>
+              )}
+
               {rciObligatoria() && (
                 <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", color: "var(--danger)", fontSize: "0.85rem", fontWeight: 600 }}>
                   ⚠️ {rciObligatoria()}
@@ -798,6 +830,8 @@ export default function EditarExpedienteForm({
             fecha_rci: fRci || null,
             fecha_matriculacion: fMat || null,
             fecha_facturacion: fFact || null,
+            fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
+            cobrado_otra_fecha: cobradoOtraFecha,
           }}
         />
 

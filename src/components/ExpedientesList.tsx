@@ -385,7 +385,7 @@ export default function ExpedientesList({
       anios: Array.from(
         new Set(
           expedientes.flatMap((e) =>
-            [e.fecha_expediente, e.fecha_afectacion, e.fecha_matriculacion, e.fecha_entrega, e.fecha_rci, e.fecha_facturacion]
+            [e.fecha_expediente, e.fecha_afectacion, e.fecha_matriculacion, e.fecha_entrega, e.fecha_rci, e.fecha_cobrado]
               .map((f) => f?.split("-")[0])
               .filter((a): a is string => !!a),
           ),
@@ -428,7 +428,9 @@ export default function ExpedientesList({
       if (fMes || fAnio) {
         const objetivo =
           fTipoFecha === "fecha_comisionado"
-            ? (e.fecha_facturacion ?? e.fecha_matriculacion)
+            ? e.cobrado_otra_fecha && e.fecha_cobrado
+              ? e.fecha_cobrado
+              : e.fecha_matriculacion
             : ((e as unknown as Record<string, string | null>)[fTipoFecha] ?? null);
         if (!objetivo) return false;
         const [a, m] = objetivo.split("-");
