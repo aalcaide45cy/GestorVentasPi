@@ -28,6 +28,7 @@ export default function PanelCopias() {
   const { datos, recargar } = useCarga<Datos>("/api/admin/copias", VACIO);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [restaurar, setRestaurar] = useState<CopiaDto | null>(null);
+  const [marcadas, setMarcadas] = useState<number[]>([]);
   const [form, setForm] = useState({ password: "", codigo: "", confirmacion: "" });
   const [edicion, setEdicion] = useState<Partial<AjustesCopias>>({});
   const ajustes: AjustesCopias | null = datos.ajustes ? { ...datos.ajustes, ...edicion } : null;
@@ -69,6 +70,47 @@ export default function PanelCopias() {
     void accion(`borrar${c.id}`, async () => {
       const { extra } = await llamar(`/api/admin/copias?id=${c.id}`, { method: "DELETE" });
       return typeof extra.aviso === "string" && extra.aviso ? extra.aviso : "Copia borrada.";
+    });
+  };
+
+  // Selección en lote: descargar o borrar varias copias de una vez (restaurar solo se puede de una en una)
+  const seleccion = datos.copias.filter((c) => marcadas.includes(c.id));
+  const descargables = seleccion.filter((c) => c.archivoPresente && c.estado === "ok");
+  const alternarMarca = (id: number, v: boolean) => setMarcadas((m) => (v ? [...m.filter((x) => x !== id), id] : m.filter((x) => x !== id)));
+
+  const descargarLote = () =>
+    accion("lote-descarga", async () => {
+      for (const c of descargables) {
+        const a = document.createElement("a");
+        a.href = `/api/admin/copias/descargar?id=${c.id}`;
+        a.download = c.nombre;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        await new Promise((r) => setTimeout(r, 700)); // el navegador no acepta muchas descargas simultáneas
+      }
+      return `Se han pedido ${descargables.length} descarga(s). Si tu navegador pregunta, permite las descargas múltiples.`;
+    });
+
+  const borrarLote = () => {
+    const validasRestantes = datos.copias.filter((c) => c.estado === "ok" && !marcadas.includes(c.id)).length;
+    const aviso = validasRestantes === 0 ? "\n\n⚠️ Con esta selección te quedarías SIN ninguna copia válida en el servidor." : "";
+    const enDrive = seleccion.filter((c) => c.enDrive).length;
+    if (!window.confirm(`¿Borrar ${seleccion.length} copia(s) de seguridad?${enDrive > 0 ? ` ${enDrive} también se borrarán de Google Drive.` : ""} Esta acción no se puede deshacer.${aviso}`)) return;
+    void accion("lote-borrar", async () => {
+      let hechas = 0;
+      const fallos: string[] = [];
+      for (const c of seleccion) {
+        try {
+          await llamar(`/api/admin/copias?id=${c.id}`, { method: "DELETE" });
+          hechas++;
+        } catch (e) {
+          fallos.push(`${c.nombre}: ${textoError(e)}`);
+        }
+      }
+      setMarcadas([]);
+      if (fallos.length > 0) throw new Error(`Se borraron ${hechas} y fallaron ${fallos.length}. ${fallos[0]}`);
+      return `${hechas} copia(s) borrada(s).`;
     });
   };
 
@@ -178,10 +220,29 @@ export default function PanelCopias() {
         </span>
       </div>
 
+      {seleccion.length > 0 && (
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", padding: "8px 12px", border: "1px solid var(--primary)", borderRadius: "var(--radius-sm)", background: "rgba(var(--primary-rgb), 0.08)" }}>
+          <strong style={{ fontSize: "0.85rem" }}>{seleccion.length} seleccionada(s)</strong>
+          <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem" }} disabled={trabajando !== null || descargables.length === 0} onClick={descargarLote} title="Descarga a tu equipo los archivos .dump marcados, uno detrás de otro (solo las copias válidas)">
+            ⬇️ Descargar ({descargables.length})
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem", color: "var(--danger)" }} disabled={trabajando !== null} onClick={borrarLote} title="Borra del servidor (y de Google Drive si están allí) todas las copias marcadas. Te pide confirmar">
+            🗑️ Borrar ({seleccion.length})
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", fontSize: "0.82rem" }} onClick={() => setMarcadas([])} title="Quita la selección sin hacer nada">
+            Quitar selección
+          </button>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Restaurar solo se puede hacer de una en una, con el botón de cada copia.</span>
+        </div>
+      )}
+
       <div className="table-container">
         <table className="table-premium table-compact">
           <thead>
             <tr>
+              <th style={{ width: "34px" }}>
+                <input type="checkbox" checked={datos.copias.length > 0 && marcadas.length === datos.copias.length} onChange={(e) => setMarcadas(e.target.checked ? datos.copias.map((c) => c.id) : [])} title="Marca o desmarca todas las copias de la lista" style={{ accentColor: "var(--primary)" }} />
+              </th>
               <th>Nombre</th>
               <th>Tipo</th>
               <th>Fecha</th>
@@ -194,6 +255,9 @@ export default function PanelCopias() {
           <tbody>
             {datos.copias.map((c) => (
               <tr key={c.id} style={{ opacity: c.archivoPresente ? 1 : 0.55, background: c.estado !== "ok" ? "rgba(239, 68, 68, 0.06)" : undefined }}>
+                <td>
+                  <input type="checkbox" checked={marcadas.includes(c.id)} onChange={(e) => alternarMarca(c.id, e.target.checked)} title="Marca esta copia para descargarla o borrarla junto con otras" style={{ accentColor: "var(--primary)" }} />
+                </td>
                 <td style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
                   {c.nombre}
                   {c.estado !== "ok" && (
@@ -235,7 +299,7 @@ export default function PanelCopias() {
             ))}
             {datos.copias.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ color: "var(--text-muted)" }}>
+                <td colSpan={8} style={{ color: "var(--text-muted)" }}>
                   No hay copias todavía.
                 </td>
               </tr>
