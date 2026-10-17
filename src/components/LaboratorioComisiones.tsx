@@ -196,7 +196,7 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
 
   if (!abierto) {
     return (
-      <button type="button" onClick={() => guardarAbierto("true")} className="btn btn-primary" title="Abre el laboratorio: toca reglas y mira cómo se mueven las comisiones" style={{ position: "fixed", right: "16px", bottom: "16px", zIndex: 900, padding: "10px 16px", borderRadius: "999px", boxShadow: "var(--shadow-glow)" }}>
+      <button type="button" onClick={() => guardarAbierto("true")} className="btn btn-primary" title="Abre el laboratorio: toca reglas y mira cómo se mueven las comisiones" style={{ position: "fixed", left: "28px", bottom: "112px", zIndex: 900, padding: "10px 16px", borderRadius: "999px", boxShadow: "var(--shadow-glow)" }}>
         🧪 Laboratorio{nCambios > 0 ? ` (${nCambios})` : ""}
       </button>
     );

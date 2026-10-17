@@ -60,9 +60,14 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                     <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
                   </td>
                   <td>
-                    <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, financiacion: p.financiacion.filter((_, j) => j !== i) }))}>
-                      Quitar
-                    </BotonMini>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <BotonMini titulo="Crea una copia de esta línea justo debajo, para cambiar solo la marca o el tipo" onClick={() => setPlan((p) => ({ ...p, financiacion: [...p.financiacion.slice(0, i + 1), { ...p.financiacion[i] }, ...p.financiacion.slice(i + 1)] }))}>
+                        Duplicar
+                      </BotonMini>
+                      <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, financiacion: p.financiacion.filter((_, j) => j !== i) }))}>
+                        Quitar
+                      </BotonMini>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -132,9 +137,14 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                       <input type="checkbox" checked={r.activa} onChange={(e) => set({ activa: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
                     </td>
                     <td>
-                      <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, preference: p.preference.filter((_, j) => j !== i) }))}>
-                        Quitar
-                      </BotonMini>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <BotonMini titulo="Crea una copia de esta regla justo debajo" onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference.slice(0, i + 1), { ...p.preference[i], nombre: p.preference[i].nombre ? `${p.preference[i].nombre} (copia)` : null }, ...p.preference.slice(i + 1)] }))}>
+                          Duplicar
+                        </BotonMini>
+                        <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, preference: p.preference.filter((_, j) => j !== i) }))}>
+                          Quitar
+                        </BotonMini>
+                      </div>
                     </td>
                   </tr>
                 );
