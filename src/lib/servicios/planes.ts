@@ -5,6 +5,7 @@ import {
   commissionBonusRules,
   commissionBrandInterventionRates,
   commissionFinanceRates,
+  commissionLiquidationVersions,
   commissionLiquidations,
   commissionModelPoints,
   commissionPlanModelRates,
@@ -15,6 +16,7 @@ import {
   commissionRules,
   commissionUsedRates,
   commissionVoPatterns,
+  expedientes,
   promocionesPuntos,
 } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
@@ -321,12 +323,28 @@ export async function guardarPlan(ej: Ejecutor, idPlan: number | null, entrada: 
   };
 }
 
-export async function eliminarPlan(ej: Ejecutor, idPlan: number): Promise<void> {
+/**
+ * Elimina un plan. Con `conLiquidaciones` se llevan por delante las liquidaciones calculadas con él (se pueden volver a generar
+ * con otro plan) y se desasignan las promociones de puntos de sus expedientes; sin él, el plan con liquidaciones no se borra.
+ */
+export async function eliminarPlan(ej: Ejecutor, idPlan: number, conLiquidaciones = false): Promise<void> {
   const [{ n }] = await ej.select({ n: sql<number>`count(*)::int` }).from(commissionLiquidations).where(eq(commissionLiquidations.idPlan, idPlan));
-  if (n > 0) throw new HttpError(409, "No se puede eliminar un plan con liquidaciones");
+  if (n > 0 && !conLiquidaciones) throw new HttpError(409, `Este plan tiene ${n} liquidación(es) calculada(s). Si lo eliminas se borran con él (se pueden volver a generar con otro plan). Confirma el borrado para continuar.`);
   try {
-    const filas = await ej.delete(commissionPlans).where(eq(commissionPlans.idPlan, idPlan)).returning({ id: commissionPlans.idPlan });
-    if (filas.length === 0) throw new HttpError(404, "Plan no encontrado");
+    await ej.transaction(async (tx) => {
+      if (conLiquidaciones) {
+        await tx.execute(sql`select set_config('app.borrado_autorizado', 'on', true)`);
+        const liqs = (await tx.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idPlan, idPlan))).map((l) => l.id);
+        if (liqs.length > 0) {
+          await tx.delete(commissionLiquidationVersions).where(inArray(commissionLiquidationVersions.idLiquidation, liqs));
+          await tx.delete(commissionLiquidations).where(inArray(commissionLiquidations.idLiquidation, liqs));
+        }
+        const promos = (await tx.select({ id: promocionesPuntos.id }).from(promocionesPuntos).where(eq(promocionesPuntos.idPlan, idPlan))).map((p) => p.id);
+        if (promos.length > 0) await tx.update(expedientes).set({ idPromocion: null }).where(inArray(expedientes.idPromocion, promos));
+      }
+      const filas = await tx.delete(commissionPlans).where(eq(commissionPlans.idPlan, idPlan)).returning({ id: commissionPlans.idPlan });
+      if (filas.length === 0) throw new HttpError(404, "Plan no encontrado");
+    });
   } catch (e) {
     if (e instanceof HttpError) throw e;
     throw new HttpError(409, "No se puede eliminar el plan: tiene expedientes con promociones asignadas");

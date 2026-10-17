@@ -319,6 +319,7 @@ export interface CopiaDto {
   archivoPresente: boolean;
   estado: string;
   error: string | null;
+  notas: string | null;
 }
 
 /**
@@ -417,7 +418,14 @@ export async function borrarCopiasInvalidas(ej: Ejecutor): Promise<{ borradas: n
 }
 
 function aDto(f: typeof copiasSeguridad.$inferSelect, presente: boolean): CopiaDto {
-  return { id: f.id, nombre: f.nombre, tipo: f.tipo, creadaEn: f.creadaEn.toISOString(), tamano: f.tamano, sha256: f.sha256, enDrive: f.driveFileId !== null, archivoPresente: presente, estado: f.estado, error: f.error };
+  return { id: f.id, nombre: f.nombre, tipo: f.tipo, creadaEn: f.creadaEn.toISOString(), tamano: f.tamano, sha256: f.sha256, enDrive: f.driveFileId !== null, archivoPresente: presente, estado: f.estado, error: f.error, notas: f.notas };
+}
+
+/** Guarda (o borra, si va vacía) la nota de una copia. */
+export async function guardarNotaCopia(ej: Ejecutor, id: number, notas: string | null): Promise<void> {
+  const limpia = notas?.trim() ? notas.trim().slice(0, 2000) : null;
+  const filas = await ej.update(copiasSeguridad).set({ notas: limpia }).where(eq(copiasSeguridad.id, id)).returning({ id: copiasSeguridad.id });
+  if (filas.length === 0) throw new HttpError(404, "Copia no encontrada");
 }
 
 /** Anota en la tabla los `.dump` de la carpeta que no estén registrados (subidos a mano o tras una restauración). */

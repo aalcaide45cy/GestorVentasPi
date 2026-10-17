@@ -4,6 +4,7 @@ import { useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
+import { InputCentesimas } from "@/components/comisiones/campos";
 import { useCarga } from "@/components/comisiones/useCarga";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { euros, nombreMes } from "@/lib/formato";
@@ -30,6 +31,39 @@ export default function MisRejillas({ esAdministrador }: { esAdministrador: bool
   const [filas, setFilas] = useState<FilaRejillaGuardada[] | null>(null);
   const [editando, setEditando] = useState<{ r: RejillaGuardada; mes: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  // Corregir lo leído: las filas se pueden editar, añadir y quitar aunque la rejilla ya estuviera confirmada
+  const [edicion, setEdicion] = useState<FilaRejillaGuardada[] | null>(null);
+  const cambiarFila = (i: number, c: Partial<FilaRejillaGuardada>) => setEdicion((e) => (e ? e.map((f, j) => (j === i ? { ...f, ...c } : f)) : e));
+  const guardarCorrecciones = async () => {
+    if (!viendo || !edicion) return;
+    const validas = edicion.filter((f) => f.matricula.trim());
+    if (validas.length === 0) {
+      mostrar("La rejilla no puede quedarse sin filas con matrícula. Si quieres quitarla entera, usa «Borrar».", "error");
+      return;
+    }
+    setOcupado(true);
+    try {
+      await llamar(`/api/comisiones/rejillas?usuario=${viendo.idUsuario}`, {
+        method: "PUT",
+        cuerpo: {
+          mes: viendo.mes,
+          origen: viendo.origen,
+          nombreArchivo: viendo.nombreArchivo,
+          totalHoja: viendo.totalHoja,
+          notas: viendo.notas,
+          filas: validas.map((f) => ({ matricula: f.matricula.trim(), cliente: f.cliente, financiacion: f.financiacion, concepto: f.concepto, importe: f.importe, textoOriginal: f.textoOriginal, confianza: f.confianza })),
+        },
+      });
+      mostrar("Correcciones guardadas.");
+      setFilas(validas);
+      setEdicion(null);
+      recargar();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setOcupado(false);
+    }
+  };
 
   const abrir = async (r: RejillaGuardada) => {
     setViendo(r);
@@ -131,14 +165,78 @@ export default function MisRejillas({ esAdministrador }: { esAdministrador: bool
       )}
 
       {viendo && (
-        <Modal titulo={`Rejilla de ${viendo.vendedor}: ${nombreMes(viendo.mes)}`} ancho="1200px" pie={<button type="button" className="btn btn-secondary" onClick={() => setViendo(null)}>Cerrar</button>}>
+        <Modal titulo={`Rejilla de ${viendo.vendedor}: ${nombreMes(viendo.mes)}`} ancho="1200px" pie={<button type="button" className="btn btn-secondary" onClick={() => { setViendo(null); setEdicion(null); }}>Cerrar</button>}>
           <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "70vh", overflowY: "auto" }}>
             <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>
               {viendo.nombreArchivo ?? viendo.origen} · {viendo.filas} filas · guardada el {fechaHora(viendo.creadaEn)}
               {viendo.totalHoja !== null ? ` · total de la hoja ${euros(viendo.totalHoja)}` : ""}
             </p>
+            {filas !== null && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {edicion === null ? (
+                  <button type="button" className="btn btn-secondary" onClick={() => setEdicion(filas.map((f) => ({ ...f })))} title="Cambiar matrículas, importes o clientes mal leídos, aunque la rejilla ya esté confirmada">
+                    ✏️ Corregir lecturas
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-primary" onClick={() => void guardarCorrecciones()} disabled={ocupado}>
+                      Guardar correcciones
+                    </button>
+                    <button type="button" className="btn btn-secondary" onClick={() => setEdicion(null)} disabled={ocupado}>
+                      Descartar cambios
+                    </button>
+                    <button type="button" className="btn btn-secondary" onClick={() => setEdicion((e) => (e ? [...e, { id: -Date.now(), matricula: "", cliente: null, financiacion: null, concepto: null, importe: null, textoOriginal: null, confianza: null }] : e))}>
+                      + Añadir fila
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {filas === null ? (
               <p>Cargando filas…</p>
+            ) : edicion !== null ? (
+              <div className="table-container">
+                <table className="table-premium table-compact">
+                  <thead>
+                    <tr>
+                      <th>Matrícula</th>
+                      <th>Cliente</th>
+                      <th>Financiación</th>
+                      <th>Concepto</th>
+                      <th>Importe</th>
+                      <th>Línea original</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {edicion.map((f, i) => (
+                      <tr key={f.id}>
+                        <td>
+                          <input className="form-input" style={{ width: "120px", fontWeight: 700 }} value={f.matricula} onChange={(e) => cambiarFila(i, { matricula: e.target.value.toUpperCase() })} />
+                        </td>
+                        <td>
+                          <input className="form-input" value={f.cliente ?? ""} onChange={(e) => cambiarFila(i, { cliente: e.target.value || null })} />
+                        </td>
+                        <td>
+                          <input className="form-input" value={f.financiacion ?? ""} onChange={(e) => cambiarFila(i, { financiacion: e.target.value || null })} />
+                        </td>
+                        <td>
+                          <input className="form-input" value={f.concepto ?? ""} onChange={(e) => cambiarFila(i, { concepto: e.target.value || null })} />
+                        </td>
+                        <td>
+                          <InputCentesimas valor={f.importe ?? 0} vacioEsNulo onChange={(v) => cambiarFila(i, { importe: v })} sufijo="€" />
+                        </td>
+                        <td style={{ fontSize: "0.8rem", color: "var(--text-muted)", maxWidth: "260px" }}>{f.textoOriginal}</td>
+                        <td>
+                          <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", padding: "3px 8px" }} onClick={() => setEdicion((e) => (e ? e.filter((_, j) => j !== i) : e))} title="Quitar esta fila">
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <TablaDatos<FilaRejillaGuardada>
                 id="rejilla-filas"

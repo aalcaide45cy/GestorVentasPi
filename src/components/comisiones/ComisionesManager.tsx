@@ -89,7 +89,7 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
   const borrar = async () => {
     if (!aBorrar) return;
     try {
-      await llamar(`/api/comisiones/planes?id=${aBorrar.idPlan}`, { method: "DELETE" });
+      await llamar(`/api/comisiones/planes?id=${aBorrar.idPlan}${aBorrar.liquidaciones > 0 ? "&forzar=1" : ""}`, { method: "DELETE" });
       mostrar("Plan eliminado", "exito");
       setABorrar(null);
       cargar();
@@ -256,8 +256,13 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
           }
         >
           <p>
-            ¿Eliminar el plan «{aBorrar.nombre}»? No se puede si tiene liquidaciones. Esta acción no se puede deshacer.
+            ¿Eliminar el plan «{aBorrar.nombre}»? Esta acción no se puede deshacer.
           </p>
+          {aBorrar.liquidaciones > 0 && (
+            <p style={{ color: "var(--warning)" }}>
+              Tiene {aBorrar.liquidaciones} liquidación(es) calculada(s): se borrarán con el plan. No pasa nada grave, se pueden volver a generar con otro plan (por ejemplo, una copia de este). Si solo quieres otro plan parecido, usa «Duplicar» en vez de eliminar.
+            </p>
+          )}
         </Modal>
       )}
     </div>

@@ -24,6 +24,34 @@ const tamanoLegible = (b: number): string => (b >= 1048576 ? `${(b / 1048576).to
 const fechaLegible = (iso: string): string => new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 
 /** «Copias de seguridad»: copias completas .dump, descarga, subida, restauración y Google Drive (13.3 y 13.4). */
+/** Nota de una copia: se ve debajo del nombre y se edita pulsando; se guarda al salir del cuadro. */
+function NotaCopia({ copia, alGuardar }: { copia: CopiaDto; alGuardar: (notas: string | null) => void }) {
+  const [texto, setTexto] = useState<string | null>(null);
+  if (texto === null) {
+    return (
+      <button type="button" onClick={() => setTexto(copia.notas ?? "")} title="Pulsa para escribir o cambiar la nota de esta copia" style={{ all: "unset", cursor: "pointer", color: copia.notas ? "var(--text-primary)" : "var(--text-muted)", fontSize: "0.82rem", whiteSpace: "pre-wrap" }}>
+        {copia.notas ?? "＋ Añadir nota"}
+      </button>
+    );
+  }
+  return (
+    <textarea
+      className="form-input"
+      autoFocus
+      rows={2}
+      maxLength={2000}
+      value={texto}
+      placeholder="Ej. Antes de importar los usados de octubre"
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={() => {
+        if (texto.trim() !== (copia.notas ?? "")) alGuardar(texto.trim() || null);
+        setTexto(null);
+      }}
+      style={{ fontSize: "0.82rem", minHeight: "56px" }}
+    />
+  );
+}
+
 export default function PanelCopias() {
   const router = useRouter();
   const { mostrar } = useToast();
@@ -375,6 +403,7 @@ export default function PanelCopias() {
               </th>
               <th>Nombre</th>
               <th>Tipo</th>
+              <th>Notas</th>
               <th>Fecha</th>
               <th style={{ textAlign: "right" }}>Tamaño</th>
               <th>SHA-256</th>
@@ -397,6 +426,9 @@ export default function PanelCopias() {
                   )}
                 </td>
                 <td>{c.tipo}</td>
+                <td style={{ minWidth: "200px" }}>
+                  <NotaCopia copia={c} alGuardar={(notas) => accion(`nota${c.id}`, async () => { await llamar("/api/admin/copias", { method: "PATCH", cuerpo: { id: c.id, notas } }); return "Nota guardada."; })} />
+                </td>
                 <td>{fechaLegible(c.creadaEn)}</td>
                 <td style={{ textAlign: "right" }}>{tamanoLegible(c.tamano)}</td>
                 <td style={{ fontFamily: "monospace", fontSize: "0.8rem" }} title={c.sha256}>

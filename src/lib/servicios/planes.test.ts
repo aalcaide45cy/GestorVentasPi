@@ -21,7 +21,7 @@ import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./e
 import { esquemaCrearExpediente } from "./expedientes";
 import { eliminarPlan, guardarPlan, leerPlan, listarPlanes } from "./planes";
 import { generarInforme } from "./informes";
-import { eliminarUsuario } from "./usuarios";
+import { eliminarUsuario, eliminarUsuarioConTodo, obtenerUsuario } from "./usuarios";
 
 beforeEach(reiniciarBd);
 
@@ -60,14 +60,29 @@ describe("planes", () => {
     await expect(guardarPlan(db, null, { nombre: "X", fechaInicio: "2026-08-01", fechaFin: "2026-07-31" })).rejects.toThrow();
   });
 
-  it("un plan sin liquidaciones se puede borrar; con liquidaciones, no", async () => {
+  it("un plan sin liquidaciones se borra; con liquidaciones, solo si se confirma", async () => {
     const { plan, vend, modelo, vn } = await base();
     await db.insert(expedientes).values({ idUsuario: vend.idUsuario, idModelo: modelo.idModelo, idEstadoVehiculo: vn.idEstadoVehiculo, fechaMatriculacion: "2026-07-10" });
     await liquidar(db, { idPlan: plan.idPlan, mes: "2026-07" });
     await expect(eliminarPlan(db, plan.idPlan)).rejects.toMatchObject({ status: 409 });
+    // Confirmando, el plan se va con sus liquidaciones
+    await eliminarPlan(db, plan.idPlan, true);
+    expect((await listarPlanes(db)).some((p) => p.idPlan === plan.idPlan)).toBe(false);
     const otro = await guardarPlan(db, null, { nombre: "Otro", fechaInicio: "2026-09-01", fechaFin: "2026-09-30" });
     await eliminarPlan(db, otro.plan.idPlan);
     expect((await listarPlanes(db)).some((p) => p.idPlan === otro.plan.idPlan)).toBe(false);
+  });
+});
+
+describe("borrar un usuario con liquidaciones e historial", () => {
+  it("con confirmación se va con todo lo suyo, aunque las versiones y el libro de puntos sean de solo inserción", async () => {
+    const { plan, vend, modelo, vn } = await base();
+    await db.insert(expedientes).values({ idUsuario: vend.idUsuario, idModelo: modelo.idModelo, idEstadoVehiculo: vn.idEstadoVehiculo, fechaMatriculacion: "2026-07-10" });
+    await liquidar(db, { idPlan: plan.idPlan, mes: "2026-07" });
+    const admin = await crearUsuarioPrueba("administrador");
+    await expect(eliminarUsuario(db, admin, vend.idUsuario)).rejects.toMatchObject({ status: 409 });
+    await eliminarUsuarioConTodo(db, admin, vend.idUsuario);
+    expect(await obtenerUsuario(db, vend.idUsuario)).toBeNull();
   });
 });
 

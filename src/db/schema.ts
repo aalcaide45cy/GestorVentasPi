@@ -710,6 +710,8 @@ export const copiasSeguridad = pgTable(
     /** ok | error */
     estado: varchar("estado", { length: 10 }).notNull().default("ok"),
     error: text("error"),
+    /** Nota libre del administrador sobre esta copia («antes de importar…», «mes cerrado»…). */
+    notas: text("notas"),
   },
   (t) => [uniqueIndex("copias_seguridad_nombre_uq").on(t.nombre), index("copias_seguridad_creada_idx").on(t.creadaEn)],
 );

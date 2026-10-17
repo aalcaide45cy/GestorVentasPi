@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { commissionLiquidationLineItems, commissionLiquidationLines, commissionLiquidationVersions, commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, pendientesCobro, rejillaFilas, rejillas, telefonosUsuarios, validacionesComision, usuarios, usuariosTiendas } from "@/db/schema";
@@ -207,6 +207,7 @@ export async function eliminarUsuarioConTodo(ej: Ejecutor, admin: UsuarioActual,
   if (!u) throw new HttpError(404, "Usuario no encontrado");
   if (u.rol === "administrador" && !u.bloqueado && (await otrosAdministradoresActivos(ej, id)) === 0) throw new HttpError(400, SIN_ADMIN);
   await ej.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.borrado_autorizado', 'on', true)`);
     await tx.update(expedientes).set({ eliminadoEn: new Date() }).where(and(eq(expedientes.idUsuario, id), isNull(expedientes.eliminadoEn)));
     await tx.update(expedientes).set({ idUsuario: null }).where(eq(expedientes.idUsuario, id));
     const liqs = (await tx.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id))).map((l) => l.id);
