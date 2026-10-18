@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
@@ -8,6 +9,10 @@ import { Seccion } from "@/components/comisiones/campos";
 import { codigoExpediente, formatDate } from "@/lib/date-utils";
 import { euros, mesActual, puntos } from "@/lib/formato";
 import type { Informe } from "@/lib/servicios/informes";
+
+type Vendedor = Informe["porVendedor"][number];
+type Matriculado = Informe["matriculados"][number];
+type Cartera = Informe["cartera"][number];
 
 interface Props {
   vendedores: { id: number; nombre: string }[];
@@ -63,6 +68,37 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
       <h3 style={{ fontSize: "1.6rem", margin: "8px 0 0", color }}>{valor}</h3>
     </div>
   );
+
+  const enlaceExp = (id: number) => (
+    <Link href={`/dashboard/expedientes/editar/${id}`} style={{ color: "var(--primary)" }}>
+      {codigoExpediente(id)}
+    </Link>
+  );
+  const colVendedores: ColumnaTabla<Vendedor>[] = [
+    { clave: "comercial", etiqueta: "Comercial", valor: (v) => v.nombre },
+    { clave: "matriculados", etiqueta: "Matriculados", valor: (v) => v.matriculados, alinear: "right" },
+    { clave: "puntos", etiqueta: "Puntos", valor: (v) => v.puntos, celda: (v) => puntos(v.puntos), alinear: "right" },
+    { clave: "tramo", etiqueta: "Tramo medio", valor: (v) => v.tramoMedio ?? "", celda: (v) => v.tramoMedio ?? "—", alinear: "right" },
+    { clave: "bruto", etiqueta: "Bruto", valor: (v) => v.bruto, celda: (v) => euros(v.bruto), alinear: "right" },
+    { clave: "neto", etiqueta: "Neto", valor: (v) => v.neto, celda: (v) => <b>{euros(v.neto)}</b>, alinear: "right" },
+  ];
+  const colMatriculados: ColumnaTabla<Matriculado>[] = [
+    { clave: "expediente", etiqueta: "Expediente", valor: (m) => m.id, celda: (m) => enlaceExp(m.id) },
+    { clave: "fecha", etiqueta: "Fecha", valor: (m) => m.fecha ?? "", celda: (m) => formatDate(m.fecha) },
+    { clave: "matricula", etiqueta: "Matrícula", valor: (m) => m.matricula ?? "", celda: (m) => m.matricula ?? "—" },
+    { clave: "marca", etiqueta: "Marca", valor: (m) => m.marca ?? "" },
+    { clave: "modelo", etiqueta: "Modelo", valor: (m) => m.modelo ?? "" },
+    { clave: "pago", etiqueta: "Pago", valor: (m) => m.tipoVenta ?? "" },
+    { clave: "comercial", etiqueta: "Comercial", valor: (m) => m.vendedor ?? "" },
+  ];
+  const colCartera: ColumnaTabla<Cartera>[] = [
+    { clave: "expediente", etiqueta: "Expediente", valor: (m) => m.id, celda: (m) => enlaceExp(m.id) },
+    { clave: "pedido", etiqueta: "Pedido", valor: (m) => m.fechaPedido ?? "", celda: (m) => formatDate(m.fechaPedido) },
+    { clave: "marca", etiqueta: "Marca", valor: (m) => m.marca ?? "" },
+    { clave: "modelo", etiqueta: "Modelo", valor: (m) => m.modelo ?? "" },
+    { clave: "pago", etiqueta: "Pago", valor: (m) => m.tipoVenta ?? "" },
+    { clave: "comercial", etiqueta: "Comercial", valor: (m) => m.vendedor ?? "" },
+  ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -156,107 +192,39 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
           )}
 
           <Seccion titulo="📈 Rendimiento Económico por Comercial">
-            <div className="table-container">
-              <table className="table-premium">
-                <thead>
-                  <tr>
-                    <th>Comercial</th>
-                    <th style={{ textAlign: "right" }}>Matriculados</th>
-                    <th style={{ textAlign: "right" }}>Puntos</th>
-                    <th style={{ textAlign: "right" }}>Tramo medio</th>
-                    <th style={{ textAlign: "right" }}>Bruto</th>
-                    <th style={{ textAlign: "right" }}>Neto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {informe.porVendedor.map((v) => (
-                    <tr key={v.idUsuario}>
-                      <td>{v.nombre}</td>
-                      <td style={{ textAlign: "right" }}>{v.matriculados}</td>
-                      <td style={{ textAlign: "right" }}>{puntos(v.puntos)}</td>
-                      <td style={{ textAlign: "right" }}>{v.tramoMedio ?? "—"}</td>
-                      <td style={{ textAlign: "right" }}>{euros(v.bruto)}</td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(v.neto)}</td>
-                    </tr>
-                  ))}
-                  {informe.porVendedor.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ color: "var(--text-muted)" }}>
-                        Sin datos en el periodo.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <TablaDatos<Vendedor>
+              id="informe-comerciales"
+              columnas={colVendedores}
+              filas={informe.porVendedor}
+              clave={(v) => v.idUsuario}
+              placeholder="Buscar comercial…"
+              vacio="Sin datos en el periodo."
+              pie={(fs) => ({ comercial: `${fs.length} comercial${fs.length === 1 ? "" : "es"}`, matriculados: fs.reduce((t, v) => t + v.matriculados, 0), puntos: puntos(fs.reduce((t, v) => t + v.puntos, 0)), bruto: euros(fs.reduce((t, v) => t + v.bruto, 0)), neto: euros(fs.reduce((t, v) => t + v.neto, 0)) })}
+            />
           </Seccion>
 
           <Seccion titulo={`📋 Vehículos Matriculados en el Periodo (${informe.matriculados.length})`}>
-            <div className="table-container">
-              <table className="table-premium table-compact">
-                <thead>
-                  <tr>
-                    <th>Expediente</th>
-                    <th>Fecha</th>
-                    <th>Matrícula</th>
-                    <th>Vehículo</th>
-                    <th>Pago</th>
-                    <th>Comercial</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {informe.matriculados.map((m) => (
-                    <tr key={m.id}>
-                      <td>
-                        <Link href={`/dashboard/expedientes/editar/${m.id}`} style={{ color: "var(--primary)" }}>
-                          {codigoExpediente(m.id)}
-                        </Link>
-                      </td>
-                      <td>{formatDate(m.fecha)}</td>
-                      <td>{m.matricula ?? "—"}</td>
-                      <td>
-                        {m.marca} {m.modelo}
-                      </td>
-                      <td>{m.tipoVenta}</td>
-                      <td>{m.vendedor}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TablaDatos<Matriculado>
+              id="informe-matriculados"
+              columnas={colMatriculados}
+              filas={informe.matriculados}
+              clave={(m) => m.id}
+              placeholder="Buscar por matrícula, marca, modelo, comercial…"
+              vacio="No hay vehículos matriculados en el periodo."
+              pie={(fs) => ({ expediente: `${fs.length} vehículo${fs.length === 1 ? "" : "s"}` })}
+            />
           </Seccion>
 
           <Seccion titulo={`💼 Pedidos en Cartera (Pendientes de Matriculación) (${informe.cartera.length})`}>
-            <div className="table-container">
-              <table className="table-premium table-compact">
-                <thead>
-                  <tr>
-                    <th>Expediente</th>
-                    <th>Pedido</th>
-                    <th>Vehículo</th>
-                    <th>Pago</th>
-                    <th>Comercial</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {informe.cartera.map((m) => (
-                    <tr key={m.id}>
-                      <td>
-                        <Link href={`/dashboard/expedientes/editar/${m.id}`} style={{ color: "var(--primary)" }}>
-                          {codigoExpediente(m.id)}
-                        </Link>
-                      </td>
-                      <td>{formatDate(m.fechaPedido)}</td>
-                      <td>
-                        {m.marca} {m.modelo}
-                      </td>
-                      <td>{m.tipoVenta}</td>
-                      <td>{m.vendedor}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TablaDatos<Cartera>
+              id="informe-cartera"
+              columnas={colCartera}
+              filas={informe.cartera}
+              clave={(m) => m.id}
+              placeholder="Buscar por marca, modelo, pago, comercial…"
+              vacio="No hay pedidos en cartera."
+              pie={(fs) => ({ expediente: `${fs.length} pedido${fs.length === 1 ? "" : "s"}` })}
+            />
           </Seccion>
         </>
       )}
