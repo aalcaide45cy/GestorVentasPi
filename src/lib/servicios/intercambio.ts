@@ -230,7 +230,7 @@ export async function exportarSeccion(ej: Ejecutor, seccion: Seccion, opciones: 
       break;
     }
     case "tipos_venta":
-      datos = (await ej.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn)).orderBy(tipoDeVenta.orden)).map((t) => ({ nombre: t.nombreTipoVenta, color: t.color, orden: t.orden, categoria: t.categoria, requiereRciAlMatricular: t.requiereRciAlMatricular }));
+      datos = (await ej.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn)).orderBy(tipoDeVenta.orden)).map((t) => ({ nombre: t.nombreTipoVenta, color: t.color, orden: t.orden, categoria: t.categoria, requiereRciAlMatricular: t.requiereRciAlMatricular, cuentaParaTasa: t.cuentaParaTasa }));
       break;
     case "estados":
       datos = (await ej.select().from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn)).orderBy(estadoVehiculo.nombreEstadoVehiculo)).map((e) => ({ nombre: e.nombreEstadoVehiculo, predeterminado: e.predeterminado ?? false, clase: e.clase, subtipoVo: e.subtipoVo }));
@@ -292,6 +292,7 @@ const ETIQUETAS_COLUMNA: Record<string, string> = {
   accesoRapido: "Acceso rápido",
   ordenAccesoRapido: "Orden acceso rápido",
   requiereRciAlMatricular: "Exige fecha RCI",
+  cuentaParaTasa: "Cuenta para la tasa de intervención",
   sistemaComisiones: "Sistema de comisiones",
   subtipoVo: "Subtipo VO",
 };
@@ -772,17 +773,17 @@ function importarEstados(tx: Ejecutor, datos: unknown[], modo: Modo, inf: Inform
 }
 
 function importarTiposVenta(tx: Ejecutor, datos: unknown[], modo: Modo, inf: Informe) {
-  type F = { nombre: string; color?: string | null; orden?: number | null; categoria?: "CONTADO" | "CREDITO" | "PREFERENCE" | "RENTING" | null; requiereRciAlMatricular?: boolean | null };
+  type F = { nombre: string; color?: string | null; orden?: number | null; categoria?: "CONTADO" | "CREDITO" | "PREFERENCE" | "RENTING" | null; requiereRciAlMatricular?: boolean | null; cuentaParaTasa?: boolean | null };
   return importarCatalogo<F, typeof tipoDeVenta.$inferSelect>(tx, datos, modo, inf, {
-    esquema: z.object({ nombre: z.string().trim().min(1, "falta el nombre").max(100), color: texto, orden: entero, categoria: z.enum(["CONTADO", "CREDITO", "PREFERENCE", "RENTING"]).nullish(), requiereRciAlMatricular: z.boolean().nullish() }),
+    esquema: z.object({ nombre: z.string().trim().min(1, "falta el nombre").max(100), color: texto, orden: entero, categoria: z.enum(["CONTADO", "CREDITO", "PREFERENCE", "RENTING"]).nullish(), requiereRciAlMatricular: z.boolean().nullish(), cuentaParaTasa: z.boolean().nullish() }),
     cargar: (t) => t.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn)),
     clave: (f) => norm(f.nombre),
     claveExistente: (e) => norm(e.nombreTipoVenta),
     etiqueta: (f) => f.nombre,
     etiquetaExistente: (e) => e.nombreTipoVenta,
-    cambios: (e, f) => diferencias([["color", e.color, vacioANull(f.color)], ["orden", e.orden, f.orden], ["categoria", e.categoria, f.categoria], ["requiereRciAlMatricular", e.requiereRciAlMatricular, f.requiereRciAlMatricular]]),
+    cambios: (e, f) => diferencias([["color", e.color, vacioANull(f.color)], ["orden", e.orden, f.orden], ["categoria", e.categoria, f.categoria], ["requiereRciAlMatricular", e.requiereRciAlMatricular, f.requiereRciAlMatricular], ["cuentaParaTasa", e.cuentaParaTasa, f.cuentaParaTasa]]),
     crear: async (t, f) =>
-      void (await t.insert(tipoDeVenta).values({ nombreTipoVenta: f.nombre.trim(), color: vacioANull(f.color) ?? "#3b82f6", orden: f.orden ?? 0, categoria: f.categoria ?? "CONTADO", requiereRciAlMatricular: f.requiereRciAlMatricular ?? false })),
+      void (await t.insert(tipoDeVenta).values({ nombreTipoVenta: f.nombre.trim(), color: vacioANull(f.color) ?? "#3b82f6", orden: f.orden ?? 0, categoria: f.categoria ?? "CONTADO", requiereRciAlMatricular: f.requiereRciAlMatricular ?? false, cuentaParaTasa: f.cuentaParaTasa ?? ["CREDITO", "PREFERENCE", "RENTING"].includes(f.categoria ?? "CONTADO") })),
     actualizar: async (t, e, c) => void (await t.update(tipoDeVenta).set(c).where(eq(tipoDeVenta.idTipoDeVenta, e.idTipoDeVenta))),
     eliminar: async (t, es) => void (await t.update(tipoDeVenta).set({ eliminadoEn: new Date() }).where(inArray(tipoDeVenta.idTipoDeVenta, es.map((x) => x.idTipoDeVenta)))),
   });

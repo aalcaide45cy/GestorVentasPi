@@ -57,6 +57,8 @@ export interface TipoVentaDto {
   categoria: string;
   /** Exige fecha RCI para poder matricular (crédito y preference por defecto). */
   requiere_rci_al_matricular: boolean;
+  /** Suma a la tasa de intervención financiera. */
+  cuenta_para_tasa: boolean;
 }
 
 export interface EstadoVehiculoDto {

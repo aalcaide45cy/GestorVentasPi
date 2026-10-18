@@ -78,6 +78,8 @@ export const tipoDeVenta = pgTable("tipo_de_venta", {
   categoria: varchar("categoria", { length: 20 }).notNull().default("CONTADO"),
   /** Si es true, un expediente de este tipo no puede matricularse sin fecha RCI (fecha de contratación de la financiera). */
   requiereRciAlMatricular: boolean("requiere_rci_al_matricular").notNull().default(false),
+  /** Si es true, los expedientes de este tipo suman al numerador de la tasa de intervención financiera (cuando su fecha RCI cae en el mes). */
+  cuentaParaTasa: boolean("cuenta_para_tasa").notNull().default(false),
   /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
   eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });

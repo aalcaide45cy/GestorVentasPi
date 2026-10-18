@@ -179,13 +179,13 @@ export async function cargarExpedientesMotorPorIds(ej: Ejecutor, ids: number[]):
 
 async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined): Promise<ExpedienteMotor[]> {
   const filas = await ej
-    .select({ e: expedientes, clase: estadoVehiculo.clase, subtipo: estadoVehiculo.subtipoVo, cat: tipoDeVenta.categoria, nombreTipo: tipoDeVenta.nombreTipoVenta, marca: modelos.marcaId })
+    .select({ e: expedientes, clase: estadoVehiculo.clase, subtipo: estadoVehiculo.subtipoVo, cat: tipoDeVenta.categoria, nombreTipo: tipoDeVenta.nombreTipoVenta, cuentaTasa: tipoDeVenta.cuentaParaTasa, marca: modelos.marcaId })
     .from(expedientes)
     .leftJoin(estadoVehiculo, eq(expedientes.idEstadoVehiculo, estadoVehiculo.idEstadoVehiculo))
     .leftJoin(tipoDeVenta, eq(expedientes.idTipoDeVenta, tipoDeVenta.idTipoDeVenta))
     .leftJoin(modelos, eq(expedientes.idModelo, modelos.idModelo))
     .where(condicion ? and(condicion, isNull(expedientes.eliminadoEn)) : isNull(expedientes.eliminadoEn));
-  return filas.flatMap(({ e, clase, subtipo, cat, nombreTipo, marca }) => e.idUsuario === null ? [] : [{
+  return filas.flatMap(({ e, clase, subtipo, cat, nombreTipo, cuentaTasa, marca }) => e.idUsuario === null ? [] : [{
     id: e.idExpediente,
     idVendedor: e.idUsuario,
     clase: (clase === "VO" ? "VO" : "VN") as Clase,
@@ -193,6 +193,7 @@ async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined):
     idMarca: marca ?? null,
     idModelo: e.idModelo,
     categoriaVenta: categoriaEfectiva(cat, nombreTipo),
+    cuentaParaTasa: cuentaTasa ?? undefined,
     fechaExpediente: e.fechaExpediente,
     fechaAfectacion: e.fechaAfectacion,
     fechaRci: e.fechaRci,

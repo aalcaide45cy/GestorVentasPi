@@ -26,6 +26,11 @@ import type {
 import { ambitoCoincide, enteroValido, etiquetaTramo, fechaQueCuenta, floorDiv, limitar, mesDe, mesEnRango, sumarMeses } from "./util";
 
 const FINANCIADAS: CategoriaVenta[] = ["CREDITO", "PREFERENCE", "RENTING"];
+
+/** ¿El tipo de pago del expediente suma a la tasa de intervención? Lo decide el propio tipo de pago; sin dato, la categoría. */
+function esFinanciadoParaTasa(e: ExpedienteMotor): boolean {
+  return e.cuentaParaTasa ?? (e.categoriaVenta !== null && FINANCIADAS.includes(e.categoriaVenta));
+}
 const PUNTOS_DEFECTO: Centesimas = 100;
 const VO_SIN_ESCALA: Centimos = 15000;
 
@@ -210,7 +215,7 @@ export function calcularMes(
   const tasaVo = calcularTasaAmbito(infos, mes, ["VO"], plan.tasaVo);
   const tasaCoches: TasaCocheDetalle[] = infos
     .filter((i) => i.mesComputo === mes || mesDe(i.e.fechaRci) === mes)
-    .map((i) => ({ idExpediente: i.e.id, clase: i.e.clase, idMarca: i.e.idMarca, cuenta: i.mesComputo === mes, financiado: mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta) }));
+    .map((i) => ({ idExpediente: i.e.id, clase: i.e.clase, idMarca: i.e.idMarca, cuenta: i.mesComputo === mes, financiado: mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e) }));
   /** ¿Está cumplida la tasa que mira una regla financiera? (la de la marca del coche, la global o la de usados) */
   const tasaCumplidaDe = (ambito: AmbitoTasa, idMarca: number | null): boolean => (ambito === "global" ? tasaGlobal.cumplida : ambito === "vo" ? tasaVo.cumplida : tasaDe(idMarca));
 
@@ -328,7 +333,7 @@ function tasaVacia(): TasaAmbitoResultado {
 function calcularTasaAmbito(infos: Info[], mes: Mes, clases: ("VN" | "VO")[], cfg: TasaConfigMotor | undefined): TasaAmbitoResultado {
   const coches = infos.filter((i) => clases.includes(i.e.clase));
   const denominador = coches.filter((i) => i.mesComputo === mes).length;
-  const numerador = coches.filter((i) => mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta)).length;
+  const numerador = coches.filter((i) => mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e)).length;
   const objetivo = cfg?.objetivo ?? null;
   const conObjetivo = objetivo !== null;
   let cumplida = true;
@@ -348,7 +353,7 @@ function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResul
   for (const idMarca of [...marcas].sort((a, b) => a - b)) {
     const vn = infos.filter((i) => (i.e.clase === "VN" || (incluyeVo && i.e.clase === "VO")) && i.e.idMarca === idMarca);
     const denominador = vn.filter((i) => i.mesComputo === mes).length;
-    const numerador = vn.filter((i) => mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta)).length;
+    const numerador = vn.filter((i) => mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e)).length;
     const cfg = plan.tasaIntervencionPorMarca.find((t) => t.idMarca === idMarca);
     const tipo = cfg?.tipoTasa ?? "porcentaje";
     const objetivo = cfg?.objetivo ?? 70;

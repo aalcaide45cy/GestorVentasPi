@@ -197,6 +197,13 @@
       "when": 1792324569950,
       "tag": "0027_unique_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792326441464,
+      "tag": "0028_shocking_ego",
+      "breakpoints": true
     }
   ]
 }

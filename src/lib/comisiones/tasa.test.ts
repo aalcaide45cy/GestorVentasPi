@@ -121,4 +121,33 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
     const cumple = calcularMes(plan({ reglasPreference: [regla], tasaGlobal: { tipoTasa: "porcentaje", objetivo: 40 } }), V, "2026-06", e);
     expect(importeDe(cumple, "preference")).toBe(7000);
   });
+
+  const diez = (financiados: number, extra: Partial<ExpedienteMotor> = {}): ExpedienteMotor[] =>
+    Array.from({ length: 10 }, (_, i) => coche(100 + i, i < financiados ? { categoriaVenta: "CREDITO", fechaRci: "2026-06-05", ...extra } : { categoriaVenta: "CONTADO" }));
+  const plan65 = () => plan({ tasaGlobal: { tipoTasa: "porcentaje", objetivo: 65 } });
+
+  it("una financiación contratada en el mes suma aunque el coche se matricule otro mes (6/10 = 60 % → 7/10 = 70 %)", () => {
+    const sin = calcularMes(plan65(), V, "2026-06", diez(6));
+    expect(sin.tasaGlobal).toMatchObject({ numerador: 6, denominador: 10, cumplida: false });
+    const adelantada = coche(200, { categoriaVenta: "CREDITO", fechaRci: "2026-06-20", fechaMatriculacion: "2026-07-03" });
+    const con = calcularMes(plan65(), V, "2026-06", [...diez(6), adelantada]);
+    expect(con.tasaGlobal).toMatchObject({ numerador: 7, denominador: 10, porcentaje: 70, cumplida: true });
+  });
+
+  it("al mes siguiente, el coche con la financiación del mes anterior cuenta en el denominador pero no en el numerador (9/10)", () => {
+    const e = [...diez(10).map((x, i) => ({ ...x, fechaMatriculacion: "2026-07-15", fechaRci: i === 0 ? "2026-06-20" : "2026-07-05" }))];
+    const r = calcularMes(plan65(), V, "2026-07", e);
+    expect(r.tasaGlobal).toMatchObject({ numerador: 9, denominador: 10, porcentaje: 90 });
+  });
+
+  it("qué tipos de pago suman a la tasa lo decide el propio tipo de pago, no la categoría", () => {
+    const e = [
+      coche(1, { categoriaVenta: "CREDITO", fechaRci: "2026-06-10", cuentaParaTasa: false }),
+      coche(2, { categoriaVenta: "CONTADO", fechaRci: "2026-06-10", cuentaParaTasa: true }),
+      coche(3, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10", cuentaParaTasa: true }),
+      coche(4),
+    ];
+    const r = calcularMes(plan65(), V, "2026-06", e);
+    expect(r.tasaGlobal).toMatchObject({ numerador: 2, denominador: 4, porcentaje: 50 });
+  });
 });

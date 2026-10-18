@@ -179,3 +179,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - El objetivo de la tasa se edita en varios sitios del plan (Resumen, Objetivo, Modelos VN junto a cada marca y Reglas) con el mismo componente.
 - Los indicadores del panel de comisiones se pueden pulsar y abren una tabla de detalle (coches que entran en la cuenta, cómo sale cada cifra).
 - La columna VN / VO se añade a la lista de Expedientes (columnas y vistas) y a la tabla de recientes.
+
+## Qué tipos de pago suman a la tasa de intervención (v1.0.19)
+- Cada tipo de pago tiene la casilla **«Cuenta para la tasa»** (Ajustes → Tipos de Venta). Decide si los expedientes con ese pago suman al numerador de la tasa (en el mes de su fecha RCI), sea cual sea el tipo de coche. Migración 0028: se marcan los tipos de categoría Crédito, Preference y Renting; Contado queda sin marcar. Los tipos nuevos nacen marcados salvo los de categoría Contado.
+- No existe ningún tipo de pago llamado «Renting» en los datos del propietario: solo es una de las categorías internas, y no se usa para nada si no se crea un tipo con ese nombre.
+- Se verifica con tests el caso de la financiación adelantada (6/10 → 7/10 con una contratación del mes de un coche que se matricula después) y el del mes siguiente (9/10).

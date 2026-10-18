@@ -33,6 +33,8 @@ export interface ExpedienteMotor {
   idMarca: number | null;
   idModelo: number | null;
   categoriaVenta: CategoriaVenta | null;
+  /** El tipo de pago del expediente suma a la tasa de intervención. Sin valor, cuentan Crédito, Preference y Renting. */
+  cuentaParaTasa?: boolean;
   fechaExpediente: Fecha | null;
   fechaAfectacion: Fecha | null;
   fechaRci: Fecha | null;

@@ -51,6 +51,7 @@ export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatab
           color: t.color,
           orden: t.orden,
           requiereRciAlMatricular: t.requiereRci,
+          cuentaParaTasa: t.requiereRci,
         })),
       );
     }
