@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatDate } from "@/lib/date-utils";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import type { ExpedienteApp, FilaListado, ResultadoContraste } from "@/lib/contraste-listado";
 
 interface Props {
@@ -41,18 +42,14 @@ const colDif: ColumnaTabla<FilaDif>[] = [
 ];
 const colListado: ColumnaTabla<FilaListado>[] = [
   { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente },
-  { clave: "tipo", etiqueta: "VN / VO", valor: (f) => (f.usado ? "VO" : "VN"), alinear: "center" },
-  { clave: "marca", etiqueta: "Marca", valor: (f) => f.marca },
-  { clave: "modelo", etiqueta: "Modelo", valor: (f) => f.modelo },
+  ...columnasVehiculo<FilaListado>((f) => ({ clase: f.usado ? "VO" : "VN", marca: f.marca, modelo: f.modelo, estado: f.estado }), { sin: ["tipoPago"] }),
   { clave: "bastidor", etiqueta: "Bastidor", valor: (f) => f.bastidor, celda: (f) => f.bastidor || "-" },
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula, celda: (f) => f.matricula || "-" },
-  { clave: "estado", etiqueta: "Estado", valor: (f) => f.estado },
 ];
 const colApp: ColumnaTabla<ExpedienteApp>[] = [
   { clave: "exp", etiqueta: "Exp.", valor: (e) => e.id_expediente, celda: (e) => `#${e.id_expediente}` },
   { clave: "cliente", etiqueta: "Cliente", valor: (e) => e.cliente },
-  { clave: "marca", etiqueta: "Marca", valor: (e) => e.marca },
-  { clave: "modelo", etiqueta: "Modelo", valor: (e) => e.modelo },
+  ...columnasVehiculo<ExpedienteApp>((e) => ({ marca: e.marca, modelo: e.modelo }), { sin: ["clase", "estado", "tipoPago"] }),
   { clave: "bastidor", etiqueta: "Bastidor", valor: (e) => e.bastidor, celda: (e) => e.bastidor || "-" },
   { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula, celda: (e) => e.matricula || "-" },
   { clave: "fecha", etiqueta: "Fecha", valor: (e) => e.f_expediente ?? "", celda: (e) => formatDate(e.f_expediente) || "-" },
@@ -65,12 +62,9 @@ const colDup: ColumnaTabla<FilaDup>[] = [
 const colCoinciden: ColumnaTabla<ResultadoContraste["coinciden"][number]>[] = [
   { clave: "exp", etiqueta: "Exp.", valor: (c) => c.id_expediente, celda: (c) => `#${c.id_expediente}` },
   { clave: "cliente", etiqueta: "Cliente", valor: (c) => c.fila.cliente },
-  { clave: "tipo", etiqueta: "VN / VO", valor: (c) => (c.fila.usado ? "VO" : "VN"), alinear: "center" },
-  { clave: "marca", etiqueta: "Marca", valor: (c) => c.fila.marca },
-  { clave: "modelo", etiqueta: "Modelo", valor: (c) => c.fila.modelo },
+  ...columnasVehiculo<ResultadoContraste["coinciden"][number]>((c) => ({ clase: c.fila.usado ? "VO" : "VN", marca: c.fila.marca, modelo: c.fila.modelo, estado: c.fila.estado }), { sin: ["tipoPago"] }),
   { clave: "bastidor", etiqueta: "Bastidor", valor: (c) => c.fila.bastidor, celda: (c) => c.fila.bastidor || "-" },
   { clave: "matricula", etiqueta: "Matrícula", valor: (c) => c.fila.matricula, celda: (c) => c.fila.matricula || "-" },
-  { clave: "estado", etiqueta: "Estado", valor: (c) => c.fila.estado },
 ];
 
 /** Resultado del contraste de un listado de ventas (Excel) con los expedientes. Solo informa: no cambia nada. */

@@ -9,6 +9,7 @@ import { euros, nombreMes, sumarMeses, mesActual } from "@/lib/formato";
 import { filasDeMatriz, matrizDeCsv, proponerMapeo, type FilaRejilla, type MapeoColumnas } from "@/lib/rejilla/analizar";
 import type { EstadoComprobacion, EstadoValidacion, FilaComprobacion, ResultadoRejilla } from "@/lib/servicios/rejillas";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import { llamar, textoError } from "./api";
 import { InputCentesimas, Seccion } from "./campos";
 import { useCarga } from "./useCarga";
@@ -156,10 +157,7 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
       ),
     },
     { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente ?? "", celda: (f) => f.cliente ?? "—" },
-    { clave: "tipo", etiqueta: "VN / VO", valor: (f) => f.clase ?? "", celda: (f) => (f.clase ? <b style={{ color: f.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{f.clase}</b> : "—"), alinear: "center" },
-    { clave: "marca", etiqueta: "Marca", valor: (f) => f.marca, celda: (f) => f.marca || "—" },
-    { clave: "modelo", etiqueta: "Modelo", valor: (f) => f.modelo, celda: (f) => f.modelo || "—" },
-    { clave: "estadoVehiculo", etiqueta: "Estado", valor: (f) => f.estadoVehiculo, celda: (f) => f.estadoVehiculo || "—", oculta: true },
+    ...columnasVehiculo<FilaComprobacion>((f) => ({ clase: f.clase, marca: f.marca, modelo: f.modelo, estado: f.estadoVehiculo })),
     { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion ?? "", celda: (f) => f.financiacion ?? "—" },
     {
       clave: "resultado",

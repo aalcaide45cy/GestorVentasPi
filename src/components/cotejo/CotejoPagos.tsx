@@ -9,6 +9,7 @@ import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
 import { formatDate } from "@/lib/date-utils";
 import { euros, nombreMes } from "@/lib/formato";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import type { DatosCotejo } from "@/lib/servicios/cotejo";
 import type { MatriculaLeida } from "@/lib/servicios/ocr-rejilla";
 
@@ -195,11 +196,7 @@ export default function CotejoPagos() {
     },
     { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula, celda: (f) => <b>{f.matricula}</b> },
     { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.coche?.cliente ?? "", celda: (f) => f.coche?.cliente || <span style={{ color: "var(--text-muted)" }}>(sin coche)</span> },
-    { clave: "tipo", etiqueta: "VN / VO", valor: (f) => (f.coche ? (f.coche.usado ? "VO" : "VN") : ""), celda: (f) => (f.coche ? <b style={{ color: f.coche.usado ? "var(--warning)" : "var(--success)" }}>{f.coche.usado ? "VO" : "VN"}</b> : sinCoche), alinear: "center" },
-    { clave: "marca", etiqueta: "Marca", valor: (f) => f.coche?.marca ?? "", celda: (f) => f.coche?.marca || sinCoche },
-    { clave: "modelo", etiqueta: "Modelo", valor: (f) => f.coche?.modelo ?? "", celda: (f) => f.coche?.modelo || sinCoche },
-    { clave: "estadoVehiculo", etiqueta: "Estado", valor: (f) => f.coche?.estado ?? "", celda: (f) => f.coche?.estado || sinCoche, ayuda: "Estado del vehículo en el expediente" },
-    { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.coche?.tipo_pago ?? "", celda: (f) => f.coche?.tipo_pago || sinCoche },
+    ...columnasVehiculo<FilaCotejo>((f) => ({ clase: f.coche ? (f.coche.usado ? "VO" : "VN") : null, marca: f.coche?.marca, modelo: f.coche?.modelo, estado: f.coche?.estado, tipoPago: f.coche?.tipo_pago }), { vacio: sinCoche }),
     { clave: "fechaClave", etiqueta: "F. matric. / afect.", valor: (f) => (f.coche?.usado ? f.coche.f_afectacion : f.coche?.f_matriculacion) ?? "", celda: (f) => (f.coche ? fecha((f.coche.usado ? f.coche.f_afectacion : f.coche.f_matriculacion) ?? null) : "-"), ayuda: "Fecha de afectación en los usados y de matriculación en los nuevos" },
     { clave: "entrega", etiqueta: "F. entrega", valor: (f) => f.coche?.f_entrega ?? "", celda: (f) => (f.coche ? fecha(f.coche.f_entrega) : "-") },
     { clave: "mes", etiqueta: "Rejilla de", valor: (f) => f.mesRejilla ?? "", celda: (f) => (f.mesRejilla ? nombreMes(f.mesRejilla) : "-"), oculta: true },
@@ -208,10 +205,7 @@ export default function CotejoPagos() {
   const columnasSinMatricula: ColumnaTabla<CocheCotejo>[] = [
     { clave: "origen", etiqueta: "Origen", valor: (c) => (c.origen === "app" ? `Expediente #${c.id_expediente}` : "Listado") },
     { clave: "cliente", etiqueta: "Cliente", valor: (c) => c.cliente },
-    { clave: "tipo", etiqueta: "VN / VO", valor: (c) => (c.usado ? "VO" : "VN"), alinear: "center" },
-    { clave: "marca", etiqueta: "Marca", valor: (c) => c.marca },
-    { clave: "modelo", etiqueta: "Modelo", valor: (c) => c.modelo },
-    { clave: "estado", etiqueta: "Estado", valor: (c) => c.estado || "Sin matricular" },
+    ...columnasVehiculo<CocheCotejo>((c) => ({ clase: c.usado ? "VO" : "VN", marca: c.marca, modelo: c.modelo, estado: c.estado || "Sin matricular" }), { sin: ["tipoPago"] }),
     { clave: "fExp", etiqueta: "F. expediente", valor: (c) => c.f_expediente ?? "", celda: (c) => fecha(c.f_expediente) },
     { clave: "fEntrega", etiqueta: "F. entrega", valor: (c) => c.f_entrega ?? "", celda: (c) => fecha(c.f_entrega) },
   ];

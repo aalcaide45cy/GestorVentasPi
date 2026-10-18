@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
+import { datosVehiculoDeExpediente } from "@/components/expedientes/comun";
 import { useToast } from "@/components/Toast";
 import { mensajeDeError } from "@/components/expedientes/comun";
 import ModalCompletarDatos, { hayBorradorCompletar } from "@/components/expedientes/ModalCompletarDatos";
@@ -59,10 +61,7 @@ const columnasBaseRegistros: ColumnaTabla<Registro>[] = [
   { clave: "dni", etiqueta: "DNI/NIF", valor: (r) => r.expediente?.cliente?.dni ?? "", celda: (r) => r.expediente?.cliente?.dni || r.bastidor || "N/D" },
   { clave: "matricula", etiqueta: "Matrícula", valor: (r) => r.matricula || r.expediente?.matricula || "", celda: (r) => r.matricula || r.expediente?.matricula || "N/D" },
   { clave: "bastidor", etiqueta: "Bastidor (VIN)", valor: (r) => r.bastidor || r.expediente?.vin || "", celda: (r) => <code style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.bastidor || r.expediente?.vin || "N/D"}</code> },
-  { clave: "tipo", etiqueta: "VN / VO", valor: (r) => r.expediente?.estadoVehiculo?.clase ?? "", celda: (r) => (r.expediente?.estadoVehiculo ? <b style={{ color: r.expediente.estadoVehiculo.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{r.expediente.estadoVehiculo.clase}</b> : "—"), alinear: "center" },
-  { clave: "marca", etiqueta: "Marca", valor: (r) => r.expediente?.modelo?.marca?.nombre ?? "" },
-  { clave: "modelo", etiqueta: "Modelo", valor: (r) => r.expediente?.modelo?.nombre_modelo ?? "" },
-  { clave: "estado", etiqueta: "Estado", valor: (r) => r.expediente?.estadoVehiculo?.nombre_estado_vehiculo ?? "", oculta: true },
+  ...columnasVehiculo<Registro>((r) => datosVehiculoDeExpediente(r.expediente ?? null), { sin: ["tipoPago"] }),
   {
     clave: "accion",
     etiqueta: "Acción",

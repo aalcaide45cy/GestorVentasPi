@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useCarga } from "@/components/comisiones/useCarga";
-import { BadgeEstado } from "@/components/expedientes/comun";
+import { columnasVehiculo } from "@/components/etiquetas";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import ResumenLiquidacion from "./ResumenLiquidacion";
 import type { ResultadoMes } from "@/lib/comisiones";
@@ -104,11 +104,7 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
     { clave: "visto", etiqueta: "✔", valor: (f) => (visto.has(f.id) ? 1 : 0), celda: (f) => <input type="checkbox" checked={visto.has(f.id)} onChange={() => alternar(f.id)} style={{ width: "18px", height: "18px", accentColor: "var(--success)" }} />, ayuda: "Marca el coche cuando lo veas en la rejilla" },
     { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula ?? "", celda: (f) => (!(f.matricula ?? "").trim() ? <span style={{ color: f.usado ? "var(--warning)" : "var(--text-muted)" }}>{f.usado ? "⚠️ falta" : "—"}</span> : <b>{f.matricula}</b>) },
     { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente },
-    { clave: "tipo", etiqueta: "VN / VO", valor: (f) => (f.usado ? "VO" : "VN"), celda: (f) => <b style={{ color: f.usado ? "var(--warning)" : "var(--success)" }}>{f.usado ? "VO" : "VN"}</b>, alinear: "center", ayuda: "Nuevo (VN) o usado (VO)" },
-    { clave: "marca", etiqueta: "Marca", valor: (f) => f.marca },
-    { clave: "modelo", etiqueta: "Modelo", valor: (f) => f.modelo },
-    { clave: "estado", etiqueta: "Estado", valor: (f) => f.estado, celda: (f) => (f.exp?.estadoVehiculo ? <BadgeEstado exp={f.exp} /> : f.estado), alinear: "center", ayuda: "Estado del vehículo, con el mismo color que en la lista de expedientes" },
-    { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.tipoPago },
+    ...columnasVehiculo<Fila>((f) => ({ clase: f.usado ? "VO" : "VN", marca: f.marca, modelo: f.modelo, estado: f.estado, estadoColor: f.exp?.estadoVehiculo?.color, tipoPago: f.tipoPago === "—" ? null : f.tipoPago, tipoPagoColor: f.exp?.tipoDeVenta?.color })),
     { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => celdaDinero(f.coche), alinear: "right", ayuda: "Solo la comisión del coche, sin financiación" },
     { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion, celda: (f) => celdaDinero(f.financiacion), alinear: "right" },
     { clave: "preference", etiqueta: "Preference", valor: (f) => f.preference, celda: (f) => celdaDinero(f.preference), alinear: "right" },

@@ -2,6 +2,7 @@
 
 import { useCarga } from "@/components/comisiones/useCarga";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import { etiquetaTramo, euros, nombreMes, puntos } from "@/lib/formato";
 import type { ResumenLiquidacionMes } from "@/lib/servicios/rejillas-visor";
 
@@ -11,8 +12,7 @@ type Bonus = ResumenLiquidacionMes["bonus"][number];
 const colCoche: ColumnaTabla<Coche>[] = [
   { clave: "matricula", etiqueta: "Matrícula", valor: (c) => c.matricula ?? "", celda: (c) => <b>{c.matricula ?? "—"}</b> },
   { clave: "cliente", etiqueta: "Cliente", valor: (c) => c.cliente },
-  { clave: "vehiculo", etiqueta: "Vehículo", valor: (c) => c.vehiculo },
-  { clave: "tipo", etiqueta: "Tipo", valor: (c) => (c.clase === "VO" ? "Usado" : "Nuevo") },
+  ...columnasVehiculo<Coche>((c) => ({ clase: c.clase, marcaModelo: c.vehiculo }), { sin: ["marca", "modelo", "estado", "tipoPago"] }),
   { clave: "cuenta", etiqueta: "Cuenta este mes", valor: (c) => (c.cuenta ? "Sí" : "No"), oculta: true },
   { clave: "puntos", etiqueta: "Puntos", valor: (c) => c.puntos, celda: (c) => puntos(c.puntos), alinear: "right" },
   { clave: "importe", etiqueta: "Comisión del coche", valor: (c) => c.importeCoche, celda: (c) => <b>{euros(c.importeCoche)}</b>, alinear: "right", ayuda: "Solo la comisión del coche, sin financiación, Preference ni bonus" },
@@ -22,7 +22,7 @@ const colBonus: ColumnaTabla<Bonus>[] = [
   { clave: "concepto", etiqueta: "Por qué (regla o concepto)", valor: (b) => b.concepto },
   { clave: "matricula", etiqueta: "Matrícula", valor: (b) => b.matricula ?? "", celda: (b) => b.matricula ?? "—" },
   { clave: "cliente", etiqueta: "Cliente", valor: (b) => b.cliente },
-  { clave: "vehiculo", etiqueta: "Vehículo", valor: (b) => b.vehiculo },
+  ...columnasVehiculo<Bonus>((b) => ({ marcaModelo: b.vehiculo }), { sin: ["clase", "marca", "modelo", "estado", "tipoPago"] }),
   { clave: "puntos", etiqueta: "Puntos", valor: (b) => b.puntos, celda: (b) => (b.puntos ? puntos(b.puntos) : "—"), alinear: "right" },
   { clave: "importe", etiqueta: "Importe", valor: (b) => b.importe, celda: (b) => (b.importe ? euros(b.importe) : "—"), alinear: "right" },
 ];

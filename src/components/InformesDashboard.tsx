@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
@@ -86,17 +87,13 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
     { clave: "expediente", etiqueta: "Expediente", valor: (m) => m.id, celda: (m) => enlaceExp(m.id) },
     { clave: "fecha", etiqueta: "Fecha", valor: (m) => m.fecha ?? "", celda: (m) => formatDate(m.fecha) },
     { clave: "matricula", etiqueta: "Matrícula", valor: (m) => m.matricula ?? "", celda: (m) => m.matricula ?? "—" },
-    { clave: "marca", etiqueta: "Marca", valor: (m) => m.marca ?? "" },
-    { clave: "modelo", etiqueta: "Modelo", valor: (m) => m.modelo ?? "" },
-    { clave: "pago", etiqueta: "Pago", valor: (m) => m.tipoVenta ?? "" },
+    ...columnasVehiculo<Matriculado>((m) => ({ marca: m.marca, modelo: m.modelo, tipoPago: m.tipoVenta }), { sin: ["clase", "estado"] }),
     { clave: "comercial", etiqueta: "Comercial", valor: (m) => m.vendedor ?? "" },
   ];
   const colCartera: ColumnaTabla<Cartera>[] = [
     { clave: "expediente", etiqueta: "Expediente", valor: (m) => m.id, celda: (m) => enlaceExp(m.id) },
     { clave: "pedido", etiqueta: "Pedido", valor: (m) => m.fechaPedido ?? "", celda: (m) => formatDate(m.fechaPedido) },
-    { clave: "marca", etiqueta: "Marca", valor: (m) => m.marca ?? "" },
-    { clave: "modelo", etiqueta: "Modelo", valor: (m) => m.modelo ?? "" },
-    { clave: "pago", etiqueta: "Pago", valor: (m) => m.tipoVenta ?? "" },
+    ...columnasVehiculo<Cartera>((m) => ({ marca: m.marca, modelo: m.modelo, tipoPago: m.tipoVenta }), { sin: ["clase", "estado"] }),
     { clave: "comercial", etiqueta: "Comercial", valor: (m) => m.vendedor ?? "" },
   ];
 

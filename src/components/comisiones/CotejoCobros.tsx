@@ -6,6 +6,7 @@ import { useToast } from "@/components/Toast";
 import { codigoExpediente } from "@/lib/date-utils";
 import { euros, mesActual } from "@/lib/formato";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import type { Cotejo, ConceptoCotejo } from "@/lib/servicios/comisiones-gestion";
 import type { DetalleExpediente } from "@/lib/servicios/detalle-expedientes";
 import { llamar, textoError } from "./api";
@@ -56,10 +57,7 @@ export default function CotejoCobros({ cat, usuarioInicial, esAdmin }: { cat: Ca
     },
     { clave: "matricula", etiqueta: "Matrícula", valor: (f) => d(f)?.matricula ?? "", celda: (f) => <b>{d(f)?.matricula ?? "—"}</b> },
     { clave: "cliente", etiqueta: "Cliente", valor: (f) => d(f)?.cliente ?? "" },
-    { clave: "tipo", etiqueta: "VN / VO", valor: (f) => d(f)?.clase ?? "", celda: (f) => <b style={{ color: d(f)?.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{d(f)?.clase ?? "—"}</b>, alinear: "center" },
-    { clave: "marca", etiqueta: "Marca", valor: (f) => d(f)?.marca ?? "" },
-    { clave: "modelo", etiqueta: "Modelo", valor: (f) => d(f)?.modelo ?? "" },
-    { clave: "estado", etiqueta: "Estado", valor: (f) => d(f)?.estado ?? "", oculta: true },
+    ...columnasVehiculo<(typeof filas)[number]>((f) => ({ clase: d(f)?.clase, marca: d(f)?.marca, modelo: d(f)?.modelo, estado: d(f)?.estado })),
     ...COLUMNAS.map(
       (c): ColumnaTabla<(typeof filas)[number]> => ({
         clave: c.c,

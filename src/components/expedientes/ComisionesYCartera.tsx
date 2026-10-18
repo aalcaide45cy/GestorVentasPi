@@ -10,7 +10,8 @@ import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import { usePreferencia } from "@/lib/preferencias";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import AvisoComision from "./AvisoComision";
-import { BadgeEstado, BadgeTipoVenta, TextoCopiable } from "./comun";
+import { TextoCopiable, datosVehiculoDeExpediente } from "./comun";
+import { columnasVehiculo } from "../etiquetas";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -100,12 +101,9 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
     ),
     ancho: 130,
   },
-  { clave: "modelo", etiqueta: "Modelo", valor: (f) => [marcaDe(f), f.e?.modelo?.nombre_modelo].filter(Boolean).join(" ") || f.info?.vehiculo || "—", ancho: 110 },
-  { clave: "marca", etiqueta: "Marca", valor: marcaDe, oculta: true },
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? f.info?.matricula ?? "", oculta: true },
   { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null) },
-  { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.e?.tipoDeVenta?.nombre_tipo_venta ?? "", celda: (f) => (f.e?.tipoDeVenta ? <BadgeTipoVenta exp={f.e} /> : "—"), ayuda: "Forma de pago del expediente (contado, crédito, preference…)" },
-  { clave: "vnvo", etiqueta: "Estado", valor: (f) => f.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.linea.clase === "VO" ? "Usado" : "Nuevo"), celda: (f) => (f.e?.estadoVehiculo ? <BadgeEstado exp={f.e} /> : <span style={{ fontWeight: 700, color: f.linea.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{f.linea.clase === "VO" ? "Usado" : "Nuevo"}</span>), ayuda: "Estado del vehículo del expediente, con el mismo color que en la lista de expedientes", alinear: "center" },
+  ...columnasVehiculo<FilaDesglose>((f) => ({ ...datosVehiculoDeExpediente(f.e), clase: f.linea.clase, marca: marcaDe(f) || null, modelo: f.e?.modelo?.nombre_modelo ?? (f.e ? null : f.info?.vehiculo) ?? null, estado: f.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.linea.clase === "VO" ? "Usado" : "Nuevo") })),
   { clave: "cuenta", etiqueta: "Cuenta", valor: (f) => (f.linea.cuenta ? "Este mes" : "Otros conceptos"), ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes." },
   { clave: "puntos", etiqueta: "Puntos", valor: (f) => f.linea.puntos, celda: (f) => puntos(f.linea.puntos), alinear: "right", oculta: true },
   { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => centimos(f.coche), alinear: "right", ayuda: "Comisión del coche (tarifa VN o VO)" },
@@ -280,8 +278,6 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
   );
 }
 
-const modeloDe = (e: ExpedienteDto) => [e.modelo?.marca?.nombre, e.modelo?.nombre_modelo].filter(Boolean).join(" ");
-
 const columnasCartera: ColumnaTabla<ExpedienteDto>[] = [
   {
     clave: "cliente",
@@ -294,9 +290,8 @@ const columnasCartera: ColumnaTabla<ExpedienteDto>[] = [
     ),
     ancho: 150,
   },
-  { clave: "modelo", etiqueta: "Modelo", valor: (e) => modeloDe(e) || "—", celda: (e) => (modeloDe(e) ? <TextoCopiable texto={modeloDe(e)} /> : "—"), ancho: 130 },
+  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e)),
   { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => (e.matricula ? <TextoCopiable texto={e.matricula} /> : "—") },
-  { clave: "tipo", etiqueta: "T. venta", valor: (e) => e.tipoDeVenta?.nombre_tipo_venta ?? "", celda: (e) => (e.tipoDeVenta ? <BadgeTipoVenta exp={e} /> : "—") },
   { clave: "pedido", etiqueta: "F. pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => fechaCorta(e.fecha_expediente) },
   { clave: "afectacion", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => <strong>{fechaCorta(e.fecha_afectacion)}</strong> },
   { clave: "matriculacion", etiqueta: "F. matriculación", valor: (e) => e.fecha_matriculacion ?? "", celda: (e) => fechaCorta(e.fecha_matriculacion) },

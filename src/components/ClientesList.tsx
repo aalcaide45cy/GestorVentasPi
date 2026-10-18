@@ -14,7 +14,9 @@ import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
 import type { ResultadoDni } from "@/lib/servicios/documentos";
 import NombreConFoto from "./documentos/FotoCliente";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
-import { BadgeEstado, BadgeTipoVenta, mensajeDeError } from "./expedientes/comun";
+import { columnasVehiculo } from "./etiquetas";
+import { datosVehiculoDeExpediente, mensajeDeError } from "./expedientes/comun";
+import TablaDatos, { type ColumnaTabla } from "./TablaDatos";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 
 export type ClienteItem = ClienteDto & { num_expedientes: number };
@@ -43,6 +45,23 @@ const botonBloqueo = (activo: boolean, fondo: string, color: string) =>
     alignItems: "center",
     gap: "6px",
   }) as const;
+
+const columnasVentas: ColumnaTabla<ExpedienteDto>[] = [
+  { clave: "codigo", etiqueta: "Código", valor: (e) => e.id_expediente, celda: (e) => <b style={{ color: "var(--primary)" }}>#EXP-{String(e.id_expediente).padStart(4, "0")}</b> },
+  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { vacio: "N/D" }),
+  { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => e.matricula || "N/D" },
+  { clave: "fecha", etiqueta: "Fecha", valor: (e) => e.fecha_expediente ?? "", celda: (e) => (e.fecha_expediente ? formatDate(e.fecha_expediente) : "N/D") },
+  {
+    clave: "editar",
+    etiqueta: "",
+    valor: () => "",
+    celda: (e) => (
+      <a href={`/dashboard/expedientes/editar/${e.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        ✏️ Editar
+      </a>
+    ),
+  },
+];
 
 /** «Base de Clientes»: directorio con filtros por columna, alta/edición, importación y exportación CSV. */
 export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, userRole, tiendaPredeterminadaId }: Props) {
@@ -789,69 +808,18 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           ancho="800px"
           tamanoTitulo="1.25rem"
         >
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Vehículo</th>
-                  <th>Método de Venta</th>
-                  <th>Estado Vehículo</th>
-                  <th>Matrícula</th>
-                  <th>Fecha</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ventas === null && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
-                      Cargando...
-                    </td>
-                  </tr>
-                )}
-                {ventas?.map((exp) => (
-                  <tr key={exp.id_expediente}>
-                    <td style={{ fontWeight: "bold", color: "var(--primary)" }}>#EXP-{String(exp.id_expediente).padStart(4, "0")}</td>
-                    <td>
-                      {exp.modelo ? (
-                        <>
-                          <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo.nombre_modelo}</div>
-                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.modelo.marca?.nombre}</div>
-                        </>
-                      ) : (
-                        "N/D"
-                      )}
-                    </td>
-                    <td><BadgeTipoVenta exp={exp} /></td>
-                    <td><BadgeEstado exp={exp} /></td>
-                    <td>{exp.matricula || "N/D"}</td>
-                    <td>{exp.fecha_expediente ? formatDate(exp.fecha_expediente) : "N/D"}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          setVentasDe(null);
-                          router.push(`/dashboard/expedientes/editar/${exp.id_expediente}`);
-                        }}
-                        style={{ padding: "6px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}
-                      >
-                        ✏️ Editar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {ventas?.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
-                      No hay expedientes asociados a este cliente.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {ventas === null ? (
+            <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>Cargando...</p>
+          ) : (
+            <TablaDatos<ExpedienteDto>
+              id="cliente-ventas"
+              columnas={columnasVentas}
+              filas={ventas}
+              clave={(e) => e.id_expediente}
+              placeholder="Buscar por código, vehículo, matrícula…"
+              vacio="No hay expedientes asociados a este cliente."
+            />
+          )}
         </Modal>
       )}
 

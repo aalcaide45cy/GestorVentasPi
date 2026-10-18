@@ -1,6 +1,7 @@
 "use client";
 
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "./etiquetas";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
@@ -83,8 +84,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       ),
     },
     { clave: "cliente", etiqueta: "Cliente", valor: (i) => i.pedido.datos.cliente ?? "", celda: (i) => i.pedido.datos.cliente ?? <span style={{ color: "var(--text-muted)" }}>—</span> },
-    { clave: "tipo", etiqueta: "VN / VO", valor: (i) => (i.pedido.datos.tipoPedido === "usado" ? "VO" : i.pedido.datos.tipoPedido === "nuevo" ? "VN" : ""), alinear: "center" },
-    { clave: "vehiculo", etiqueta: "Vehículo", valor: (i) => i.pedido.datos.modeloTexto ?? "", celda: (i) => i.pedido.datos.modeloTexto ?? "—" },
+    ...columnasVehiculo<(typeof items)[number]>((i) => ({ clase: i.pedido.datos.tipoPedido === "usado" ? "VO" : i.pedido.datos.tipoPedido === "nuevo" ? "VN" : null, marca: i.pedido.datos.marcaPropuesta, modelo: i.pedido.datos.modeloPropuesto ?? i.pedido.datos.modeloTexto }), { sin: ["estado", "tipoPago"] }),
     { clave: "fecha", etiqueta: "Fecha", valor: (i) => i.pedido.datos.fechaExpediente ?? "", celda: (i) => (i.pedido.datos.fechaExpediente ? formatDate(i.pedido.datos.fechaExpediente) : "—") },
     { clave: "destino", etiqueta: "Destino", valor: (i) => (i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente") },
     {

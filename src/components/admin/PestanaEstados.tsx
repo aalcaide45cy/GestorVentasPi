@@ -1,5 +1,6 @@
 "use client";
 
+import { EtiquetaClase } from "@/components/etiquetas";
 import { useEffect, useState, type FormEvent } from "react";
 import type { EstadoVehiculoDto } from "@/lib/dto";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
@@ -213,7 +214,10 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                       {claseEdicion === "VO" && <SelectorSubtipo valor={subtipoEdicion} alCambiar={setSubtipoEdicion} opciones={subtipos} pequeno />}
                     </span>
                   ) : (
-                    <span style={{ fontWeight: 700, color: e.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{e.clase === "VO" ? `Usado${e.subtipo_vo ? ` · ${e.subtipo_vo}` : ""}` : "Nuevo"}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <EtiquetaClase clase={e.clase === "VO" ? "VO" : "VN"} />
+                      {e.clase === "VO" && e.subtipo_vo && <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{e.subtipo_vo}</span>}
+                    </span>
                   )}
                 </td>
                 <td>
