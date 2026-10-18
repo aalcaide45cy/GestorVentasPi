@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
@@ -309,6 +310,80 @@ export default function PanelCopias() {
   const estado = datos.estado;
   const campoAjuste = <K extends keyof AjustesCopias>(k: K, v: AjustesCopias[K]) => setEdicion((a) => ({ ...a, [k]: v }));
 
+  const columnasCopias: ColumnaTabla<CopiaDto>[] = [
+    {
+      clave: "marca",
+      etiqueta: "✔",
+      valor: (c) => (marcadas.includes(c.id) ? 1 : 0),
+      celda: (c) => <input type="checkbox" checked={marcadas.includes(c.id)} onChange={(e) => alternarMarca(c.id, e.target.checked)} title="Marca esta copia para descargarla o borrarla junto con otras" style={{ accentColor: "var(--primary)" }} />,
+      ayuda: "Marca copias para descargarlas, subirlas a Drive o borrarlas en lote",
+    },
+    {
+      clave: "nombre",
+      etiqueta: "Nombre",
+      valor: (c) => c.nombre,
+      celda: (c) => (
+        <span style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
+          {c.nombre}
+          {c.estado !== "ok" && (
+            <div style={{ color: "var(--danger)", fontFamily: "inherit", fontSize: "0.75rem", fontWeight: 700 }} title={c.error ?? "Copia no válida"}>
+              ⚠ INVÁLIDA: {c.error ?? "no sirve para restaurar"}
+            </div>
+          )}
+        </span>
+      ),
+    },
+    { clave: "tipo", etiqueta: "Tipo", valor: (c) => c.tipo },
+    {
+      clave: "notas",
+      etiqueta: "Notas",
+      valor: (c) => c.notas ?? "",
+      celda: (c) => (
+        <div style={{ minWidth: "200px", whiteSpace: "normal" }}>
+          <NotaCopia copia={c} alGuardar={(notas) => accion(`nota${c.id}`, async () => { await llamar("/api/admin/copias", { method: "PATCH", cuerpo: { id: c.id, notas } }); return "Nota guardada."; })} />
+        </div>
+      ),
+    },
+    { clave: "fecha", etiqueta: "Fecha", valor: (c) => c.creadaEn, celda: (c) => fechaLegible(c.creadaEn) },
+    { clave: "tamano", etiqueta: "Tamaño", valor: (c) => c.tamano, celda: (c) => tamanoLegible(c.tamano), alinear: "right" },
+    { clave: "sha", etiqueta: "SHA-256", valor: (c) => c.sha256, celda: (c) => <span style={{ fontFamily: "monospace", fontSize: "0.8rem" }} title={c.sha256}>{c.sha256.slice(0, 10)}…</span>, oculta: true },
+    { clave: "drive", etiqueta: "Drive", valor: (c) => (c.enDrive ? 1 : 0), celda: (c) => (c.enDrive ? "☁️" : "—"), alinear: "center" },
+    {
+      clave: "acciones",
+      etiqueta: "Acciones",
+      valor: () => "",
+      celda: (c) => (
+        <span style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap" }}>
+          {c.archivoPresente && c.estado === "ok" ? (
+            <>
+              <a className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} href={`/api/admin/copias/descargar?id=${c.id}`} title="Descarga este archivo .dump a tu equipo para guardarlo fuera del servidor (recomendado: una copia fuera de la Raspberry o del PC).">
+                Descargar
+              </a>
+              {drive?.conectado && !drive.requiereReconexion && !c.enDrive && (
+                <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando !== null} onClick={() => subirDrive(c)} title="Sube esta copia a tu Google Drive para tener una segunda copia en la nube.">
+                  {trabajando === `drive${c.id}` ? "Subiendo…" : "Subir a Drive"}
+                </button>
+              )}
+              {drive?.conectado && !drive.requiereReconexion && c.enDrive && (
+                <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando !== null} onClick={() => quitarUna(c)} title="Quita esta copia de Google Drive; el archivo del servidor se conserva">
+                  {trabajando === `quitar${c.id}` ? "Quitando…" : "Quitar de Drive"}
+                </button>
+              )}
+              <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setRestaurar(c)} title="Devuelve TODA la aplicación al estado de esta copia (se pierde lo hecho después). Antes se guarda una copia automática del estado actual. Pide contraseña y doble factor.">
+                Restaurar
+              </button>
+            </>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>{c.estado !== "ok" ? "no se puede usar" : "fichero no encontrado"}</span>
+          )}
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => borrar(c)} title="Borra esta copia del servidor (y de Google Drive si estaba subida). No se puede deshacer.">
+            Borrar
+          </button>
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       <h3 style={{ fontSize: "1.2rem" }}>💾 Copias de seguridad</h3>
@@ -394,86 +469,21 @@ export default function PanelCopias() {
         </div>
       )}
 
-      <div className="table-container">
-        <table className="table-premium table-compact">
-          <thead>
-            <tr>
-              <th style={{ width: "34px" }}>
-                <input type="checkbox" checked={datos.copias.length > 0 && marcadas.length === datos.copias.length} onChange={(e) => setMarcadas(e.target.checked ? datos.copias.map((c) => c.id) : [])} title="Marca o desmarca todas las copias de la lista" style={{ accentColor: "var(--primary)" }} />
-              </th>
-              <th>Nombre</th>
-              <th>Tipo</th>
-              <th>Notas</th>
-              <th>Fecha</th>
-              <th style={{ textAlign: "right" }}>Tamaño</th>
-              <th>SHA-256</th>
-              <th>Drive</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {datos.copias.map((c) => (
-              <tr key={c.id} style={{ opacity: c.archivoPresente ? 1 : 0.55, background: c.estado !== "ok" ? "rgba(239, 68, 68, 0.06)" : undefined }}>
-                <td>
-                  <input type="checkbox" checked={marcadas.includes(c.id)} onChange={(e) => alternarMarca(c.id, e.target.checked)} title="Marca esta copia para descargarla o borrarla junto con otras" style={{ accentColor: "var(--primary)" }} />
-                </td>
-                <td style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
-                  {c.nombre}
-                  {c.estado !== "ok" && (
-                    <div style={{ color: "var(--danger)", fontFamily: "inherit", fontSize: "0.75rem", fontWeight: 700 }} title={c.error ?? "Copia no válida"}>
-                      ⚠ INVÁLIDA: {c.error ?? "no sirve para restaurar"}
-                    </div>
-                  )}
-                </td>
-                <td>{c.tipo}</td>
-                <td style={{ minWidth: "200px" }}>
-                  <NotaCopia copia={c} alGuardar={(notas) => accion(`nota${c.id}`, async () => { await llamar("/api/admin/copias", { method: "PATCH", cuerpo: { id: c.id, notas } }); return "Nota guardada."; })} />
-                </td>
-                <td>{fechaLegible(c.creadaEn)}</td>
-                <td style={{ textAlign: "right" }}>{tamanoLegible(c.tamano)}</td>
-                <td style={{ fontFamily: "monospace", fontSize: "0.8rem" }} title={c.sha256}>
-                  {c.sha256.slice(0, 10)}…
-                </td>
-                <td>{c.enDrive ? "☁️" : "—"}</td>
-                <td style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {c.archivoPresente && c.estado === "ok" ? (
-                    <>
-                      <a className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} href={`/api/admin/copias/descargar?id=${c.id}`} title="Descarga este archivo .dump a tu equipo para guardarlo fuera del servidor (recomendado: una copia fuera de la Raspberry o del PC).">
-                        Descargar
-                      </a>
-                      {drive?.conectado && !drive.requiereReconexion && !c.enDrive && (
-                        <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando !== null} onClick={() => subirDrive(c)} title="Sube esta copia a tu Google Drive para tener una segunda copia en la nube.">
-                          {trabajando === `drive${c.id}` ? "Subiendo…" : "Subir a Drive"}
-                        </button>
-                      )}
-                      {drive?.conectado && !drive.requiereReconexion && c.enDrive && (
-                        <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando !== null} onClick={() => quitarUna(c)} title="Quita esta copia de Google Drive; el archivo del servidor se conserva">
-                          {trabajando === `quitar${c.id}` ? "Quitando…" : "Quitar de Drive"}
-                        </button>
-                      )}
-                      <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setRestaurar(c)} title="Devuelve TODA la aplicación al estado de esta copia (se pierde lo hecho después). Antes se guarda una copia automática del estado actual. Pide contraseña y doble factor.">
-                        Restaurar
-                      </button>
-                    </>
-                  ) : (
-                    <span style={{ color: "var(--text-muted)" }}>{c.estado !== "ok" ? "no se puede usar" : "fichero no encontrado"}</span>
-                  )}
-                  <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => borrar(c)} title="Borra esta copia del servidor (y de Google Drive si estaba subida). No se puede deshacer.">
-                    Borrar
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {datos.copias.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ color: "var(--text-muted)" }}>
-                  No hay copias todavía.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <label style={{ display: "inline-flex", gap: "6px", alignItems: "center", fontSize: "0.85rem", cursor: "pointer" }}>
+        <input type="checkbox" checked={datos.copias.length > 0 && marcadas.length === datos.copias.length} onChange={(e) => setMarcadas(e.target.checked ? datos.copias.map((c) => c.id) : [])} style={{ accentColor: "var(--primary)" }} />
+        Marcar o desmarcar todas las copias
+      </label>
+      <TablaDatos<CopiaDto>
+        id="copias-seguridad"
+        columnas={columnasCopias}
+        filas={datos.copias}
+        clave={(c) => c.id}
+        placeholder="Buscar por nombre, tipo, nota, fecha…"
+        vacio="No hay copias todavía."
+        estiloFila={(c) => ({ opacity: c.archivoPresente ? 1 : 0.55, background: c.estado !== "ok" ? "rgba(239, 68, 68, 0.06)" : undefined })}
+        textoExtra={(c) => `${c.notas ?? ""} ${c.error ?? ""}`}
+        pie={(fs) => ({ nombre: `${fs.length} copia${fs.length === 1 ? "" : "s"}`, tamano: tamanoLegible(fs.reduce((t, c) => t + c.tamano, 0)) })}
+      />
 
       {ajustes && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid var(--border)", paddingTop: "14px" }}>
