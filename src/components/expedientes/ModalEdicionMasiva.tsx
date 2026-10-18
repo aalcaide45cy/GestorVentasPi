@@ -20,6 +20,7 @@ export interface CambiosMasivos {
   fecha_rci?: string;
   fecha_matriculacion?: string;
   fecha_entrega?: string;
+  fecha_facturacion?: string;
 }
 
 interface Props {
@@ -43,6 +44,7 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
   const [fExp, setFExp] = useState("");
   const [fAfect, setFAfect] = useState("");
   const [fRci, setFRci] = useState("");
+  const [fFactura, setFFactura] = useState("");
   const [fMat, setFMat] = useState("");
   const [fEntrega, setFEntrega] = useState("");
 
@@ -68,6 +70,7 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
     if (fExp) cambios.fecha_expediente = fExp;
     if (fAfect) cambios.fecha_afectacion = fAfect;
     if (fRci) cambios.fecha_rci = fRci;
+    if (fFactura) cambios.fecha_facturacion = fFactura;
     if (fMat) cambios.fecha_matriculacion = fMat;
     if (fEntrega) cambios.fecha_entrega = fEntrega;
     if (Object.keys(cambios).length === 0) {
@@ -189,6 +192,7 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
             {grupo("Fecha Afect.", "0", fecha(fAfect, setFAfect))}
             {grupo("Fecha RCI", "0", fecha(fRci, setFRci))}
             {grupo("Fecha Mat.", "0", fecha(fMat, setFMat))}
+            {grupo("Fecha Facturación", "0", fecha(fFactura, setFFactura))}
             {grupo("Fecha Entrega", "0", fecha(fEntrega, setFEntrega))}
           </div>
         </>

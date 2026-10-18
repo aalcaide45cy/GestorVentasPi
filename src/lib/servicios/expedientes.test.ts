@@ -120,6 +120,15 @@ describe("actualizar y borrar expedientes", () => {
     expect(err.message).toBe("No se seleccionaron datos para modificar");
   });
 
+  it("la edición en lote establece la fecha de facturación de todos los seleccionados", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const a = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));
+    const b = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));
+    await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "lote", ids: [a.id_expediente, b.id_expediente], expediente: { fecha_facturacion: "2026-10-15" } }));
+    expect((await obtenerExpediente(db, a.id_expediente))?.fecha_facturacion).toBe("2026-10-15");
+    expect((await obtenerExpediente(db, b.id_expediente))?.fecha_facturacion).toBe("2026-10-15");
+  });
+
   it("la edición en lote cambia el tipo de venta solo de los ids indicados", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const a = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));
