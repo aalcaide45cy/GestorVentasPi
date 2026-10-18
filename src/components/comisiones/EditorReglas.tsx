@@ -1,5 +1,6 @@
 "use client";
 
+import FechaConAtajos from "./FechaConAtajos";
 import SelectorVehiculo from "./SelectorVehiculo";
 import { BotonMini, InputCentesimas } from "./campos";
 import { nuevaClave, type CatalogosComisiones, type Regla } from "./tipos";
@@ -22,10 +23,12 @@ interface Props {
   visibles: (r: Regla) => boolean;
   nueva: () => Regla;
   etiquetaNueva: string;
+  /** Inicio y fin del plan: los botones «Plan» de las fechas los ponen. */
+  fechasPlan: { inicio: string; fin: string };
 }
 
 /** Lista editable de reglas / bonus / penalizaciones con evento, filtros y efecto (1.7): una fila por regla, con cada campo bajo su cabecera. */
-export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, etiquetaNueva }: Props) {
+export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, etiquetaNueva, fechasPlan }: Props) {
   const set = (i: number, c: Partial<Regla>) => onChange(reglas.map((r, j) => (j === i ? { ...r, ...c } : r)));
   const hay = reglas.some((r) => visibles(r));
   const esPenalizacion = nueva().esPenalizacion;
@@ -77,10 +80,10 @@ export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, e
                     </select>
                   </td>
                   <td>
-                    <input className="form-input" type="date" style={{ minWidth: "140px" }} value={r.fechaInicio ?? ""} onChange={(e) => set(i, { fechaInicio: e.target.value || null })} />
+                    <FechaConAtajos valor={r.fechaInicio} alCambiar={(v) => set(i, { fechaInicio: v })} fechaPlan={fechasPlan.inicio} cualDelPlan="inicio" />
                   </td>
                   <td>
-                    <input className="form-input" type="date" style={{ minWidth: "140px" }} value={r.fechaFin ?? ""} onChange={(e) => set(i, { fechaFin: e.target.value || null })} />
+                    <FechaConAtajos valor={r.fechaFin} alCambiar={(v) => set(i, { fechaFin: v })} fechaPlan={fechasPlan.fin} cualDelPlan="fin" />
                   </td>
                   <td>
                     <select className="form-input" style={{ minWidth: "105px" }} value={r.idMarca ?? ""} onChange={(e) => set(i, { idMarca: e.target.value ? Number(e.target.value) : null, idModelo: null })}>

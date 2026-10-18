@@ -217,7 +217,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
       </Seccion>
 
       <Seccion titulo="Reglas especiales" ayuda="Reglas adicionales del plan con evento, filtros y efecto (importe y/o puntos).">
-        <EditorReglas reglas={plan.reglas} onChange={(reglas) => setPlan((p) => ({ ...p, reglas }))} cat={cat} visibles={() => true} nueva={() => reglaNueva(false)} etiquetaNueva="+ Nueva regla especial" />
+        <EditorReglas fechasPlan={{ inicio: plan.fechaInicio, fin: plan.fechaFin }} reglas={plan.reglas} onChange={(reglas) => setPlan((p) => ({ ...p, reglas }))} cat={cat} visibles={() => true} nueva={() => reglaNueva(false)} etiquetaNueva="+ Nueva regla especial" />
       </Seccion>
     </div>
   );
@@ -227,7 +227,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
 export function TabBonus({ plan, setPlan, cat }: PropsPestana) {
   return (
     <Seccion titulo="Bonus de Campaña Dinámicos" ayuda="Cada bonus se genera en el mes de su propio evento y solo mira la fecha de ese evento.">
-      <EditorReglas reglas={plan.bonus} onChange={(bonus) => setPlan((p) => ({ ...p, bonus }))} cat={cat} visibles={(r) => !r.esPenalizacion} nueva={() => reglaNueva(false)} etiquetaNueva="+ Nuevo bonus" />
+      <EditorReglas fechasPlan={{ inicio: plan.fechaInicio, fin: plan.fechaFin }} reglas={plan.bonus} onChange={(bonus) => setPlan((p) => ({ ...p, bonus }))} cat={cat} visibles={(r) => !r.esPenalizacion} nueva={() => reglaNueva(false)} etiquetaNueva="+ Nuevo bonus" />
     </Seccion>
   );
 }
@@ -253,7 +253,7 @@ export function TabPenalizaciones({ plan, setPlan, cat }: PropsPestana) {
         </div>
       </Seccion>
       <Seccion titulo="Reglas de Penalización Dinámicas" ayuda="Restan su importe en el mes de su evento si el expediente cumple los filtros.">
-        <EditorReglas reglas={plan.bonus} onChange={(bonus) => setPlan((p) => ({ ...p, bonus }))} cat={cat} visibles={(r) => r.esPenalizacion} nueva={() => reglaNueva(true)} etiquetaNueva="+ Nueva penalización" />
+        <EditorReglas fechasPlan={{ inicio: plan.fechaInicio, fin: plan.fechaFin }} reglas={plan.bonus} onChange={(bonus) => setPlan((p) => ({ ...p, bonus }))} cat={cat} visibles={(r) => r.esPenalizacion} nueva={() => reglaNueva(true)} etiquetaNueva="+ Nueva penalización" />
       </Seccion>
     </div>
   );

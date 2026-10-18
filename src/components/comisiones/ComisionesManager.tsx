@@ -11,8 +11,9 @@ import type { LiquidacionResumen, PrevisionMes } from "@/lib/servicios/comisione
 import type { ResumenPlan } from "@/lib/servicios/planes";
 import { llamar, textoError } from "./api";
 import PlanEditor from "./PlanEditor";
+import { ajustarFechasDelPlan, contarFechasInternas } from "@/lib/comisiones/ajustar-fechas";
 import { BotonMini, Seccion } from "./campos";
-import type { CatalogosComisiones, Plan } from "./tipos";
+import { nuevaClave, type CatalogosComisiones, type Plan } from "./tipos";
 import { useCarga } from "./useCarga";
 
 interface Props {
@@ -73,16 +74,34 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [esAdmin]);
 
-  /** Abre una copia independiente del plan (sin guardar): mismos valores, como borrador, sin liquidaciones ni pendientes. */
-  const duplicar = async (p: ResumenPlan) => {
+  /** Plan que se va a duplicar: antes de abrir la copia se pregunta el mes del plan nuevo y si se ajustan sus fechas internas. */
+  const [duplicando, setDuplicando] = useState<{ original: Plan; mes: string; ajustar: boolean } | null>(null);
+
+  const preguntarDuplicar = async (p: ResumenPlan) => {
     try {
       const { data } = await llamar<Plan>(`/api/comisiones/planes?id=${p.idPlan}`);
-      const copia: Plan = { ...data, idPlan: 0, nombre: `Copia de ${data.nombre}`, estado: "borrador", pendientes: [], promociones: data.promociones.map((x) => ({ ...x, id: undefined })) };
-      setEditando({ plan: copia, solapados: [] });
-      mostrar("Copia del plan abierta: cambia el nombre y las fechas y pulsa «Guardar plan».", "exito");
+      // El mes que sigue al del plan original
+      const base = /^\d{4}-\d{2}/.test(data.fechaInicio) ? data.fechaInicio : new Date().toISOString().slice(0, 10);
+      const total = Number(base.slice(0, 4)) * 12 + Number(base.slice(5, 7)) - 1 + 1;
+      const siguiente = `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+      setDuplicando({ original: data, mes: siguiente, ajustar: contarFechasInternas(data) > 0 });
     } catch (e) {
       mostrar(textoError(e), "error");
     }
+  };
+
+  /** Abre una copia independiente del plan (sin guardar): mismos valores, como borrador, sin liquidaciones ni pendientes. */
+  const duplicar = () => {
+    if (!duplicando || !/^\d{4}-\d{2}$/.test(duplicando.mes)) return;
+    const { original, mes, ajustar } = duplicando;
+    const ultimo = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0).getDate();
+    const nuevo = { inicio: `${mes}-01`, fin: `${mes}-${String(ultimo).padStart(2, "0")}` };
+    // Cada regla y bonus de la copia necesita su propia clave (los bonus manuales se eligen por ella)
+    const base: Plan = { ...original, idPlan: 0, nombre: nombreMes(mes), estado: "borrador", pendientes: [], promociones: original.promociones.map((x) => ({ ...x, id: undefined })), reglas: original.reglas.map((r) => ({ ...r, clave: nuevaClave() })), bonus: original.bonus.map((r) => ({ ...r, clave: nuevaClave() })) };
+    const r = ajustar ? ajustarFechasDelPlan(base, nuevo) : { plan: { ...base, fechaInicio: nuevo.inicio, fechaFin: nuevo.fin }, cambiadas: 0 };
+    setDuplicando(null);
+    setEditando({ plan: r.plan, solapados: [] });
+    mostrar(ajustar && r.cambiadas > 0 ? `Copia del plan abierta para ${nombreMes(mes)}: ${r.cambiadas} fechas internas ajustadas. Revisa y pulsa «Guardar plan».` : `Copia del plan abierta para ${nombreMes(mes)}: revisa y pulsa «Guardar plan».`, "exito");
   };
 
   /** Descarga un único plan como archivo .json. */
@@ -139,7 +158,7 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
       celda: (p) => (
         <span style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap" }}>
           <BotonMini onClick={() => void abrir(p)}>Abrir</BotonMini>
-          <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => void duplicar(p)}>
+          <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => void preguntarDuplicar(p)}>
             Duplicar
           </BotonMini>
           <BotonMini titulo="Descarga solo este plan como archivo .json (se puede importar en otra instalación o en esta con «Importar»)." onClick={() => void exportarUno(p)}>
@@ -226,6 +245,41 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
 
       {AVISO_COTEJO}
 
+      {duplicando && (
+        <Modal
+          titulo={`Duplicar «${duplicando.original.nombre}»`}
+          ancho="560px"
+          pie={
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setDuplicando(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={duplicar} disabled={!/^\d{4}-\d{2}$/.test(duplicando.mes)}>
+                Crear la copia
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)" }}>Se abre una copia independiente (como borrador) con las mismas tarifas, puntos, objetivos, reglas y bonus. Elige para qué mes es.</p>
+          <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.85rem", fontWeight: 600 }}>
+            Mes del plan nuevo
+            <input className="form-input" type="month" value={duplicando.mes} onChange={(e) => setDuplicando({ ...duplicando, mes: e.target.value })} style={{ width: "220px" }} />
+          </label>
+          {contarFechasInternas(duplicando.original) > 0 ? (
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "10px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", cursor: "pointer" }}>
+              <input type="checkbox" checked={duplicando.ajustar} onChange={(e) => setDuplicando({ ...duplicando, ajustar: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)", marginTop: "2px" }} />
+              <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <strong style={{ fontSize: "0.9rem" }}>Ajustar las fechas internas al nuevo mes</strong>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                  Este plan tiene {contarFechasInternas(duplicando.original)} fechas en sus bonus, reglas y penalizaciones (por ejemplo, «válida desde el 5 de septiembre»). Si lo marcas, pasan al nuevo mes: las que coinciden con el inicio o el fin del plan pasan al inicio o al fin del nuevo, y las demás se mueven los meses de diferencia. Si no, se copian tal cual.
+                </span>
+              </span>
+            </label>
+          ) : (
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Este plan no tiene fechas internas en sus bonus ni reglas, así que no hay nada que ajustar.</span>
+          )}
+        </Modal>
+      )}
       {aBorrar && (
         <Modal
           titulo="⚠️ Eliminar plan"
