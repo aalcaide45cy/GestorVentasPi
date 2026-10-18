@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques } from "@/db/schema";
+import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, marcas, modelos, tipoDeVenta } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { aplicarCompletado, deshacerBloque, esquemaFilaCompletar, previsualizarCompletado } from "./completar-datos";
 
@@ -49,6 +49,7 @@ describe("completar datos desde un listado", () => {
 
   it("aplica solo lo elegido, queda en el log y se puede deshacer", async () => {
     const { admin, exp, cli } = await escenario();
+    const catalogosAntes = JSON.stringify([await db.select().from(marcas), await db.select().from(modelos), await db.select().from(tipoDeVenta), await db.select().from(estadoVehiculo)]);
     const r = await aplicarCompletado(db, admin, {
       archivo: "Expedientes.csv",
       cambios: [{ id_expediente: exp.idExpediente, campos: [{ campo: "matricula", valor: "7226NTG" }, { campo: "dni", valor: "51701814E" }, { campo: "email", valor: "f@x.com" }] }],
@@ -61,6 +62,9 @@ describe("completar datos desde un listado", () => {
     expect((await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0].dni).toBe("51701814E");
     const [bloque] = await db.select().from(importacionesBloques);
     expect(bloque.modificados).toBe(1);
+    // Nunca se crea ni se cambia una marca, un modelo, un tipo de venta ni un estado
+    expect(JSON.stringify([await db.select().from(marcas), await db.select().from(modelos), await db.select().from(tipoDeVenta), await db.select().from(estadoVehiculo)])).toBe(catalogosAntes);
+    expect(e1.idModelo).toBe(exp.idModelo);
 
     const d = await deshacerBloque(db, admin, bloque.id);
     expect(d.revertidos).toBe(3);

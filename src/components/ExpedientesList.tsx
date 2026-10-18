@@ -973,7 +973,7 @@ export default function ExpedientesList({
                 icono="🟢"
                 titulo="Importar datos de Excel"
                 texto="Lee el listado de ventas en Excel (.xlsx) y crea o actualiza expedientes. Si hay conflictos te los enseña antes de cambiar nada."
-                ayuda="Elige un archivo Excel del listado de ventas. Crea los expedientes que no existan y te pregunta qué hacer con los que ya existen."
+                ayuda="Elige un archivo Excel del listado de ventas. Solo actualiza datos de expedientes que ya existen (por cliente); no crea expedientes y te pregunta qué hacer cuando un cliente tiene varios. Para listados del fabricante es mejor «Completar datos desde listados»."
                 archivo=".xlsx, .xls"
                 deshabilitado={importandoExcel || cargando}
                 alElegir={(e) => {
@@ -986,7 +986,7 @@ export default function ExpedientesList({
                   icono="📥"
                   titulo="Importar CSV"
                   texto="Carga expedientes desde un archivo CSV exportado antes con esta aplicación."
-                  ayuda="Elige un archivo .csv con el formato de «Exportar todo (CSV)». Te dice cuántos expedientes se crean antes de aplicarlo."
+                  ayuda="Elige un archivo .csv con el formato de «Exportar todo (CSV)». Crea expedientes y los enlaza con las marcas, modelos, tipos de venta y estados que ya tienes; nunca crea ni cambia esos catálogos."
                   archivo=".csv"
                   deshabilitado={cargando}
                   alElegir={(e) => {

@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
+import { estadoVehiculo, marcas, modelos, tipoDeVenta } from "@/db/schema";
 import { db } from "@/db";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCrearExpediente } from "./expedientes";
@@ -21,8 +23,12 @@ import { leerCatalogos } from "./catalogos";
 beforeEach(reiniciarBd);
 
 describe("importación CSV de expedientes", () => {
-  it("crea expedientes con cliente, marca, modelo, tipo y estado, y omite duplicados", async () => {
+  it("crea expedientes con cliente y los enlaza con el catálogo que ya existe, y omite duplicados", async () => {
     const admin = await crearUsuarioPrueba("administrador");
+    const [marca] = await db.insert(marcas).values({ nombre: "Renault", activo: true, accesoRapido: true, sistemaComisiones: true }).returning();
+    await db.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: "Clio", accesoRapido: true, ordenAccesoRapido: 1 });
+    await db.insert(tipoDeVenta).values({ nombreTipoVenta: "Financiación Crédito", color: "#123456", categoria: "CREDITO" });
+    await db.insert(estadoVehiculo).values({ nombreEstadoVehiculo: "KM0", clase: "VO", subtipoVo: "KM0" });
     const entrada = esquemaImportacionCsv.parse({
       filename: "ventas.csv",
       items: [
@@ -70,7 +76,7 @@ describe("importación CSV de expedientes", () => {
     expect(await listarExpedientes(db)).toHaveLength(1); // borrar el log no deshace la importación
   });
 
-  it("reutiliza el cliente por DNI y crea los catálogos que falten", async () => {
+  it("reutiliza el cliente por DNI y NUNCA crea ni cambia marcas, modelos, tipos ni estados", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     await importarExpedientesCsv(
       db,
@@ -84,8 +90,21 @@ describe("importación CSV de expedientes", () => {
     );
     expect(await listarClientes(db)).toHaveLength(1);
     const cat = await leerCatalogos(db);
-    expect(cat.marcas.filter((m) => m.nombre === "MarcaNueva")).toHaveLength(1);
-    expect(cat.modelos.filter((m) => m.nombre_modelo === "M1")).toHaveLength(1);
+    expect(cat.marcas.some((m) => m.nombre === "MarcaNueva")).toBe(false);
+    expect(cat.modelos.some((m) => m.nombre_modelo === "M1")).toBe(false);
+    expect((await listarExpedientes(db)).every((e) => e.modelo === null)).toBe(true);
+  });
+
+  it("no toca los accesos rápidos ni los datos de lo que ya existe", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const [marca] = await db.insert(marcas).values({ nombre: "Dacia", activo: true, accesoRapido: true, sistemaComisiones: true }).returning();
+    const [modelo] = await db.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: "Sandero", accesoRapido: true, ordenAccesoRapido: 3 }).returning();
+    await importarExpedientesCsv(db, admin, esquemaImportacionCsv.parse({ items: [{ cliente_nombre: "Eva", marca_nombre: "dacia", modelo_nombre: "sandero", vin: "A9" }] }));
+    const [m] = await db.select().from(marcas).where(eq(marcas.idMarca, marca.idMarca));
+    const [mo] = await db.select().from(modelos).where(eq(modelos.idModelo, modelo.idModelo));
+    expect(m).toMatchObject({ accesoRapido: true, sistemaComisiones: true });
+    expect(mo).toMatchObject({ accesoRapido: true, ordenAccesoRapido: 3 });
+    expect((await listarExpedientes(db))[0].modelo?.id_modelo).toBe(modelo.idModelo);
   });
 });
 
