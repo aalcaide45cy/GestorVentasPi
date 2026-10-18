@@ -64,6 +64,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
           cleanUserTiendas: d.orphanUserTiendas.map((u) => u.id),
           cleanImportRegistros: d.orphanImportRegistros.map((r) => r.id),
           cleanAdjuntos: d.orphanAdjuntos.map((a) => a.id),
+          cleanAdjuntosEliminados: d.orphanAdjuntosEliminados.map((a) => a.id),
         }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al ejecutar la limpieza."));

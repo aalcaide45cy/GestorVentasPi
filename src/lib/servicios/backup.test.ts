@@ -110,4 +110,26 @@ describe("mantenimiento de la base de datos", () => {
     expect((await db.select().from(adjuntos)).map((x) => x.nombre)).toEqual(["reciente.pdf"]);
     expect(await listarExpedientes(db)).toHaveLength(2);
   });
+
+  it("los clientes eliminados no cuentan como «sin expediente», y los documentos de lo eliminado se pueden limpiar sin tocar los vigentes", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const vigente = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Vigente", dni: "12345678Z" }, expediente: {} }));
+    const borrado = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Borrada", dni: "12345678Z" }, expediente: {} }));
+    const ahora = new Date();
+    await db.update(expedientes).set({ eliminadoEn: ahora }).where(eq(expedientes.idExpediente, borrado.id_expediente));
+    await db.update(clientes).set({ eliminadoEn: ahora }).where(eq(clientes.id, borrado.id_cliente as number));
+    const [docVigente] = await db.insert(adjuntos).values({ ambito: "expediente", idExpediente: vigente.id_expediente, tipo: "pedido", nombre: "vigente.pdf", mime: "application/pdf", tamano: 10 }).returning();
+    const [docBorrado] = await db.insert(adjuntos).values({ ambito: "expediente", idExpediente: borrado.id_expediente, tipo: "pedido", nombre: "borrado.pdf", mime: "application/pdf", tamano: 10 }).returning();
+
+    const a = await analizarBbdd(db);
+    // El cliente eliminado ya no sale como «sin ningún expediente» ni como DNI repetido; sí se informa de que sigue guardado
+    expect(a.categorias.find((c) => c.id === "cli_sin_expedientes")?.cantidad).toBe(0);
+    expect(a.categorias.find((c) => c.id === "cli_dni_repetido")?.cantidad).toBe(0);
+    expect(a.categorias.find((c) => c.id === "info_clientes_eliminados")?.cantidad).toBe(1);
+    // Solo el documento del expediente eliminado es limpiable
+    expect(a.details.orphanAdjuntosEliminados).toEqual([{ id: docBorrado.id }]);
+    // Aunque se pida borrar los dos, el del expediente vigente se respeta
+    expect(await limpiarBbdd(db, esquemaLimpieza.parse({ cleanAdjuntosEliminados: [docBorrado.id, docVigente.id] }))).toBe(1);
+    expect((await db.select().from(adjuntos)).map((x) => x.nombre)).toEqual(["vigente.pdf"]);
+  });
 });
