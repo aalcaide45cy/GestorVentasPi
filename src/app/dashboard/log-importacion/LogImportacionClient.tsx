@@ -61,7 +61,7 @@ const columnasBaseRegistros: ColumnaTabla<Registro>[] = [
   { clave: "dni", etiqueta: "DNI/NIF", valor: (r) => r.expediente?.cliente?.dni ?? "", celda: (r) => r.expediente?.cliente?.dni || r.bastidor || "N/D" },
   { clave: "matricula", etiqueta: "Matrícula", valor: (r) => r.matricula || r.expediente?.matricula || "", celda: (r) => r.matricula || r.expediente?.matricula || "N/D" },
   { clave: "bastidor", etiqueta: "Bastidor (VIN)", valor: (r) => r.bastidor || r.expediente?.vin || "", celda: (r) => <code style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.bastidor || r.expediente?.vin || "N/D"}</code> },
-  ...columnasVehiculo<Registro>((r) => datosVehiculoDeExpediente(r.expediente ?? null), { sin: ["tipoPago"] }),
+  ...columnasVehiculo<Registro>((r) => datosVehiculoDeExpediente(r.expediente ?? null), { sin: ["tipoPago"], punto: true }),
   {
     clave: "accion",
     etiqueta: "Acción",

@@ -157,3 +157,19 @@ describe("eliminar un modelo con expedientes", () => {
     expect((await db.select().from(expedientes)).every((f) => f.idModelo === null)).toBe(true);
   });
 });
+
+describe("marcas: color de la cápsula y punto", () => {
+  it("guarda el color, el símbolo y el color del punto, y no los pierde al editar otros datos", async () => {
+    const m = (await crearCatalogo(db, { tipo: "marca", nombre: "Dacia", color: "#22c55e", punto: "●", punto_color: "#facc15" })) as { id_marca: number; color: string | null; punto: string | null; punto_color: string | null };
+    expect(m).toMatchObject({ color: "#22c55e", punto: "●", punto_color: "#facc15" });
+    // Editar solo el nombre no toca el aspecto
+    const igual = (await actualizarCatalogo(db, { tipo: "marca", id: m.id_marca, nombre: "Dacia SA" })) as { color: string | null; punto: string | null; punto_color: string | null };
+    expect(igual).toMatchObject({ color: "#22c55e", punto: "●", punto_color: "#facc15" });
+    // Cambiar el símbolo y quitar el color de la cápsula
+    const otro = (await actualizarCatalogo(db, { tipo: "marca", id: m.id_marca, nombre: "Dacia SA", color: null, punto: ",", punto_color: "#ef4444" })) as { color: string | null; punto: string | null; punto_color: string | null };
+    expect(otro).toMatchObject({ color: null, punto: ",", punto_color: "#ef4444" });
+    // Quitar el punto
+    const sin = (await actualizarCatalogo(db, { tipo: "marca", id: m.id_marca, nombre: "Dacia SA", punto: null, punto_color: null })) as { punto: string | null; punto_color: string | null };
+    expect(sin).toMatchObject({ punto: null, punto_color: null });
+  });
+});

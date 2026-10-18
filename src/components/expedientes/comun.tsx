@@ -27,6 +27,8 @@ export function datosVehiculoDeExpediente(exp: ExpedienteDto | null | undefined)
     clase: exp?.estadoVehiculo?.clase ?? null,
     marca: exp?.modelo?.marca?.nombre ?? null,
     marcaColor: exp?.modelo?.marca?.color ?? null,
+    marcaPunto: exp?.modelo?.marca?.punto ?? null,
+    marcaPuntoColor: exp?.modelo?.marca?.punto_color ?? null,
     modelo: exp?.modelo?.nombre_modelo ?? null,
     estado: exp?.estadoVehiculo?.nombre_estado_vehiculo ?? null,
     estadoColor: exp?.estadoVehiculo?.color ?? null,

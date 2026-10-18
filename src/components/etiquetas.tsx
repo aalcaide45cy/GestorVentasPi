@@ -57,15 +57,26 @@ export function colorTextoSobre(fondo: string): string {
 }
 
 /**
- * Marca y/o modelo dentro de una cápsula del color de la marca. Sin color, el texto va tal cual (como antes), sin cápsula.
+ * Marca y/o modelo rodeados por una cápsula con borde del color de la marca. Sin color, el texto va tal cual (como antes), sin cápsula.
  * Se usa igual para la marca, el modelo y la marca con el modelo.
  */
 export function EtiquetaMarca({ texto, color, vacio }: { texto: string | null | undefined; color?: string | null; vacio?: ReactNode }) {
   if (!texto) return <>{vacio ?? <span style={{ color: "var(--text-muted)" }}>—</span>}</>;
   if (!color) return <>{texto}</>;
   return (
-    <span className="badge" style={{ ...ESTILO_ETIQUETA, backgroundColor: color, color: colorTextoSobre(color), whiteSpace: "nowrap" }}>
+    <span style={{ display: "inline-block", fontSize: "0.8rem", fontWeight: 600, padding: "1px 10px", borderRadius: "999px", border: `1.5px solid ${color}`, background: `color-mix(in srgb, ${color} 14%, transparent)`, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
       {texto}
+    </span>
+  );
+}
+
+/** El punto de color de la marca: el símbolo elegido (un punto, una coma, un emoticono…) en su color. Sin nada configurado, no se ve. */
+export function PuntoMarca({ punto, color }: { punto?: string | null; color?: string | null }) {
+  const simbolo = punto || (color ? "●" : "");
+  if (!simbolo) return null;
+  return (
+    <span title="Color de la marca" style={{ color: color || "var(--text-primary)", fontSize: "1.1rem", lineHeight: 1 }}>
+      {simbolo}
     </span>
   );
 }
@@ -74,8 +85,11 @@ export function EtiquetaMarca({ texto, color, vacio }: { texto: string | null | 
 export interface DatosVehiculo {
   clase?: string | null;
   marca?: string | null;
-  /** Color de la marca (#RRGGBB): marca y modelo se enseñan en una cápsula de ese color. */
+  /** Color del borde de la cápsula de la marca y el modelo (#RRGGBB). */
   marcaColor?: string | null;
+  /** Símbolo y color del punto de la marca. */
+  marcaPunto?: string | null;
+  marcaPuntoColor?: string | null;
   modelo?: string | null;
   estado?: string | null;
   estadoColor?: string | null;
@@ -85,7 +99,7 @@ export interface DatosVehiculo {
   marcaModelo?: string | null;
 }
 
-export type ColumnaVehiculo = "clase" | "marca" | "modelo" | "marcaModelo" | "estado" | "tipoPago";
+export type ColumnaVehiculo = "clase" | "punto" | "marca" | "modelo" | "marcaModelo" | "estado" | "tipoPago";
 
 interface OpcionesColumnas {
   /** Qué enseñar cuando no hay dato (por defecto, un guion). */
@@ -94,6 +108,8 @@ interface OpcionesColumnas {
   sin?: ColumnaVehiculo[];
   /** Columnas que empiezan ocultas (se pueden activar en «Columnas y vistas»). */
   ocultas?: ColumnaVehiculo[];
+  /** Ofrece la columna estrecha del punto de color de la marca (solo si la tabla tiene los datos de la marca). */
+  punto?: boolean;
 }
 
 /**
@@ -102,20 +118,21 @@ interface OpcionesColumnas {
  */
 export function columnasVehiculo<T>(datos: (fila: T) => DatosVehiculo, opciones: OpcionesColumnas = {}): ColumnaTabla<T>[] {
   const vacio = opciones.vacio ?? <span style={{ color: "var(--text-muted)" }}>—</span>;
-  const sin = new Set(opciones.sin ?? []);
+  const sin = new Set<ColumnaVehiculo>([...(opciones.sin ?? []), ...(opciones.punto ? [] : (["punto"] as ColumnaVehiculo[]))]);
   // «Marca y modelo» empieza oculta (ya están Marca y Modelo por separado), salvo que esas dos no se ofrezcan
   const ocultas = new Set<ColumnaVehiculo>([...(sin.has("marca") && sin.has("modelo") ? [] : (["marcaModelo"] as ColumnaVehiculo[])), ...(opciones.ocultas ?? [])]);
   const juntos = (d: DatosVehiculo) => d.marcaModelo ?? [d.marca, d.modelo].filter(Boolean).join(" ");
   const texto = (v: string | null | undefined, color?: string | null): ReactNode => <EtiquetaMarca texto={v} color={color} vacio={vacio} />;
   const todas: Record<ColumnaVehiculo, ColumnaTabla<T>> = {
     clase: { clave: "clase", etiqueta: "VN / VO", valor: (f) => datos(f).clase ?? "", celda: (f) => (datos(f).clase ? <EtiquetaClase clase={datos(f).clase} /> : vacio), alinear: "center", ayuda: "Nuevo (VN) o usado (VO)" },
+    punto: { clave: "punto", etiqueta: "Punto de color de la marca", cabecera: "●", ancho: 24, valor: (f) => `${datos(f).marcaPuntoColor ?? datos(f).marcaColor ?? "~"}|${datos(f).marca ?? ""}`, celda: (f) => <PuntoMarca punto={datos(f).marcaPunto} color={datos(f).marcaPuntoColor} />, alinear: "center", ayuda: "Un punto del color de la marca; pulsa la cabecera para ordenar por colores" },
     marca: { clave: "marca", etiqueta: "Marca", valor: (f) => datos(f).marca ?? "", celda: (f) => texto(datos(f).marca, datos(f).marcaColor) },
     modelo: { clave: "modelo", etiqueta: "Modelo", valor: (f) => datos(f).modelo ?? "", celda: (f) => texto(datos(f).modelo, datos(f).marcaColor) },
     marcaModelo: { clave: "marcaModelo", etiqueta: "Marca y modelo", valor: (f) => juntos(datos(f)), celda: (f) => texto(juntos(datos(f)), datos(f).marcaColor), ayuda: "La marca y el modelo juntos en una sola columna" },
     estado: { clave: "estado", etiqueta: "Estado", valor: (f) => datos(f).estado ?? "", celda: (f) => (datos(f).estado ? <EtiquetaEstado nombre={datos(f).estado} clase={datos(f).clase} color={datos(f).estadoColor} /> : vacio), alinear: "center", ayuda: "Estado del vehículo, con el mismo color que en la lista de expedientes" },
     tipoPago: { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => datos(f).tipoPago ?? "", celda: (f) => (datos(f).tipoPago ? <EtiquetaPago nombre={datos(f).tipoPago} color={datos(f).tipoPagoColor} /> : vacio), alinear: "center", ayuda: "Forma de pago del expediente" },
   };
-  return (["clase", "marca", "modelo", "marcaModelo", "estado", "tipoPago"] as ColumnaVehiculo[])
+  return (["clase", "punto", "marca", "modelo", "marcaModelo", "estado", "tipoPago"] as ColumnaVehiculo[])
     .filter((c) => !sin.has(c))
     .map((c) => ({ ...todas[c], ...(ocultas.has(c) ? { oculta: true } : {}) }));
 }

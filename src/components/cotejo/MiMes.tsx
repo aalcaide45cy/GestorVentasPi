@@ -119,7 +119,7 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
         </span>
       ),
     },
-    ...columnasVehiculo<Fila>((f) => ({ clase: f.usado ? "VO" : "VN", marca: f.marca, marcaColor: f.exp?.modelo?.marca?.color ?? null, modelo: f.modelo, estado: f.estado, estadoColor: f.exp?.estadoVehiculo?.color, tipoPago: f.tipoPago === "—" ? null : f.tipoPago, tipoPagoColor: f.exp?.tipoDeVenta?.color })),
+    ...columnasVehiculo<Fila>((f) => ({ clase: f.usado ? "VO" : "VN", marca: f.marca, marcaColor: f.exp?.modelo?.marca?.color ?? null, marcaPunto: f.exp?.modelo?.marca?.punto ?? null, marcaPuntoColor: f.exp?.modelo?.marca?.punto_color ?? null, modelo: f.modelo, estado: f.estado, estadoColor: f.exp?.estadoVehiculo?.color, tipoPago: f.tipoPago === "—" ? null : f.tipoPago, tipoPagoColor: f.exp?.tipoDeVenta?.color }), { punto: true }),
     { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => celdaDinero(f.coche), alinear: "right", ayuda: "Solo la comisión del coche, sin financiación" },
     { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion, celda: (f) => celdaDinero(f.financiacion), alinear: "right" },
     { clave: "preference", etiqueta: "Preference", valor: (f) => f.preference, celda: (f) => celdaDinero(f.preference), alinear: "right" },

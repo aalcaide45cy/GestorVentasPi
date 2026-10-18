@@ -24,7 +24,7 @@ import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, pe
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
-import { EtiquetaClase, EtiquetaMarca } from "./etiquetas";
+import { EtiquetaClase, EtiquetaMarca, PuntoMarca } from "./etiquetas";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, TextoCopiable, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
@@ -68,6 +68,7 @@ type Columna =
   | "telefono"
   | "email"
   | "clase"
+  | "punto"
   | "marca"
   | "modelo"
   | "marca_modelo"
@@ -87,6 +88,7 @@ const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
   { clave: "telefono", etiqueta: "Teléfono" },
   { clave: "email", etiqueta: "Email" },
   { clave: "clase", etiqueta: "VN / VO" },
+  { clave: "punto", etiqueta: "Punto de color de la marca" },
   { clave: "marca", etiqueta: "Marca" },
   { clave: "modelo", etiqueta: "Modelo" },
   { clave: "marca_modelo", etiqueta: "Marca y modelo" },
@@ -124,6 +126,7 @@ const ANCHO_COLUMNA: Record<Columna, number> = {
   modelo: 150,
   marca_modelo: 170,
   clase: 70,
+  punto: 34,
   tipo_venta: 100,
   estado: 100,
   vendedor: 130,
@@ -150,6 +153,7 @@ const ENCABEZADOS: Record<Columna, { etiqueta: string; fondo?: string }> = {
   telefono: { etiqueta: "Teléfono" },
   email: { etiqueta: "Email" },
   clase: { etiqueta: "VN / VO" },
+  punto: { etiqueta: "●" },
   marca: { etiqueta: "Marca" },
   modelo: { etiqueta: "Modelo" },
   marca_modelo: { etiqueta: "Marca y modelo" },
@@ -461,6 +465,8 @@ export default function ExpedientesList({
           return e.cliente?.emails[0]?.email ?? "";
         case "clase":
           return e.estadoVehiculo?.clase ?? "";
+        case "punto":
+          return `${e.modelo?.marca?.punto_color ?? e.modelo?.marca?.color ?? "~"}|${e.modelo?.marca?.nombre ?? ""}`;
         case "marca":
           return e.modelo?.marca?.nombre ?? "";
         case "modelo":
@@ -1402,6 +1408,11 @@ export default function ExpedientesList({
                       email: mostrarCol("email") && (
                           <td>
                             {exp.cliente?.emails[0]?.email ? <TextoCopiable texto={exp.cliente.emails[0].email} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
+                          </td>
+                      ),
+                      punto: mostrarCol("punto") && (
+                          <td style={{ textAlign: "center" }}>
+                            <PuntoMarca punto={exp.modelo?.marca?.punto} color={exp.modelo?.marca?.punto_color} />
                           </td>
                       ),
                       clase: mostrarCol("clase") && (

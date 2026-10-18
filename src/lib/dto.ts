@@ -38,8 +38,11 @@ export interface MarcaDto {
   activo: boolean | null;
   acceso_rapido: boolean | null;
   sistema_comisiones: boolean;
-  /** Color de la marca (#RRGGBB) o null. */
+  /** Color del borde de la cápsula de la marca y el modelo (#RRGGBB) o null. */
   color: string | null;
+  /** Símbolo y color de la columna del punto, o null. */
+  punto: string | null;
+  punto_color: string | null;
 }
 
 export interface ModeloDto {

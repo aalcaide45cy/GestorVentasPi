@@ -139,7 +139,7 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] = [
   },
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? f.info?.matricula ?? "", oculta: true },
   { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null), oculta: true },
-  ...columnasVehiculo<FilaDesglose>((f) => ({ ...datosVehiculoDeExpediente(f.e), clase: f.linea.clase, marca: marcaDe(f) || null, modelo: f.e?.modelo?.nombre_modelo ?? (f.e ? null : f.info?.vehiculo) ?? null, estado: f.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.linea.clase === "VO" ? "Usado" : "Nuevo") })),
+  ...columnasVehiculo<FilaDesglose>((f) => ({ ...datosVehiculoDeExpediente(f.e), clase: f.linea.clase, marca: marcaDe(f) || null, modelo: f.e?.modelo?.nombre_modelo ?? (f.e ? null : f.info?.vehiculo) ?? null, estado: f.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.linea.clase === "VO" ? "Usado" : "Nuevo") }), { punto: true }),
   {
     clave: "cuenta",
     etiqueta: "Cuenta",
@@ -195,7 +195,7 @@ const pcTexto = (n: number, d: number) => (d === 0 ? "—" : `${((n / d) * 100).
 const columnasTasa: ColumnaTabla<FilaTasa>[] = [
   { clave: "cliente", etiqueta: "Cliente", valor: (f) => nombreCliente(f.fila), celda: (f) => <Link href={`/dashboard/expedientes/editar/${f.coche.idExpediente}`} style={{ color: "inherit", fontWeight: 600 }}>{nombreCliente(f.fila)}</Link>, ancho: 130 },
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.fila.e?.matricula ?? f.fila.info?.matricula ?? "", oculta: true },
-  ...columnasVehiculo<FilaTasa>((f) => ({ ...datosVehiculoDeExpediente(f.fila.e), clase: f.coche.clase, marca: marcaDe(f.fila) || null, modelo: f.fila.e?.modelo?.nombre_modelo ?? (f.fila.e ? null : f.fila.info?.vehiculo) ?? null, estado: f.fila.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.coche.clase === "VO" ? "Usado" : "Nuevo") })),
+  ...columnasVehiculo<FilaTasa>((f) => ({ ...datosVehiculoDeExpediente(f.fila.e), clase: f.coche.clase, marca: marcaDe(f.fila) || null, modelo: f.fila.e?.modelo?.nombre_modelo ?? (f.fila.e ? null : f.fila.info?.vehiculo) ?? null, estado: f.fila.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.coche.clase === "VO" ? "Usado" : "Nuevo") }), { punto: true }),
   { clave: "cuenta", etiqueta: "Cuenta este mes", valor: (f) => (f.coche.cuenta ? "Sí" : "No"), ayuda: "Suma en el denominador de la tasa" },
   { clave: "financiado", etiqueta: "Financiado (RCI este mes)", valor: (f) => (f.coche.financiado ? "Sí" : "No"), ayuda: "Suma en el numerador de la tasa" },
   { clave: "aviso", etiqueta: "Otro mes", valor: (f) => (f.fila.fuera ? (f.fila.fuera.tipo === "anterior" ? "Mes anterior" : "Adelantada") : ""), celda: (f) => (f.fila.fuera ? <span title={textoFinanciacionFuera(f.fila.fuera)} style={{ color: "var(--warning)", fontWeight: 700 }}>💳 {f.fila.fuera.tipo === "anterior" ? "Mes anterior" : "Adelantada"}</span> : ""), ayuda: "Coches cuya financiación se contrató en un mes distinto al que cuenta el coche" },
@@ -513,7 +513,7 @@ const columnasCartera: ColumnaTabla<ExpedienteDto>[] = [
     ),
     ancho: 150,
   },
-  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e)),
+  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { punto: true }),
   { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => (e.matricula ? <TextoCopiable texto={e.matricula} /> : "—") },
   { clave: "pedido", etiqueta: "F. pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => fechaCorta(e.fecha_expediente) },
   { clave: "afectacion", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => <strong>{fechaCorta(e.fecha_afectacion)}</strong> },

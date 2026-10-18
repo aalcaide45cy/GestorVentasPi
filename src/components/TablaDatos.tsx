@@ -21,6 +21,8 @@ export interface ColumnaTabla<T> {
   /** Oculta por defecto. */
   oculta?: boolean;
   ayuda?: string;
+  /** Texto corto de la cabecera de la tabla (por ejemplo «●»); en el gestor de columnas sale `etiqueta`. */
+  cabecera?: string;
 }
 
 interface Config {
@@ -122,7 +124,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
               <tr style={{ color: "var(--text-secondary)" }}>
                 {activas.map((c, k) => (
                   <th key={c.clave} onClick={() => setOrden((o) => (o?.clave === c.clave ? { clave: c.clave, asc: !o.asc } : { clave: c.clave, asc: true }))} title={c.ayuda ?? `Ordenar por «${c.etiqueta}»`} style={{ textAlign: alineacion(k), padding: relleno, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", minWidth: c.ancho, ...bordesLaterales(k) }}>
-                    {c.etiqueta}
+                    {c.cabecera ?? c.etiqueta}
                     {orden?.clave === c.clave ? (orden.asc ? " ▲" : " ▼") : <span style={{ opacity: 0.35 }}> ↕</span>}
                   </th>
                 ))}

@@ -39,6 +39,10 @@ export const marcas = pgTable("marcas", {
   sistemaComisiones: boolean("sistema_comisiones").notNull().default(false),
   /** Color de la marca (#RRGGBB): marca y modelo se enseñan en una cápsula de este color. Sin color, texto normal. */
   color: varchar("color", { length: 50 }),
+  /** Símbolo de la columna del punto (un punto, una coma, un emoticono…); sin símbolo pero con color, un punto «●». */
+  punto: varchar("punto", { length: 8 }),
+  /** Color del símbolo de la columna del punto (#RRGGBB). */
+  puntoColor: varchar("punto_color", { length: 50 }),
   /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
   eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });

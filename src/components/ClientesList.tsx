@@ -48,7 +48,7 @@ const botonBloqueo = (activo: boolean, fondo: string, color: string) =>
 
 const columnasVentas: ColumnaTabla<ExpedienteDto>[] = [
   { clave: "codigo", etiqueta: "Código", valor: (e) => e.id_expediente, celda: (e) => <b style={{ color: "var(--primary)" }}>#EXP-{String(e.id_expediente).padStart(4, "0")}</b> },
-  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { vacio: "N/D" }),
+  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { vacio: "N/D", punto: true }),
   { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => e.matricula || "N/D" },
   { clave: "fecha", etiqueta: "Fecha", valor: (e) => e.fecha_expediente ?? "", celda: (e) => (e.fecha_expediente ? formatDate(e.fecha_expediente) : "N/D") },
   {

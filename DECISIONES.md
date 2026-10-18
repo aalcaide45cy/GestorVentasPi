@@ -224,3 +224,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - **Alineación en todas las tablas:** primera columna a la izquierda, última a la derecha y el resto centradas (tablas genéricas de datos y `table-premium`).
 - **Líneas de incentivo y reglas Preference** en el plan: son tablas con orden por columnas (por defecto, por marca), gestor de «Columnas y vistas» y buscador. «Añadir incentivo» está junto a la tabla; las tasas de marca tienen botón «Quitar».
 - Configuración › Modelos se abre ordenada por «Orden Dashboard».
+
+## Punto de color y cápsula por marca (v1.0.19, ajuste)
+- Cada marca tiene dos aspectos independientes: el **borde de la cápsula** que rodea marca y modelo (`color`) y el **punto** de la columna estrecha «●» (`punto` = símbolo, que puede ser un punto, una coma, un emoticono…, y `punto_color`; con color pero sin símbolo sale «●»). Migración 0034. Van en la exportación e importación de marcas.
+- La cápsula es ahora un contorno del color de la marca con un fondo muy suave (antes era un relleno).
+- La columna «●» se ofrece en el listado de expedientes y en las tablas con datos completos de expediente (clientes, log de importación, desglose de comisiones y sus modales, «Mi mes»), se puede mostrar u ocultar y mover desde «Columnas y vistas», y al pulsar su cabecera ordena por el color del punto (y, dentro de cada color, por marca).
