@@ -276,6 +276,20 @@ select, select option {
   transform: translateY(0);
 }
 
+/* Acciones que borran de verdad (purgar la papelera) */
+.btn-danger {
+  background: var(--danger);
+  border: 1px solid var(--danger);
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn-secondary {
   background: var(--bg-btn-secondary);
   border: 1px solid var(--border-light);

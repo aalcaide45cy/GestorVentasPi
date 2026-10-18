@@ -9,6 +9,7 @@ import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { AnalisisBbdd, CategoriaAnomalia, FilaAnomalia } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
 import PanelDatos from "./PanelDatos";
+import PanelPapelera from "./PanelPapelera";
 import PanelActualizar from "./PanelActualizar";
 import PanelMigracion from "./PanelMigracion";
 import PanelVaciar from "./PanelVaciar";
@@ -178,6 +179,10 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
           <TablaDatos<FilaAnomalia> id={`bbdd-${abierta.id}`} columnas={columnasAnomalia} filas={abierta.filas} clave={(f) => `${abierta.id}-${f.id}-${f.detalle}`} placeholder="Buscar…" />
         </Modal>
       )}
+
+      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+
+      <PanelPapelera />
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
