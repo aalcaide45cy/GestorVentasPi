@@ -723,7 +723,8 @@ function FormularioEditarExpediente({
                 <ModalPedidoEnExpediente
                   pedido={pedidoLeido}
                   actuales={{ idModelo: modelo, modelo: etiquetaModelo(modelo), idTipoVenta: tipoVenta, tipoVenta: tiposVenta.find((t) => t.id === Number(tipoVenta))?.nombre ?? "", vin, matricula, fExp, fEntrega, fMat, idCliente: asignado ? asignado.id : null, dni, nombre, telefono: telefonos.find((t) => t.valor.trim() !== "")?.valor ?? "", email: emails.find((m) => m.valor.trim() !== "")?.valor ?? "" }}
-                  nombres={{ modelo: pedidoLeido.datos.idModelo ? etiquetaModelo(pedidoLeido.datos.idModelo) : null, tipoVenta: tiposVenta.find((t) => t.id === pedidoLeido.datos.idTipoDeVenta)?.nombre ?? null }}
+                  opcionesModelo={Object.entries(modelosPorMarca).flatMap(([idMarca, lista]) => lista.map((m) => ({ id: m.id, etiqueta: `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim() })))}
+                  opcionesTipoVenta={tiposVenta.map((t) => ({ id: t.id, etiqueta: t.nombre }))}
                   alAplicar={(c) => aplicarPedido(c, pedidoLeido)}
                   alCancelar={() => setPedidoLeido(null)}
                 />
