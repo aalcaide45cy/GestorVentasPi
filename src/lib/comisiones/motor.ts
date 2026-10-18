@@ -338,7 +338,7 @@ export function calcularMes(
 /* ------------------------------------------------------------------ */
 
 function tasaVacia(): TasaAmbitoResultado {
-  return { numerador: 0, denominador: 0, porcentaje: null, unidades: 0, cumplida: true, conObjetivo: false };
+  return { numerador: 0, denominador: 0, porcentaje: null, unidades: 0, cumplida: true, conObjetivo: false, objetivo: null, tipoTasa: "porcentaje" };
 }
 
 /**
@@ -353,7 +353,7 @@ function calcularTasaAmbito(infos: Info[], mes: Mes, clases: ("VN" | "VO")[], cf
   const conObjetivo = objetivo !== null;
   let cumplida = true;
   if (conObjetivo && denominador > 0) cumplida = cfg?.tipoTasa === "unidades" ? numerador >= objetivo : numerador * 100 >= objetivo * denominador;
-  return { numerador, denominador, porcentaje: denominador === 0 ? null : Math.round((numerador * 10000) / denominador) / 100, unidades: numerador, cumplida, conObjetivo };
+  return { numerador, denominador, porcentaje: denominador === 0 ? null : Math.round((numerador * 10000) / denominador) / 100, unidades: numerador, cumplida, conObjetivo, objetivo, tipoTasa: cfg?.tipoTasa === "unidades" ? "unidades" : "porcentaje" };
 }
 
 function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResultado[] {
@@ -383,6 +383,8 @@ function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResul
       porcentaje: denominador === 0 ? null : Math.round((numerador * 10000) / denominador) / 100,
       unidades: numerador,
       cumplida,
+      objetivo,
+      tipoTasa: tipo,
     });
   }
   return res;

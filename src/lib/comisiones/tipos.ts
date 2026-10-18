@@ -259,6 +259,9 @@ export interface TasaMarcaResultado {
   porcentaje: number | null;
   unidades: number;
   cumplida: boolean;
+  /** Objetivo fijado en el plan para esta marca y cómo se mide. */
+  objetivo: number;
+  tipoTasa: "porcentaje" | "unidades";
 }
 
 /** Tasa de intervención financiera de un conjunto de coches (todos los nuevos, o los usados). */
@@ -270,6 +273,8 @@ export interface TasaAmbitoResultado {
   cumplida: boolean;
   /** Hay objetivo fijado en el plan (si no, se da por cumplida). */
   conObjetivo: boolean;
+  objetivo: number | null;
+  tipoTasa: "porcentaje" | "unidades";
 }
 
 /** Un coche de la tasa de intervención: si cuenta en el mes (denominador) y si se financió en el mes (numerador). */

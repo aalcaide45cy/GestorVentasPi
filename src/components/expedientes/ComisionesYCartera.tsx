@@ -300,6 +300,51 @@ function construirColumnas(extras: string[]): ColumnaTabla<FilaDesglose>[] {
 /** Totales de las columnas de conceptos propios para la fila del pie. */
 const pieExtras = (extras: string[], fs: FilaDesglose[]): Record<string, string> => Object.fromEntries(extras.map((n) => [`extra:${n}`, euros(fs.reduce((t, f) => t + (f.extras[n] ?? 0), 0))]));
 
+interface PropsFichaTasa {
+  titulo: string;
+  numerador: number;
+  denominador: number;
+  objetivo: number | null;
+  tipoTasa: "porcentaje" | "unidades";
+  cumplida: boolean;
+  nota?: ReactNode;
+  ayuda: string;
+  alAbrir: () => void;
+}
+
+/** Una tasa de intervención financiera de un vistazo: porcentaje, fracción, barra con la marca del objetivo y si se cumple. */
+function FichaTasa({ titulo, numerador, denominador, objetivo, tipoTasa, cumplida, nota, ayuda, alAbrir }: PropsFichaTasa) {
+  const sinCoches = denominador === 0;
+  const pct = sinCoches ? 0 : (numerador * 100) / denominador;
+  const color = sinCoches ? "var(--text-muted)" : objetivo === null ? "var(--text-primary)" : cumplida ? "var(--success)" : "var(--warning)";
+  const marcaObjetivo = objetivo !== null && tipoTasa === "porcentaje" ? Math.min(100, objetivo) : null;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      title={`${ayuda} (pulsa para ver el detalle)`}
+      onClick={alAbrir}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), alAbrir())}
+      style={{ border: `1px solid ${sinCoches || objetivo === null ? "var(--border-light)" : cumplida ? "var(--success)" : "var(--warning)"}`, borderRadius: "var(--radius-sm)", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "4px", cursor: "pointer", minWidth: 0, background: "rgba(255, 255, 255, 0.02)" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "6px" }}>
+        <span style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</span>
+        {!sinCoches && objetivo !== null && <span style={{ fontSize: "0.8rem", color }}>{cumplida ? "✔" : "✘"}</span>}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "1.25rem", fontWeight: 800, color, lineHeight: 1.1 }}>{sinCoches ? "—" : `${pct.toFixed(1).replace(".", ",")} %`}</span>
+        <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{sinCoches ? "sin coches" : `${numerador} de ${denominador}`}</span>
+      </div>
+      <div style={{ position: "relative", height: "6px", borderRadius: "999px", background: "var(--border-light)", overflow: "visible" }}>
+        <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", borderRadius: "999px", background: color }} />
+        {marcaObjetivo !== null && <div title={`Objetivo ${objetivo} %`} style={{ position: "absolute", left: `${marcaObjetivo}%`, top: "-3px", width: "2px", height: "12px", background: "var(--text-primary)" }} />}
+      </div>
+      <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{objetivo === null ? "Sin objetivo (se da por cumplida)" : tipoTasa === "porcentaje" ? `Objetivo: ${objetivo} %` : `Objetivo: ${objetivo} ${objetivo === 1 ? "unidad" : "unidades"}`}</span>
+      {nota}
+    </div>
+  );
+}
+
 function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, fueraDeMes }: TarjetaProps) {
   const [desgloseGuardado, guardarDesglose] = usePreferencia(`desglose-${clave}`);
   const abierta = desgloseGuardado === "abierto";
@@ -328,13 +373,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   const tasas = hayPlan ? resultado.tasaIntervencion : [];
   const tasaG = hayPlan ? resultado.tasaGlobal : null;
   const tasaV = hayPlan ? resultado.tasaVo : null;
-  const tasaTotal = tasaG && tasaG.denominador > 0 ? (tasaG.numerador / tasaG.denominador) * 100 : null;
-  const colorTasa = tasaG === null ? undefined : tasaG.conObjetivo ? (tasaG.cumplida ? "var(--success)" : "var(--warning)") : tasas.length === 0 ? undefined : tasas.every((x) => x.cumplida) ? "var(--success)" : "var(--warning)";
   const nombreMarca = (id: number) => [...porId.values()].find((e) => e.modelo?.marca?.id_marca === id)?.modelo?.marca?.nombre ?? `Marca ${id}`;
-  const pc = (n: number, d: number) => (d > 0 ? ` (${((n * 100) / d).toFixed(1).replace(".", ",")} %)` : "");
-  const textoTasa = tasaG === null || (tasaG.denominador === 0 && (tasaV?.denominador ?? 0) === 0) ? "Sin coches con financiación calculable este mes" : `Coches financiados entre los que cuentan. Global (nuevos): ${tasaG.numerador}/${tasaG.denominador}${pc(tasaG.numerador, tasaG.denominador)}${tasaG.conObjetivo ? (tasaG.cumplida ? " ✔ cumplida" : " ✘ no cumplida") : ""}. ${tasas.map((x) => `${nombreMarca(x.idMarca)} ${x.numerador}/${x.denominador}${pc(x.numerador, x.denominador)} ${x.cumplida ? "✔" : "✘"}`).join(" · ")}${tasaV && tasaV.denominador > 0 ? `. Usados (VO): ${tasaV.numerador}/${tasaV.denominador}${pc(tasaV.numerador, tasaV.denominador)}${tasaV.conObjetivo ? (tasaV.cumplida ? " ✔ cumplida" : " ✘ no cumplida") : ""}` : ""}`;
-  const tasaDen = tasaG?.denominador ?? 0;
-  const tasaNum = tasaG?.numerador ?? 0;
   const efP = efectoPuntos(hayPlan ? resultado.puntosMes : null, hayPlan ? resultado.objetivoX : null);
   const extrasTarjeta = nombresExtras(filasDesglose);
   const columnasTarjeta = columnasDesgloseDe(extrasTarjeta);
@@ -353,38 +392,40 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
               <h3 role="button" tabIndex={0} title="Pulsa para ver cómo sale el neto" onClick={() => setDetalle("neto")} style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", overflowWrap: "anywhere", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1, cursor: "pointer" }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
               <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>💶 {pagoTexto}</span>
             </div>
-            <div style={{ flex: 1, minWidth: "260px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
-              <Indicador etiqueta="Puntos" alAbrir={() => setDetalle("puntos")} ayuda={efP.titulo || "Puntos del mes"}>
-                <span className={efP.className} style={efP.style}>{puntos(resultado.puntosMes)}</span>
-                <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> / {puntos(resultado.objetivoX)}</span>
-              </Indicador>
-              <Indicador etiqueta="Tramo" alAbrir={() => setDetalle("tramo")} ayuda={efT.titulo || "Tramo del mes"}>
-                <span className={efT.className} style={efT.style}>{etiquetaTramo(resultado.tramo)}</span>
-              </Indicador>
-              <Indicador etiqueta="Tasa int. financiera" alAbrir={() => setDetalle("tasa")} ayuda={textoTasa}>
-                {tasaTotal === null ? <span style={{ color: "var(--text-muted)" }}>—</span> : <span style={{ color: colorTasa }}>{`${tasaTotal.toFixed(1).replace(".", ",")} %`}</span>}
-                {tasaDen > 0 && <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaNum}/{tasaDen}</span>}
-                <NotaFueraDeMes numerador={tasaNum} adelantadas={adelantadasG} anteriores={anterioresG} />
-              </Indicador>
-              {tasaV && tasaV.denominador > 0 && (
-                <Indicador etiqueta="Tasa int. usados" alAbrir={() => setDetalle("tasaVo")} ayuda="Usados (VO) financiados entre los que cuentan este mes">
-                  <span style={{ color: tasaV.conObjetivo ? (tasaV.cumplida ? "var(--success)" : "var(--warning)") : undefined }}>{`${((tasaV.numerador / tasaV.denominador) * 100).toFixed(1).replace(".", ",")} %`}</span>
-                  <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaV.numerador}/{tasaV.denominador}</span>
-                  <NotaFueraDeMes numerador={tasaV.numerador} adelantadas={adelantadasV} anteriores={anterioresV} />
+            <div style={{ flex: 1, minWidth: "260px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
+                <Indicador etiqueta="Puntos" alAbrir={() => setDetalle("puntos")} ayuda={efP.titulo || "Puntos del mes"}>
+                  <span className={efP.className} style={efP.style}>{puntos(resultado.puntosMes)}</span>
+                  <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> / {puntos(resultado.objetivoX)}</span>
                 </Indicador>
+                <Indicador etiqueta="Tramo" alAbrir={() => setDetalle("tramo")} ayuda={efT.titulo || "Tramo del mes"}>
+                  <span className={efT.className} style={efT.style}>{etiquetaTramo(resultado.tramo)}</span>
+                </Indicador>
+                <Indicador etiqueta="Objetivo X" alAbrir={() => setDetalle("objetivo")} ayuda="Puntos que marcan el tramo X de este mes">
+                  {puntos(resultado.objetivoX)}
+                </Indicador>
+                <Indicador etiqueta="Coches" alAbrir={() => setDetalle("coches")} ayuda="Expedientes que cuentan en este mes">
+                  {resultado.lineas.filter((l) => l.cuenta).length}
+                </Indicador>
+                <Indicador etiqueta="Bruto" alAbrir={() => setDetalle("bruto")} ayuda="Comisión antes de penalizaciones">
+                  {euros(resultado.bruto)}
+                </Indicador>
+                <Indicador etiqueta="Penalización" alAbrir={() => setDetalle("penalizacion")} ayuda="Penalizaciones descontadas del bruto">
+                  <span style={{ color: resultado.penalizacion > 0 ? "var(--danger)" : "var(--text-muted)" }}>{resultado.penalizacion > 0 ? `−${euros(resultado.penalizacion)}` : "—"}</span>
+                </Indicador>
+              </div>
+              {tasaG && (
+                <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Tasa de intervención financiera</span>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
+                    <FichaTasa titulo={resultado.tasaIncluyeVo ? "Global (nuevos y usados)" : "Global (nuevos)"} numerador={tasaG.numerador} denominador={tasaG.denominador} objetivo={tasaG.objetivo} tipoTasa={tasaG.tipoTasa} cumplida={tasaG.cumplida} ayuda="Coches financiados entre los que cuentan este mes" alAbrir={() => setDetalle("tasa")} nota={<NotaFueraDeMes numerador={tasaG.numerador} adelantadas={adelantadasG} anteriores={anterioresG} />} />
+                    {tasas.map((x) => (
+                      <FichaTasa key={x.idMarca} titulo={nombreMarca(x.idMarca)} numerador={x.numerador} denominador={x.denominador} objetivo={x.objetivo} tipoTasa={x.tipoTasa} cumplida={x.cumplida} ayuda={`Tasa de la marca ${nombreMarca(x.idMarca)}`} alAbrir={() => setDetalle("tasa")} />
+                    ))}
+                    {tasaV && tasaV.denominador > 0 && <FichaTasa titulo="Usados (VO)" numerador={tasaV.numerador} denominador={tasaV.denominador} objetivo={tasaV.objetivo} tipoTasa={tasaV.tipoTasa} cumplida={tasaV.cumplida} ayuda="Usados financiados entre los que cuentan este mes" alAbrir={() => setDetalle("tasaVo")} nota={<NotaFueraDeMes numerador={tasaV.numerador} adelantadas={adelantadasV} anteriores={anterioresV} />} />}
+                  </div>
+                </div>
               )}
-              <Indicador etiqueta="Bruto" alAbrir={() => setDetalle("bruto")} ayuda="Comisión antes de penalizaciones">
-                {euros(resultado.bruto)}
-              </Indicador>
-              <Indicador etiqueta="Penalización" alAbrir={() => setDetalle("penalizacion")} ayuda="Penalizaciones descontadas del bruto">
-                <span style={{ color: resultado.penalizacion > 0 ? "var(--danger)" : "var(--text-muted)" }}>{resultado.penalizacion > 0 ? `−${euros(resultado.penalizacion)}` : "—"}</span>
-              </Indicador>
-              <Indicador etiqueta="Objetivo X" alAbrir={() => setDetalle("objetivo")} ayuda="Puntos que marcan el tramo X de este mes">
-                {puntos(resultado.objetivoX)}
-              </Indicador>
-              <Indicador etiqueta="Coches" alAbrir={() => setDetalle("coches")} ayuda="Expedientes que cuentan en este mes">
-                {resultado.lineas.filter((l) => l.cuenta).length}
-              </Indicador>
             </div>
           </div>
           {detalle && <DetalleIndicador tipo={detalle} resultado={resultado} filas={filasDesglose} porId={porId} nombreMarca={nombreMarca} alCerrar={() => setDetalle(null)} />}
