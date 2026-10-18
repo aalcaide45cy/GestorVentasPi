@@ -7,13 +7,15 @@ import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerJson, manejar } from "@/lib/http";
 import { mesDeQuery, usuarioObjetivo } from "@/lib/servicios/alcance-comisiones";
 import { cotejo, esquemaMarcarCobro, marcarCobro } from "@/lib/servicios/comisiones-gestion";
+import { detalleDeExpedientes } from "@/lib/servicios/detalle-expedientes";
 
 export const dynamic = "force-dynamic";
 
 /** Cotejo de cobros de un vendedor y mes. */
 export const GET = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
-  return NextResponse.json({ success: true, data: await cotejo(db, usuarioObjetivo(u, req), mesDeQuery(req)) });
+  const c = await cotejo(db, usuarioObjetivo(u, req), mesDeQuery(req));
+  return NextResponse.json({ success: true, data: { ...c, detalle: await detalleDeExpedientes(db, c.filas.map((f) => f.idExpediente)) } });
 });
 
 /** Marca o desmarca «cobrado» en un concepto (administrador o dueño del expediente). */

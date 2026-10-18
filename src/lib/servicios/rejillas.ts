@@ -6,6 +6,7 @@ import { HttpError } from "@/lib/auth/sesion";
 import { sumarMeses } from "@/lib/formato";
 import { normalizarMatricula } from "@/lib/rejilla/analizar";
 import { cotejo } from "./comisiones-gestion";
+import { detalleDeExpedientes } from "./detalle-expedientes";
 
 /**
  * Validación de comisiones: el vendedor sube la «rejilla» que entrega la empresa y la app la cruza, por matrícula,
@@ -69,6 +70,11 @@ export interface FilaComprobacion {
   duplicadaEn: string[];
   /** La matrícula sale más de una vez con el mismo concepto e importe dentro de esta hoja. */
   repetidaEnHoja: boolean;
+  /** Datos del vehículo del expediente (vacíos si la fila solo está en la hoja). */
+  marca: string;
+  modelo: string;
+  estadoVehiculo: string;
+  clase: "VN" | "VO" | null;
 }
 
 export interface ResultadoRejilla {
@@ -174,7 +180,7 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
 
   const filas: FilaComprobacion[] = [];
   const usadas = new Set<string>();
-  const construir = (base: Omit<FilaComprobacion, "validacion" | "validacionManual" | "notaValidacion" | "diferencia" | "duplicadaEn" | "repetidaEnHoja">): FilaComprobacion => {
+  const construir = (base: Omit<FilaComprobacion, "validacion" | "validacionManual" | "notaValidacion" | "diferencia" | "duplicadaEn" | "repetidaEnHoja" | "marca" | "modelo" | "estadoVehiculo" | "clase">): FilaComprobacion => {
     const v = base.idExpediente !== null ? manual.get(base.idExpediente) : undefined;
     return {
       ...base,
@@ -184,6 +190,10 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
       notaValidacion: v?.nota ?? null,
       duplicadaEn: [],
       repetidaEnHoja: false,
+      marca: "",
+      modelo: "",
+      estadoVehiculo: "",
+      clase: null,
     };
   };
 
@@ -272,6 +282,18 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     if (!k) continue;
     f.duplicadaEn = [...(mesesPorMatricula.get(k) ?? [])].sort();
     f.repetidaEnHoja = [...veces.entries()].some(([clave, n]) => n > 1 && clave.startsWith(`${k}|`));
+  }
+
+  // Marca, modelo, estado y VN/VO de cada coche, para poder ordenar y buscar por ellos
+  const detalleVehiculos = await detalleDeExpedientes(ej, filas.flatMap((f) => (f.idExpediente !== null ? [f.idExpediente] : [])));
+  for (const f of filas) {
+    const dv = f.idExpediente !== null ? detalleVehiculos[String(f.idExpediente)] : undefined;
+    if (dv) {
+      f.marca = dv.marca;
+      f.modelo = dv.modelo;
+      f.estadoVehiculo = dv.estado;
+      f.clase = dv.clase;
+    }
   }
 
   // Usados del vendedor que cuentan en este mes y no tienen matrícula (aunque no hayan generado comisión)

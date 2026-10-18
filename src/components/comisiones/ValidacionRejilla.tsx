@@ -7,7 +7,8 @@ import { useToast } from "@/components/Toast";
 import { codigoExpediente } from "@/lib/date-utils";
 import { euros, nombreMes, sumarMeses, mesActual } from "@/lib/formato";
 import { filasDeMatriz, matrizDeCsv, proponerMapeo, type FilaRejilla, type MapeoColumnas } from "@/lib/rejilla/analizar";
-import type { EstadoComprobacion, EstadoValidacion, ResultadoRejilla } from "@/lib/servicios/rejillas";
+import type { EstadoComprobacion, EstadoValidacion, FilaComprobacion, ResultadoRejilla } from "@/lib/servicios/rejillas";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { llamar, textoError } from "./api";
 import { InputCentesimas, Seccion } from "./campos";
 import { useCarga } from "./useCarga";
@@ -132,6 +133,64 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
 
   const r = datos;
   const esDuplicada = (f: { duplicadaEn: string[]; repetidaEnHoja: boolean }) => f.duplicadaEn.length > 0 || f.repetidaEnHoja;
+  const columnasFilas: ColumnaTabla<FilaComprobacion>[] = [
+    {
+      clave: "matricula",
+      etiqueta: "Matrícula",
+      valor: (f) => f.matricula,
+      celda: (f) => (
+        <>
+          {f.idExpediente ? (
+            <Link href={`/dashboard/expedientes/editar/${f.idExpediente}`} style={{ color: "var(--primary)" }} title={codigoExpediente(f.idExpediente)}>
+              {f.matricula}
+            </Link>
+          ) : (
+            f.matricula
+          )}
+          {esDuplicada(f) && (
+            <span title={[f.duplicadaEn.length > 0 ? `También sale en la hoja de ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "", f.repetidaEnHoja ? "Está repetida con el mismo concepto e importe en esta hoja" : ""].filter(Boolean).join(". ")} style={{ marginLeft: "6px", color: "var(--danger, #ef4444)", fontSize: "0.75rem", fontWeight: 700 }}>
+              🔁 {f.duplicadaEn.length > 0 ? `también en ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "repetida"}
+            </span>
+          )}
+        </>
+      ),
+    },
+    { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente ?? "", celda: (f) => f.cliente ?? "—" },
+    { clave: "tipo", etiqueta: "VN / VO", valor: (f) => f.clase ?? "", celda: (f) => (f.clase ? <b style={{ color: f.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{f.clase}</b> : "—"), alinear: "center" },
+    { clave: "marca", etiqueta: "Marca", valor: (f) => f.marca, celda: (f) => f.marca || "—" },
+    { clave: "modelo", etiqueta: "Modelo", valor: (f) => f.modelo, celda: (f) => f.modelo || "—" },
+    { clave: "estadoVehiculo", etiqueta: "Estado", valor: (f) => f.estadoVehiculo, celda: (f) => f.estadoVehiculo || "—", oculta: true },
+    { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion ?? "", celda: (f) => f.financiacion ?? "—" },
+    {
+      clave: "resultado",
+      etiqueta: "Resultado",
+      valor: (f) => ETIQUETA[f.estado].texto,
+      celda: (f) => (
+        <div style={{ whiteSpace: "normal" }}>
+          <span style={{ color: ETIQUETA[f.estado].color, fontWeight: 600 }}>{ETIQUETA[f.estado].texto}</span>
+          {f.nota && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", maxWidth: "260px" }}>{f.nota}</div>}
+        </div>
+      ),
+    },
+    { clave: "app", etiqueta: "App", valor: (f) => f.importeApp, celda: (f) => euros(f.importeApp), alinear: "right" },
+    { clave: "hoja", etiqueta: "Hoja", valor: (f) => f.importeHoja ?? -1, celda: (f) => (f.importeHoja === null ? "—" : euros(f.importeHoja)), alinear: "right" },
+    { clave: "diferencia", etiqueta: "Diferencia", valor: (f) => f.diferencia, celda: (f) => <span style={{ color: f.diferencia !== 0 ? "var(--warning)" : undefined }}>{f.diferencia === 0 ? "—" : euros(f.diferencia)}</span>, alinear: "right" },
+    {
+      clave: "cobro",
+      etiqueta: "Estado del cobro",
+      valor: (f) => f.validacion,
+      celda: (f) =>
+        f.idExpediente ? (
+          <select className="form-input" style={{ padding: "4px 8px" }} value={f.validacion} onChange={(e) => void validar(f.idExpediente as number, e.target.value as EstadoValidacion, f.notaValidacion)}>
+            <option value="pagado">Pagado</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="reclamado">Reclamado</option>
+          </select>
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>—</span>
+        ),
+    },
+  ];
   const filas = (r?.filas ?? []).filter((f) => filtro === "todos" || f.estado !== "ok" || esDuplicada(f));
   const cabeceras = borrador?.matriz?.[borrador.mapeo?.filaCabecera ?? 0] ?? [];
   const selectorColumna = (valor: number | null, onChange: (v: number | null) => void) => (
@@ -344,69 +403,21 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
               </button>
             ))}
           </div>
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Matrícula</th>
-                  <th>Cliente</th>
-                  <th>Financiación</th>
-                  <th>Resultado</th>
-                  <th style={{ textAlign: "right" }}>App</th>
-                  <th style={{ textAlign: "right" }}>Hoja</th>
-                  <th style={{ textAlign: "right" }}>Diferencia</th>
-                  <th>Estado del cobro</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => (
-                  <tr key={f.clave + (f.idExpediente ?? "")}>
-                    <td>
-                      {f.idExpediente ? (
-                        <Link href={`/dashboard/expedientes/editar/${f.idExpediente}`} style={{ color: "var(--primary)" }} title={codigoExpediente(f.idExpediente)}>
-                          {f.matricula}
-                        </Link>
-                      ) : (
-                        f.matricula
-                      )}
-                      {esDuplicada(f) && (
-                        <span title={[f.duplicadaEn.length > 0 ? `También sale en la hoja de ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "", f.repetidaEnHoja ? "Está repetida con el mismo concepto e importe en esta hoja" : ""].filter(Boolean).join(". ")} style={{ marginLeft: "6px", fontSize: "0.72rem", fontWeight: 700, color: "var(--danger, #ef4444)", border: "1px solid var(--danger, #ef4444)", borderRadius: "999px", padding: "1px 7px", whiteSpace: "nowrap" }}>
-                          🔁 {f.duplicadaEn.length > 0 ? `también en ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "repetida"}
-                        </span>
-                      )}
-                    </td>
-                    <td>{f.cliente ?? "—"}</td>
-                    <td>{f.financiacion ?? "—"}</td>
-                    <td>
-                      <span style={{ color: ETIQUETA[f.estado].color, fontWeight: 600 }}>{ETIQUETA[f.estado].texto}</span>
-                      {f.nota && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", maxWidth: "260px" }}>{f.nota}</div>}
-                    </td>
-                    <td style={{ textAlign: "right" }}>{euros(f.importeApp)}</td>
-                    <td style={{ textAlign: "right" }}>{f.importeHoja === null ? "—" : euros(f.importeHoja)}</td>
-                    <td style={{ textAlign: "right", color: f.diferencia !== 0 ? "var(--warning)" : undefined }}>{f.diferencia === 0 ? "—" : euros(f.diferencia)}</td>
-                    <td>
-                      {f.idExpediente ? (
-                        <select className="form-input" style={{ padding: "4px 8px" }} value={f.validacion} onChange={(e) => void validar(f.idExpediente as number, e.target.value as EstadoValidacion, f.notaValidacion)}>
-                          <option value="pagado">Pagado</option>
-                          <option value="pendiente">Pendiente</option>
-                          <option value="reclamado">Reclamado</option>
-                        </select>
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {filas.length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ color: "var(--text-muted)" }}>
-                      {filtro === "incidencias" ? "🎉 Sin incidencias: todos los coches cuadran con la hoja." : "No hay filas."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos<FilaComprobacion>
+            id="validacion-rejilla"
+            columnas={columnasFilas}
+            filas={filas}
+            clave={(f) => f.clave + (f.idExpediente ?? "")}
+            placeholder="Buscar por matrícula, cliente, marca, modelo, resultado…"
+            vacio={filtro === "incidencias" ? "🎉 Sin incidencias: todos los coches cuadran con la hoja." : "No hay filas."}
+            textoExtra={(f) => `${f.nota ?? ""} ${ETIQUETA[f.estado].texto}`}
+            pie={(fs) => ({
+              matricula: `${fs.length} fila${fs.length === 1 ? "" : "s"}`,
+              app: euros(fs.reduce((t, f) => t + f.importeApp, 0)),
+              hoja: euros(fs.reduce((t, f) => t + (f.importeHoja ?? 0), 0)),
+              diferencia: euros(fs.reduce((t, f) => t + f.diferencia, 0)),
+            })}
+          />
         </>
       )}
     </Seccion>
