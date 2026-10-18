@@ -1,5 +1,6 @@
 "use client";
 
+import { CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_DESDE, CLAVE_SELECCION_MINUTOS, formatoCuentaAtras, useModoTemporal } from "@/lib/modo-temporal";
 import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
@@ -298,8 +299,11 @@ export default function ExpedientesList({
     fijarFiltrosAbiertos(hayPanelAbierto ? "false" : "true");
   };
   const [menuDatos, setMenuDatos] = useState(false);
-  const [seleccionActiva, setSeleccionActiva] = useState(false);
-  const [borradoActivo, setBorradoActivo] = useState(false);
+  // Los dos modos se quedan activados hasta que se desactiven (o hasta que pase el tiempo configurado en Configuración de expedientes)
+  const modoSeleccion = useModoTemporal(CLAVE_SELECCION_DESDE, CLAVE_SELECCION_MINUTOS);
+  const modoBorrado = useModoTemporal(CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS);
+  const seleccionActiva = modoSeleccion.activo;
+  const borradoActivo = modoBorrado.activo;
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
   const [edicionMasiva, setEdicionMasiva] = useState(false);
 
@@ -715,6 +719,25 @@ export default function ExpedientesList({
     }
   };
 
+  /** Deshabilita (o vuelve a habilitar) los expedientes seleccionados: dejan de contar en las comisiones, la tasa y las liquidaciones. */
+  const deshabilitarSeleccionados = async (deshabilitado: boolean) => {
+    const ids = seleccionados;
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBulkEdit: true, ids, expediente: { deshabilitado } }),
+      });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo cambiar el estado de los expedientes."));
+      setExpedientes((prev) => prev.map((e) => (ids.includes(e.id_expediente) ? { ...e, deshabilitado } : e)));
+      mostrar(deshabilitado ? `${ids.length} expedientes deshabilitados: ya no cuentan en las comisiones.` : `${ids.length} expedientes habilitados: vuelven a contar en las comisiones.`);
+      router.refresh();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "Error de conexión al actualizar.", "error");
+    }
+  };
+
   const guardarEdicionMasiva = async (cambios: CambiosMasivos) => {
     setCargando(true);
     try {
@@ -874,22 +897,24 @@ export default function ExpedientesList({
             className="btn"
             onClick={() => {
               if (seleccionActiva) setSeleccionados([]);
-              setSeleccionActiva(!seleccionActiva);
+              modoSeleccion.alternar();
             }}
             style={botonHerramienta(seleccionActiva, "var(--warning)", "black")}
-            title={seleccionActiva ? "Bloquear Selección Masiva" : "Desbloquear Selección Masiva"}
+            title={seleccionActiva ? "Bloquear Selección Masiva. Se queda activa hasta que la desactives" + (modoSeleccion.restante !== null ? "; si no, se desactiva sola cuando acabe la cuenta atrás (se configura en Configuración de expedientes)." : ".") : "Desbloquear Selección Masiva. Se queda activa hasta que la desactives o hasta que pase el tiempo configurado."}
           >
             {seleccionActiva ? "🔓 Selección Activa" : "🔒 Selección Inactiva"}
+            {modoSeleccion.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoSeleccion.restante)}</span>}
           </button>
 
           <button
             type="button"
             className="btn"
-            onClick={() => setBorradoActivo(!borradoActivo)}
+            onClick={modoBorrado.alternar}
             style={botonHerramienta(borradoActivo, "var(--danger)", "white")}
-            title={borradoActivo ? "Bloquear Eliminación" : "Desbloquear Eliminación"}
+            title={borradoActivo ? "Bloquear Eliminación. Se queda activa hasta que la desactives" + (modoBorrado.restante !== null ? "; si no, se desactiva sola cuando acabe la cuenta atrás (se configura en Configuración de expedientes)." : ".") : "Desbloquear Eliminación. Se queda activa hasta que la desactives o hasta que pase el tiempo configurado."}
           >
             {borradoActivo ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
+            {modoBorrado.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoBorrado.restante)}</span>}
           </button>
 
           <button
@@ -942,6 +967,12 @@ export default function ExpedientesList({
                 }}
               >
                 🗑️ Eliminar Seleccionados
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Los expedientes deshabilitados siguen en la lista, pero no cuentan en las comisiones, la tasa ni las liquidaciones hasta que los vuelvas a habilitar">
+                ⏸ Deshabilitar
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(false)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Vuelve a contar los expedientes seleccionados en las comisiones, la tasa y las liquidaciones">
+                ▶ Habilitar
               </button>
               {permitirDup && (
                 <button type="button" className="btn btn-secondary" onClick={() => { setCopias("1"); setDuplicando(seleccionados); }} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Crea copias de los expedientes seleccionados (para pruebas)">
@@ -1384,7 +1415,8 @@ export default function ExpedientesList({
                       if ((ev.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
                       seleccionarUno(exp.id_expediente, !marcada);
                     }}
-                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : undefined, cursor: seleccionActiva ? "pointer" : "default" }}
+                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : undefined, cursor: seleccionActiva ? "pointer" : "default", opacity: exp.deshabilitado ? 0.5 : undefined }}
+                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : undefined}
                   >
                     {seleccionActiva && (
                       <td style={{ textAlign: "center" }}>
@@ -1401,6 +1433,7 @@ export default function ExpedientesList({
                       cliente: mostrarCol("cliente") && (
                           <td style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
                             <CeldaCliente exp={exp} alAsignar={setAsignandoId} />
+                            {exp.deshabilitado && <span style={{ marginLeft: "6px", fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", border: "1px solid var(--border-light)", borderRadius: "999px", padding: "1px 6px" }}>⏸ Deshabilitado</span>}
                           </td>
                       ),
                       telefono: mostrarCol("telefono") && (

@@ -129,6 +129,8 @@ export interface ExpedienteDto {
   conceptos_especiales: { titulo: string; importe_centimos: number; descripcion: string; evento: "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro"; cobrado: boolean }[];
   /** Claves de los bonus «manuales» del plan elegidos para este expediente. */
   bonus_manuales: string[];
+  /** Deshabilitado: no cuenta en las comisiones ni en la tasa mientras lo esté. */
+  deshabilitado: boolean;
   cliente: ClienteDto | null;
   modelo: ModeloDto | null;
   tipoDeVenta: TipoVentaDto | null;

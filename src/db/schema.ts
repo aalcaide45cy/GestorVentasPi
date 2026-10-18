@@ -276,6 +276,8 @@ export const expedientes = pgTable(
     conceptosEspeciales: jsonb("conceptos_especiales").$type<ConceptoEspecial[]>().notNull().default([]),
     /** Bonus del plan con evento «Manual» que se aplican a este expediente (claves de las reglas). */
     bonusManuales: jsonb("bonus_manuales").$type<string[]>().notNull().default([]),
+    /** Expediente deshabilitado: sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones mientras lo esté. */
+    deshabilitado: boolean("deshabilitado").notNull().default(false),
 
     /* Columnas heredadas (solo lectura, para importar copias antiguas) */
     valorObjetivo: doublePrecision("valor_objetivo"),

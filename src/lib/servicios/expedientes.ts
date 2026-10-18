@@ -68,6 +68,7 @@ const camposEdicion = {
   conceptos_especiales: z.array(esquemaConcepto).max(100).optional(),
   /** Claves de los bonus «manuales» del plan que se aplican a este expediente. */
   bonus_manuales: z.array(z.string().trim().min(1).max(60)).max(100).optional(),
+  deshabilitado: booleano,
 };
 
 /** Duplicado de uno o varios expedientes (para probar): `copias` por cada uno. */
@@ -101,6 +102,7 @@ export const esquemaActualizarExpediente = z.discriminatedUnion("modo", [
       id_modelo: idOpcional.optional(),
       id_tipo_de_venta: idOpcional.optional(),
       id_usuario: idOpcional.optional(),
+      deshabilitado: booleano,
       ...camposFecha,
     }),
   }),
@@ -161,6 +163,7 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     comision_financiacion_manual: e.comisionFinanciacionManual,
     conceptos_especiales: e.conceptosEspeciales ?? [],
     bonus_manuales: e.bonusManuales ?? [],
+    deshabilitado: e.deshabilitado,
     cliente: e.cliente ? clienteDto(e.cliente) : null,
     modelo: e.modelo ? modeloDto(e.modelo) : null,
     tipoDeVenta: e.tipoDeVenta ? tipoVentaDto(e.tipoDeVenta) : null,

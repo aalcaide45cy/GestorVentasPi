@@ -126,6 +126,7 @@ function FormularioEditarExpediente({
   const [vin, setVin] = useState(ini("vin", expediente.vin ?? ""));
   const [comentarios, setComentarios] = useState(ini("comentarios", expediente.comentarios ?? ""));
   const [cobradoOtraFecha, setCobradoOtraFecha] = useState(ini("cobradoOtraFecha", expediente.cobrado_otra_fecha));
+  const [deshabilitado, setDeshabilitado] = useState(ini("deshabilitado", expediente.deshabilitado));
   const [fCobrado, setFCobrado] = useState(ini("fCobrado", expediente.fecha_cobrado ?? ""));
 
   const [com, setCom] = useState<ComisionForm>(ini("com", comisionInicial(expediente)));
@@ -171,6 +172,7 @@ function FormularioEditarExpediente({
       matricula !== (expediente.matricula ?? "") ||
       vin !== (expediente.vin ?? "") ||
       comentarios !== (expediente.comentarios ?? "") ||
+      deshabilitado !== expediente.deshabilitado ||
       JSON.stringify(com) !== comOriginal
     );
   };
@@ -362,6 +364,7 @@ function FormularioEditarExpediente({
         comision_financiacion_manual: com.comision_financiacion_manual,
         conceptos_especiales: com.conceptos.filter((c) => c.titulo.trim() !== ""),
         bonus_manuales: com.bonus_manuales,
+        deshabilitado,
       };
       // El vendedor solo se envía si ha cambiado: el servidor decide quién puede reasignarlo
       if (vendedor !== cadena(expediente.id_usuario)) cuerpo.id_usuario = vendedor ? Number(vendedor) : null;
@@ -456,7 +459,7 @@ function FormularioEditarExpediente({
     }
   };
 
-  useGuardarBorrador(claveBorrador, () => ({ asignado, dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marca, modelo, tipoVenta, estado, vendedor, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, cobradoOtraFecha, fCobrado, com }), hayCambios());
+  useGuardarBorrador(claveBorrador, () => ({ asignado, dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marca, modelo, tipoVenta, estado, vendedor, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, cobradoOtraFecha, fCobrado, deshabilitado, com }), hayCambios());
   const cambiosRef = useRef(hayCambios);
   useEffect(() => {
     cambiosRef.current = hayCambios;
@@ -857,6 +860,13 @@ function FormularioEditarExpediente({
               {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
               {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
             </div>
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginTop: "16px", padding: "10px 12px", border: `1px solid ${deshabilitado ? "var(--warning)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)", cursor: "pointer" }} title="Un expediente deshabilitado sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones">
+              <input type="checkbox" checked={deshabilitado} onChange={(e) => setDeshabilitado(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--warning)", marginTop: "2px" }} />
+              <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <strong style={{ fontSize: "0.9rem" }}>⏸ Deshabilitar este expediente</strong>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones mientras esté marcado.</span>
+              </span>
+            </label>
             <div className="form-group" style={{ marginTop: "16px", marginBottom: 0 }}>
               <label className="form-label">Comentarios del expediente</label>
               <textarea className="form-input" rows={3} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre este expediente…" style={{ resize: "vertical", minHeight: "80px" }} />

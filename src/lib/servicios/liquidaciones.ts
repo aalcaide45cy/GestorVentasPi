@@ -185,7 +185,8 @@ async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined):
     .leftJoin(estadoVehiculo, eq(expedientes.idEstadoVehiculo, estadoVehiculo.idEstadoVehiculo))
     .leftJoin(tipoDeVenta, eq(expedientes.idTipoDeVenta, tipoDeVenta.idTipoDeVenta))
     .leftJoin(modelos, eq(expedientes.idModelo, modelos.idModelo))
-    .where(condicion ? and(condicion, isNull(expedientes.eliminadoEn)) : isNull(expedientes.eliminadoEn));
+    // Los deshabilitados no cuentan para nada: ni comisiones, ni tasa, ni liquidación
+    .where(condicion ? and(condicion, isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false)) : and(isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false)));
   return filas.flatMap(({ e, clase, subtipo, cat, nombreTipo, cuentaTasa, marca }) => e.idUsuario === null ? [] : [{
     id: e.idExpediente,
     idVendedor: e.idUsuario,

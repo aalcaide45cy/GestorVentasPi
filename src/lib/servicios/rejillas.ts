@@ -302,7 +302,7 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     .from(expedientes)
     .innerJoin(estadoVehiculo, and(eq(estadoVehiculo.idEstadoVehiculo, expedientes.idEstadoVehiculo), eq(estadoVehiculo.clase, "VO")))
     .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
-    .where(and(eq(expedientes.idUsuario, idUsuario), isNull(expedientes.eliminadoEn), sql`to_char(coalesce(${expedientes.fechaFacturacion}, ${expedientes.fechaMatriculacion}), 'YYYY-MM') = ${mes}`));
+    .where(and(eq(expedientes.idUsuario, idUsuario), isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false), sql`to_char(coalesce(${expedientes.fechaFacturacion}, ${expedientes.fechaMatriculacion}), 'YYYY-MM') = ${mes}`));
   const sinMatricula = usadosMes.filter((u) => !normalizarMatricula(u.matricula ?? "")).map((u) => ({ idExpediente: u.id, cliente: u.cliente }));
 
   filas.sort((a, b) => Number(!PROBLEMAS.includes(a.estado)) - Number(!PROBLEMAS.includes(b.estado)) || a.matricula.localeCompare(b.matricula));

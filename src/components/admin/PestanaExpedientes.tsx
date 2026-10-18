@@ -8,6 +8,7 @@ import {
   leerPredefinidos,
 } from "@/lib/filtros-expedientes";
 import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
 import { estiloPanel } from "./utilidades";
 
 const OPCIONES_INICIO = [
@@ -27,6 +28,45 @@ const estiloOpcion = (activa: boolean) =>
     color: activa ? "var(--primary)" : "var(--text-secondary)",
     cursor: "pointer",
   }) as const;
+
+const OPCIONES_TIEMPO = [
+  { minutos: 0, texto: "Sin límite" },
+  { minutos: 1, texto: "1 minuto" },
+  { minutos: 5, texto: "5 minutos" },
+  { minutos: 10, texto: "10 minutos" },
+  { minutos: 30, texto: "30 minutos" },
+  { minutos: 60, texto: "1 hora" },
+];
+
+/** Tiempo tras el cual un modo de la lista de expedientes (selección o eliminación) se desactiva solo. */
+function TiempoModo({ titulo, ayuda, clave }: { titulo: string; ayuda: string; clave: string }) {
+  const { mostrar } = useToast();
+  const [guardado, guardar] = usePreferencia(clave);
+  const minutos = leerMinutos(guardado);
+  const elegir = (m: number) => {
+    guardar(String(m));
+    mostrar("Guardado.");
+  };
+  return (
+    <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px", borderLeft: "3px solid var(--primary)" }}>
+      <div>
+        <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>{titulo}</h4>
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>{ayuda}</p>
+      </div>
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+        {OPCIONES_TIEMPO.map((o) => (
+          <button key={o.minutos} type="button" style={estiloOpcion(minutos === o.minutos)} onClick={() => elegir(o.minutos)}>
+            {o.texto}
+          </button>
+        ))}
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
+          Otro (minutos):
+          <input type="number" className="form-input" min={0} max={1440} step={1} style={{ width: "90px" }} value={minutos} onChange={(e) => elegir(Math.max(0, Math.min(1440, Math.round(Number(e.target.value) || 0))))} />
+        </label>
+      </div>
+    </div>
+  );
+}
 
 /** Pestaña «Expedientes»: paginación por defecto de la lista (se guarda en el navegador). */
 export default function PestanaExpedientes() {
@@ -112,6 +152,17 @@ export default function PestanaExpedientes() {
           </span>
         </div>
       </div>
+
+      <TiempoModo
+        titulo="🔓 Selección masiva: tiempo activa"
+        ayuda="Al activar «Selección» en la lista de expedientes se queda activada (aunque recargues la página) hasta que la desactives. Aquí eliges si además se desactiva sola pasado un tiempo desde que la activaste; en el botón verás la cuenta atrás. Se guarda en este navegador."
+        clave={CLAVE_SELECCION_MINUTOS}
+      />
+      <TiempoModo
+        titulo="🗑️ Eliminación: tiempo activa"
+        ayuda="Igual que la selección, pero para «Eliminación»: se queda activada hasta que la desactives o hasta que pase este tiempo desde que la activaste, con su propia cuenta atrás. Se guarda en este navegador."
+        clave={CLAVE_BORRADO_MINUTOS}
+      />
 
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px", borderLeft: "3px solid var(--primary)" }}>
         <div>

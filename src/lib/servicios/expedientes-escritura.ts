@@ -236,6 +236,7 @@ export async function actualizarExpedientes(
       fechaMatriculacion: e.fecha_matriculacion ?? undefined,
       fechaEntrega: e.fecha_entrega ?? undefined,
       fechaFacturacion: e.fecha_facturacion ?? undefined,
+      deshabilitado: e.deshabilitado,
     });
     if (Object.keys(set).length === 0) throw new HttpError(400, "No se seleccionaron datos para modificar");
     await comprobarAlcance(ej, usuario, entrada.ids);
@@ -284,6 +285,7 @@ export async function actualizarExpedientes(
     comisionFinanciacionManual: e.comision_financiacion_manual,
     conceptosEspeciales: e.conceptos_especiales as ConceptoEspecial[] | undefined,
     bonusManuales: e.bonus_manuales,
+    deshabilitado: e.deshabilitado,
     idCliente: entrada.id_cliente,
   });
   if (Object.keys(set).length === 0 && !entrada.cliente) throw new HttpError(400, "No hay datos que actualizar");
