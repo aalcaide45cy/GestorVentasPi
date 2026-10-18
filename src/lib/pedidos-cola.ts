@@ -136,3 +136,19 @@ export function suscribirLectura(cb: () => void): () => void {
   return () => oyentesLectura.delete(cb);
 }
 export const leerLectura = (): ProgresoLectura | null => lectura;
+
+/** Cancelación de la lectura en curso: corta la petición que está leyendo y no empieza las siguientes. */
+let canceladaLectura = false;
+let controladorLectura: AbortController | null = null;
+export const lecturaCancelada = (): boolean => canceladaLectura;
+export function iniciarLectura(): void {
+  canceladaLectura = false;
+}
+export function nuevoControladorLectura(): AbortController {
+  controladorLectura = new AbortController();
+  return controladorLectura;
+}
+export function cancelarLectura(): void {
+  canceladaLectura = true;
+  controladorLectura?.abort();
+}

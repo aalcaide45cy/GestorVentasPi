@@ -92,6 +92,8 @@ export interface FilaPrevisualizada {
 export interface ResultadoPrevisualizar {
   filas: FilaPrevisualizada[];
   resumen: { filas: number; conCambios: number; sinCambios: number; sinCoincidencia: number; ambiguos: number; anuladas: number; cambios: number };
+  /** Expedientes tuyos que no han encontrado ninguna fila en el listado (para entender por qué no se rellenan). */
+  sinFila: { id: number; cliente: string | null; dni: string | null; vin: string | null; matricula: string | null }[];
 }
 
 const norm = (t: string | null | undefined): string => (t ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -248,8 +250,11 @@ export async function previsualizarCompletado(ej: Ejecutor, usuario: UsuarioActu
     });
   }
   const cuenta = (e: FilaPrevisualizada["estado"]) => salida.filter((s) => s.estado === e).length;
+  const encontrados = new Set(salida.map((s) => s.idExpediente).filter((i): i is number => i !== null));
+  const sinFila = todos.filter((e) => !encontrados.has(e.id)).slice(0, 500).map((e) => ({ id: e.id, cliente: e.cliente, dni: e.dni, vin: e.vin, matricula: e.matricula }));
   return {
     filas: salida,
+    sinFila,
     resumen: { filas: salida.length, conCambios: cuenta("propuestas"), sinCambios: cuenta("sin_cambios"), sinCoincidencia: cuenta("sin_coincidencia"), ambiguos: cuenta("ambiguo"), anuladas: cuenta("anulado"), cambios: salida.reduce((s, f) => s + f.propuestas.length, 0) },
   };
 }

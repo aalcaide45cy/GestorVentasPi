@@ -1,6 +1,7 @@
 "use client";
 
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
+import { nuevoControladorLectura } from "@/lib/pedidos-cola";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { textoError } from "@/components/comisiones/api";
@@ -24,7 +25,11 @@ interface Props<T> {
 
 /** Sube un fichero al servidor, que lo lee con OCR local y devuelve los datos. */
 async function leerFichero<T>(tipo: Tipo, f: File): Promise<T> {
-  const r = await fetch(`/api/documentos/leer?tipo=${tipo}&nombre=${encodeURIComponent(f.name)}${permitirDuplicadosAhora() ? "&duplicados=permitir" : ""}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: AbortSignal.timeout(285_000) }).catch((e: unknown) => {
+  // Los pedidos se pueden cancelar desde la cola o desde el cuadro de arrastrar
+  const controlador = tipo === "pedido" ? nuevoControladorLectura() : null;
+  const senal = controlador ? AbortSignal.any([AbortSignal.timeout(285_000), controlador.signal]) : AbortSignal.timeout(285_000);
+  const r = await fetch(`/api/documentos/leer?tipo=${tipo}&nombre=${encodeURIComponent(f.name)}${permitirDuplicadosAhora() ? "&duplicados=permitir" : ""}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: senal }).catch((e: unknown) => {
+    if (controlador?.signal.aborted) throw new Error("Lectura cancelada");
     throw new Error(e instanceof DOMException && e.name === "TimeoutError" ? "La lectura ha tardado demasiado. Prueba con otro documento o rellena los datos a mano." : "No se pudo contactar con el servidor.");
   });
   const json = (await r.json().catch(() => ({}))) as { message?: string; data?: T };

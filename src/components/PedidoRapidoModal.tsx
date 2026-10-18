@@ -6,7 +6,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { CLAVE_VENTANA_SOLO_SI_NUEVO, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { EleccionRapida, ItemCola } from "@/lib/pedidos-cola";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
@@ -121,6 +121,18 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
     setConfirmando(false);
     setTrabajando(true);
     try {
+      // Justo antes de crear se vuelve a mirar si ya existe (otro pedido de la cola pudo crearlo hace un momento): nunca se duplica
+      if (!permitirDuplicadosAhora()) {
+        const { data: yaHay } = await llamar<{ idExpediente: number; motivo: string }[]>("/api/documentos/similares", {
+          method: "POST",
+          cuerpo: { vin: d.vin, matricula: d.matricula, dni: d.dni, cliente: d.cliente, fechaExpediente: d.fechaExpediente, idModelo: idModeloFinal },
+        }).catch(() => ({ data: [] as { idExpediente: number; motivo: string }[] }));
+        if (yaHay.length > 0) {
+          mostrar(`No se ha creado: ya existe el expediente nº ${yaHay[0].idExpediente} (${yaHay[0].motivo}). Ábrelo desde Expedientes si quieres completarlo.`, "error");
+          setTrabajando(false);
+          return;
+        }
+      }
       let idModeloCreado: number | null = null;
       if (usaNuevo) {
         const { data } = await llamar<{ id_modelo: number }>("/api/documentos/crear-modelo", {

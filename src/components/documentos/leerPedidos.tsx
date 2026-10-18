@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
-import { MAXIMO_COLA, abrirDeCola, anadirACola, fijarLectura, huecosEnCola, leerCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
+import { MAXIMO_COLA, abrirDeCola, anadirACola, cancelarLectura, fijarLectura, huecosEnCola, iniciarLectura, lecturaCancelada, leerCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
 import { leerPedidoDeFichero } from "./BotonLeerDocumento";
 import OpcionVentanaPedido from "./OpcionVentanaPedido";
 import ZonaSoltar from "./ZonaSoltar";
@@ -29,6 +29,7 @@ export async function leerYEncolar(
   const leidos: ItemCola[] = [];
   const ignorados: string[] = [];
   for (let i = 0; i < ficheros.length; i++) {
+    if (lecturaCancelada()) break;
     alProgreso(i, ficheros.length);
     if (huecosEnCola() === 0) {
       alError(`La cola está llena (${MAXIMO_COLA} pedidos): se han dejado ${ficheros.length - i} sin leer. Procesa algunos y vuelve a soltarlos.`);
@@ -36,9 +37,10 @@ export async function leerYEncolar(
     }
     try {
       const pedido = await leerPedidoDeFichero(ficheros[i]);
-      // El mismo pedido leído dos veces (mismo número de pedido) no se añade otra vez a la cola
-      const numero = pedido.datos.numeroPedido;
-      if (numero && leerCola().items.some((x) => x.pedido.datos.numeroPedido === numero)) {
+      // El mismo pedido leído dos veces (mismo número de pedido, bastidor o matrícula) no se añade otra vez a la cola
+      const d = pedido.datos;
+      const mismo = (a: string | null, b: string | null) => !!a && !!b && a.replace(/[\s.-]/g, "").toUpperCase() === b.replace(/[\s.-]/g, "").toUpperCase();
+      if (leerCola().items.some((x) => mismo(x.pedido.datos.numeroPedido, d.numeroPedido) || mismo(x.pedido.datos.vin, d.vin) || mismo(x.pedido.datos.matricula, d.matricula) || (!!d.dni && !!d.fechaExpediente && mismo(x.pedido.datos.dni, d.dni) && x.pedido.datos.fechaExpediente === d.fechaExpediente && x.pedido.datos.idModelo === d.idModelo))) {
         ignorados.push(ficheros[i].name);
         continue;
       }
@@ -49,6 +51,7 @@ export async function leerYEncolar(
       for (const n of nuevos) alLeer?.(n);
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : "no se pudo leer";
+      if (lecturaCancelada()) break;
       // Un documento que no es un pedido no es un error: se descarta en silencio y solo se cuenta al final
       if (mensaje.startsWith("No parece un pedido")) ignorados.push(ficheros[i].name);
       else alError(`${ficheros[i].name}: ${mensaje}`);
@@ -73,6 +76,7 @@ export function useLeerPedidos() {
     }
     // Se leen todos: los que no son pedidos se descartan y no ocupan sitio en la cola (la lectura se detiene si se llena de pedidos)
     const aceptados = ficheros;
+    iniciarLectura();
     setProgreso({ hechos: 0, total: aceptados.length });
     fijarLectura({ hechos: 0, total: aceptados.length });
     let abierto = false;
@@ -98,16 +102,17 @@ export function useLeerPedidos() {
     );
     setProgreso(null);
     fijarLectura(null);
-    if (ficheros.length > 1 || leidos.length > 1 || ignoradosFinal.length > 0) {
+    if (lecturaCancelada()) mostrar(`Lectura cancelada: ${leidos.length} pedido${leidos.length === 1 ? "" : "s"} leído${leidos.length === 1 ? "" : "s"} hasta ahora.`);
+    else if (ficheros.length > 1 || leidos.length > 1 || ignoradosFinal.length > 0) {
       mostrar(`${leidos.length} pedido${leidos.length === 1 ? "" : "s"} leído${leidos.length === 1 ? "" : "s"}${leidos.length > 0 ? " (están en la cola de pedidos)" : ""}${ignoradosFinal.length > 0 ? ` y ${ignoradosFinal.length} documento${ignoradosFinal.length === 1 ? "" : "s"} que no eran pedidos, ignorado${ignoradosFinal.length === 1 ? "" : "s"}` : ""}.`);
     }
   };
-  return { leer, leyendo: progreso !== null, textoProgreso: progreso && progreso.total > 1 ? `Leyendo ${progreso.hechos + 1} de ${progreso.total}…` : "Leyendo…" };
+  return { leer, cancelar: cancelarLectura, leyendo: progreso !== null, textoProgreso: progreso && progreso.total > 1 ? `Leyendo ${progreso.hechos + 1} de ${progreso.total}…` : "Leyendo…" };
 }
 
 /** Cuadro para arrastrar uno o varios pedidos (PDF o foto) de golpe. */
 export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clientes", compacta = false }: { etiqueta?: string; compacta?: boolean }) {
-  const { leer, leyendo, textoProgreso } = useLeerPedidos();
+  const { leer, leyendo, textoProgreso, cancelar } = useLeerPedidos();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: "1 1 180px", minWidth: "160px" }}>
       <ZonaSoltar
@@ -118,6 +123,7 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
         compacta={compacta}
         ocupado={leyendo}
         textoOcupado={textoProgreso}
+        alCancelar={cancelar}
         alSoltar={(f) => leer(f)}
       />
       <OpcionVentanaPedido />

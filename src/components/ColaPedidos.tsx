@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { ExpedienteDto, MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola } from "@/lib/pedidos-cola";
+import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, cancelarLectura, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola } from "@/lib/pedidos-cola";
 import PedidoRapidoModal from "./PedidoRapidoModal";
 import RellenarDesdePedidoModal from "./RellenarDesdePedidoModal";
 
@@ -108,7 +108,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <h3 style={{ fontSize: "1.05rem" }}>
           📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length} de {MAXIMO_COLA})</span>
-          {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…</span>}
+          {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…<button type="button" className="btn btn-secondary" style={{ marginLeft: "8px", padding: "1px 8px", fontSize: "0.78rem" }} onClick={cancelarLectura}>✖ Cancelar lectura</button></span>}
         </h3>
         <div style={{ display: "flex", gap: "8px" }}>
           <button type="button" className="btn btn-primary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => abrirDeCola(items[0].id)}>
