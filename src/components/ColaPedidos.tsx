@@ -28,6 +28,7 @@ interface Props {
 export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
+  const [marcados, setMarcados] = useState<string[]>([]);
   const estado = useSyncExternalStore(suscribirCola, leerCola, colaVacia);
   const { items, abierto } = estado;
   const lectura = useSyncExternalStore(suscribirLectura, leerLectura, () => null);
@@ -78,7 +79,30 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
 
   if (items.length === 0) return <EstadoLecturas />;
 
+  const elegidos = marcados.filter((id) => items.some((i) => i.id === id));
+  const alternarMarca = (id: string, v: boolean) => setMarcados((m) => (v ? [...m.filter((x) => x !== id), id] : m.filter((x) => x !== id)));
+  /** Descarta de golpe los pedidos elegidos de la cola (sus ficheros se marcan como eliminados). */
+  const descartarElegidos = () => {
+    const lista = items.filter((i) => elegidos.includes(i.id));
+    if (lista.length === 0) return;
+    if (!window.confirm(`¿Descartar los ${lista.length} pedidos elegidos de la cola? Sus ficheros se marcan como eliminados (se borran del todo desde Configuración › BBDD) y habrá que volver a soltarlos para usarlos.`)) return;
+    for (const i of lista) {
+      anotarResolucion(i.idLectura, "quitado");
+      quitarDeCola(i.id);
+    }
+    soltarDocumentos(lista);
+    setMarcados([]);
+    mostrar(`${lista.length} pedido${lista.length === 1 ? "" : "s"} descartado${lista.length === 1 ? "" : "s"} de la cola.`);
+  };
+
   const columnasCola: ColumnaTabla<(typeof items)[number]>[] = [
+    {
+      clave: "marca",
+      etiqueta: "✔",
+      valor: (i) => (elegidos.includes(i.id) ? 1 : 0),
+      celda: (i) => <input type="checkbox" checked={elegidos.includes(i.id)} onChange={(e) => alternarMarca(i.id, e.target.checked)} style={{ accentColor: "var(--primary)", cursor: "pointer" }} title="Elige este pedido para descartarlo junto con otros" />,
+      ayuda: "Elige pedidos para descartarlos de golpe",
+    },
     {
       clave: "pedido",
       etiqueta: "Pedido",
@@ -123,7 +147,13 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
           📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length} de {MAXIMO_COLA})</span>
           {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…<button type="button" className="btn btn-secondary" style={{ marginLeft: "8px", padding: "1px 8px", fontSize: "0.78rem" }} onClick={() => void cancelarLecturas()}>✖ Cancelar lectura</button></span>}
         </h3>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => setMarcados(elegidos.length === items.length ? [] : items.map((i) => i.id))} title="Elige todos los pedidos de la cola, o quita la elección si ya están todos elegidos">
+            {elegidos.length === items.length ? "Quitar la elección" : `Elegir todos (${items.length})`}
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem", color: elegidos.length > 0 ? "var(--danger)" : undefined }} disabled={elegidos.length === 0} onClick={descartarElegidos} title="Descarta de la cola los pedidos elegidos">
+            🗑️ Descartar lo elegido ({elegidos.length})
+          </button>
           <button type="button" className="btn btn-primary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => abrirDeCola(items[0].id)}>
             Procesar uno a uno
           </button>

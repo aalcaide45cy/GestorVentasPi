@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { accionSobreLecturas, cancelarLecturas, leerResumenLecturas, listarNoPedidos, suscribirResumenLecturas } from "@/lib/lecturas-pedidos-cliente";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { LecturaDto } from "@/lib/servicios/lecturas-pedidos";
 
 /**
@@ -12,6 +13,7 @@ export default function EstadoLecturas() {
   const r = useSyncExternalStore(suscribirResumenLecturas, leerResumenLecturas, () => null);
   const [lista, setLista] = useState<LecturaDto[] | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [filtro, setFiltro] = useState<"todos" | "error" | "descartado" | "cancelado">("todos");
   if (!r || r.subiendo + r.pendientes + r.leyendo + r.descartados + r.errores === 0) return null;
 
   const ejecutar = async (f: () => Promise<void>) => {
@@ -23,6 +25,30 @@ export default function EstadoLecturas() {
       setOcupado(false);
     }
   };
+  const ORDEN_ESTADO: Record<string, number> = { error: 0, descartado: 1, cancelado: 2 };
+  const columnasLecturas: ColumnaTabla<LecturaDto>[] = [
+    { clave: "estado", etiqueta: "Qué pasó", valor: (l) => ORDEN_ESTADO[l.estado] ?? 9, celda: (l) => <span style={{ color: l.estado === "error" ? "var(--danger)" : undefined, fontWeight: 600 }}>{l.estado === "error" ? "⚠️ Error" : l.estado === "cancelado" ? "✖ Cancelado" : "🗑️ Ignorado"}</span>, ayuda: "Error: no se pudo leer. Ignorado: no era un pedido o estaba repetido. Cancelado: lo cancelaste" },
+    { clave: "nombre", etiqueta: "Archivo", valor: (l) => l.nombre, celda: (l) => <span style={{ whiteSpace: "normal", fontWeight: 600 }}>{l.nombre}</span> },
+    { clave: "motivo", etiqueta: "Motivo", valor: (l) => (l.estado === "cancelado" ? "Cancelado por ti antes de leerlo" : (l.error ?? "")), celda: (l) => <span style={{ whiteSpace: "normal", color: l.estado === "error" ? "var(--danger)" : "var(--text-secondary)" }}>{l.estado === "cancelado" ? "Cancelado por ti antes de leerlo" : (l.error ?? "—")}</span>, ayuda: "El error exacto o por qué se ignoró" },
+    { clave: "fecha", etiqueta: "Subido", valor: (l) => l.creadaEn, celda: (l) => new Date(l.creadaEn).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }), ayuda: "Cuándo se subió" },
+    {
+      clave: "acciones",
+      etiqueta: "",
+      valor: () => "",
+      celda: (l) => (
+        <span style={{ display: "inline-flex", gap: "6px" }}>
+          {l.estado === "error" && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "1px 8px" }} disabled={ocupado} onClick={() => void ejecutar(() => accionSobreLecturas("reintentar", [l.id]))} title="Vuelve a intentar leerlo (solo si el fichero sigue guardado)">
+              🔁 Reintentar
+            </button>
+          )}
+          <button type="button" className="btn btn-secondary" style={{ padding: "1px 8px" }} disabled={ocupado} onClick={() => void ejecutar(() => accionSobreLecturas("limpiar", [l.id]))} title="Quita esta fila de la lista">
+            ✕ Quitar
+          </button>
+        </span>
+      ),
+    },
+  ];
   const abrirLista = () => void ejecutar(async () => setLista(lista ? null : await listarNoPedidos()));
 
   return (
@@ -60,16 +86,28 @@ export default function EstadoLecturas() {
         </span>
       </div>
       {lista && (
-        <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "6px 8px" }}>
-          {lista.length === 0 && <span style={{ color: "var(--text-muted)" }}>Nada que mostrar.</span>}
-          {lista.map((l) => (
-            <div key={l.id} style={{ display: "flex", gap: "8px", justifyContent: "space-between" }}>
-              <span>
-                {l.estado === "error" ? "⚠️" : l.estado === "cancelado" ? "✖" : "🗑️"} {l.nombre}
-              </span>
-              <span style={{ color: l.estado === "error" ? "var(--danger)" : "var(--text-muted)" }}>{l.estado === "cancelado" ? "cancelado" : (l.error ?? "")}</span>
-            </div>
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ color: "var(--text-secondary)" }}>Ver:</span>
+            {(["todos", "error", "descartado", "cancelado"] as const).map((f) => {
+              const n = f === "todos" ? lista.length : lista.filter((l) => l.estado === f).length;
+              return (
+                <button key={f} type="button" className={`btn ${filtro === f ? "btn-primary" : "btn-secondary"}`} style={{ padding: "2px 10px" }} onClick={() => setFiltro(f)} title={f === "error" ? "Documentos que dieron error al leerse" : f === "descartado" ? "Documentos que no eran un pedido o ya estaban en la cola" : f === "cancelado" ? "Lecturas que cancelaste" : "Todos"}>
+                  {f === "todos" ? "Todos" : f === "error" ? "⚠️ Con error" : f === "descartado" ? "🗑️ Ignorados" : "✖ Cancelados"} ({n})
+                </button>
+              );
+            })}
+          </div>
+          <TablaDatos<LecturaDto>
+            id="estado-lecturas"
+            columnas={columnasLecturas}
+            filas={lista.filter((l) => filtro === "todos" || l.estado === filtro)}
+            clave={(l) => l.id}
+            compacta
+            ordenInicial={{ clave: "estado", asc: true }}
+            placeholder="Buscar por archivo o por motivo…"
+            vacio="Nada que mostrar con este filtro."
+          />
         </div>
       )}
     </div>

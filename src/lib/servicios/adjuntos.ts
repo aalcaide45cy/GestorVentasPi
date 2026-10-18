@@ -12,7 +12,7 @@ import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
  * Las imágenes se reducen y se limpian (se quitan los metadatos EXIF/GPS) y se genera una miniatura para la vista previa.
  */
 
-export const MAX_BYTES_ADJUNTO = 15 * 1024 * 1024;
+export const MAX_BYTES_ADJUNTO = 500 * 1024 * 1024;
 export const TIPOS_ADJUNTO = ["dni_frente", "dni_reverso", "pedido", "foto_cliente", "otro"] as const;
 export type TipoAdjunto = (typeof TIPOS_ADJUNTO)[number];
 export type MimeAdjunto = "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
@@ -79,7 +79,7 @@ export interface EntradaAdjunto {
 /** Guarda un adjunto. Sin cliente ni expediente queda como «pendiente» hasta que se guarde el registro al que pertenece. */
 export async function guardarAdjunto(ej: Ejecutor, e: EntradaAdjunto): Promise<AdjuntoDto> {
   if (e.datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
-  if (e.datos.length > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (e.datos.length > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const mime = detectarMime(e.datos);
   if (!mime) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (JPG, PNG, WebP).");
 

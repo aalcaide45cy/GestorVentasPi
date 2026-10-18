@@ -70,9 +70,10 @@ const nextConfig: NextConfig = {
     ],
   },
   poweredByHeader: false,
-  // Con el «proxy» activo (src/proxy.ts) Next recorta en silencio los cuerpos de petición de más de 10 MB: los pedidos de entre 10 y 15 MB
-  // se guardaban cortados y las copias .dump subidas desde el navegador (hasta 2 GB) llegaban incompletas
-  experimental: { proxyClientMaxBodySize: "2gb" },
+  // Con el «proxy» activo (src/proxy.ts) Next guarda en memoria y recorta en silencio los cuerpos de petición de más de 10 MB: los pedidos
+  // grandes se guardaban cortados. 600 MB cubre el máximo de un documento (500 MB). La subida de copias .dump (hasta 256 GB) queda fuera
+  // del proxy (ver su matcher) y se recibe en flujo, sin pasar por memoria.
+  experimental: { proxyClientMaxBodySize: "600mb" },
   async headers() {
     return [
       { source: "/((?!api/adjuntos|api/admin/papelera/documento).*)", headers: cabeceras },

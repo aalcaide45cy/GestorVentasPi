@@ -100,7 +100,7 @@ async function imagenesDelFichero(datos: Buffer): Promise<Buffer[]> {
  */
 export async function leerDni(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer): Promise<ResultadoDni> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
-  if (datos.length > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (datos.length > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
 
   const imagenes = await imagenesDelFichero(datos);
   const tarjetas: TarjetaLeida[] = await enCola(async () => {

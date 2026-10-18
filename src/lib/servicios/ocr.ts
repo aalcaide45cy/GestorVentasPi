@@ -13,7 +13,7 @@ import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
  * - PDF escaneado o foto: se rasteriza/lee la imagen y se reconoce con Tesseract.
  */
 
-export const MAX_BYTES_OCR = 15 * 1024 * 1024;
+export const MAX_BYTES_OCR = 500 * 1024 * 1024;
 const MAX_PAGINAS = 15;
 /** Un pedido lleva los datos en las primeras hojas; leer más por OCR solo alarga la espera (en la Raspberry, minutos). */
 const MAX_PAGINAS_PEDIDO = 2;
@@ -256,7 +256,7 @@ function resultadoDeLineas(lineas: LineaOcr[]): Pick<ResultadoOcr, "filas" | "te
 /** Lee la rejilla de un PDF o imagen y devuelve las filas candidatas (el usuario las revisa antes de guardar). */
 export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean } = {}): Promise<ResultadoOcr> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
-  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {
@@ -304,7 +304,7 @@ type TextoLeido = { texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boo
 
 export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<TextoLeido> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
-  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   const ejecutar = (t: () => Promise<TextoLeido>) => (opciones.paralelo ? enParalelo(t, MAX_MS_PEDIDO) : enCola(t, MAX_MS_PEDIDO));
@@ -348,7 +348,7 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; pa
  */
 export function mirarDocumento(datos: Buffer): Promise<{ texto: string | null; primera: Buffer | null; ajeno: boolean; cabecera: string }> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
-  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {

@@ -43,7 +43,7 @@ export const POST = manejar(async (req: Request) => {
   const q = new URL(req.url).searchParams;
   const tipo = (q.get("tipo") ?? "otro") as TipoAdjunto;
   if (!TIPOS_ADJUNTO.includes(tipo) || tipo === "foto_cliente") throw new HttpError(400, "Tipo de adjunto no válido");
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const datos = Buffer.from(await req.arrayBuffer());
   const adjunto = await guardarAdjunto(db, {
     datos,

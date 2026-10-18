@@ -24,7 +24,7 @@ export const GET = manejar(async (req: Request) => {
 export const POST = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
   const q = new URL(req.url).searchParams;
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   let destino = null;
   const crudo = q.get("destino");
   if (crudo) {

@@ -19,7 +19,7 @@ import { ajustarCifradoTrasRestaurar, asegurarComprobacion } from "./clave-recup
 /* ------------------------------------------------------------------ */
 
 const SHA256_VACIA_ALIAS = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-export const LIMITE_SUBIDA_BYTES = 2 * 1024 * 1024 * 1024;
+export const LIMITE_SUBIDA_BYTES = 256 * 1024 * 1024 * 1024;
 const NOMBRE_VALIDO = /^gv_\d{8}_\d{6}_(manual|auto|previa)\.dump$/;
 
 export type TipoCopia = "manual" | "auto" | "previa";
@@ -471,7 +471,7 @@ export async function abrirCopia(ej: Ejecutor, id: number): Promise<{ nombre: st
   return { nombre: fila.nombre, tamano: (await stat(/*turbopackIgnore: true*/ ruta)).size, flujo: Readable.toWeb(createReadStream(/*turbopackIgnore: true*/ ruta)) as ReadableStream };
 }
 
-/** Guarda un `.dump` recibido por el navegador (flujo crudo, máx. 2 GB) y lo registra. */
+/** Guarda un `.dump` recibido por el navegador (flujo crudo, máx. 256 GB) y lo registra. */
 export async function guardarSubida(ej: Ejecutor, cuerpo: ReadableStream | null, nombreOriginal: string, creadaPor: number): Promise<CopiaDto> {
   if (!cuerpo) throw new HttpError(400, "No se ha recibido ningún fichero");
   if (!nombreOriginal.toLowerCase().endsWith(".dump")) throw new HttpError(400, "El fichero debe terminar en .dump");
@@ -500,7 +500,7 @@ function limitarTamano(fijar: (n: number) => void) {
     for await (const trozo of fuente) {
       total += trozo.length;
       fijar(total);
-      if (total > LIMITE_SUBIDA_BYTES) throw new HttpError(413, "El fichero supera el límite de 2 GB");
+      if (total > LIMITE_SUBIDA_BYTES) throw new HttpError(413, "El fichero supera el límite de 256 GB");
       yield trozo;
     }
   };
