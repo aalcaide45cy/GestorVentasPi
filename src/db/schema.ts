@@ -100,6 +100,13 @@ export const estadoVehiculo = pgTable("estado_vehiculo", {
   subtipoVo: varchar("subtipo_vo", { length: 30 }),
   /** Color de la etiqueta en las listas (#RRGGBB); sin color se usa el de siempre. */
   color: varchar("color", { length: 7 }),
+  /** Borde de la cápsula de marca y modelo para los coches de este estado (#RRGGBB o #RRGGBBAA). */
+  capsulaColor: varchar("capsula_color", { length: 50 }),
+  /** Símbolo y color del punto de los coches de este estado (como en las marcas). */
+  punto: varchar("punto", { length: 8 }),
+  puntoColor: varchar("punto_color", { length: 50 }),
+  /** Qué manda cuando la marca y el estado tienen color: «marca» (la de la marca) o «estado» (la de este estado). */
+  prevalece: varchar("prevalece", { length: 10 }).notNull().default("marca"),
   /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
   eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });

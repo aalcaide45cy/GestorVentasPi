@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
 
 /**
  * Nombre de cliente que, al pasar el ratón por encima, enseña su foto (la cara recortada de su DNI).
  * Sin foto, se pinta el texto tal cual. La imagen se pide solo la primera vez que se pasa el ratón y se coloca con
- * posición fija para que no la recorten las tablas con desplazamiento.
+ * posición fija, y se pinta fuera de la tabla (en el cuerpo de la página): dentro de una tabla con desplazamiento o de un panel con
+ * efecto de cristal se recortaba y no se veía.
  */
 export default function NombreConFoto({ fotoId, children }: { fotoId?: number | null; children: ReactNode }) {
   const [posicion, setPosicion] = useState<{ x: number; y: number } | null>(null);
@@ -44,11 +46,12 @@ export default function NombreConFoto({ fotoId, children }: { fotoId?: number | 
       tabIndex={0}
     >
       <span style={{ borderBottom: "1px dotted var(--text-muted)" }}>{children}</span>
-      {posicion && (
+      {posicion && typeof document !== "undefined" && createPortal(
         <span role="tooltip" style={{ position: "fixed", left: posicion.x, top: posicion.y, zIndex: 3000, padding: "6px", background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", boxShadow: "0 12px 32px rgba(0,0,0,0.35)", pointerEvents: "none" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`/api/adjuntos?id=${fotoId}&miniatura=1`} alt="Foto del cliente" width={190} height={240} style={{ display: "block", width: "190px", height: "240px", objectFit: "cover", borderRadius: "4px" }} onError={() => setFallo(true)} />
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   );

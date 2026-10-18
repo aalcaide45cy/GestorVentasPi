@@ -1,5 +1,6 @@
 "use client";
 
+import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -466,7 +467,8 @@ export default function ExpedientesList({
         case "clase":
           return e.estadoVehiculo?.clase ?? "";
         case "punto":
-          return `${e.modelo?.marca?.punto_color ?? e.modelo?.marca?.color ?? "~"}|${e.modelo?.marca?.nombre ?? ""}`;
+          const a = aspectoVehiculo(e.modelo?.marca, e.estadoVehiculo);
+          return `${a.puntoColor ?? a.capsula ?? "~"}|${e.modelo?.marca?.nombre ?? ""}`;
         case "marca":
           return e.modelo?.marca?.nombre ?? "";
         case "modelo":
@@ -1410,7 +1412,7 @@ export default function ExpedientesList({
                       ),
                       punto: mostrarCol("punto") && (
                           <td style={{ textAlign: "center" }}>
-                            <PuntoMarca punto={exp.modelo?.marca?.punto} color={exp.modelo?.marca?.punto_color} />
+                            <PuntoMarca punto={aspectoVehiculo(exp.modelo?.marca, exp.estadoVehiculo).punto} color={aspectoVehiculo(exp.modelo?.marca, exp.estadoVehiculo).puntoColor} />
                           </td>
                       ),
                       clase: mostrarCol("clase") && (
@@ -1419,13 +1421,13 @@ export default function ExpedientesList({
                           </td>
                       ),
                       marca: mostrarCol("marca") && (
-                          <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre}><EtiquetaMarca texto={exp.modelo.marca.nombre} color={exp.modelo.marca.color} /></TextoCopiable> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
+                          <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre}><EtiquetaMarca texto={exp.modelo.marca.nombre} color={aspectoVehiculo(exp.modelo.marca, exp.estadoVehiculo).capsula} /></TextoCopiable> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
                       ),
                       modelo: mostrarCol("modelo") && (
                           <td>
                             {exp.modelo ? (
                               <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                                <EtiquetaMarca texto={exp.modelo.nombre_modelo} color={exp.modelo.marca?.color} />
+                                <EtiquetaMarca texto={exp.modelo.nombre_modelo} color={aspectoVehiculo(exp.modelo.marca, exp.estadoVehiculo).capsula} />
                               </TextoCopiable>
                             ) : (
                               <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
@@ -1438,7 +1440,7 @@ export default function ExpedientesList({
                           <td>
                             {marcaYModelo(exp) ? (
                               <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                                <EtiquetaMarca texto={marcaYModelo(exp)} color={exp.modelo?.marca?.color} />
+                                <EtiquetaMarca texto={marcaYModelo(exp)} color={aspectoVehiculo(exp.modelo?.marca, exp.estadoVehiculo).capsula} />
                               </TextoCopiable>
                             ) : (
                               <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca ni modelo)</span>

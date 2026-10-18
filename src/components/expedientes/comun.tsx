@@ -1,5 +1,6 @@
 "use client";
 
+import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
@@ -26,9 +27,9 @@ export function datosVehiculoDeExpediente(exp: ExpedienteDto | null | undefined)
   return {
     clase: exp?.estadoVehiculo?.clase ?? null,
     marca: exp?.modelo?.marca?.nombre ?? null,
-    marcaColor: exp?.modelo?.marca?.color ?? null,
-    marcaPunto: exp?.modelo?.marca?.punto ?? null,
-    marcaPuntoColor: exp?.modelo?.marca?.punto_color ?? null,
+    marcaColor: aspectoVehiculo(exp?.modelo?.marca, exp?.estadoVehiculo).capsula,
+    marcaPunto: aspectoVehiculo(exp?.modelo?.marca, exp?.estadoVehiculo).punto,
+    marcaPuntoColor: aspectoVehiculo(exp?.modelo?.marca, exp?.estadoVehiculo).puntoColor,
     modelo: exp?.modelo?.nombre_modelo ?? null,
     estado: exp?.estadoVehiculo?.nombre_estado_vehiculo ?? null,
     estadoColor: exp?.estadoVehiculo?.color ?? null,
@@ -120,7 +121,7 @@ export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
     );
   }
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    <div className="celda-cliente" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
       <button
         type="button"

@@ -92,6 +92,10 @@ export function estadoDto(e: typeof estadoVehiculo.$inferSelect): EstadoVehiculo
     clase: e.clase,
     subtipo_vo: e.subtipoVo,
     color: e.color,
+    capsula_color: e.capsulaColor,
+    punto: e.punto,
+    punto_color: e.puntoColor,
+    prevalece: e.prevalece === "estado" ? "estado" : "marca",
   };
 }
 

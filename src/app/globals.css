@@ -322,6 +322,14 @@ select, select option {
   border-collapse: collapse;
   text-align: left;
 }
+/* «Sin cliente 🔍» sigue la alineación de su columna: centrado en medio, a la derecha en la última */
+.table-premium td:not(:first-child):not(:last-child) .celda-cliente {
+  justify-content: center;
+}
+.table-premium td:last-child .celda-cliente {
+  justify-content: flex-end;
+}
+
 /* Contenido centrado; la primera columna a la izquierda y la última a la derecha */
 .table-premium th,
 .table-premium td {

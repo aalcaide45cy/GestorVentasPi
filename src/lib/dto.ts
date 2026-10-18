@@ -73,6 +73,11 @@ export interface EstadoVehiculoDto {
   clase: string;
   subtipo_vo: string | null;
   color: string | null;
+  /** Borde de la cápsula, punto y quién prevalece (el estado o la marca) para los coches de este estado. */
+  capsula_color: string | null;
+  punto: string | null;
+  punto_color: string | null;
+  prevalece: "marca" | "estado";
 }
 
 export interface TiendaDto {

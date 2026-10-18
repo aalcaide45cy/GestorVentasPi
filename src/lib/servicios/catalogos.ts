@@ -45,6 +45,10 @@ export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
     clase: z.enum(CLASES).optional(),
     subtipo_vo: textoOpcional(30).optional(),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido").nullish(),
+    capsula_color: color.nullish(),
+    punto: z.string().trim().max(8).nullish(),
+    punto_color: color.nullish(),
+    prevalece: z.enum(["marca", "estado"]).optional(),
   }),
 ]);
 export type EntradaCrearCatalogo = z.infer<typeof esquemaCrearCatalogo>;
@@ -85,6 +89,10 @@ export const esquemaActualizarCatalogo = z.discriminatedUnion("tipo", [
     clase: z.enum(CLASES).optional(),
     subtipo_vo: textoOpcional(30).optional(),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido").nullish(),
+    capsula_color: color.nullish(),
+    punto: z.string().trim().max(8).nullish(),
+    punto_color: color.nullish(),
+    prevalece: z.enum(["marca", "estado"]).optional(),
   }),
 ]);
 export type EntradaActualizarCatalogo = z.infer<typeof esquemaActualizarCatalogo>;
@@ -195,6 +203,10 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
             subtipoVo: e.clase === "VN" ? null : (e.subtipo_vo ?? (e.clase ? "USADO" : claseEstado(e.nombre_estado_vehiculo).subtipo)),
             color: e.color ?? null,
+            capsulaColor: e.capsula_color ?? null,
+            punto: e.punto || null,
+            puntoColor: e.punto_color ?? null,
+            prevalece: e.prevalece ?? "marca",
           })
           .returning();
         return estadoDto(n);
@@ -252,6 +264,10 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
             subtipoVo: e.clase === "VN" ? null : (e.subtipo_vo ?? (e.clase ? "USADO" : claseEstado(e.nombre_estado_vehiculo).subtipo)),
             color: e.color,
+            capsulaColor: e.capsula_color,
+            punto: e.punto === undefined ? undefined : e.punto || null,
+            puntoColor: e.punto_color,
+            prevalece: e.prevalece,
           })
           .where(eq(estadoVehiculo.idEstadoVehiculo, e.id))
           .returning();

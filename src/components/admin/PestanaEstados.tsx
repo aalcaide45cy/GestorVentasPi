@@ -1,6 +1,7 @@
 "use client";
 
-import { EtiquetaClase } from "@/components/etiquetas";
+import { EtiquetaClase, EtiquetaMarca, PuntoMarca } from "@/components/etiquetas";
+import SelectorColor from "@/components/SelectorColor";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { EstadoVehiculoDto } from "@/lib/dto";
@@ -59,6 +60,8 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const [claseEdicion, setClaseEdicion] = useState<"VN" | "VO">("VN");
   const [subtipoEdicion, setSubtipoEdicion] = useState("USADO");
   const [colorEdicion, setColorEdicion] = useState("");
+  /** Símbolos del punto que se están escribiendo en la tabla (se guardan al salir del campo). */
+  const [puntosEscritos, setPuntosEscritos] = useState<Record<number, string>>({});
 
   // Subtipos que ya existen (los de los estados creados y los habituales): se eligen en una lista, o se crea uno nuevo
   const [lista, setLista] = useState<{ nombre: string; estados: number; tarifas: number }[]>([]);
@@ -119,6 +122,20 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
       aplicar(n);
     }, "Estado de vehículo actualizado correctamente");
     if (ok) setEditando(null);
+  };
+
+  /** Cambia el aspecto del estado (cápsula, punto y quién prevalece) al momento; los demás datos no se tocan. */
+  const cambiarAspecto = (e: EstadoVehiculoDto, cambios: { capsula_color?: string | null; punto?: string | null; punto_color?: string | null; prevalece?: "marca" | "estado" }) =>
+    ejecutar(async () => {
+      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "PUT", { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: e.nombre_estado_vehiculo, predeterminado: !!e.predeterminado, clase: e.clase === "VO" ? "VO" : "VN", subtipo_vo: e.subtipo_vo, ...cambios }, "Error al guardar el aspecto del estado");
+      aplicar(n);
+    }, `Aspecto de «${e.nombre_estado_vehiculo}» actualizado`);
+
+  const guardarPuntoEscrito = (e: EstadoVehiculoDto) => {
+    const escrito = puntosEscritos[e.id_estado_vehiculo];
+    if (escrito === undefined) return;
+    setPuntosEscritos((p) => Object.fromEntries(Object.entries(p).filter(([k]) => Number(k) !== e.id_estado_vehiculo)));
+    if ((escrito.trim() || null) !== (e.punto ?? null)) void cambiarAspecto(e, { punto: escrito.trim() || null });
   };
 
   const alternarPredeterminado = (e: EstadoVehiculoDto) =>
@@ -184,6 +201,9 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
               <Cabecera etiqueta="Nombre Estado" campo="nombre" orden={orden} />
               <th>Tipo</th>
               <th>Color</th>
+              <th title="Borde de la cápsula que rodea la marca y el modelo de los coches con este estado">Cápsula</th>
+              <th title="Símbolo y color del punto de los coches con este estado">Punto</th>
+              <th title="Si la marca y el estado tienen color, cuál manda: el de la marca o el de este estado. El que no manda rellena lo que falte">Prevalece</th>
               <th>Predeterminado</th>
               <th>Acciones</th>
             </tr>
@@ -239,6 +259,25 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                   ) : (
                     <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>por defecto</span>
                   )}
+                </td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    <SelectorColor valor={e.capsula_color} alCambiar={(v) => void cambiarAspecto(e, { capsula_color: v })} disabled={cargando} titulo={`Borde de la cápsula de los coches «${e.nombre_estado_vehiculo}»`} />
+                    {e.capsula_color && <EtiquetaMarca texto="Marca Modelo" color={e.capsula_color} />}
+                  </div>
+                </td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    <input type="text" className="form-input" maxLength={8} placeholder="●" value={puntosEscritos[e.id_estado_vehiculo] ?? e.punto ?? ""} onChange={(ev) => setPuntosEscritos((p) => ({ ...p, [e.id_estado_vehiculo]: ev.target.value }))} onBlur={() => guardarPuntoEscrito(e)} disabled={cargando} style={{ width: "60px", textAlign: "center", padding: "4px" }} title="Símbolo del punto: un punto, una coma, un emoticono… Vacío = un punto" />
+                    <SelectorColor valor={e.punto_color} alCambiar={(v) => void cambiarAspecto(e, { punto_color: v })} disabled={cargando} titulo={`Color del punto de los coches «${e.nombre_estado_vehiculo}»`} textoVacio={<span style={{ color: "var(--text-muted)" }}>sin color</span>} />
+                    {(e.punto_color || e.punto) && <PuntoMarca punto={e.punto} color={e.punto_color} />}
+                  </div>
+                </td>
+                <td>
+                  <select className="form-input" value={e.prevalece} onChange={(ev) => void cambiarAspecto(e, { prevalece: ev.target.value === "estado" ? "estado" : "marca" })} disabled={cargando} style={{ padding: "4px 8px", fontSize: "0.8rem" }} title="Si la marca y el estado tienen color, cuál manda">
+                    <option value="marca">El de la marca</option>
+                    <option value="estado">El de este estado</option>
+                  </select>
                 </td>
                 <td>
                   <div onClick={() => void alternarPredeterminado(e)} style={{ cursor: "pointer", display: "inline-block" }}>

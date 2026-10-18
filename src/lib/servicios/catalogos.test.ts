@@ -173,3 +173,14 @@ describe("marcas: color de la cápsula y punto", () => {
     expect(sin).toMatchObject({ punto: null, punto_color: null });
   });
 });
+
+describe("estados de vehículo: cápsula, punto y quién prevalece", () => {
+  it("guarda el aspecto del estado y no lo pierde al editar otros datos", async () => {
+    const e = (await crearCatalogo(db, { tipo: "estado_vehiculo", nombre_estado_vehiculo: "KM0", clase: "VO", subtipo_vo: "KM0" })) as { id_estado_vehiculo: number; prevalece: string };
+    expect(e.prevalece).toBe("marca");
+    const a = (await actualizarCatalogo(db, { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: "KM0", clase: "VO", subtipo_vo: "KM0", capsula_color: "#ef444480", punto: "★", punto_color: "#facc15", prevalece: "estado" })) as { capsula_color: string | null; punto: string | null; punto_color: string | null; prevalece: string };
+    expect(a).toMatchObject({ capsula_color: "#ef444480", punto: "★", punto_color: "#facc15", prevalece: "estado" });
+    const igual = (await actualizarCatalogo(db, { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: "KM0 nuevo", clase: "VO", subtipo_vo: "KM0" })) as { capsula_color: string | null; punto: string | null; prevalece: string };
+    expect(igual).toMatchObject({ capsula_color: "#ef444480", punto: "★", prevalece: "estado" });
+  });
+});
