@@ -1,5 +1,6 @@
 "use client";
 
+import { MENSAJE_CAMPO_FALTANTE, direccionDeEdicion } from "@/lib/campos-faltantes";
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import { useRouter } from "next/navigation";
@@ -47,6 +48,7 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
+  const [faltanAlGuardar, setFaltanAlGuardar] = useState<string[]>([]);
 
   // Cliente
   const [dni, setDni] = useState(ini("dni", ""));
@@ -213,11 +215,10 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
 
   /* ---- Guardado ---- */
   const guardar = async (cliente: ClienteDto | null, crearNuevo = false) => {
-    const faltaRci = rciObligatoria();
-    if (faltaRci) {
-      setError(faltaRci);
-      return;
-    }
+    // Lo que falta no impide guardar: se guarda y la pantalla de edición señala los campos con un resplandor
+    const faltan: string[] = [];
+    if (rciObligatoria()) faltan.push("fRci");
+    if (!nombre.trim() && (dni.trim() !== "" || fechaNacimiento.trim() !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0)) faltan.push("nombre");
     setCargando(true);
     setError(null);
     try {
@@ -257,7 +258,12 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
         }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar el expediente."));
-      const creado = ((await res.json().catch(() => ({}))) as { data?: { id_expediente?: number; id_cliente?: number | null } }).data;
+      const respuesta = (await res.json().catch(() => ({}))) as { data?: { id_expediente?: number; id_cliente?: number | null }; avisos?: { campo: string }[] };
+      const creado = respuesta.data;
+      for (const a of respuesta.avisos ?? []) {
+        const campo = a.campo === "fecha_rci" ? "fRci" : a.campo;
+        if (!faltan.includes(campo)) faltan.push(campo);
+      }
       if (creado?.id_expediente && pendientes.length > 0) {
         try {
           await vincularAdjuntos(pendientes, { idExpediente: creado.id_expediente, idCliente: creado.id_cliente ?? null });
@@ -266,8 +272,10 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
         }
       }
       borrarBorrador("expediente-nuevo");
+      setFaltanAlGuardar(faltan);
       setGuardado(true);
-      setTimeout(() => router.push("/dashboard/expedientes"), 2000);
+      // Si falta algo se abre la edición del expediente creado, con el campo señalado; si no, la lista
+      setTimeout(() => router.push(faltan.length > 0 && creado?.id_expediente ? direccionDeEdicion(creado.id_expediente, faltan) : "/dashboard/expedientes"), faltan.length > 0 ? 2500 : 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar.");
     } finally {
@@ -279,11 +287,6 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
     ev.preventDefault();
     setError(null);
 
-    const tieneDatosCliente = dni.trim() !== "" || fechaNacimiento.trim() !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0;
-    if (tieneDatosCliente && !nombre.trim()) {
-      setError("El Nombre Completo del cliente es obligatorio si deseas registrar o asociar un cliente.");
-      return;
-    }
 
     if (nombre.trim() && !asignado) {
       setCargando(true);
@@ -316,7 +319,17 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
           <polyline points="22 4 12 14.01 9 11.01" />
         </svg>
         <h2 style={{ fontSize: "1.5rem", marginBottom: "8px" }}>¡Expediente Creado!</h2>
-        <p style={{ color: "var(--text-secondary)" }}>El expediente y los datos del cliente se han guardado con éxito. Redirigiendo...</p>
+        {faltanAlGuardar.length > 0 ? (
+          <div style={{ color: "var(--warning)", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <strong>⚠️ Se ha guardado, pero falta algo:</strong>
+            {faltanAlGuardar.map((c) => (
+              <span key={c}>{MENSAJE_CAMPO_FALTANTE[c] ?? c}</span>
+            ))}
+            <span style={{ color: "var(--text-secondary)" }}>Abriendo el expediente para que lo completes…</span>
+          </div>
+        ) : (
+          <p style={{ color: "var(--text-secondary)" }}>El expediente y los datos del cliente se han guardado con éxito. Redirigiendo...</p>
+        )}
       </div>
     );
   }
@@ -336,7 +349,7 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
     "Número de Bastidor (VIN)": { cols: 4, etiqueta: "Bastidor (VIN)" },
     "Fecha Expediente": { cols: 2, etiqueta: "F. expediente" },
     "Fecha Afectación": { cols: 2, etiqueta: "F. afectación" },
-    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference es obligatoria antes de poder matricular o facturar." },
+    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference hace falta antes de poder matricular o facturar." },
     "Fecha Matriculación": { cols: 2, etiqueta: "F. matriculación" },
     "Fecha Facturación": { cols: 2, etiqueta: "F. facturación", ayuda: "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI." },
     "Fecha Entrega": { cols: 2, etiqueta: "F. entrega" },
@@ -365,7 +378,7 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
   };
   const rciObligatoria = (): string | null => {
     const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
-    if (!fRci && t?.requiereRci && (fMat || fFact)) return `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder ${fMat ? "matricular" : "facturar"}. Indica primero la Fecha RCI.`;
+    if (!fRci && t?.requiereRci && (fMat || fFact)) return `Falta la fecha RCI (contratación de la financiera): los pagos «${t.nombre}» la piden para poder ${fMat ? "matricular" : "facturar"}. Puedes guardar igualmente, pero faltará ese dato.`;
     return null;
   };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;

@@ -606,3 +606,25 @@ tr.fila-aviso > td:last-child {
 }
 @keyframes tramo-brillo { from { background-position: 220% 0; } to { background-position: -20% 0; } }
 @media (prefers-reduced-motion: reduce) { .tramo-oro-brillo { animation: none; } }
+
+/* Campo que falta o hay que revisar: marco con resplandor animado (lo pone `señalarCampo`) */
+@keyframes resplandor-campo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--warning), 0 0 6px 1px color-mix(in srgb, var(--warning) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--warning), 0 0 22px 6px color-mix(in srgb, var(--warning) 70%, transparent);
+  }
+}
+.campo-falta {
+  outline: none;
+  border-color: var(--warning) !important;
+  animation: resplandor-campo 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .campo-falta {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--warning);
+  }
+}

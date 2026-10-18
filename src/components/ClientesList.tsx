@@ -1,5 +1,6 @@
 "use client";
 
+import { señalarCampo } from "@/lib/resaltar";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
@@ -247,7 +248,12 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
 
   const enviarFormulario = async (ev: FormEvent) => {
     ev.preventDefault();
-    if (!nombre.trim()) return;
+    if (!nombre.trim()) {
+      // Un cliente no puede existir sin nombre: se avisa y se señala el campo (sin el aviso del navegador)
+      mostrar("Falta el nombre del cliente: escríbelo para poder guardarlo.", "aviso");
+      señalarCampo("nombreCliente");
+      return;
+    }
     if (formulario === "crear") {
       setCargando(true);
       try {
@@ -746,7 +752,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Nombre Completo *</label>
-                <input type="text" className="form-input" placeholder="Ej. María López" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                <input type="text" className="form-input" placeholder="Ej. María López" value={nombre} onChange={(e) => setNombre(e.target.value)} data-campo="nombreCliente" />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>

@@ -3,7 +3,7 @@
 import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import ComisionadoExpediente from "@/components/expedientes/ComisionadoExpediente";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
@@ -13,6 +13,8 @@ import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/Bo
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import NombreConFoto from "./documentos/FotoCliente";
 import { mensajeDeError } from "./expedientes/comun";
+import { señalarPrimero } from "@/lib/resaltar";
+import { MENSAJE_CAMPO_FALTANTE } from "@/lib/campos-faltantes";
 import ModalPedidoEnExpediente, { type CambiosDelPedido } from "./expedientes/ModalPedidoEnExpediente";
 import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
@@ -66,6 +68,17 @@ function FormularioEditarExpediente({
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Lo que falta pero no impide guardar: se guarda igualmente, se avisa y se señala el campo con un resplandor. */
+  // Al llegar desde «Nuevo expediente» con algo sin rellenar (?falta=fRci,nombre) se avisa y se señala el campo
+  const faltaDeLaDireccion = useSearchParams().get("falta");
+  const [advertencias, setAdvertencias] = useState<{ campo: string; mensaje: string }[]>(() =>
+    (faltaDeLaDireccion ? faltaDeLaDireccion.split(",") : []).filter((c) => MENSAJE_CAMPO_FALTANTE[c]).map((c) => ({ campo: c, mensaje: MENSAJE_CAMPO_FALTANTE[c] })),
+  );
+  useEffect(() => {
+    if (!faltaDeLaDireccion) return;
+    const t = setTimeout(() => señalarPrimero(faltaDeLaDireccion.split(",")), 700);
+    return () => clearTimeout(t);
+  }, [faltaDeLaDireccion]);
   const [saliendo, setSaliendo] = useState(false);
   const [destino, setDestino] = useState<string | null>(null);
 
@@ -300,14 +313,17 @@ function FormularioEditarExpediente({
     telefonos: rellenos(telefonos).map((t) => ({ telefono: t.valor.trim(), tipo_telefono: t.tipo })),
   });
 
-  /** Datos del cliente que viajan con el expediente en el mismo guardado (null si no hay cliente ni nada que crear). */
-  const clienteParaGuardar = (): { error?: string; cliente: Record<string, unknown> | null } => {
+  /**
+   * Datos del cliente que viajan con el expediente en el mismo guardado (null si no hay cliente ni nada que crear). Si falta el nombre
+   * no se guarda el cliente (no puede existir sin nombre), pero el expediente sí: se devuelve una advertencia.
+   */
+  const clienteParaGuardar = (): { advertencia?: { campo: string; mensaje: string }; cliente: Record<string, unknown> | null } => {
     const hayDatos = dni.trim() !== "" || fechaNacimiento !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0;
     if (asignado) {
-      if (nombre.trim() === "") return { error: "El nombre del cliente es obligatorio.", cliente: null };
+      if (nombre.trim() === "") return { advertencia: { campo: "nombre", mensaje: "Falta el nombre del cliente: se ha guardado el expediente, pero no los cambios en los datos del cliente." }, cliente: null };
       return { cliente: clienteModificado() ? cuerpoCliente(asignado.id) : null };
     }
-    if (nombre.trim() === "") return hayDatos ? { error: "Para guardar los datos del cliente escribe al menos su nombre (o busca un cliente existente).", cliente: null } : { cliente: null };
+    if (nombre.trim() === "") return hayDatos ? { advertencia: { campo: "nombre", mensaje: "Falta el nombre del cliente: se ha guardado el expediente, pero no los datos del cliente (un cliente necesita al menos su nombre)." }, cliente: null } : { cliente: null };
     const { id: _sinId, ...nuevo } = cuerpoCliente(0);
     void _sinId;
     return { cliente: nuevo };
@@ -316,16 +332,13 @@ function FormularioEditarExpediente({
   /* ---- Guardado del expediente ---- */
   const guardar = async (): Promise<boolean> => {
     setError(null);
-    const faltaRci = rciObligatoria();
-    if (faltaRci) {
-      setError(faltaRci);
-      return false;
-    }
+    // Nada de esto impide guardar: se guarda y después se avisa y se señala el campo
     const datosCliente = clienteParaGuardar();
-    if (datosCliente.error) {
-      setError(datosCliente.error);
-      return false;
-    }
+    const pendientes: { campo: string; mensaje: string }[] = [];
+    const faltaRci = rciObligatoria();
+    if (faltaRci) pendientes.push({ campo: "fRci", mensaje: faltaRci });
+    if (datosCliente.advertencia) pendientes.push(datosCliente.advertencia);
+    if (cobradoOtraFecha && !fCobrado) pendientes.push({ campo: "fCobrado", mensaje: "Has marcado que se cobró en otra fecha pero falta esa fecha: el expediente se ha guardado sin ella." });
     try {
       const cuerpo: Record<string, unknown> = {
         id_modelo: modelo || null,
@@ -363,7 +376,13 @@ function FormularioEditarExpediente({
       const r = (await res.json().catch(() => ({}))) as {
         impactos?: { mes: string; netoAnterior: number; netoNuevo: number; diferencia: number }[];
         cliente?: { id: number; accion: "actualizado" | "creado" | "asociado_existente" } | null;
+        avisos?: { campo: string; mensaje: string }[];
       };
+      // Lo que añade el servidor (sin repetir lo que ya se ha detectado aquí)
+      const delServidor = (r.avisos ?? []).map((x) => ({ campo: x.campo === "fecha_rci" ? "fRci" : x.campo, mensaje: x.mensaje })).filter((x) => !pendientes.some((p) => p.campo === x.campo));
+      const todas = [...pendientes, ...delServidor];
+      setAdvertencias(todas);
+      if (todas.length > 0) setTimeout(() => señalarPrimero(todas.map((x) => x.campo)), 250);
       let avisoGuardado: string | null = null;
       if (r.cliente?.accion === "actualizado" && asignado) {
         setAsignado(clienteActualizado(asignado));
@@ -467,9 +486,9 @@ function FormularioEditarExpediente({
   }, []);
 
   /** Columnas (de 12) que ocupa cada campo y su etiqueta corta; la explicación larga va en el icono de ayuda. */
-  const DISENO: Record<string, { cols: number; etiqueta?: string; ayuda?: string }> = {
-    "DNI / NIE": { cols: 2 },
-    "Nombre Completo *": { cols: 5, etiqueta: "Nombre completo *" },
+  const DISENO: Record<string, { cols: number; etiqueta?: string; ayuda?: string; clave?: string }> = {
+    "DNI / NIE": { cols: 2, clave: "dni" },
+    "Nombre Completo *": { cols: 5, etiqueta: "Nombre completo *", clave: "nombre" },
     "Fecha de Nacimiento": { cols: 2, etiqueta: "F. nacimiento" },
     Tienda: { cols: 3 },
     Marca: { cols: 3 },
@@ -477,11 +496,11 @@ function FormularioEditarExpediente({
     "Tipo de Venta": { cols: 2, etiqueta: "Tipo de venta" },
     "Estado de Vehículo": { cols: 2, etiqueta: "Estado" },
     "Vendedor Asignado": { cols: 2, etiqueta: "Vendedor" },
-    "Matrícula": { cols: 2 },
+    "Matrícula": { cols: 2, clave: "matricula" },
     "Número de Bastidor (VIN)": { cols: 4, etiqueta: "Bastidor (VIN)" },
     "Fecha Expediente": { cols: 2, etiqueta: "F. expediente" },
     "Fecha Afectación": { cols: 2, etiqueta: "F. afectación" },
-    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference es obligatoria antes de poder matricular o facturar." },
+    "Fecha RCI (Financiación)": { cols: 2, clave: "fRci", etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference hace falta para matricular o facturar; si falta, se guarda igualmente y se avisa." },
     "Fecha Matriculación": { cols: 2, etiqueta: "F. matriculación" },
     "Fecha Facturación": { cols: 2, etiqueta: "F. facturación", ayuda: "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI." },
     "Fecha Entrega": { cols: 2, etiqueta: "F. entrega" },
@@ -489,7 +508,7 @@ function FormularioEditarExpediente({
   const campo = (etiqueta: string, control: React.ReactNode) => {
     const d = DISENO[etiqueta] ?? { cols: 3 };
     return (
-      <div className={`form-group c${d.cols}`} style={{ marginBottom: 0 }}>
+      <div className={`form-group c${d.cols}`} style={{ marginBottom: 0 }} data-campo={d.clave}>
         <label className="form-label" style={{ marginBottom: "4px" }}>
           {d.etiqueta ?? etiqueta}
           {d.ayuda && (
@@ -512,7 +531,7 @@ function FormularioEditarExpediente({
     const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
     // La facturación solo se comprueba si se toca ella, la RCI o el tipo de pago (los expedientes antiguos que ya incumplían la regla se pueden seguir editando)
     const factTocada = fFact !== (expediente.fecha_facturacion ?? "") || fRci !== (expediente.fecha_rci ?? "") || Number(tipoVenta) !== expediente.id_tipo_de_venta;
-    if (!fRci && t?.requiereRci && (fMat || (fFact && factTocada))) return `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder ${fMat ? "matricular" : "facturar"}. Indica primero la Fecha RCI.`;
+    if (!fRci && t?.requiereRci && (fMat || (fFact && factTocada))) return `Falta la fecha RCI (contratación de la financiera): los pagos «${t.nombre}» la piden para poder ${fMat ? "matricular" : "facturar"}. Puedes guardar igualmente, pero faltará ese dato.`;
     return null;
   };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
@@ -611,6 +630,21 @@ function FormularioEditarExpediente({
               <span>{aviso}</span>
             </div>
             <button type="button" onClick={() => setAviso(null)} style={{ background: "none", border: "none", color: "var(--success)", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
+              ✕
+            </button>
+          </div>
+        )}
+        {advertencias.length > 0 && (
+          <div className="glass-panel" role="alert" style={{ padding: "14px 18px", backgroundColor: "rgba(245, 158, 11, 0.1)", borderLeft: "4px solid var(--warning)", color: "var(--warning)", fontSize: "0.9rem", display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <strong>⚠️ Guardado, pero revisa esto:</strong>
+              {advertencias.map((a) => (
+                <button key={a.campo} type="button" onClick={() => señalarPrimero([a.campo])} title="Pulsa para ir al campo" style={{ all: "unset", cursor: "pointer", textDecoration: "underline dotted" }}>
+                  {a.mensaje}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setAdvertencias([])} style={{ background: "none", border: "none", color: "var(--warning)", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
               ✕
             </button>
           </div>
@@ -869,14 +903,14 @@ function FormularioEditarExpediente({
                 {cobradoOtraFecha && (
                   <div className="form-group" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: "8px" }}>
                     <label className="form-label" style={{ fontSize: "0.78rem", marginBottom: 0, whiteSpace: "nowrap" }}>Fecha de Cobrado</label>
-                    <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} required />
+                    <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} data-campo="fCobrado" />
                   </div>
                 )}
                 </div>
               )}
 
               {rciObligatoria() && (
-                <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", color: "var(--danger)", fontSize: "0.85rem", fontWeight: 600 }}>
+                <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--warning)", background: "rgba(245, 158, 11, 0.08)", color: "var(--warning)", fontSize: "0.85rem", fontWeight: 600 }}>
                   ⚠️ {rciObligatoria()}
                 </div>
               )}

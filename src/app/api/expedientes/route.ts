@@ -5,7 +5,7 @@ import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdQuery, leerIdsParaBorrar, leerJson, leerJsonCrudo, manejar } from "@/lib/http";
 import { esquemaActualizarExpediente, esquemaCrearExpediente } from "@/lib/servicios/expedientes";
-import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "@/lib/servicios/expedientes-escritura";
+import { actualizarExpedientes, crearExpediente, eliminarExpedientes, type AvisoGuardado } from "@/lib/servicios/expedientes-escritura";
 import { obtenerExpediente } from "@/lib/servicios/expedientes-lectura";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,9 @@ export const GET = manejar(async (req: Request) => {
 export const POST = manejar(async (req: Request) => {
   const usuario = await requireSession("crear_expedientes");
   const entrada = await leerJson(req, esquemaCrearExpediente);
-  const creado = await crearExpediente(db, usuario, entrada);
-  return NextResponse.json({ success: true, data: creado }, { status: 201 });
+  const avisos: AvisoGuardado[] = [];
+  const creado = await crearExpediente(db, usuario, entrada, avisos);
+  return NextResponse.json({ success: true, data: creado, avisos }, { status: 201 });
 });
 
 /** Contrato del original: `{id_expediente, expediente, id_cliente}` o `{isBulkEdit, ids, expediente}`. */
@@ -45,6 +46,7 @@ export const PUT = manejar(async (req: Request) => {
           : "Expediente actualizado correctamente",
       impactos: r.impactos,
       cliente: r.cliente ?? null,
+      avisos: r.avisos,
     },
     { status: 200 },
   );

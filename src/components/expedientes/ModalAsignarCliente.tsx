@@ -1,5 +1,6 @@
 "use client";
 
+import { señalarCampo } from "@/lib/resaltar";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
@@ -97,7 +98,8 @@ export default function ModalAsignarCliente({
 
   const crearYAsignar = async () => {
     if (!nombre.trim()) {
-      setErrorCrear("El nombre es obligatorio.");
+      setErrorCrear("Falta el nombre: escríbelo para poder crear el cliente.");
+      señalarCampo("nombreClienteNuevo");
       return;
     }
     setOcupado(true);
@@ -241,7 +243,7 @@ export default function ModalAsignarCliente({
           )}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ fontSize: "0.8rem" }}>Nombre Completo *</label>
-            <input type="text" className="form-input" placeholder="Ej. Juan Pérez" value={nombre} onChange={(e) => setNombre(e.target.value)} style={{ padding: "6px 10px" }} />
+            <input type="text" className="form-input" placeholder="Ej. Juan Pérez" value={nombre} onChange={(e) => setNombre(e.target.value)} data-campo="nombreClienteNuevo" style={{ padding: "6px 10px" }} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ fontSize: "0.8rem" }}>DNI / NIE</label>

@@ -725,6 +725,9 @@ export default function ExpedientesList({
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar expedientes."));
       mostrar(`${seleccionados.length} expedientes modificados correctamente.`);
+      // Lo que falta (por ejemplo, la fecha RCI de un pago que la pide) no impide guardar: se avisa
+      const avisos = ((await res.json().catch(() => ({}))) as { avisos?: { mensaje: string }[] }).avisos ?? [];
+      if (avisos.length > 0) mostrar(avisos.length === 1 ? avisos[0].mensaje : `${avisos.length} expedientes se han guardado con algo sin rellenar (por ejemplo: ${avisos[0].mensaje.replace(/^Expediente \d+: /, "")})`, "aviso", 10000);
       setEdicionMasiva(false);
       setSeleccionados([]);
       router.refresh();
