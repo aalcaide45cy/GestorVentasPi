@@ -10,6 +10,7 @@ import {
   esquemaCrearCatalogo,
   esquemaEliminarCatalogo,
   leerCatalogos,
+  usosDeModelo,
 } from "@/lib/servicios/catalogos";
 import { listarVendedores } from "@/lib/servicios/usuarios";
 
@@ -33,6 +34,14 @@ export const GET = manejar(async () => {
       vendedores: vendedores.map((v) => ({ id: v.id_usuario, nombre: v.nombre })),
     },
   });
+});
+
+/** `?usos_modelo=ID`: cuántos expedientes usan ese modelo (para preguntar adónde pasan al eliminarlo). */
+export const PATCH = manejar(async (req: Request) => {
+  await requireSession("administrador");
+  const id = Number(new URL(req.url).searchParams.get("usos_modelo"));
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ success: false, message: "Falta el modelo" }, { status: 400 });
+  return NextResponse.json({ success: true, data: { expedientes: await usosDeModelo(db, id) } });
 });
 
 export const POST = manejar(async (req: Request) => {

@@ -1,7 +1,7 @@
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, count, eq, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { ajustes, estadoVehiculo, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
+import { ajustes, aliasModelos, estadoVehiculo, expedientes, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { categoriaTipoVenta, claseEstado, idOpcional, textoOpcional } from "./comun";
 import { estadoDto, marcaDto, modeloDto, tiendaDto, tipoVentaDto } from "./mapeos";
@@ -86,6 +86,12 @@ export const esquemaEliminarCatalogo = z.object({
   id: idPositivo,
   toggleActivo: z.boolean().optional(),
   activo: z.boolean().optional(),
+  /** Solo modelos con expedientes: a qué modelo existente pasan. */
+  reasignar_a: idPositivo.optional(),
+  /** Solo modelos con expedientes: crear un modelo nuevo (en esta marca) y pasarlos a él. */
+  crear_modelo: z.object({ marca_id: idPositivo, nombre: z.string().trim().min(1, "Escribe el nombre del modelo nuevo").max(255) }).optional(),
+  /** Solo modelos con expedientes: dejarlos sin modelo. */
+  sin_modelo: z.boolean().optional(),
 });
 export type EntradaEliminarCatalogo = z.infer<typeof esquemaEliminarCatalogo>;
 
@@ -243,6 +249,12 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
   }
 }
 
+/** Expedientes (también los eliminados, que siguen apuntando al modelo) que usan un modelo. */
+export async function usosDeModelo(ej: Ejecutor, idModelo: number): Promise<number> {
+  const [{ n }] = await ej.select({ n: count() }).from(expedientes).where(eq(expedientes.idModelo, idModelo));
+  return n;
+}
+
 /**
  * Borrado lógico: la fila se conserva (con `eliminado_en`) y desaparece de los selectores y listados de catálogo,
  * pero los expedientes que la usan siguen apuntando a ella (nombre, estadísticas e histórico intactos).
@@ -261,9 +273,34 @@ export async function eliminarCatalogo(ej: Ejecutor, e: EntradaEliminarCatalogo)
       });
       return "Marca eliminada";
     }
-    case "modelo":
-      await ej.update(modelos).set({ eliminadoEn: ahora }).where(eq(modelos.idModelo, e.id));
-      return "Modelo eliminado";
+    case "modelo": {
+      const usos = await usosDeModelo(ej, e.id);
+      const destino = [e.reasignar_a, e.crear_modelo, e.sin_modelo].filter((x) => x !== undefined && x !== false).length;
+      if (usos > 0 && destino === 0) throw new HttpError(409, `El modelo tiene ${usos} expediente${usos === 1 ? "" : "s"}: elige a qué modelo pasan antes de eliminarlo.`);
+      if (destino > 1) throw new HttpError(400, "Elige un solo destino para los expedientes");
+      let aviso = "Modelo eliminado";
+      await ej.transaction(async (tx) => {
+        let nuevo: number | null = null;
+        if (e.reasignar_a !== undefined) {
+          if (e.reasignar_a === e.id) throw new HttpError(400, "El modelo de destino no puede ser el mismo que se elimina");
+          const [d] = await tx.select({ id: modelos.idModelo }).from(modelos).where(and(eq(modelos.idModelo, e.reasignar_a), isNull(modelos.eliminadoEn)));
+          if (!d) throw new HttpError(404, "El modelo de destino no existe");
+          nuevo = d.id;
+        } else if (e.crear_modelo) {
+          const [m] = await tx.select({ id: marcas.idMarca }).from(marcas).where(and(eq(marcas.idMarca, e.crear_modelo.marca_id), isNull(marcas.eliminadoEn)));
+          if (!m) throw new HttpError(404, "La marca del modelo nuevo no existe");
+          const [igual] = await tx.select({ id: modelos.idModelo }).from(modelos).where(and(eq(modelos.marcaId, m.id), eq(modelos.nombreModelo, e.crear_modelo.nombre), isNull(modelos.eliminadoEn)));
+          if (igual) nuevo = igual.id;
+          else nuevo = (await tx.insert(modelos).values({ marcaId: m.id, nombreModelo: e.crear_modelo.nombre, accesoRapido: false, ordenAccesoRapido: 0 }).returning({ id: modelos.idModelo }))[0].id;
+        }
+        // Todos los expedientes (también los eliminados) y las lecturas «enseñadas» de pedidos pasan al destino
+        await tx.update(expedientes).set({ idModelo: nuevo }).where(eq(expedientes.idModelo, e.id));
+        if (nuevo !== null) await tx.update(aliasModelos).set({ idModelo: nuevo }).where(eq(aliasModelos.idModelo, e.id));
+        await tx.update(modelos).set({ eliminadoEn: ahora }).where(eq(modelos.idModelo, e.id));
+        if (usos > 0) aviso = `Modelo eliminado: ${usos} expediente${usos === 1 ? "" : "s"} ${usos === 1 ? "pasa" : "pasan"} ${nuevo === null ? "a no tener modelo" : "al modelo elegido"}`;
+      });
+      return aviso;
+    }
     case "tipo_venta":
       await ej.update(tipoDeVenta).set({ eliminadoEn: ahora }).where(eq(tipoDeVenta.idTipoDeVenta, e.id));
       return "Tipo de venta eliminado";

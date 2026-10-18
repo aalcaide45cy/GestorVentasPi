@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Modal from "@/components/Modal";
 import type { ModeloDto } from "@/lib/dto";
 import type { MarcaConModelos } from "./PestanaMarcas";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
@@ -111,12 +112,54 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
     if (ok) setOrdenesTemporales({});
   };
 
-  const eliminar = (f: FilaModelo) => {
+  // Eliminar un modelo que usan expedientes: se pregunta a qué modelo pasan (uno que ya existe, uno nuevo o ninguno)
+  const [reasignando, setReasignando] = useState<{ fila: FilaModelo; usos: number } | null>(null);
+  const [destino, setDestino] = useState<string>("");
+  const [nombreNuevoDestino, setNombreNuevoDestino] = useState("");
+
+  const quitarDeLista = (f: FilaModelo) => setMarcas((prev) => prev.map((x) => (x.id_marca === f.idMarca ? { ...x, modelos: x.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) } : x)));
+
+  const eliminar = async (f: FilaModelo) => {
+    let usos = 0;
+    try {
+      const res = await fetch(`/api/admin/catalogos?usos_modelo=${f.modelo.id_modelo}`, { method: "PATCH" });
+      if (res.ok) usos = ((await res.json()) as { data: { expedientes: number } }).data.expedientes;
+    } catch {
+      /* sin el dato se pregunta igual por si el servidor lo exige */
+    }
+    if (usos > 0) {
+      // Por defecto, otro modelo de la misma marca (el que más se le parece por nombre, p. ej. Sandero para Sandero Stepway)
+      const mismos = marcas.find((m) => m.id_marca === f.idMarca)?.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) ?? [];
+      const base = f.modelo.nombre_modelo.toLowerCase();
+      const parecido = [...mismos].sort((a, b) => b.nombre_modelo.length - a.nombre_modelo.length).find((y) => base.startsWith(y.nombre_modelo.toLowerCase()));
+      setDestino(parecido ? String(parecido.id_modelo) : mismos[0] ? String(mismos[0].id_modelo) : "nuevo");
+      setNombreNuevoDestino("");
+      setReasignando({ fila: f, usos });
+      return;
+    }
     if (!confirm("¿Seguro que deseas eliminar este modelo? Se borrará del catálogo.")) return;
     void ejecutar(async () => {
       await llamar("/api/admin/catalogos", "DELETE", { tipo: "modelo", id: f.modelo.id_modelo }, "Error al eliminar modelo");
-      setMarcas((prev) => prev.map((x) => (x.id_marca === f.idMarca ? { ...x, modelos: x.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) } : x)));
+      quitarDeLista(f);
     }, "Modelo eliminado");
+  };
+
+  const confirmarReasignacion = async () => {
+    if (!reasignando) return;
+    const { fila, usos } = reasignando;
+    const cuerpo: Record<string, unknown> = { tipo: "modelo", id: fila.modelo.id_modelo };
+    if (destino === "nuevo") cuerpo.crear_modelo = { marca_id: fila.idMarca, nombre: nombreNuevoDestino };
+    else if (destino === "ninguno") cuerpo.sin_modelo = true;
+    else cuerpo.reasignar_a = Number(destino);
+    const ok = await ejecutar(async () => {
+      await llamar("/api/admin/catalogos", "DELETE", cuerpo, "Error al eliminar modelo");
+      quitarDeLista(fila);
+    }, `Modelo eliminado: ${usos} expediente${usos === 1 ? "" : "s"} cambiado${usos === 1 ? "" : "s"} de modelo`);
+    if (ok) {
+      setReasignando(null);
+      // El modelo nuevo aparece al recargar la lista
+      if (destino === "nuevo") window.location.reload();
+    }
   };
 
   const tabla = (lista: FilaModelo[], vacio: string) => (
@@ -190,7 +233,7 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
                     >
                       ✏️ Editar
                     </button>
-                    <button type="button" className="btn btn-secondary" onClick={() => eliminar(f)} style={estiloBotonPeligro}>
+                    <button type="button" className="btn btn-secondary" onClick={() => void eliminar(f)} style={estiloBotonPeligro}>
                       🗑️ Eliminar
                     </button>
                   </div>
@@ -301,6 +344,52 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
         {cabeceraBloque("💼 Resto de Marcas", restoDeMarcas)}
         {tabla(restoDeMarcas, "No hay modelos para el resto de marcas.")}
       </div>
+
+      {reasignando && (
+        <Modal
+          titulo={`Eliminar «${reasignando.fila.modelo.nombre_modelo}»`}
+          ancho="520px"
+          peligro
+          pie={
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setReasignando(null)} disabled={cargando}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void confirmarReasignacion()} disabled={cargando || (destino === "nuevo" && !nombreNuevoDestino.trim())}>
+                {cargando ? "Cambiando…" : "Cambiar y eliminar"}
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0, lineHeight: 1.5 }}>
+            Hay <b>{reasignando.usos}</b> expediente{reasignando.usos === 1 ? "" : "s"} con este modelo. Elige a qué modelo {reasignando.usos === 1 ? "pasa" : "pasan"} antes de eliminarlo:
+          </p>
+          <div className="form-group">
+            <select className="form-input" value={destino} onChange={(e) => setDestino(e.target.value)}>
+              {marcas.map((m) => {
+                const otros = m.modelos.filter((y) => y.id_modelo !== reasignando.fila.modelo.id_modelo);
+                return otros.length === 0 ? null : (
+                  <optgroup key={m.id_marca} label={m.nombre}>
+                    {otros.map((y) => (
+                      <option key={y.id_modelo} value={y.id_modelo}>
+                        {m.nombre} {y.nombre_modelo}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+              <option value="nuevo">➕ Un modelo nuevo de {reasignando.fila.nombreMarca}…</option>
+              <option value="ninguno">Dejarlos sin modelo</option>
+            </select>
+          </div>
+          {destino === "nuevo" && (
+            <div className="form-group">
+              <label className="form-label">Nombre del modelo nuevo</label>
+              <input className="form-input" value={nombreNuevoDestino} onChange={(e) => setNombreNuevoDestino(e.target.value)} placeholder="Por ejemplo: Sandero" autoFocus />
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

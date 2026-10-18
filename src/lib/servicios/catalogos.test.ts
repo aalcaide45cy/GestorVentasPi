@@ -117,3 +117,43 @@ describe("marcas, modelos y tiendas", () => {
     await eliminarTienda(db, vacia.id_tienda);
   });
 });
+
+describe("eliminar un modelo con expedientes", () => {
+  async function preparar() {
+    const admin = await crearUsuarioPrueba("administrador");
+    const marca = (await crearCatalogo(db, { tipo: "marca", nombre: "Dacia" })) as { id_marca: number };
+    const sandero = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Sandero" })) as { id_modelo: number };
+    const stepway = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Sandero Stepway" })) as { id_modelo: number };
+    const { expedientes } = await import("@/db/schema");
+    await db.insert(expedientes).values([{ idUsuario: admin.idUsuario, idModelo: stepway.id_modelo }, { idUsuario: admin.idUsuario, idModelo: stepway.id_modelo }]);
+    return { marca, sandero, stepway, expedientes };
+  }
+
+  it("exige elegir adónde pasan los expedientes", async () => {
+    const { stepway } = await preparar();
+    await expect(eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("los pasa a un modelo existente y borra el modelo", async () => {
+    const { sandero, stepway, expedientes } = await preparar();
+    const msg = await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, reasignar_a: sandero.id_modelo });
+    expect(msg).toMatch(/2 expedientes/);
+    const filas = await db.select().from(expedientes);
+    expect(filas.every((f) => f.idModelo === sandero.id_modelo)).toBe(true);
+    expect((await leerCatalogos(db)).modelos.some((m) => m.id_modelo === stepway.id_modelo)).toBe(false);
+  });
+
+  it("los pasa a un modelo nuevo", async () => {
+    const { marca, stepway, expedientes } = await preparar();
+    await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, crear_modelo: { marca_id: marca.id_marca, nombre: "Sandero 2" } });
+    const nuevo = (await leerCatalogos(db)).modelos.find((m) => m.nombre_modelo === "Sandero 2");
+    expect(nuevo).toBeDefined();
+    expect((await db.select().from(expedientes)).every((f) => f.idModelo === nuevo!.id_modelo)).toBe(true);
+  });
+
+  it("o los deja sin modelo", async () => {
+    const { stepway, expedientes } = await preparar();
+    await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, sin_modelo: true });
+    expect((await db.select().from(expedientes)).every((f) => f.idModelo === null)).toBe(true);
+  });
+});

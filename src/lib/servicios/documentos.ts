@@ -225,6 +225,10 @@ export async function buscarExpedientesSimilares(ej: Ejecutor, d: DatosPedido): 
   if (d.dni && d.fechaExpediente && d.idModelo) {
     condiciones.push(and(sql`upper(replace(replace(${clientes.dni}, ' ', ''), '-', '')) = ${normalizar(d.dni)}`, eq(expedientes.fechaExpediente, d.fechaExpediente), eq(expedientes.idModelo, d.idModelo)));
   }
+  // Mismo cliente (por nombre) y misma fecha de pedido: los pedidos de coche nuevo no traen bastidor ni matrícula
+  if (d.cliente && d.fechaExpediente) {
+    condiciones.push(and(sql`lower(${clientes.nombre}) = lower(${d.cliente.trim()})`, eq(expedientes.fechaExpediente, d.fechaExpediente), d.idModelo ? eq(expedientes.idModelo, d.idModelo) : undefined));
+  }
   if (condiciones.length === 0) return [];
   const filas = await ej
     .select({ id: expedientes.idExpediente, vin: expedientes.vin, matricula: expedientes.matricula, cliente: clientes.nombre, fecha: expedientes.fechaExpediente })

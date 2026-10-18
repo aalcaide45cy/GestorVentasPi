@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
-import { MAXIMO_COLA, abrirDeCola, anadirACola, fijarLectura, huecosEnCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
+import { MAXIMO_COLA, abrirDeCola, anadirACola, fijarLectura, huecosEnCola, leerCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
 import { leerPedidoDeFichero } from "./BotonLeerDocumento";
 import OpcionVentanaPedido from "./OpcionVentanaPedido";
 import ZonaSoltar from "./ZonaSoltar";
@@ -36,7 +36,15 @@ export async function leerYEncolar(
     }
     try {
       const pedido = await leerPedidoDeFichero(ficheros[i]);
-      const nuevos = anadirACola([{ nombre: ficheros[i].name, pedido, eleccion: destino.eleccion ?? null, idExpediente: destino.idExpediente ?? null }]);
+      // El mismo pedido leído dos veces (mismo número de pedido) no se añade otra vez a la cola
+      const numero = pedido.datos.numeroPedido;
+      if (numero && leerCola().items.some((x) => x.pedido.datos.numeroPedido === numero)) {
+        ignorados.push(ficheros[i].name);
+        continue;
+      }
+      // Si ya existe un expediente de este pedido, la lectura sirve para completarlo: nunca se crea uno duplicado
+      const yaExiste = destino.idExpediente ? null : (pedido.similares[0]?.idExpediente ?? null);
+      const nuevos = anadirACola([{ nombre: ficheros[i].name, pedido, eleccion: yaExiste ? null : (destino.eleccion ?? null), idExpediente: destino.idExpediente ?? yaExiste }]);
       leidos.push(...nuevos);
       for (const n of nuevos) alLeer?.(n);
     } catch (e) {
