@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import BarraHistorial from "@/components/BarraHistorial";
 import BotonApagar, { BotonReiniciarServidor } from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
@@ -428,6 +429,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
 
       {/* Pie */}
       <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <BarraHistorial colapsado={isCollapsed} />
         {isAdmin && <BotonReiniciarServidor colapsado={isCollapsed} />}
         <button
           onClick={cerrarSesion}

@@ -382,6 +382,31 @@ export const auditoria = pgTable("auditoria", {
   ip: inet("ip"),
 });
 
+/**
+ * Historial de cambios para deshacer y rehacer. Lo rellenan unos disparadores de la base de datos (ver la migración del historial):
+ * cada fila cambiada guarda cómo estaba antes y cómo quedó, agrupada por petición (`grupo`) y por usuario.
+ */
+export const historialCambios = pgTable(
+  "historial_cambios",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    grupo: uuid("grupo").notNull(),
+    en: timestamp("en", { withTimezone: true }).notNull().defaultNow(),
+    idUsuario: integer("id_usuario").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    /** Texto legible de lo que hizo la petición («Editar expediente»…). */
+    accion: text("accion").notNull(),
+    tabla: text("tabla").notNull(),
+    /** I (alta), U (modificación) o D (borrado). */
+    operacion: varchar("operacion", { length: 1 }).notNull(),
+    pk: jsonb("pk").notNull(),
+    antes: jsonb("antes"),
+    despues: jsonb("despues"),
+    /** aplicado | deshecho | descartado (un cambio nuevo descarta lo que se podía rehacer). */
+    estado: varchar("estado", { length: 12 }).notNull().default("aplicado"),
+  },
+  (t) => [index("historial_cambios_usuario_idx").on(t.idUsuario, t.estado, t.id), index("historial_cambios_grupo_idx").on(t.grupo)],
+);
+
 /* ------------------------------------------------------------------ */
 /* Sistema de comisiones (F3). Importes en céntimos, puntos en centésimas */
 /* ------------------------------------------------------------------ */

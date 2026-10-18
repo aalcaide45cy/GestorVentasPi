@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { db } from "@/db";
 import { sesiones, usuarios } from "@/db/schema";
+import { fijarUsuarioHistorial } from "@/lib/historial/contexto";
 import { cumplePermiso, normalizarRol, type Permiso, type Rol } from "./permisos";
 
 const INACTIVIDAD_MS = 12 * 60 * 60 * 1000;
@@ -159,6 +160,7 @@ export async function requireSession(permiso: Permiso = "sesion"): Promise<Usuar
   if (usuario.bloqueado) throw new HttpError(403, "Cuenta suspendida");
   if (!usuario.totpActivo) throw new HttpError(403, "Activa el doble factor para continuar");
   if (!cumplePermiso(usuario.rol, permiso)) throw new HttpError(403, "No tienes permisos para realizar esta acción");
+  fijarUsuarioHistorial(usuario.idUsuario);
   return usuario;
 }
 
