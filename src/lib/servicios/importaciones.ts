@@ -19,6 +19,7 @@ import {
 import type { UsuarioActual } from "@/lib/auth/sesion";
 import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
 import { aDto, relacionesExpediente } from "./expedientes";
+import { elegirModeloExistente } from "@/lib/documentos/modelos";
 import { escaparLike, hoyIso } from "./comun";
 
 /* ------------------------------------------------------------------ */
@@ -185,12 +186,13 @@ async function resolverModelo(ej: Ejecutor, item: EntradaImportacionCsv["items"]
     if (!m) return null;
     idMarca = m.idMarca;
   }
-  const [existente] = await ej
-    .select()
+  const existentes = await ej
+    .select({ idModelo: modelos.idModelo, nombre: modelos.nombreModelo })
     .from(modelos)
-    .where(and(isNull(modelos.eliminadoEn), ilike(modelos.nombreModelo, escaparLike(nombreModelo)), idMarca ? eq(modelos.marcaId, idMarca) : undefined))
-    .limit(1);
-  return existente?.idModelo ?? null;
+    .where(and(isNull(modelos.eliminadoEn), idMarca ? eq(modelos.marcaId, idMarca) : undefined));
+  // «Nuevo Espace» es Espace, «Clio CL6» es Clio…: solo cuenta el modelo base, y nunca se crea uno nuevo
+  const exacto = existentes.find((m) => m.nombre.trim().toLowerCase() === nombreModelo.toLowerCase());
+  return (exacto ?? elegirModeloExistente(nombreModelo, existentes))?.idModelo ?? null;
 }
 
 /** Enlaza con el tipo de venta que ya existe; no crea ni cambia ninguno. */

@@ -113,7 +113,7 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
   if (entrada.confirmacion.trim() !== "BORRAR TODO") throw new HttpError(400, "Escribe BORRAR TODO para confirmar");
   let copiaPrevia: string | null = null;
   try {
-    copiaPrevia = (await crearCopia(ej, "previa", idAdmin)).nombre;
+    copiaPrevia = (await crearCopia(ej, "previa", idAdmin, "Antes de vaciar la base de datos («Borrar todo»). Restaúrala para recuperar los datos.")).nombre;
   } catch (e) {
     throw new HttpError(500, `No se borró nada: no se pudo crear la copia de seguridad previa (${e instanceof Error ? e.message : "error desconocido"}).`);
   }

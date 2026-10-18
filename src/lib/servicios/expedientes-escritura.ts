@@ -325,7 +325,7 @@ export async function duplicarExpedientes(
   let copia: { nombre: string; creadaAhora: boolean; milisegundos: number } | null = null;
   if (ids.length * entrada.copias > UMBRAL_COPIA_PREVIA && !entrada.sin_copia) {
     try {
-      copia = await asegurarCopiaReciente(ej, usuario.idUsuario);
+      copia = await asegurarCopiaReciente(ej, usuario.idUsuario, 15, "Antes de duplicar expedientes en bloque.");
     } catch (e) {
       throw new HttpError(409, `COPIA_PREVIA: No se ha duplicado nada porque no se pudo hacer la copia de seguridad previa. ${e instanceof Error ? e.message : ""}`.trim());
     }

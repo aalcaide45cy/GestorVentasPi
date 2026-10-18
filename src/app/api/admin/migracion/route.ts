@@ -28,7 +28,7 @@ export const POST = manejar(async (req: Request) => {
   // Antes de tocar nada se guarda una copia de seguridad completa; si no se puede, no se convierte
   let copiaPrevia: string;
   try {
-    copiaPrevia = (await crearCopia(db, "previa", admin.idUsuario)).nombre;
+    copiaPrevia = (await crearCopia(db, "previa", admin.idUsuario, "Antes de importar los datos de la aplicación antigua.")).nombre;
   } catch (e) {
     throw new HttpError(500, `No se ha importado nada: no se pudo crear la copia de seguridad previa (${e instanceof Error ? e.message : "error desconocido"}).`);
   }

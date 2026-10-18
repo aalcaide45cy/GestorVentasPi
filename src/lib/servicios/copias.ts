@@ -11,9 +11,6 @@ import type { Ejecutor } from "@/db";
 import { ajustes, conexionDrive, copiasSeguridad } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
-import { verificarPassword } from "@/lib/auth/password";
-import { usuarios } from "@/db/schema";
-import { verificarSegundoFactor } from "./autenticacion";
 import { ajustarCifradoTrasRestaurar, asegurarComprobacion } from "./clave-recuperacion";
 
 /* ------------------------------------------------------------------ */
@@ -347,7 +344,7 @@ export async function motivoCopiaInvalida(ruta: string): Promise<string | null> 
 }
 
 /** Crea una copia completa (`pg_dump -Fc`), la VALIDA, calcula su SHA-256 y la anota. Nunca deja un fichero vacío o roto. */
-export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: number | null = null): Promise<CopiaDto> {
+export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: number | null = null, nota?: string): Promise<CopiaDto> {
   // Deja en la base el dato de comprobación del cifrado: así cualquier copia permite saber si su clave coincide
   await asegurarComprobacion(ej).catch(() => undefined);
   const nombre = nombreNuevo(tipo);
@@ -371,7 +368,7 @@ export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: numbe
   const motivo = await motivoCopiaInvalida(ruta);
   if (motivo) return await fallar(`La copia de seguridad no es válida y se ha descartado: ${motivo}`);
   const tamano = (await stat(/*turbopackIgnore: true*/ ruta)).size;
-  const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo, tamano, sha256: sha256 ?? (await sha256DeFichero(ruta)), creadaPor }).returning();
+  const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo, tamano, sha256: sha256 ?? (await sha256DeFichero(ruta)), creadaPor, notas: nota ?? (tipo === "previa" ? "Copia automática previa a una operación delicada." : null) }).returning();
   await anotarError(ej, null).catch(() => undefined);
   return aDto(fila, true);
 }
@@ -387,11 +384,11 @@ export async function ultimaCopiaValida(ej: Ejecutor, ahora = new Date()): Promi
  * Garantiza una copia de seguridad reciente antes de una operación delicada (duplicado masivo…): si la última válida es de hace
  * menos de `maxMinutos` la reutiliza; si no, crea una nueva de tipo «previa». Falla si no se puede.
  */
-export async function asegurarCopiaReciente(ej: Ejecutor, creadaPor: number | null, maxMinutos = 15): Promise<{ nombre: string; creadaAhora: boolean; milisegundos: number }> {
+export async function asegurarCopiaReciente(ej: Ejecutor, creadaPor: number | null, maxMinutos = 15, motivo?: string): Promise<{ nombre: string; creadaAhora: boolean; milisegundos: number }> {
   const inicio = Date.now();
   const ultima = await ultimaCopiaValida(ej);
   if (ultima && ultima.minutos <= maxMinutos) return { nombre: ultima.copia.nombre, creadaAhora: false, milisegundos: Date.now() - inicio };
-  const nueva = await crearCopia(ej, "previa", creadaPor);
+  const nueva = await crearCopia(ej, "previa", creadaPor, motivo);
   return { nombre: nueva.nombre, creadaAhora: true, milisegundos: Date.now() - inicio };
 }
 
@@ -609,9 +606,6 @@ export async function anotarError(ej: Ejecutor, mensaje: string | null): Promise
 
 export const esquemaRestaurar = z.object({
   id: z.number().int().positive(),
-  password: z.string().min(1, "Indica tu contraseña"),
-  codigo: z.string().min(1, "Introduce el código de doble factor"),
-  confirmacion: z.string(),
   /** Solo si la copia viene de otra instalación: clave de recuperación (o APP_SECRET de origen) para volver a cifrar sus datos. */
   claveOrigen: z.string().max(500).optional(),
 });
@@ -641,14 +635,7 @@ async function posRestauracion(ej: Ejecutor): Promise<void> {
  * Restaura una copia: valida credenciales y confirmación, activa el modo mantenimiento, hace una copia
  * previa, restaura, migra y vacía sesiones. Si algo falla vuelve a la copia previa.
  */
-export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaRestaurar>, ip: string | null): Promise<{ previa: string; recifrado: boolean }> {
-  if (entrada.confirmacion.trim() !== "RESTAURAR") throw new HttpError(400, "Escribe RESTAURAR para confirmar");
-  const [u] = await ej.select().from(usuarios).where(eq(usuarios.idUsuario, idAdmin));
-  if (!u || !(await verificarPassword(u.passwordHash, entrada.password))) throw new HttpError(403, "La contraseña no es correcta");
-  const segundo = await verificarSegundoFactor(ej, idAdmin, entrada.codigo, ip);
-  if (segundo.estado === "bloqueado") throw new HttpError(429, "Demasiados intentos. Inténtalo más tarde.");
-  if (segundo.estado !== "ok") throw new HttpError(403, "El código de doble factor no es correcto");
-
+export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaRestaurar>): Promise<{ previa: string; recifrado: boolean }> {
   const { ruta } = await obtenerCopia(ej, entrada.id);
   if (!existsSync(/*turbopackIgnore: true*/ ruta)) throw new HttpError(404, "El fichero de la copia ya no está en el servidor");
   const motivo = await motivoCopiaInvalida(ruta);
@@ -656,9 +643,11 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
 
   await writeFile(/*turbopackIgnore: true*/ ficheroMantenimiento(), new Date().toISOString());
   let previa: CopiaDto | null = null;
+  let notaPrevia: string | null = null;
   let recifrado = false;
   try {
-    previa = await crearCopia(ej, "previa", idAdmin);
+    notaPrevia = `Antes de restaurar la copia ${path.basename(ruta)}. Si algo sale mal, restaura esta para volver al estado anterior.`;
+    previa = await crearCopia(ej, "previa", idAdmin, notaPrevia);
     const rutaPrevia = path.join(/*turbopackIgnore: true*/ dirCopias(), previa.nombre);
     try {
       await pgRestore(ruta);
@@ -673,6 +662,8 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
     }
   } finally {
     await sincronizarCarpeta(ej).catch(() => undefined);
+    // La base restaurada no conoce la copia previa (es posterior): se registra desde la carpeta y se le vuelve a poner su nota
+    if (previa && notaPrevia) await ej.update(copiasSeguridad).set({ notas: notaPrevia }).where(and(eq(copiasSeguridad.nombre, previa.nombre), sql`${copiasSeguridad.notas} is null`)).catch(() => undefined);
     await rm(/*turbopackIgnore: true*/ ficheroMantenimiento(), { force: true });
   }
   return { previa: previa.nombre, recifrado };

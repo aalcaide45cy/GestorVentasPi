@@ -29,7 +29,7 @@ export const POST = manejar(async (req: Request) => {
     const origen = await leerCopiaInterna(db, e.id);
     try {
       await crearCopiaInterna(db, origen.seccion as Seccion, admin.idUsuario, `Estado anterior a restaurar «${origen.nombre}»`, "automatica");
-      const c = await asegurarCopiaReciente(db, admin.idUsuario, e.modo === "anadir" ? 15 : 0);
+      const c = await asegurarCopiaReciente(db, admin.idUsuario, e.modo === "anadir" ? 15 : 0, `Antes de restaurar la copia interna «${origen.nombre}».`);
       copiaPrevia = { nombre: c.nombre };
     } catch (err) {
       throw new HttpError(409, `No se ha restaurado nada porque no se pudo guardar la copia previa. ${err instanceof Error ? err.message : ""}`.trim());

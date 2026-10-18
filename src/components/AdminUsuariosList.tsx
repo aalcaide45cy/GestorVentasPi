@@ -7,6 +7,7 @@ import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { formatDate } from "@/lib/date-utils";
 import type { UsuarioAdminDto } from "@/lib/dto";
+import type { ResumenBorradoTotal } from "@/lib/servicios/usuarios";
 import { mensajeDeError } from "./expedientes/comun";
 
 interface Props {
@@ -37,7 +38,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const [textoConfirmar, setTextoConfirmar] = useState("");
   // Borrar también todo lo del usuario (expedientes, liquidaciones…): sirve para quitar usuarios de prueba
   const [conTodoId, setConTodoId] = useState<number | null>(null);
-  const [detrasDe, setDetrasDe] = useState<{ id: number; datos: { expedientes: number; liquidaciones: number; rejillas: number } } | null>(null);
+  const [detrasDe, setDetrasDe] = useState<{ id: number; datos: ResumenBorradoTotal } | null>(null);
   const conTodo = aEliminar !== null && conTodoId === aEliminar.id_usuario;
   const detras = aEliminar !== null && detrasDe?.id === aEliminar.id_usuario ? detrasDe.datos : null;
   useEffect(() => {
@@ -47,7 +48,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
     void (async () => {
       try {
         const r = await fetch(`/api/admin/usuarios?resumen=${id}`, { credentials: "same-origin" });
-        if (r.ok && vigente) setDetrasDe({ id, datos: ((await r.json()) as { data: { expedientes: number; liquidaciones: number; rejillas: number } }).data });
+        if (r.ok && vigente) setDetrasDe({ id, datos: ((await r.json()) as { data: ResumenBorradoTotal }).data });
       } catch {
         /* sin el resumen solo se puede borrar al usuario vacío */
       }
@@ -483,9 +484,22 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
           <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5", margin: 0 }}>
             ¿Estás seguro de que deseas eliminar definitivamente al usuario <strong>{aEliminar.nombre}</strong>? Esta acción no se puede deshacer.
           </p>
-          {detras && (detras.expedientes > 0 || detras.liquidaciones > 0 || detras.rejillas > 0) && (
+          {detras && (detras.expedientes > 0 || detras.liquidaciones > 0 || detras.rejillas > 0 || detras.historial > 0) && (
             <div style={{ border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)", padding: "10px 12px", fontSize: "0.88rem", lineHeight: 1.5 }}>
-              Este usuario tiene <b>{detras.expedientes}</b> expediente(s) activo(s), <b>{detras.liquidaciones}</b> liquidación(es) y <b>{detras.rejillas}</b> rejilla(s). Mientras existan, no se puede borrar. Si es un usuario de prueba, puedes borrarlo con todo lo suyo:
+              Este usuario tiene <b>{detras.expedientes}</b> expediente(s) activo(s), <b>{detras.liquidaciones}</b> liquidación(es), <b>{detras.rejillas}</b> rejilla(s) y <b>{detras.historial}</b> apunte(s) de puntos, planes o validaciones. Mientras existan, no se puede borrar. Si es un usuario de prueba, puedes borrarlo con todo lo suyo:
+              {detras.lista.length > 0 && (
+                <div style={{ maxHeight: "160px", overflowY: "auto", margin: "8px 0", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "6px 8px" }}>
+                  {detras.lista.map((x) => (
+                    <div key={x.id} style={{ display: "flex", gap: "8px", justifyContent: "space-between" }}>
+                      <a href={`/dashboard/expedientes/editar/${x.id}`} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
+                        #{x.id} · {x.cliente ?? "Sin cliente"}
+                      </a>
+                      <span style={{ color: "var(--text-muted)" }}>{x.matricula ?? "sin matrícula"}</span>
+                    </div>
+                  ))}
+                  {detras.expedientes > detras.lista.length && <div style={{ color: "var(--text-muted)" }}>… y {detras.expedientes - detras.lista.length} más</div>}
+                </div>
+              )}
               <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px", fontWeight: 600 }}>
                 <input type="checkbox" checked={conTodo} onChange={(e) => setConTodoId(e.target.checked && aEliminar ? aEliminar.id_usuario : null)} />
                 Borrar también sus expedientes, liquidaciones, rejillas y puntos

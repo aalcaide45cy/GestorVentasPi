@@ -33,7 +33,7 @@ export const POST = manejar(async (req: Request) => {
     const esperada = e.modo === "sustituir" ? "SUSTITUIR" : "IMPORTAR";
     if ((e.confirmacion ?? "").trim() !== esperada) throw new HttpError(400, `Escribe ${esperada} para confirmar.`);
     try {
-      const c = await asegurarCopiaReciente(db, admin.idUsuario, e.modo === "anadir" ? 15 : 0);
+      const c = await asegurarCopiaReciente(db, admin.idUsuario, e.modo === "anadir" ? 15 : 0, "Antes de importar datos desde un archivo (sección «Datos»).");
       copia = { nombre: c.nombre, creadaAhora: c.creadaAhora };
       // Además, una copia interna de la sección tal como está ahora, para poder volver atrás solo con esta parte
       const seccion = (e.paquete as { seccion?: string } | null)?.seccion;

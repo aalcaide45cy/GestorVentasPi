@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { commissionLiquidationLineItems, commissionLiquidationLines, commissionLiquidationVersions, commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, pendientesCobro, rejillaFilas, rejillas, telefonosUsuarios, validacionesComision, usuarios, usuariosTiendas } from "@/db/schema";
+import { clientes, commissionLiquidationLineItems, commissionLiquidationLines, commissionLiquidationVersions, commissionLiquidations, commissionPlanVendedores, emailsUsuarios, expedientes, libroPuntos, pendientesCobro, rejillaFilas, rejillas, telefonosUsuarios, validacionesComision, usuarios, usuariosTiendas } from "@/db/schema";
 import type { UsuarioAdminDto } from "@/lib/dto";
 import { generarPasswordTemporal, hashPassword } from "@/lib/auth/password";
 import { ROLES } from "@/lib/auth/permisos";
@@ -190,11 +190,29 @@ export async function cambiarRol(ej: Ejecutor, admin: UsuarioActual, id: number,
 }
 
 /** Lo que se perdería al borrar un usuario junto con todo lo suyo (para enseñarlo antes de confirmar). */
-export async function resumenBorradoTotal(ej: Ejecutor, id: number): Promise<{ expedientes: number; liquidaciones: number; rejillas: number }> {
-  const exp = await ej.select({ id: expedientes.idExpediente }).from(expedientes).where(and(eq(expedientes.idUsuario, id), isNull(expedientes.eliminadoEn)));
+export interface ResumenBorradoTotal {
+  expedientes: number;
+  liquidaciones: number;
+  rejillas: number;
+  /** Apuntes del libro de puntos, objetivos en planes y validaciones: también impiden borrar al usuario. */
+  historial: number;
+  /** Los primeros expedientes activos del usuario, para que se vea qué se va a borrar. */
+  lista: { id: number; cliente: string | null; matricula: string | null; fecha: string | null }[];
+}
+
+export async function resumenBorradoTotal(ej: Ejecutor, id: number): Promise<ResumenBorradoTotal> {
+  const exp = await ej
+    .select({ id: expedientes.idExpediente, cliente: clientes.nombre, matricula: expedientes.matricula, fecha: expedientes.fechaExpediente })
+    .from(expedientes)
+    .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+    .where(and(eq(expedientes.idUsuario, id), isNull(expedientes.eliminadoEn)))
+    .orderBy(asc(expedientes.idExpediente));
   const liq = await ej.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id));
   const rej = await ej.select({ id: rejillas.id }).from(rejillas).where(eq(rejillas.idUsuario, id));
-  return { expedientes: exp.length, liquidaciones: liq.length, rejillas: rej.length };
+  const libro = await ej.select({ id: libroPuntos.id }).from(libroPuntos).where(eq(libroPuntos.idUsuario, id));
+  const objetivos = await ej.select({ id: commissionPlanVendedores.id }).from(commissionPlanVendedores).where(eq(commissionPlanVendedores.idUsuario, id));
+  const vals = await ej.select({ id: validacionesComision.id }).from(validacionesComision).where(eq(validacionesComision.idUsuario, id));
+  return { expedientes: exp.length, liquidaciones: liq.length, rejillas: rej.length, historial: libro.length + objetivos.length + vals.length, lista: exp.slice(0, 40).map((e) => ({ id: e.id, cliente: e.cliente, matricula: e.matricula, fecha: e.fecha })) };
 }
 
 /**

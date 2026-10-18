@@ -1,5 +1,6 @@
 import { and, between, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
+import { categoriaTipoVenta } from "./comun";
 import {
   commissionBonusRules,
   commissionBrandInterventionRates,
@@ -46,6 +47,18 @@ const DESPLAZAMIENTO_BONUS = 1_000_000;
 const aplicaDe = (v: string): string => v || "VN";
 const CATEGORIAS: CategoriaVenta[] = ["CONTADO", "CREDITO", "PREFERENCE", "RENTING"];
 const categoria = (v: string | null | undefined): CategoriaVenta | null => (CATEGORIAS.includes(v as CategoriaVenta) ? (v as CategoriaVenta) : null);
+
+/**
+ * Categoría con la que cuenta un tipo de pago. Si el nombre dice claramente Preference o Renting pero la categoría guardada es otra
+ * (un tipo creado por una importación o a mano con la categoría mal), manda el nombre: así un «Preference» nunca cobra como crédito.
+ */
+export function categoriaEfectiva(guardada: string | null | undefined, nombre: string | null | undefined): CategoriaVenta | null {
+  const g = categoria(guardada);
+  if (!nombre) return g;
+  const porNombre = categoriaTipoVenta(nombre);
+  if ((porNombre === "PREFERENCE" || porNombre === "RENTING") && g !== porNombre) return porNombre;
+  return g;
+}
 
 /** Carga un plan completo (con sus tarifas, reglas y objetivos) en el formato del motor. */
 export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMotor | null> {
@@ -161,20 +174,20 @@ export async function cargarExpedientesMotorPorIds(ej: Ejecutor, ids: number[]):
 
 async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined): Promise<ExpedienteMotor[]> {
   const filas = await ej
-    .select({ e: expedientes, clase: estadoVehiculo.clase, subtipo: estadoVehiculo.subtipoVo, cat: tipoDeVenta.categoria, marca: modelos.marcaId })
+    .select({ e: expedientes, clase: estadoVehiculo.clase, subtipo: estadoVehiculo.subtipoVo, cat: tipoDeVenta.categoria, nombreTipo: tipoDeVenta.nombreTipoVenta, marca: modelos.marcaId })
     .from(expedientes)
     .leftJoin(estadoVehiculo, eq(expedientes.idEstadoVehiculo, estadoVehiculo.idEstadoVehiculo))
     .leftJoin(tipoDeVenta, eq(expedientes.idTipoDeVenta, tipoDeVenta.idTipoDeVenta))
     .leftJoin(modelos, eq(expedientes.idModelo, modelos.idModelo))
     .where(condicion ? and(condicion, isNull(expedientes.eliminadoEn)) : isNull(expedientes.eliminadoEn));
-  return filas.flatMap(({ e, clase, subtipo, cat, marca }) => e.idUsuario === null ? [] : [{
+  return filas.flatMap(({ e, clase, subtipo, cat, nombreTipo, marca }) => e.idUsuario === null ? [] : [{
     id: e.idExpediente,
     idVendedor: e.idUsuario,
     clase: (clase === "VO" ? "VO" : "VN") as Clase,
     subtipoVO: subtipo ?? null,
     idMarca: marca ?? null,
     idModelo: e.idModelo,
-    categoriaVenta: categoria(cat),
+    categoriaVenta: categoriaEfectiva(cat, nombreTipo),
     fechaExpediente: e.fechaExpediente,
     fechaAfectacion: e.fechaAfectacion,
     fechaRci: e.fechaRci,

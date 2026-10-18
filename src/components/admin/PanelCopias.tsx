@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import CampoSecreto from "@/components/CampoSecreto";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
@@ -60,7 +61,7 @@ export default function PanelCopias() {
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [restaurar, setRestaurar] = useState<CopiaDto | null>(null);
   const [marcadas, setMarcadas] = useState<number[]>([]);
-  const [form, setForm] = useState({ password: "", codigo: "", confirmacion: "", claveOrigen: "" });
+  const [form, setForm] = useState({ claveOrigen: "" });
   const [claveNueva, setClaveNueva] = useState("");
   const [cliente, setCliente] = useState({ id: "", secreto: "" });
   const urlVuelta = typeof window === "undefined" ? "" : `${window.location.origin}/api/admin/drive/callback`;
@@ -197,9 +198,9 @@ export default function PanelCopias() {
   const confirmarRestaurar = () =>
     accion("restaurar", async () => {
       if (!restaurar) return;
-      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, ...form, claveOrigen: form.claveOrigen.trim() || undefined } });
+      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, claveOrigen: form.claveOrigen.trim() || undefined } });
       setRestaurar(null);
-      setForm({ password: "", codigo: "", confirmacion: "", claveOrigen: "" });
+      setForm({ claveOrigen: "" });
       mostrar("Copia restaurada. Vuelve a iniciar sesión.");
       setTimeout(() => router.push("/login"), 1500);
     });
@@ -369,7 +370,7 @@ export default function PanelCopias() {
                   {trabajando === `quitar${c.id}` ? "Quitando…" : "Quitar de Drive"}
                 </button>
               )}
-              <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setRestaurar(c)} title="Devuelve TODA la aplicación al estado de esta copia (se pierde lo hecho después). Antes se guarda una copia automática del estado actual. Pide contraseña y doble factor.">
+              <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setRestaurar(c)} title="Devuelve TODA la aplicación al estado de esta copia (se pierde lo hecho después). Antes se guarda una copia automática del estado actual. Te pide una confirmación.">
                 Restaurar
               </button>
             </>
@@ -554,7 +555,7 @@ export default function PanelCopias() {
           {datos.claveRecuperacion?.configurada ? "✓ Configurada: las copias nuevas se pueden restaurar en cualquier instalación." : "⚠️ Sin configurar: las copias solo se pueden restaurar donde esté el mismo .env."}
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          <input className="form-input" type="password" autoComplete="new-password" placeholder="Nueva clave (mínimo 10 caracteres)" value={claveNueva} onChange={(e) => setClaveNueva(e.target.value)} style={{ maxWidth: "320px" }} />
+          <CampoSecreto autoComplete="new-password" placeholder="Nueva clave (mínimo 10 caracteres)" value={claveNueva} onChange={(e) => setClaveNueva(e.target.value)} style={{ maxWidth: "320px" }} />
           <button type="button" className="btn btn-secondary" disabled={trabajando !== null || claveNueva.length < 10} onClick={fijarClave} title="Guarda (o cambia) la clave de recuperación. Solo afecta a las copias que hagas desde ahora; las anteriores siguen necesitando el .env de su instalación">
             {datos.claveRecuperacion?.configurada ? "Cambiar clave" : "Fijar clave"}
           </button>
@@ -593,7 +594,7 @@ export default function PanelCopias() {
             </ol>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
               <input className="form-input" placeholder="ID de cliente (termina en .apps.googleusercontent.com)" value={cliente.id} onChange={(e) => setCliente({ ...cliente, id: e.target.value })} style={{ minWidth: "300px", flex: 1 }} />
-              <input className="form-input" type="password" autoComplete="off" placeholder="Secreto de cliente" value={cliente.secreto} onChange={(e) => setCliente({ ...cliente, secreto: e.target.value })} style={{ minWidth: "200px" }} />
+              <CampoSecreto autoComplete="off" placeholder="Secreto de cliente" value={cliente.secreto} onChange={(e) => setCliente({ ...cliente, secreto: e.target.value })} style={{ minWidth: "200px", width: "auto" }} />
               <button type="button" className="btn btn-primary" disabled={trabajando !== null || !cliente.id.trim() || cliente.secreto.trim().length < 10} onClick={guardarCredenciales} title="Guarda las credenciales dentro de la aplicación (el secreto se guarda cifrado)">
                 Guardar
               </button>
@@ -661,30 +662,18 @@ export default function PanelCopias() {
               <button type="button" className="btn btn-secondary" onClick={() => setRestaurar(null)} disabled={trabajando !== null}>
                 Cancelar
               </button>
-              <button type="button" className="btn btn-primary" disabled={trabajando !== null || form.confirmacion !== "RESTAURAR" || !form.password || !form.codigo} onClick={confirmarRestaurar}>
-                {trabajando === "restaurar" ? "Restaurando…" : "Restaurar"}
+              <button type="button" className="btn btn-primary" disabled={trabajando !== null} onClick={confirmarRestaurar}>
+                {trabajando === "restaurar" ? "Restaurando…" : "Sí, restaurar"}
               </button>
             </>
           }
         >
           <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
-            Se sustituirán <b>todos los datos actuales</b> por los de <code>{restaurar.nombre}</code>. Antes se hará una copia previa automática y, al terminar, todas las sesiones se cerrarán.
+            Se sustituirán <b>todos los datos actuales</b> por los de <code>{restaurar.nombre}</code>. Antes se hará una copia previa automática (con una nota que lo explica) y, al terminar, todas las sesiones se cerrarán. ¿Seguro?
           </p>
           <div className="form-group">
-            <label className="form-label">Tu contraseña</label>
-            <input className="form-input" type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Código de doble factor (o de recuperación)</label>
-            <input className="form-input" inputMode="numeric" autoComplete="one-time-code" value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} />
-          </div>
-          <div className="form-group">
             <label className="form-label">Clave de recuperación (solo si la copia viene de OTRA instalación)</label>
-            <input className="form-input" type="password" autoComplete="off" placeholder="Déjalo vacío si restauras en la misma instalación" value={form.claveOrigen} onChange={(e) => setForm({ ...form, claveOrigen: e.target.value })} title="La clave de recuperación que fijaste en la instalación donde se hizo la copia (o su APP_SECRET). Sirve para volver a cifrar los documentos y el doble factor con la clave de esta instalación" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Escribe RESTAURAR para confirmar</label>
-            <input className="form-input" value={form.confirmacion} onChange={(e) => setForm({ ...form, confirmacion: e.target.value })} />
+            <CampoSecreto autoComplete="off" placeholder="Déjalo vacío si restauras en la misma instalación" value={form.claveOrigen} onChange={(e) => setForm({ ...form, claveOrigen: e.target.value })} title="La clave de recuperación que fijaste en la instalación donde se hizo la copia (o su APP_SECRET). Sirve para volver a cifrar los documentos y el doble factor con la clave de esta instalación" />
           </div>
         </Modal>
       )}
