@@ -31,6 +31,13 @@ describe("cotejarPagos", () => {
     expect(r.filas[0].estado).toBe("dudoso");
     expect(r.filas[0].motivo).toContain("9S86NFJ");
   });
+  it("una lectura parecida ofrece corregirla, y una lectura confirmada ya no se empareja con el coche", () => {
+    const sinConfirmar = cotejarPagos([coche({ matricula: "9831NRB" })], [pago({ matricula: "9834NRB" })]);
+    expect(sinConfirmar.filas[0].matriculaHoja).toBe("9834NRB");
+    const confirmada = cotejarPagos([coche({ matricula: "9831NRB" })], [pago({ matricula: "9834NRB", confirmada: true })]);
+    expect(confirmada.filas.find((f) => f.matricula === "9831NRB")?.estado).toBe("no_pagado");
+    expect(confirmada.filas.find((f) => f.matricula === "9834NRB")?.motivo).toContain("lectura confirmada");
+  });
   it("amarillo para lo que está en la rejilla y no es de ningún coche", () => {
     const r = cotejarPagos([], [pago({ matricula: "5555ZZZ" })]);
     expect(r.filas[0].estado).toBe("dudoso");
@@ -65,5 +72,27 @@ describe("cotejarPagos", () => {
     const r = cotejarPagos([coche({ matricula: "5582NNS" })], [pago({ matricula: "S5582NNS" })]);
     expect(r.filas).toHaveLength(1);
     expect(r.filas[0].estado).toBe("dudoso");
+  });
+});
+
+describe("ajustarLecturas", () => {
+  it("cambia una lectura dudosa por la matrícula de un coche tuyo si es la única parecida", async () => {
+    const { ajustarLecturas } = await import("./cotejo-pagos");
+    const r = ajustarLecturas(
+      [
+        { matricula: "5913NDZ", confianza: 70 },
+        { matricula: "5912NPZ", confianza: 95 },
+        { matricula: "0882MTX", confianza: 55 },
+      ],
+      ["5913NPZ", "5912NPZ", "9882MTX", "1111AAA"],
+    );
+    expect(r[0]).toMatchObject({ matricula: "5913NPZ", corregidaDe: "5913NDZ" });
+    expect(r[1]).toEqual({ matricula: "5912NPZ", confianza: 95 });
+    expect(r[2].matricula).toBe("9882MTX");
+  });
+  it("no toca lecturas seguras ni inventa si hay dos candidatas", async () => {
+    const { ajustarLecturas } = await import("./cotejo-pagos");
+    expect(ajustarLecturas([{ matricula: "1234BCD", confianza: 95 }], ["1234BCE"])[0].matricula).toBe("1234BCD");
+    expect(ajustarLecturas([{ matricula: "1234BCX", confianza: 55 }], ["1234BCD", "1234BCE"])[0].matricula).toBe("1234BCX");
   });
 });

@@ -34,6 +34,8 @@ export interface PagoRejilla {
   mes: string;
   matricula: string;
   importe: number | null;
+  /** La persona ha confirmado que la hoja trae exactamente esta matrícula (no es un error de lectura). */
+  confirmada?: boolean;
 }
 
 export type EstadoCotejo = "pagado" | "dudoso" | "no_pagado" | "sin_rejilla";
@@ -46,6 +48,8 @@ export interface FilaCotejo {
   /** Mes de la rejilla donde aparece (null si no aparece). */
   mesRejilla: string | null;
   importe: number | null;
+  /** Matrícula tal como la trae la hoja, cuando es una lectura dudosa que se puede corregir o confirmar. */
+  matriculaHoja?: string;
 }
 
 export interface ResultadoCotejoPagos {
@@ -139,11 +143,13 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
 
   const cochesSinPago = [...conMatricula.keys()].filter((k) => !porMatricula.has(k));
   const pagosSinCoche = [...porMatricula.keys()].filter((k) => !conMatricula.has(k));
+  // Lo que la persona ya ha confirmado como bien leído no se vuelve a emparejar con otra matrícula parecida
+  const confirmadas = new Set([...porMatricula].filter(([, l]) => l.some((x) => x.confirmada)).map(([k]) => k));
 
   // Parejas de «casi iguales» (una o dos letras de diferencia) solo si no hay duda: cada lado tiene un único candidato.
   const parecida = new Map<string, string>();
   for (const k of cochesSinPago) {
-    const candidatas = pagosSinCoche.filter((p) => Math.abs(p.length - k.length) <= 1 && distancia(p, k) <= 2);
+    const candidatas = pagosSinCoche.filter((p) => !confirmadas.has(p) && Math.abs(p.length - k.length) <= 1 && distancia(p, k) <= 2);
     if (candidatas.length !== 1) continue;
     const inversas = cochesSinPago.filter((c) => Math.abs(c.length - candidatas[0].length) <= 1 && distancia(c, candidatas[0]) <= 2);
     if (inversas.length === 1) parecida.set(k, candidatas[0]);
@@ -167,7 +173,7 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
     const casi = parecida.get(clave);
     if (casi) {
       const p = porMatricula.get(casi)![0];
-      filas.push({ estado: "dudoso", motivo: `La rejilla de ${nombreMes(p.mes)} trae ${casi}: ¿es esta matrícula mal leída?`, coche, matricula: clave, mesRejilla: p.mes, importe: p.importe });
+      filas.push({ estado: "dudoso", motivo: `La rejilla de ${nombreMes(p.mes)} trae ${casi}: ¿es esta matrícula mal leída?`, coche, matricula: clave, mesRejilla: p.mes, importe: p.importe, matriculaHoja: casi });
       continue;
     }
     if (esperados.length === 0) {
@@ -185,7 +191,17 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
   for (const clave of pagosSinCoche) {
     if (pagosUsados.has(clave)) continue;
     const p = porMatricula.get(clave)![0];
-    filas.push({ estado: "dudoso", motivo: `Está en la rejilla de ${nombreMes(p.mes)} pero no hay ningún coche con esta matrícula (¿mal leída o sin expediente?)`, coche: null, matricula: clave, mesRejilla: p.mes, importe: p.importe });
+    filas.push({
+      estado: "dudoso",
+      motivo: confirmadas.has(clave)
+        ? `La rejilla de ${nombreMes(p.mes)} trae esta matrícula (lectura confirmada) y no hay ningún coche tuyo con ella: revisa si la empresa la ha puesto mal`
+        : `Está en la rejilla de ${nombreMes(p.mes)} pero no hay ningún coche con esta matrícula (¿mal leída o sin expediente?)`,
+      coche: null,
+      matricula: clave,
+      mesRejilla: p.mes,
+      importe: p.importe,
+      ...(confirmadas.has(clave) ? {} : { matriculaHoja: clave }),
+    });
   }
 
   const orden: Record<EstadoCotejo, number> = { no_pagado: 0, dudoso: 1, sin_rejilla: 2, pagado: 3 };
@@ -202,6 +218,31 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
 }
 
 /** Mes al que parece corresponder una rejilla: el más repetido entre los meses de cobro de los coches que ya se conocen. */
+export interface LecturaAjustada {
+  matricula: string;
+  confianza: number;
+  /** Lo que leyó el OCR, si se ha cambiado por la matrícula de un coche tuyo muy parecida. */
+  corregidaDe?: string;
+}
+
+/**
+ * Las lecturas dudosas del OCR (P por D, 9 por 0…) se ajustan a la matrícula de un coche tuyo si es la única parecida (una letra
+ * de diferencia) y esa matrícula no aparece ya leída tal cual en la hoja. Las lecturas seguras no se tocan.
+ */
+export function ajustarLecturas(lecturas: { matricula: string; confianza: number }[], conocidas: string[]): LecturaAjustada[] {
+  const propias = [...new Set(conocidas.map((m) => normalizarMatricula(m)).filter(Boolean))];
+  const yaLeidas = new Set(lecturas.map((l) => normalizarMatricula(l.matricula)));
+  const usadas = new Set<string>();
+  return lecturas.map((l) => {
+    const leida = normalizarMatricula(l.matricula);
+    if (l.confianza >= 90 || !leida || propias.includes(leida)) return { matricula: l.matricula, confianza: l.confianza };
+    const candidatas = propias.filter((p) => !yaLeidas.has(p) && !usadas.has(p) && Math.abs(p.length - leida.length) <= 1 && distancia(p, leida) <= 1);
+    if (candidatas.length !== 1) return { matricula: l.matricula, confianza: l.confianza };
+    usadas.add(candidatas[0]);
+    return { matricula: candidatas[0], confianza: 80, corregidaDe: l.matricula };
+  });
+}
+
 export function sugerirMes(matriculas: string[], coches: CocheCotejo[]): string | null {
   const porMatricula = new Map(coches.map((c) => [normalizarMatricula(c.matricula), c]));
   const cuenta = new Map<string, number>();

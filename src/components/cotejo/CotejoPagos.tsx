@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
-import { cotejarPagos, sugerirMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo } from "@/lib/cotejo-pagos";
+import { ajustarLecturas, cotejarPagos, sugerirMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo } from "@/lib/cotejo-pagos";
 import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
 import { formatDate } from "@/lib/date-utils";
 import { nombreMes } from "@/lib/formato";
@@ -15,7 +15,7 @@ interface Borrador {
   clave: string;
   nombreArchivo: string;
   mes: string;
-  filas: { matricula: string; confianza: number }[];
+  filas: { matricula: string; confianza: number; corregidaDe?: string }[];
 }
 
 interface Listado {
@@ -64,6 +64,21 @@ export default function CotejoPagos() {
   const cochesTodos = useMemo(() => [...datos.coches, ...listados.flatMap((l) => l.coches)], [datos.coches, listados]);
   const resultado = useMemo(() => cotejarPagos(cochesTodos, datos.pagos), [cochesTodos, datos.pagos]);
 
+  /** Resuelve una lectura dudosa de la rejilla ya guardada: se corrige la matrícula o se confirma que estaba bien leída. */
+  const resolver = async (f: FilaCotejo, accion: "corregir" | "confirmar") => {
+    if (!f.matriculaHoja || !f.mesRejilla) return;
+    setTrabajando(true);
+    try {
+      await llamar("/api/cotejo/rejillas/lectura", { method: "POST", cuerpo: { mes: f.mesRejilla, accion, de: f.matriculaHoja, a: accion === "corregir" ? f.matricula : undefined } });
+      mostrar(accion === "corregir" ? `Lectura corregida: ${f.matriculaHoja} → ${f.matricula}.` : "Lectura confirmada.");
+      recargar();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   /* ---------------- Rejillas (PDF o imagen) ---------------- */
   const subirRejillas = async (archivos: FileList | null) => {
     if (!archivos || archivos.length === 0) return;
@@ -89,7 +104,7 @@ export default function CotejoPagos() {
             clave: `${f.name}-${i}-${Date.now()}`,
             nombreArchivo: json.data!.paginas.length > 1 ? `${f.name} (pág. ${i + 1})` : f.name,
             mes: sugerirMes(p.matriculas.map((m) => m.matricula), cochesTodos) ?? "",
-            filas: p.matriculas.map((m) => ({ matricula: m.matricula, confianza: m.valida ? m.confianza : 0 })),
+            filas: ajustarLecturas(p.matriculas.map((m) => ({ matricula: m.matricula, confianza: m.valida ? m.confianza : 0 })), cochesTodos.map((c) => c.matricula)),
           });
         });
       }
@@ -197,8 +212,10 @@ export default function CotejoPagos() {
                     className="form-input"
                     style={{ width: "110px", padding: "6px 8px", fontWeight: 600, background: f.confianza >= 90 ? undefined : f.confianza >= 50 ? "rgba(234, 179, 8, 0.25)" : "rgba(239, 68, 68, 0.25)" }}
                     value={f.matricula}
+                    title={f.corregidaDe ? `La hoja se leyó como ${f.corregidaDe}; se ha cambiado por la matrícula de un coche tuyo muy parecida. Revísalo.` : undefined}
                     onChange={(e) => editar(b.clave, { filas: b.filas.map((x, j) => (j === i ? { matricula: e.target.value.toUpperCase(), confianza: 100 } : x)) })}
                   />
+                  {f.corregidaDe && <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }} title="Lectura del OCR antes del ajuste">(leído {f.corregidaDe})</span>}
                   <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px" }} title="Quitar" onClick={() => editar(b.clave, { filas: b.filas.filter((_, j) => j !== i) })}>✕</button>
                 </div>
               ))}
@@ -279,6 +296,18 @@ export default function CotejoPagos() {
                       <td style={{ minWidth: "190px" }}>
                         <div style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{COLORES[f.estado].icono} {COLORES[f.estado].texto}</div>
                         <div style={{ color: "var(--text-secondary)", fontSize: "0.78rem", marginTop: "2px" }}>{f.motivo}</div>
+                        {f.estado === "dudoso" && f.matriculaHoja && f.mesRejilla && (
+                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
+                            {f.coche && (
+                              <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem" }} disabled={trabajando} onClick={() => void resolver(f, "corregir")} title={`Cambia ${f.matriculaHoja} por ${f.matricula} en la rejilla guardada: era una mala lectura`}>
+                            ✏️ Es este coche ({f.matricula})
+                              </button>
+                            )}
+                            <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem" }} disabled={trabajando} onClick={() => void resolver(f, "confirmar")} title="La hoja trae exactamente esa matrícula: la lectura no se corrige y se deja de preguntar">
+                              ✔ La lectura es correcta
+                            </button>
+                          </div>
+                        )}
                       </td>
                       {celdaCoche(f)}
                     </tr>
