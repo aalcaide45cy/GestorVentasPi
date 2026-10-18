@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import { useToast } from "@/components/Toast";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 import { llamar, textoError } from "./api";
@@ -101,9 +102,12 @@ const PLAN_VACIO = (): Plan => {
 /** Editor de un plan con las 9 pestañas del original. */
 export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolver, pestanaInicial }: Props) {
   const { mostrar } = useToast();
-  const [plan, setPlanEstado] = useState<Plan>(inicial ?? PLAN_VACIO());
+  // Si se recarga la página (F5) con el plan a medias, se recupera lo que había sin guardar y la pestaña en la que estabas
+  const claveBorrador = `plan-${inicial?.idPlan ?? 0}`;
+  const [borrador] = useState(() => leerBorrador<{ plan: Plan; pestana: IdPestana }>(claveBorrador));
+  const [plan, setPlanEstado] = useState<Plan>(borrador?.plan ?? inicial ?? PLAN_VACIO());
   const [guardado, setGuardado] = useState(JSON.stringify(inicial && inicial.idPlan !== 0 ? inicial : null));
-  const [pestana, setPestana] = useState<IdPestana>(PESTANAS.some((p) => p.id === pestanaInicial) ? (pestanaInicial as IdPestana) : "resumen");
+  const [pestana, setPestana] = useState<IdPestana>(borrador?.pestana && PESTANAS.some((p) => p.id === borrador.pestana) ? borrador.pestana : PESTANAS.some((p) => p.id === pestanaInicial) ? (pestanaInicial as IdPestana) : "resumen");
   const [guardando, setGuardando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
   // Fechas bloqueadas por defecto: con el candado cerrado solo se cambian con las flechas
@@ -113,6 +117,17 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
 
   const hayCambios = useMemo(() => JSON.stringify(plan) !== guardado, [plan, guardado]);
   const setPlan = (cambio: (p: Plan) => Plan) => setPlanEstado((p) => cambio(p));
+  useGuardarBorrador(claveBorrador, () => ({ plan, pestana }), hayCambios);
+  // La dirección recuerda qué plan y qué pestaña hay abiertos: al recargar con F5 se vuelve justo ahí
+  useEffect(() => {
+    window.history.replaceState(null, "", `${window.location.pathname}?plan=${plan.idPlan === 0 ? "nuevo" : plan.idPlan}&tab=${pestana}`);
+  }, [plan.idPlan, pestana]);
+  useEffect(
+    () => () => {
+      window.history.replaceState(null, "", window.location.pathname);
+    },
+    [],
+  );
 
   /** Nombre automático: «Julio 2026», «Copia de Julio 2026» (plan copiado) o el antiguo «Plan AAAA-MM». Un nombre propio («Plan especial») no lo es. */
   const esNombreAutomatico = (n: string) => {
@@ -174,6 +189,14 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
   const etiquetaCabecera = { color: "var(--text-secondary)", fontSize: "0.95rem", minWidth: "72px" } as const;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {borrador && (
+        <div role="status" style={{ padding: "10px 14px", borderLeft: "4px solid var(--info)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          ♻️ Se han recuperado los cambios del plan que tenías sin guardar (la página se recargó). Revísalos y guarda.
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => { borrarBorrador(claveBorrador); window.location.reload(); }}>
+            Descartarlos y volver a lo guardado
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <div>
@@ -269,7 +292,7 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
               <button type="button" className="btn btn-secondary" onClick={() => setSaliendo(false)}>
                 Seguir editando
               </button>
-              <button type="button" className="btn btn-primary" onClick={onVolver}>
+              <button type="button" className="btn btn-primary" onClick={() => { borrarBorrador(claveBorrador); onVolver(); }}>
                 Descartar y salir
               </button>
             </div>

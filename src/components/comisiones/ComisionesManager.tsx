@@ -51,6 +51,14 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
   useEffect(() => {
     if (!esAdmin) return;
     const q = new URLSearchParams(window.location.search);
+    // ?plan=nuevo: el plan nuevo que se estaba escribiendo al recargar la página (el borrador lo trae el editor)
+    if (q.get("plan") === "nuevo") {
+      void Promise.resolve().then(() => {
+        setPestanaInicial(q.get("tab") ?? undefined);
+        setEditando({ plan: null, solapados: [] });
+      });
+      return;
+    }
     const id = Number(q.get("plan"));
     if (!Number.isInteger(id) || id <= 0) return;
     void (async () => {

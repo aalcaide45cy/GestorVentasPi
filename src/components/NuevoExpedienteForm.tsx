@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -34,48 +35,51 @@ interface Props {
 const textoOVacio = (v: string) => v.trim() || null;
 
 /** «Crear Nuevo Expediente de Venta»: datos del cliente y del vehículo en una sola pantalla. */
-export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
+function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
   const tiendaInicial = tiendas.length === 1 ? String(tiendas[0].id) : "";
   const hoy = hoyIsoCliente();
 
+  // Lo que había sin guardar si se recargó la página (F5): se recupera al volver
+  const [borrador] = useState(() => (typeof window === "undefined" ? null : leerBorrador("expediente-nuevo")));
+  const ini = <T,>(k: string, valor: T): T => (borrador && k in borrador ? (borrador[k] as T) : valor);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
 
   // Cliente
-  const [dni, setDni] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [fechaNacimiento, setFechaNacimiento] = useState("");
-  const [tiendaId, setTiendaId] = useState(tiendaInicial);
-  const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
-  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
+  const [dni, setDni] = useState(ini("dni", ""));
+  const [nombre, setNombre] = useState(ini("nombre", ""));
+  const [fechaNacimiento, setFechaNacimiento] = useState(ini("fechaNacimiento", ""));
+  const [tiendaId, setTiendaId] = useState(ini("tiendaId", tiendaInicial));
+  const [emails, setEmails] = useState<ContactoEdicion[]>(ini("emails", [contactoVacio()]));
+  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(ini("telefonos", [contactoVacio()]));
 
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ClienteDto[]>([]);
   const [buscando, setBuscando] = useState(false);
-  const [asignado, setAsignado] = useState<ClienteDto | null>(null);
+  const [asignado, setAsignado] = useState<ClienteDto | null>(ini("asignado", null));
   const [duplicado, setDuplicado] = useState<ClienteDto | null>(null);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Vehículo y expediente
-  const [marca, setMarca] = useState<number | "">("");
-  const [modelo, setModelo] = useState<number | "">("");
-  const [tipoVenta, setTipoVenta] = useState<number | "">("");
-  const [estado, setEstado] = useState<number | "">("");
-  const [fExp, setFExp] = useState(hoy);
-  const [fAfect, setFAfect] = useState("");
-  const [fRci, setFRci] = useState("");
-  const [fMat, setFMat] = useState("");
-  const [fFact, setFFact] = useState("");
-  const [fEntrega, setFEntrega] = useState("");
-  const [matricula, setMatricula] = useState("");
-  const [vin, setVin] = useState("");
-  const [comentarios, setComentarios] = useState("");
+  const [marca, setMarca] = useState<number | "">(ini("marca", ""));
+  const [modelo, setModelo] = useState<number | "">(ini("modelo", ""));
+  const [tipoVenta, setTipoVenta] = useState<number | "">(ini("tipoVenta", ""));
+  const [estado, setEstado] = useState<number | "">(ini("estado", ""));
+  const [fExp, setFExp] = useState(ini("fExp", hoy));
+  const [fAfect, setFAfect] = useState(ini("fAfect", ""));
+  const [fRci, setFRci] = useState(ini("fRci", ""));
+  const [fMat, setFMat] = useState(ini("fMat", ""));
+  const [fFact, setFFact] = useState(ini("fFact", ""));
+  const [fEntrega, setFEntrega] = useState(ini("fEntrega", ""));
+  const [matricula, setMatricula] = useState(ini("matricula", ""));
+  const [vin, setVin] = useState(ini("vin", ""));
+  const [comentarios, setComentarios] = useState(ini("comentarios", ""));
   // Documentos leídos (DNI, pedido) y aún sin vincular: se vinculan al guardar el expediente
-  const [pendientes, setPendientes] = useState<number[]>([]);
-  const [nombresPend, setNombresPend] = useState<Record<number, string>>({});
+  const [pendientes, setPendientes] = useState<number[]>(ini("pendientes", []));
+  const [nombresPend, setNombresPend] = useState<Record<number, string>>(ini("nombresPend", {}));
   const [avisoLectura, setAvisoLectura] = useState<string | null>(null);
 
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
@@ -178,6 +182,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
       marca !== "" || modelo !== "" || tipoVenta !== "" || estado !== "" || matricula !== "" || vin !== "" || fExp !== hoy ||
       fAfect !== "" || fRci !== "" || fMat !== "" || fFact !== "" || fEntrega !== "");
 
+  useGuardarBorrador("expediente-nuevo", () => ({ dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, asignado, marca, modelo, tipoVenta, estado, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, pendientes, nombresPend }), hayCambios());
   const cambiosRef = useRef(hayCambios);
   useEffect(() => {
     cambiosRef.current = hayCambios;
@@ -260,6 +265,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
           mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos adjuntos.", "error");
         }
       }
+      borrarBorrador("expediente-nuevo");
       setGuardado(true);
       setTimeout(() => router.push("/dashboard/expedientes"), 2000);
     } catch (e) {
@@ -374,6 +380,14 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
 
   return (
     <>
+      {borrador && (
+        <div role="status" style={{ padding: "10px 14px", borderLeft: "4px solid var(--info)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          ♻️ Se han recuperado los datos que habías escrito (la página se recargó). Revísalos y guarda.
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => { borrarBorrador("expediente-nuevo"); window.location.reload(); }}>
+            Descartarlos y empezar de cero
+          </button>
+        </div>
+      )}
       <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {error && (
           <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
@@ -703,4 +717,15 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
       )}
     </>
   );
+}
+
+/** El formulario se pinta ya en el navegador para poder recuperar lo que se estaba escribiendo si se recarga la página (F5). */
+export default function NuevoExpedienteForm(props: Props) {
+  const enNavegador = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
+  if (!enNavegador) return <p style={{ color: "var(--text-secondary)" }}>Cargando…</p>;
+  return <FormularioNuevoExpediente {...props} />;
 }

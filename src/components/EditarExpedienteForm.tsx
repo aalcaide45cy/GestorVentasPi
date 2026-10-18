@@ -1,7 +1,8 @@
 "use client";
 
+import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import ComisionadoExpediente from "@/components/expedientes/ComisionadoExpediente";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -42,7 +43,7 @@ const textoOVacio = (v: string) => v.trim() || null;
 const cadena = (n: number | null | undefined) => (n ? String(n) : "");
 
 /** «Editar Expediente»: cliente, vehículo, fechas y comisionamiento. */
-export default function EditarExpedienteForm({
+function FormularioEditarExpediente({
   expediente,
   marcas,
   modelosPorMarca,
@@ -53,6 +54,10 @@ export default function EditarExpedienteForm({
 }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
+  // Lo que había sin guardar si se recargó la página (F5): se recupera al volver
+  const claveBorrador = `expediente-${expediente.id_expediente}`;
+  const [borrador] = useState(() => (typeof window === "undefined" ? null : leerBorrador(claveBorrador)));
+  const ini = <T,>(k: string, valor: T): T => (borrador && k in borrador ? (borrador[k] as T) : valor);
   const [versionAdjuntos, setVersionAdjuntos] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -76,39 +81,39 @@ export default function EditarExpedienteForm({
   }, [idsVisibles, expediente.id_expediente]);
 
   // Cliente
-  const [asignado, setAsignado] = useState<ClienteDto | null>(expediente.cliente);
+  const [asignado, setAsignado] = useState<ClienteDto | null>(ini("asignado", expediente.cliente));
   // Foto del cliente (recortada de su DNI): se enseña al dejar el ratón sobre su nombre; se actualiza al leer un DNI nuevo
   const [fotoNueva, setFotoNueva] = useState<number | null>(null);
-  const [dni, setDni] = useState(expediente.cliente?.dni ?? "");
-  const [nombre, setNombre] = useState(expediente.cliente?.nombre ?? "");
-  const [fechaNacimiento, setFechaNacimiento] = useState(expediente.cliente?.fecha_de_nacimiento ?? "");
-  const [tiendaId, setTiendaId] = useState(cadena(expediente.id_tienda));
-  const [emails, setEmails] = useState<ContactoEdicion[]>(emailsDeCliente(expediente.cliente));
-  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(telefonosDeCliente(expediente.cliente));
+  const [dni, setDni] = useState(ini("dni", expediente.cliente?.dni ?? ""));
+  const [nombre, setNombre] = useState(ini("nombre", expediente.cliente?.nombre ?? ""));
+  const [fechaNacimiento, setFechaNacimiento] = useState(ini("fechaNacimiento", expediente.cliente?.fecha_de_nacimiento ?? ""));
+  const [tiendaId, setTiendaId] = useState(ini("tiendaId", cadena(expediente.id_tienda)));
+  const [emails, setEmails] = useState<ContactoEdicion[]>(ini("emails", emailsDeCliente(expediente.cliente)));
+  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(ini("telefonos", telefonosDeCliente(expediente.cliente)));
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ClienteDto[]>([]);
   const [buscando, setBuscando] = useState(false);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Vehículo y expediente
-  const [marca, setMarca] = useState<number | "">(expediente.modelo?.marca_id ?? "");
-  const [modelo, setModelo] = useState<number | "">(expediente.id_modelo ?? "");
-  const [tipoVenta, setTipoVenta] = useState<number | "">(expediente.id_tipo_de_venta ?? "");
-  const [estado, setEstado] = useState<number | "">(expediente.id_estado_vehiculo ?? "");
-  const [vendedor, setVendedor] = useState(cadena(expediente.id_usuario));
-  const [fExp, setFExp] = useState(expediente.fecha_expediente ?? "");
-  const [fAfect, setFAfect] = useState(expediente.fecha_afectacion ?? "");
-  const [fRci, setFRci] = useState(expediente.fecha_rci ?? "");
-  const [fMat, setFMat] = useState(expediente.fecha_matriculacion ?? "");
-  const [fFact, setFFact] = useState(expediente.fecha_facturacion ?? "");
-  const [fEntrega, setFEntrega] = useState(expediente.fecha_entrega ?? "");
-  const [matricula, setMatricula] = useState(expediente.matricula ?? "");
-  const [vin, setVin] = useState(expediente.vin ?? "");
-  const [comentarios, setComentarios] = useState(expediente.comentarios ?? "");
-  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(expediente.cobrado_otra_fecha);
-  const [fCobrado, setFCobrado] = useState(expediente.fecha_cobrado ?? "");
+  const [marca, setMarca] = useState<number | "">(ini("marca", expediente.modelo?.marca_id ?? ""));
+  const [modelo, setModelo] = useState<number | "">(ini("modelo", expediente.id_modelo ?? ""));
+  const [tipoVenta, setTipoVenta] = useState<number | "">(ini("tipoVenta", expediente.id_tipo_de_venta ?? ""));
+  const [estado, setEstado] = useState<number | "">(ini("estado", expediente.id_estado_vehiculo ?? ""));
+  const [vendedor, setVendedor] = useState(ini("vendedor", cadena(expediente.id_usuario)));
+  const [fExp, setFExp] = useState(ini("fExp", expediente.fecha_expediente ?? ""));
+  const [fAfect, setFAfect] = useState(ini("fAfect", expediente.fecha_afectacion ?? ""));
+  const [fRci, setFRci] = useState(ini("fRci", expediente.fecha_rci ?? ""));
+  const [fMat, setFMat] = useState(ini("fMat", expediente.fecha_matriculacion ?? ""));
+  const [fFact, setFFact] = useState(ini("fFact", expediente.fecha_facturacion ?? ""));
+  const [fEntrega, setFEntrega] = useState(ini("fEntrega", expediente.fecha_entrega ?? ""));
+  const [matricula, setMatricula] = useState(ini("matricula", expediente.matricula ?? ""));
+  const [vin, setVin] = useState(ini("vin", expediente.vin ?? ""));
+  const [comentarios, setComentarios] = useState(ini("comentarios", expediente.comentarios ?? ""));
+  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(ini("cobradoOtraFecha", expediente.cobrado_otra_fecha));
+  const [fCobrado, setFCobrado] = useState(ini("fCobrado", expediente.fecha_cobrado ?? ""));
 
-  const [com, setCom] = useState<ComisionForm>(comisionInicial(expediente));
+  const [com, setCom] = useState<ComisionForm>(ini("com", comisionInicial(expediente)));
   const comOriginal = useMemo(() => JSON.stringify(comisionInicial(expediente)), [expediente]);
 
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
@@ -309,6 +314,7 @@ export default function EditarExpedienteForm({
         setAviso(avisoGuardado);
         setTimeout(() => setAviso(null), 8000);
       }
+      borrarBorrador(claveBorrador);
       setExito(true);
       return true;
     } catch (e) {
@@ -357,6 +363,7 @@ export default function EditarExpedienteForm({
     }
   };
 
+  useGuardarBorrador(claveBorrador, () => ({ asignado, dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marca, modelo, tipoVenta, estado, vendedor, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, cobradoOtraFecha, fCobrado, com }), hayCambios());
   const cambiosRef = useRef(hayCambios);
   useEffect(() => {
     cambiosRef.current = hayCambios;
@@ -514,6 +521,14 @@ export default function EditarExpedienteForm({
         </div>
       </div>
 
+      {borrador && (
+        <div role="status" style={{ padding: "10px 14px", borderLeft: "4px solid var(--info)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          ♻️ Se han recuperado los cambios que tenías sin guardar (la página se recargó). Revísalos y guarda.
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => { borrarBorrador(claveBorrador); window.location.reload(); }}>
+            Descartarlos y volver a lo guardado
+          </button>
+        </div>
+      )}
       <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {aviso && (
           <div className="glass-panel" style={{ padding: "16px 20px", backgroundColor: "rgba(16, 185, 129, 0.1)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontWeight: 600, fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -871,6 +886,7 @@ export default function EditarExpedienteForm({
               type="button"
               className="btn"
               onClick={() => {
+                borrarBorrador(claveBorrador);
                 setSaliendo(false);
                 setExito(true);
                 setTimeout(() => irA(destino), 100);
@@ -897,4 +913,18 @@ export default function EditarExpedienteForm({
       )}
     </div>
   );
+}
+
+/**
+ * El borrador de lo que se estaba editando solo existe en el navegador, así que el formulario se pinta ya en el navegador (no en
+ * el servidor): así lo recuperado y lo pintado coinciden y no hay desajustes al recargar con F5.
+ */
+export default function EditarExpedienteForm(props: Props) {
+  const enNavegador = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
+  if (!enNavegador) return <p style={{ color: "var(--text-secondary)" }}>Cargando…</p>;
+  return <FormularioEditarExpediente {...props} />;
 }
