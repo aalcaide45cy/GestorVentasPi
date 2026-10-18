@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { lecturasPedidos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { accionLecturas, encolarLectura, listarLecturas, reanudarLecturas, registroLecturas } from "./lecturas-pedidos";
+import { accionLecturas, ajustarLectores, encolarLectura, listarLecturas, reanudarLecturas, registroLecturas } from "./lecturas-pedidos";
 
 beforeEach(async () => {
   process.env.LECTORES_PEDIDOS = "3";
@@ -99,4 +99,24 @@ describe("lecturas de pedidos en paralelo", () => {
     expect(r).toMatchObject({ estado: "pedido", resolucion: "quitado" });
     expect(r?.error).toBeTruthy();
   }, 120_000);
+});
+
+describe("ajuste automático de lecturas simultáneas", () => {
+  const sobrado = { cpu: 40, memoriaLibre: 0.6, enEspera: 50, activos: 2 };
+  it("sube de una en una mientras haya trabajo y sobren CPU y memoria, sin pasar del máximo", () => {
+    expect(ajustarLectores(2, sobrado, 20)).toBe(3);
+    expect(ajustarLectores(3, { ...sobrado, activos: 3 }, 20)).toBe(4);
+    expect(ajustarLectores(20, { ...sobrado, activos: 20 }, 20)).toBe(20);
+  });
+  it("no sube si no hay nada esperando, si no están todas las plazas ocupadas o si el equipo va justo", () => {
+    expect(ajustarLectores(2, { ...sobrado, enEspera: 0 }, 20)).toBe(2);
+    expect(ajustarLectores(5, { ...sobrado, activos: 3 }, 20)).toBe(5);
+    expect(ajustarLectores(4, { ...sobrado, activos: 4, cpu: 80 }, 20)).toBe(4);
+    expect(ajustarLectores(4, { ...sobrado, activos: 4, memoriaLibre: 0.15 }, 20)).toBe(4);
+  });
+  it("baja de una en una cuando el consumo se acerca al límite, y nunca por debajo de una", () => {
+    expect(ajustarLectores(10, { ...sobrado, activos: 10, cpu: 96 }, 20)).toBe(9);
+    expect(ajustarLectores(10, { ...sobrado, activos: 10, memoriaLibre: 0.05 }, 20)).toBe(9);
+    expect(ajustarLectores(1, { ...sobrado, activos: 1, cpu: 99 }, 20)).toBe(1);
+  });
 });

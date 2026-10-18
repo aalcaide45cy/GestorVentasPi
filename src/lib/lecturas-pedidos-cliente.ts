@@ -29,6 +29,31 @@ export function suscribirResumenLecturas(cb: () => void): () => void {
 }
 const emitir = () => oyentes.forEach((o) => o());
 
+/** Progreso de la subida de ficheros al servidor (mientras dura, la pantalla se bloquea: si se corta, se perderían los que faltan). */
+export interface ProgresoSubida {
+  hechos: number;
+  total: number;
+}
+let subida: ProgresoSubida | null = null;
+const oyentesSubida = new Set<() => void>();
+export const leerSubida = (): ProgresoSubida | null => subida;
+export function suscribirSubida(cb: () => void): () => void {
+  oyentesSubida.add(cb);
+  return () => oyentesSubida.delete(cb);
+}
+function fijarSubida(p: ProgresoSubida | null): void {
+  subida = p;
+  oyentesSubida.forEach((o) => o());
+  if (typeof window === "undefined") return;
+  // Mientras se sube no se puede cerrar ni recargar la pestaña sin que el navegador pregunte
+  window.removeEventListener("beforeunload", avisarAntesDeSalir);
+  if (p) window.addEventListener("beforeunload", avisarAntesDeSalir);
+}
+function avisarAntesDeSalir(e: BeforeUnloadEvent): void {
+  e.preventDefault();
+  e.returnValue = "";
+}
+
 /** Para saber cuánto falta de la tanda en curso. */
 let subidosEnTanda = 0;
 let subiendo = 0;
@@ -132,6 +157,8 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
   subidosEnTanda += ficheros.length;
   iniciarSondeo();
   let siguiente = 0;
+  let subidos = 0;
+  fijarSubida({ hechos: 0, total: ficheros.length });
   const subir = async () => {
     while (siguiente < ficheros.length && !cancelada) {
       const f = ficheros[siguiente++];
@@ -149,11 +176,17 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
         if (!cancelada) avisar(`${f.name}: ${e instanceof Error ? e.message : "no se pudo subir"}`, "error");
       } finally {
         subiendo--;
+        subidos++;
+        fijarSubida({ hechos: subidos, total: ficheros.length });
         controladores = controladores.filter((x) => x !== c);
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(6, ficheros.length) }, subir));
+  try {
+    await Promise.all(Array.from({ length: Math.min(6, ficheros.length) }, subir));
+  } finally {
+    fijarSubida(null);
+  }
   iniciarSondeo();
 }
 
@@ -161,6 +194,7 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
 export async function cancelarLecturas(): Promise<void> {
   cancelada = true;
   controladores.forEach((c) => c.abort());
+  fijarSubida(null);
   try {
     await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "cancelar" }) });
   } catch {

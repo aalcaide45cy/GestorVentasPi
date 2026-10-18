@@ -4,6 +4,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 import BotonMenuMovil from "@/components/BotonMenuMovil";
 import AyudaBotones from "@/components/AyudaBotones";
 import LaboratorioComisiones from "@/components/LaboratorioComisiones";
+import OverlaySubida from "@/components/OverlaySubida";
 import Sidebar from "@/components/Sidebar";
 import { versionDeLaApp } from "@/lib/version";
 import { ToastProvider } from "@/components/Toast";
@@ -78,6 +79,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <ToastProvider>
+      <OverlaySubida />
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-app)", position: "relative" }}>
         <div className="glow-bg"></div>
 

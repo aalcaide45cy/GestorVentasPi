@@ -270,13 +270,13 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
                 </button>
               </span>
             </div>
-            {resultado.sinFila.length > 0 && (
+            {(resultado.sinFila?.length ?? 0) > 0 && (
               <details style={{ fontSize: "0.82rem" }}>
                 <summary style={{ cursor: "pointer", color: "var(--warning)" }}>
-                  {resultado.sinFila.length} expediente(s) tuyos no aparecen en el listado (por eso no se rellenan): ver cuáles
+                  {resultado.sinFila?.length} expediente(s) tuyos no aparecen en el listado (por eso no se rellenan): ver cuáles
                 </summary>
                 <div style={{ maxHeight: "140px", overflowY: "auto", marginTop: "6px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "6px 8px" }}>
-                  {resultado.sinFila.map((e) => (
+                  {(resultado.sinFila ?? []).map((e) => (
                     <div key={e.id}>
                       <b>Exp. {e.id}</b> · {e.cliente ?? "Sin cliente"} · NIF {e.dni ?? "—"} · bastidor {e.vin ?? "—"} · matrícula {e.matricula ?? "—"}
                     </div>

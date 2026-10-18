@@ -43,8 +43,9 @@ export interface ResumenLecturas {
   pedidos: number;
   descartados: number;
   errores: number;
-  /** Cuántas lecturas hace a la vez este equipo. */
+  /** Cuántas lecturas se hacen a la vez ahora y el máximo que admite este equipo. */
   lectores: number;
+  maximo: number;
 }
 
 /**
@@ -55,9 +56,29 @@ export interface ResumenLecturas {
 export function lectoresPermitidos(): number {
   const fijo = Number(process.env.LECTORES_PEDIDOS);
   if (Number.isInteger(fijo) && fijo > 0) return Math.min(fijo, 32);
-  const porNucleos = Math.floor(os.availableParallelism() / 2);
+  const porNucleos = Math.floor(os.availableParallelism() * 0.75);
   const porMemoria = Math.floor(os.totalmem() / (1.5 * 1024 ** 3));
-  return Math.max(1, Math.min(16, porNucleos, porMemoria));
+  return Math.max(1, Math.min(24, porNucleos, porMemoria));
+}
+
+/** ¿Se fijó el número de lectores a mano (`LECTORES_PEDIDOS`)? Entonces no se ajusta solo. */
+const lectoresFijos = (): boolean => Number.isInteger(Number(process.env.LECTORES_PEDIDOS)) && Number(process.env.LECTORES_PEDIDOS) > 0;
+
+/** Lecturas con las que se arranca; de ahí se sube poco a poco mientras el equipo vaya sobrado. */
+export const LECTORES_INICIALES = 2;
+const CPU_SUBIR = 75;
+const CPU_BAJAR = 92;
+const MEMORIA_LIBRE_SUBIR = 0.2;
+const MEMORIA_LIBRE_BAJAR = 0.1;
+
+/**
+ * Cuántas lecturas se permiten ahora, según cómo va el equipo. Sube de una en una (no de golpe) si hay trabajo en espera y sobran
+ * CPU y memoria, y baja si el consumo se acerca al límite. Es una función pura para poder probarla.
+ */
+export function ajustarLectores(actual: number, medida: { cpu: number; memoriaLibre: number; enEspera: number; activos: number }, maximo: number): number {
+  if (medida.cpu > CPU_BAJAR || medida.memoriaLibre < MEMORIA_LIBRE_BAJAR) return Math.max(1, Math.min(actual, medida.activos) - 1);
+  if (medida.enEspera > 0 && medida.activos >= actual && medida.cpu < CPU_SUBIR && medida.memoriaLibre > MEMORIA_LIBRE_SUBIR) return Math.min(maximo, actual + 1);
+  return actual;
 }
 
 const MAX_DIAS_FICHERO = 7;
@@ -67,9 +88,57 @@ interface EstadoLectores {
   activos: number;
   reservando: boolean;
   reanudado: boolean;
+  /** Lecturas simultáneas permitidas ahora (se ajusta sola). */
+  objetivo: number;
+  vigilante: ReturnType<typeof setInterval> | null;
+  cpuAnterior: { reposo: number; total: number } | null;
 }
 const G = globalThis as unknown as { __lectoresPedidos?: EstadoLectores };
-const estadoLectores = (): EstadoLectores => (G.__lectoresPedidos ??= { activos: 0, reservando: false, reanudado: false });
+const estadoLectores = (): EstadoLectores => (G.__lectoresPedidos ??= { activos: 0, reservando: false, reanudado: false, objetivo: LECTORES_INICIALES, vigilante: null, cpuAnterior: null });
+
+/** Lecturas simultáneas permitidas ahora. */
+function limiteActual(): number {
+  return lectoresFijos() ? lectoresPermitidos() : Math.min(estadoLectores().objetivo, lectoresPermitidos());
+}
+
+/** Uso de CPU de todo el equipo desde la medida anterior (0 a 100). */
+function usoCpu(st: EstadoLectores): number {
+  const t = os.cpus().reduce((a, c) => ({ reposo: a.reposo + c.times.idle, total: a.total + c.times.user + c.times.nice + c.times.sys + c.times.idle + c.times.irq }), { reposo: 0, total: 0 });
+  const antes = st.cpuAnterior;
+  st.cpuAnterior = t;
+  if (!antes || t.total === antes.total) return 0;
+  return Math.round(100 * (1 - (t.reposo - antes.reposo) / (t.total - antes.total)));
+}
+
+/** Mientras haya lecturas en marcha o en espera, cada pocos segundos mide el equipo y ajusta cuántas se hacen a la vez. */
+function vigilar(): void {
+  const st = estadoLectores();
+  if (st.vigilante || lectoresFijos()) return;
+  st.cpuAnterior = null;
+  usoCpu(st);
+  st.vigilante = setInterval(() => {
+    void (async () => {
+      try {
+        const [{ n }] = (await db.execute(sql`select count(*)::int as n from lecturas_pedidos where estado = 'pendiente'`)).rows as unknown as { n: number }[];
+        if (n === 0 && st.activos === 0) {
+          // Sin trabajo: se para y la próxima tanda vuelve a empezar despacio
+          if (st.vigilante) clearInterval(st.vigilante);
+          st.vigilante = null;
+          st.objetivo = LECTORES_INICIALES;
+          return;
+        }
+        const nuevo = ajustarLectores(st.objetivo, { cpu: usoCpu(st), memoriaLibre: os.freemem() / os.totalmem(), enEspera: n, activos: st.activos }, lectoresPermitidos());
+        if (nuevo !== st.objetivo) {
+          st.objetivo = nuevo;
+          despertarLectores();
+        }
+      } catch {
+        /* una medida fallida no cambia nada */
+      }
+    })();
+  }, 3000);
+  st.vigilante.unref?.();
+}
 
 /* ------------------------------------------------------------------ */
 /* Cola                                                                */
@@ -127,7 +196,7 @@ export async function listarLecturas(ej: Ejecutor, idUsuario: number): Promise<{
     .limit(2000);
   const cuenta = (e: EstadoLectura) => filas.filter((f) => f.estado === e).length;
   return {
-    resumen: { pendientes: cuenta("pendiente"), leyendo: cuenta("leyendo"), pedidos: cuenta("pedido"), descartados: cuenta("descartado"), errores: cuenta("error"), lectores: lectoresPermitidos() },
+    resumen: { pendientes: cuenta("pendiente"), leyendo: cuenta("leyendo"), pedidos: cuenta("pedido"), descartados: cuenta("descartado"), errores: cuenta("error"), lectores: limiteActual(), maximo: lectoresPermitidos() },
     lecturas: filas.map((f) => ({
       id: f.id,
       nombre: f.nombre,
@@ -246,7 +315,8 @@ async function bucle(): Promise<void> {
   if (st.reservando) return;
   st.reservando = true;
   try {
-    while (st.activos < lectoresPermitidos()) {
+    vigilar();
+    while (st.activos < limiteActual()) {
       const fila = await reservar(db);
       if (!fila) break;
       st.activos++;

@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
 import { cancelarLecturas, recogerPendientes, registrarAvisos, subirPedidos } from "@/lib/lecturas-pedidos-cliente";
 import { MAXIMO_COLA, huecosEnCola, leerLectura, suscribirLectura, type EleccionRapida } from "@/lib/pedidos-cola";
+import { useRef } from "react";
 import OpcionVentanaPedido from "./OpcionVentanaPedido";
 import ZonaSoltar from "./ZonaSoltar";
 
@@ -53,8 +54,24 @@ export function useLeerPedidos() {
 export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clientes", compacta = false }: { etiqueta?: string; compacta?: boolean }) {
   const { leer, subiendo, cancelar } = useLeerPedidos();
   const lectura = useSyncExternalStore(suscribirLectura, leerLectura, () => null);
+  const archivos = useRef<HTMLInputElement>(null);
+  const carpeta = useRef<HTMLInputElement>(null);
+  const elegidos = (lista: FileList | null) => {
+    const ficheros = Array.from(lista ?? []).filter((f) => f.type.startsWith("image/") || f.type === "application/pdf" || /\.(pdf|jpe?g|png|webp)$/i.test(f.name));
+    if (ficheros.length > 0) void leer(ficheros);
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px", flex: "1 1 180px", minWidth: "160px" }}>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        <button type="button" className="btn btn-primary" style={{ padding: "6px 12px", fontSize: "0.82rem" }} disabled={subiendo} onClick={() => archivos.current?.click()} title="Elige uno o varios PDF o fotos de pedidos desde el explorador de archivos (puedes seleccionar muchos a la vez)">
+          📂 Cargar pedidos
+        </button>
+        <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.82rem" }} disabled={subiendo} onClick={() => carpeta.current?.click()} title="Elige una carpeta entera: se cargan todos los PDF y fotos que haya dentro, y lo que no sea un pedido se ignora">
+          📁 Cargar carpeta
+        </button>
+        <input ref={archivos} type="file" multiple accept="image/*,.pdf,application/pdf" style={{ display: "none" }} onChange={(e) => { elegidos(e.target.files); e.target.value = ""; }} />
+        <input ref={carpeta} type="file" multiple style={{ display: "none" }} {...({ webkitdirectory: "", directory: "" } as Record<string, string>)} onChange={(e) => { elegidos(e.target.files); e.target.value = ""; }} />
+      </div>
       <ZonaSoltar
         icono="📄"
         titulo={etiqueta}
