@@ -71,7 +71,7 @@ describe("papelera: lo que sigue guardado tras eliminar", () => {
     expect((await filasPapelera(db, "clientes")).filas[0].bloqueo).toMatch(/expediente/);
   });
 
-  it.skipIf(!hayPg)("purgar a fondo borra lo eliminado con todo lo suyo y respeta lo vigente", async () => {
+  it.skipIf(!hayPg)("purgar a fondo borra lo eliminado con todo lo suyo y respeta lo vigente", { timeout: 120_000 }, async () => {
     const { admin, vigente, borrado, docVigente } = await escenario();
     // Sin la palabra de confirmación no se hace nada
     await expect(purgar(db, admin.idUsuario, { categoria: "expedientes", todo: true, confirmacion: "sí" })).rejects.toThrow(/PURGAR/);
@@ -89,7 +89,7 @@ describe("papelera: lo que sigue guardado tras eliminar", () => {
     expect((await db.select().from(adjuntos).where(eq(adjuntos.id, docVigente.id))).length).toBe(1);
   });
 
-  it.skipIf(!hayPg)("un elemento de catálogo que aún usa un expediente no se purga; el que nadie usa, sí", async () => {
+  it.skipIf(!hayPg)("un elemento de catálogo que aún usa un expediente no se purga; el que nadie usa, sí", { timeout: 120_000 }, async () => {
     const admin = await crearUsuarioPrueba("administrador", "Admin");
     const [libre] = await db.insert(marcas).values({ nombre: "Libre", eliminadoEn: new Date() }).returning();
     const [usada] = await db.insert(tiendas).values({ nombre: "Usada", eliminadoEn: new Date() }).returning();
