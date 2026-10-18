@@ -116,7 +116,7 @@ const nombreMesIso = (m: string | null) => (m ? `${MESES[Number(m.slice(5, 7)) -
 export function textoFinanciacionFuera(f: FinanciacionFueraDeMes): string {
   return f.tipo === "anterior"
     ? `Financiación contratada el mes anterior (${nombreMesIso(f.mesRci)}): ya sumó a la tasa de aquel mes; este mes cuenta el coche, pero no vuelve a sumar a la tasa.`
-    : `Financiación adelantada: contratada este mes (${nombreMesIso(f.mesRci)}) aunque el coche cuenta ${f.mesComputo ? `en ${nombreMesIso(f.mesComputo)}` : "más adelante (aún no tiene fecha para contar)"}. Suma a la tasa de este mes, pero no su comisión del coche.`;
+    : `Financiación adelantada: contratada este mes (${nombreMesIso(f.mesRci)}) aunque el coche cuenta ${f.mesComputo ? `en ${nombreMesIso(f.mesComputo)}` : "más adelante (aún no tiene fecha para contar)"}. Suma a la tasa de este mes, pero no su comisión del coche.${f.mesComputo ? "" : " Mientras el coche no tenga fecha, solo suma a la tasa de su marca, no a la global."}`;
 }
 
 /** Clase del marco amarillo punteado de las filas con financiación de otro mes (solo esa fila, no la tabla entera). */
@@ -165,11 +165,11 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] = [
 const capsulaAviso: CSSProperties = { display: "inline-block", border: "2px dashed var(--warning)", borderRadius: "999px", background: "rgba(245, 158, 11, 0.08)" };
 
 /** Línea pequeña bajo la tasa: cuántas financiaciones son de otro mes (ya incluidas en la cifra, o excluidas por ser del mes anterior). */
-function NotaFueraDeMes({ numerador, adelantadas, anteriores }: { numerador: number; adelantadas: number; anteriores: number }) {
-  if (adelantadas === 0 && anteriores === 0) return null;
-  const partes = [adelantadas > 0 ? `${numerador - adelantadas} + ${adelantadas} adelantada${adelantadas === 1 ? "" : "s"}` : null, anteriores > 0 ? `${anteriores} del mes anterior (no suma)` : null].filter(Boolean);
+function NotaFueraDeMes({ numerador, adelantadas, sinFecha, anteriores }: { numerador: number; adelantadas: number; sinFecha: number; anteriores: number }) {
+  if (adelantadas === 0 && sinFecha === 0 && anteriores === 0) return null;
+  const partes = [adelantadas > 0 ? `${numerador - adelantadas} + ${adelantadas} adelantada${adelantadas === 1 ? "" : "s"}` : null, sinFecha > 0 ? `${sinFecha} sin fecha (no suma)` : null, anteriores > 0 ? `${anteriores} del mes anterior (no suma)` : null].filter(Boolean);
   return (
-    <span title="Adelantadas: financiación de este mes de coches que cuentan en otro mes. Del mes anterior: coches de este mes cuya financiación sumó en el mes anterior (no suman aquí)." style={{ ...capsulaAviso, alignSelf: "flex-start", fontSize: "0.66rem", fontWeight: 600, color: "var(--warning)", lineHeight: 1.3, padding: "0 8px", marginTop: "2px", maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+    <span title="Adelantadas: financiación de este mes de coches que cuentan en otro mes (ya están sumadas). Sin fecha: el coche aún no cuenta en ningún mes y su financiación solo suma a la tasa de su marca. Del mes anterior: coches de este mes cuya financiación sumó en el mes anterior (no suman aquí)." style={{ ...capsulaAviso, alignSelf: "flex-start", fontSize: "0.66rem", fontWeight: 600, color: "var(--warning)", lineHeight: 1.3, padding: "0 8px", marginTop: "2px", maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
       💳 {partes.join(" · ")}
     </span>
   );
@@ -229,7 +229,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
       <>
         <TablaDatos<FilaResumen> id="detalle-tasa-resumen" columnas={columnasResumen} filas={resumen} clave={(f) => f.concepto} />
         <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-          El denominador son los coches que cuentan este mes y el numerador los financiados (RCI este mes).{esVo || resultado.tasaIncluyeVo ? "" : " Los usados no cuentan porque el plan lo tiene desactivado."}
+          El denominador son los coches que cuentan este mes y el numerador los financiados (RCI este mes); una financiación adelantada suma en el mes de su RCI.{esVo || resultado.tasaIncluyeVo ? "" : " Los usados no cuentan porque el plan lo tiene desactivado."}
         </p>
         <TablaDatos<FilaTasa> id="detalle-tasa-coches" columnas={columnasTasa} claseFila={(f) => claseFinanciacionFuera(f.fila)} compacta filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." pie={(fs) => ({ cliente: `${fs.length} coche${fs.length === 1 ? "" : "s"}`, cuenta: `${fs.filter((f) => f.coche.cuenta).length} cuentan`, financiado: `${fs.filter((f) => f.coche.financiado).length} financiados`, aviso: fs.some((f) => f.fila.fuera) ? `${fs.filter((f) => f.fila.fuera).length} de otro mes` : "" })} />
       </>
@@ -364,9 +364,11 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   });
   const fueraLista = [...finFuera.values()];
   const entraG = (f: FinanciacionFueraDeMes) => f.clase === "VN" || (hayPlan && resultado.tasaIncluyeVo);
-  const adelantadasG = fueraLista.filter((f) => f.tipo === "adelantada" && entraG(f)).length;
+  const adelantadasG = fueraLista.filter((f) => f.tipo === "adelantada" && f.mesComputo !== null && entraG(f)).length;
+  const sinFechaG = fueraLista.filter((f) => f.tipo === "adelantada" && f.mesComputo === null && entraG(f)).length;
   const anterioresG = fueraLista.filter((f) => f.tipo === "anterior" && entraG(f)).length;
-  const adelantadasV = fueraLista.filter((f) => f.tipo === "adelantada" && f.clase === "VO").length;
+  const adelantadasV = fueraLista.filter((f) => f.tipo === "adelantada" && f.mesComputo !== null && f.clase === "VO").length;
+  const sinFechaV = fueraLista.filter((f) => f.tipo === "adelantada" && f.mesComputo === null && f.clase === "VO").length;
   const anterioresV = fueraLista.filter((f) => f.tipo === "anterior" && f.clase === "VO").length;
   // Financiaciones adelantadas sin importe: el coche no cuenta este mes y no tiene línea, pero hay que verlo para validar la tasa
   for (const f of finFuera.values()) {
@@ -423,11 +425,11 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
                 <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
                   <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Tasa de intervención financiera</span>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
-                    <FichaTasa titulo={resultado.tasaIncluyeVo ? "Global (nuevos y usados)" : "Global (nuevos)"} numerador={tasaG.numerador} denominador={tasaG.denominador} objetivo={tasaG.objetivo} tipoTasa={tasaG.tipoTasa} cumplida={tasaG.cumplida} ayuda="Coches financiados entre los que cuentan este mes" alAbrir={() => setDetalle("tasa")} nota={<NotaFueraDeMes numerador={tasaG.numerador} adelantadas={adelantadasG} anteriores={anterioresG} />} />
+                    <FichaTasa titulo={resultado.tasaIncluyeVo ? "Global (nuevos y usados)" : "Global (nuevos)"} numerador={tasaG.numerador} denominador={tasaG.denominador} objetivo={tasaG.objetivo} tipoTasa={tasaG.tipoTasa} cumplida={tasaG.cumplida} ayuda="Coches financiados entre los que cuentan este mes" alAbrir={() => setDetalle("tasa")} nota={<NotaFueraDeMes numerador={tasaG.numerador} adelantadas={adelantadasG} sinFecha={sinFechaG} anteriores={anterioresG} />} />
                     {tasas.map((x) => (
                       <FichaTasa key={x.idMarca} titulo={nombreMarca(x.idMarca)} numerador={x.numerador} denominador={x.denominador} objetivo={x.objetivo} tipoTasa={x.tipoTasa} cumplida={x.cumplida} ayuda={`Tasa de la marca ${nombreMarca(x.idMarca)}`} alAbrir={() => setDetalle("tasa")} />
                     ))}
-                    {tasaV && tasaV.denominador > 0 && <FichaTasa titulo="Usados (VO)" numerador={tasaV.numerador} denominador={tasaV.denominador} objetivo={tasaV.objetivo} tipoTasa={tasaV.tipoTasa} cumplida={tasaV.cumplida} ayuda="Usados financiados entre los que cuentan este mes" alAbrir={() => setDetalle("tasaVo")} nota={<NotaFueraDeMes numerador={tasaV.numerador} adelantadas={adelantadasV} anteriores={anterioresV} />} />}
+                    {tasaV && tasaV.denominador > 0 && <FichaTasa titulo="Usados (VO)" numerador={tasaV.numerador} denominador={tasaV.denominador} objetivo={tasaV.objetivo} tipoTasa={tasaV.tipoTasa} cumplida={tasaV.cumplida} ayuda="Usados financiados entre los que cuentan este mes" alAbrir={() => setDetalle("tasaVo")} nota={<NotaFueraDeMes numerador={tasaV.numerador} adelantadas={adelantadasV} sinFecha={sinFechaV} anteriores={anterioresV} />} />}
                   </div>
                 </div>
               )}
@@ -544,6 +546,7 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
           resultado={anterior ?? null}
           cargado={anterior !== undefined}
           porId={porId}
+          fueraDeMes
         />}
         <TarjetaComision
           clave="elegido"

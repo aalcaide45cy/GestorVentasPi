@@ -85,7 +85,7 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
     sql`select a.id, a.nombre, a.tamano::bigint as tamano,
         case when a.eliminado_en is not null then 'Documento eliminado' when e.id_expediente is not null then 'Del expediente eliminado ' || e.id_expediente else 'Del cliente eliminado ' || coalesce(c.nombre, '') end as motivo
       from adjuntos a left join expedientes e on e.id_expediente = a.id_expediente and e.eliminado_en is not null left join clientes c on c.id = a.id_cliente and c.eliminado_en is not null
-      where a.ambito <> 'pendiente' and (a.eliminado_en is not null or e.id_expediente is not null or (a.id_expediente is null and c.id is not null))
+      where a.eliminado_en is not null or (a.ambito <> 'pendiente' and (e.id_expediente is not null or (a.id_expediente is null and c.id is not null)))
       order by a.tamano desc`,
   );
   const bytesAdjuntosEliminados = adjuntosDeEliminados.reduce((t, a) => t + Number(a.tamano), 0);
@@ -264,7 +264,7 @@ export async function limpiarBbdd(ej: Ejecutor, entrada: z.infer<typeof esquemaL
     if (entrada.cleanAdjuntosEliminados.length > 0) {
       // Solo los de verdad de algo eliminado (se vuelve a comprobar aquí): nunca un documento de un expediente o cliente vigente
       const lista = sql.join(entrada.cleanAdjuntosEliminados.map((i) => sql`${i}`), sql`, `);
-      const permitidos = sql`a.id in (${lista}) and a.ambito <> 'pendiente' and (a.eliminado_en is not null or exists (select 1 from expedientes e where e.id_expediente = a.id_expediente and e.eliminado_en is not null) or (a.id_expediente is null and exists (select 1 from clientes c where c.id = a.id_cliente and c.eliminado_en is not null)))`;
+      const permitidos = sql`a.id in (${lista}) and (a.eliminado_en is not null or (a.ambito <> 'pendiente' and (exists (select 1 from expedientes e where e.id_expediente = a.id_expediente and e.eliminado_en is not null) or (a.id_expediente is null and exists (select 1 from clientes c where c.id = a.id_cliente and c.eliminado_en is not null)))))`;
       await tx.execute(sql`update clientes set foto_adjunto_id = null where foto_adjunto_id in (select a.id from adjuntos a where ${permitidos})`);
       const r = await tx.execute(sql`delete from adjuntos a where ${permitidos} returning a.id`);
       total += r.rows.length;

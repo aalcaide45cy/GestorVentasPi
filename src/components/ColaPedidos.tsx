@@ -8,7 +8,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { ExpedienteDto, MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola } from "@/lib/pedidos-cola";
+import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola, type ItemCola } from "@/lib/pedidos-cola";
 import { anotarResolucion, cancelarLecturas } from "@/lib/lecturas-pedidos-cliente";
 import EstadoLecturas from "./EstadoLecturas";
 import PedidoRapidoModal from "./PedidoRapidoModal";
@@ -58,10 +58,16 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     if (destino) abrirDeCola(destino.id);
   };
 
+  /** Los documentos de un pedido que se descarta ya no sirven para nada: se marcan como eliminados (se borran del todo desde Configuración › BBDD). */
+  const soltarDocumentos = (lista: ItemCola[]) => {
+    for (const i of lista) for (const id of [i.pedido.adjunto.id, ...(i.dni?.adjuntos ?? [])]) void fetch(`/api/adjuntos?id=${id}`, { method: "DELETE", credentials: "same-origin" }).catch(() => undefined);
+  };
+
   /** Quita el pedido aplicado y abre el siguiente de la cola, si lo hay. */
   const terminado = (mensaje: string, idExpedienteCreado?: number) => {
     if (!actual) return;
     if (actual.idExpediente && actual.dni?.adjuntos.length && !mensaje.startsWith("Pedido descartado")) void vincularDniAlExpediente(actual.dni.adjuntos, actual.idExpediente).catch((e: unknown) => mostrar(`No se ha podido unir el DNI al expediente: ${textoError(e)}`, "error"));
+    if (mensaje.startsWith("Pedido descartado")) soltarDocumentos([actual]);
     anotarResolucion(actual.idLectura, mensaje.startsWith("Pedido descartado") ? "quitado" : actual.idExpediente ? "completado" : "creado", actual.idExpediente ?? idExpedienteCreado ?? null);
     const siguiente = items[indice + 1] ?? items[indice - 1] ?? null;
     quitarDeCola(actual.id);
@@ -99,7 +105,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
           <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => abrirDeCola(i.id)}>
             Abrir
           </button>
-          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => { anotarResolucion(i.idLectura, "quitado"); quitarDeCola(i.id); }} title="Quita el pedido de la cola sin aplicarlo">
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => { anotarResolucion(i.idLectura, "quitado"); soltarDocumentos([i]); quitarDeCola(i.id); }} title="Quita el pedido de la cola sin aplicarlo">
             Descartar
           </button>
         </div>
@@ -126,7 +132,10 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
             className="btn btn-secondary"
             style={{ padding: "6px 14px", fontSize: "0.85rem" }}
             onClick={() => {
-              if (window.confirm("¿Descartar todos los pedidos de la cola? Los ficheros ya leídos quedan guardados como documentos sin asignar, pero habrá que volver a soltarlos para usarlos.")) vaciarCola();
+              if (window.confirm("¿Descartar todos los pedidos de la cola? Sus ficheros se marcan como eliminados (se borran del todo desde Configuración › BBDD) y habrá que volver a soltarlos para usarlos.")) {
+                soltarDocumentos(items);
+                vaciarCola();
+              }
             }}
           >
             Vaciar cola
