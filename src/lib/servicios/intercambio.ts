@@ -35,37 +35,10 @@ import { esquemaPlantilla } from "./plantillas-tarifas";
 
 export const FORMATO = "gv-seccion-1";
 
-export const SECCIONES = ["clientes", "expedientes", "clientes_expedientes", "marcas_modelos", "tipos_venta", "estados", "tiendas", "planes", "plantillas_tarifas", "plantillas_plan", "rejillas", "ajustes", "usuarios"] as const;
-export type Seccion = (typeof SECCIONES)[number];
-export type Modo = "anadir" | "actualizar" | "sustituir";
+import { INFO_SECCIONES, SECCIONES, type InfoSeccion, type Modo, type Seccion } from "@/lib/secciones-info";
 
-export interface InfoSeccion {
-  titulo: string;
-  /** Qué contiene, en lenguaje sencillo. */
-  descripcion: string;
-  /** Singular/plural para los mensajes («clientes»). */
-  plural: string;
-  importable: boolean;
-  modos: Modo[];
-  /** Aviso sobre datos sensibles que incluye el archivo exportado (null si no hay). */
-  aviso: string | null;
-}
-
-export const INFO_SECCIONES: Record<Seccion, InfoSeccion> = {
-  clientes: { titulo: "Clientes", plural: "clientes", descripcion: "Datos de cada cliente: DNI, nombre, fecha de nacimiento, dirección, tienda, correos y teléfonos.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: "Contiene datos personales de tus clientes (DNI, dirección, teléfonos): guarda el archivo en un sitio seguro." },
-  expedientes: { titulo: "Expedientes", plural: "expedientes", descripcion: "Todos los expedientes con su cliente, vehículo, tipo de venta, vendedor, fechas y comisiones a mano.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: "Contiene datos personales (nombre y DNI del cliente) y datos de ventas: guarda el archivo en un sitio seguro." },
-  clientes_expedientes: { titulo: "Clientes y expedientes", plural: "clientes y expedientes", descripcion: "Los clientes con todos sus datos y los expedientes enlazados con ellos, en un solo archivo: al importarlo se recomponen solos los clientes y sus expedientes. Es la forma recomendada de llevar tus ventas a otro equipo.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene datos personales de tus clientes (DNI, dirección, teléfonos) y datos de ventas: guarda el archivo en un sitio seguro." },
-  marcas_modelos: { titulo: "Marcas y modelos", plural: "marcas y modelos", descripcion: "Las marcas con sus modelos y opciones (acceso rápido, sistema de comisiones).", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
-  tipos_venta: { titulo: "Tipos de venta (formas de pago)", plural: "tipos de venta", descripcion: "Contado, crédito, preference…, con su color, orden y si exigen fecha RCI.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
-  estados: { titulo: "Estados de vehículo", plural: "estados de vehículo", descripcion: "Nuevo, usado, KM0, demo…, con su clase (VN o VO).", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
-  tiendas: { titulo: "Tiendas", plural: "tiendas", descripcion: "Las tiendas o concesiones y su ciudad.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
-  planes: { titulo: "Planes de comisionamiento", plural: "planes de comisionamiento", descripcion: "Planes completos (objetivos, tarifas, reglas, bonus…). Se pueden exportar uno, varios o todos; las marcas, modelos y vendedores se identifican por su nombre o correo.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones y objetivos de los vendedores: es información confidencial." },
-  plantillas_tarifas: { titulo: "Plantillas de tarifas VN", plural: "plantillas de tarifas", descripcion: "Las plantillas de «Tarifas de modelos VN por tramo» (marcas y modelos por nombre e importes). Sirven para recomponer las tarifas de cualquier plan.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones: es información confidencial." },
-  plantillas_plan: { titulo: "Plantillas de planes", plural: "plantillas de planes", descripcion: "Las plantillas de partes de un plan (objetivo, usados, reglas, bonus, penalizaciones, notas…) y del plan completo. Marcas, modelos y vendedores por nombre.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones y objetivos de los vendedores: es información confidencial." },
-  rejillas: { titulo: "Cotejo de pagos (rejillas)", plural: "rejillas", descripcion: "Las hojas de comisiones de la empresa que has guardado para cotejar los pagos de cada mes.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene importes de comisiones de los vendedores." },
-  ajustes: { titulo: "Ajustes de la aplicación", plural: "ajustes", descripcion: "Ajustes generales guardados en la base de datos (se excluyen las claves, tokens y contraseñas).", importable: true, modos: ["anadir", "actualizar"], aviso: null },
-  usuarios: { titulo: "Usuarios y vendedores", plural: "usuarios", descripcion: "Nombre, correo, rol, tipo de vendedor y tiendas de cada usuario. Sin contraseñas ni datos de doble factor. Solo se exporta, para consulta: los usuarios se crean desde Configuración › Usuarios.", importable: false, modos: [], aviso: "Contiene correos y datos de los usuarios (nunca contraseñas ni secretos)." },
-};
+export { INFO_SECCIONES, SECCIONES };
+export type { InfoSeccion, Modo, Seccion };
 
 /* ------------------------------------------------------------------ */
 /* Utilidades                                                          */
@@ -167,23 +140,59 @@ const esquemaPaquete = z.object({
 export async function resumenSecciones(ej: Ejecutor): Promise<{ seccion: Seccion; registros: number; detalle?: string }[]> {
   const cuenta = async (q: Promise<{ n: number }[]>) => (await q)[0]?.n ?? 0;
   const n = sql<number>`count(*)::int`;
+  // Todos los recuentos a la vez: así la lista sale en lo que tarda el más lento y no en la suma de todos
+  const [nClientes, nExpedientes, nMarcas, nTipos, nEstados, nTiendas, nPlanes, nPlantillasTarifas, nPlantillasPlan, nRejillas, nAjustes, nUsuarios] = await Promise.all([
+    cuenta(ej.select({ n }).from(clientes).where(isNull(clientes.eliminadoEn))),
+    cuenta(ej.select({ n }).from(expedientes).where(isNull(expedientes.eliminadoEn))),
+    cuenta(ej.select({ n }).from(marcas).where(isNull(marcas.eliminadoEn))),
+    cuenta(ej.select({ n }).from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn))),
+    cuenta(ej.select({ n }).from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn))),
+    cuenta(ej.select({ n }).from(tiendas).where(isNull(tiendas.eliminadoEn))),
+    cuenta(ej.select({ n }).from(commissionPlans)),
+    cuenta(ej.select({ n }).from(plantillasTarifasVn)),
+    cuenta(ej.select({ n }).from(plantillasPlan)),
+    cuenta(ej.select({ n }).from(rejillas)),
+    ajustesExportables(ej).then((a) => a.length),
+    cuenta(ej.select({ n }).from(usuarios)),
+  ]);
   const datos: Record<Seccion, number> = {
-    clientes: await cuenta(ej.select({ n }).from(clientes).where(isNull(clientes.eliminadoEn))),
-    expedientes: await cuenta(ej.select({ n }).from(expedientes).where(isNull(expedientes.eliminadoEn))),
+    clientes: nClientes,
+    expedientes: nExpedientes,
     clientes_expedientes: 0,
-    marcas_modelos: await cuenta(ej.select({ n }).from(marcas).where(isNull(marcas.eliminadoEn))),
-    tipos_venta: await cuenta(ej.select({ n }).from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn))),
-    estados: await cuenta(ej.select({ n }).from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn))),
-    tiendas: await cuenta(ej.select({ n }).from(tiendas).where(isNull(tiendas.eliminadoEn))),
-    planes: await cuenta(ej.select({ n }).from(commissionPlans)),
-    plantillas_tarifas: await cuenta(ej.select({ n }).from(plantillasTarifasVn)),
-    plantillas_plan: await cuenta(ej.select({ n }).from(plantillasPlan)),
-    rejillas: await cuenta(ej.select({ n }).from(rejillas)),
-    ajustes: (await ajustesExportables(ej)).length,
-    usuarios: await cuenta(ej.select({ n }).from(usuarios)),
+    marcas_modelos: nMarcas,
+    tipos_venta: nTipos,
+    estados: nEstados,
+    tiendas: nTiendas,
+    planes: nPlanes,
+    plantillas_tarifas: nPlantillasTarifas,
+    plantillas_plan: nPlantillasPlan,
+    rejillas: nRejillas,
+    ajustes: nAjustes,
+    usuarios: nUsuarios,
   };
   datos.clientes_expedientes = datos.clientes + datos.expedientes;
   return SECCIONES.map((s) => ({ seccion: s, registros: datos[s], ...(s === "clientes_expedientes" ? { detalle: `${datos.clientes.toLocaleString("es-ES")} clientes y ${datos.expedientes.toLocaleString("es-ES")} expedientes` } : {}) }));
+}
+
+/**
+ * Lo que pesaría hoy el archivo .json de cada sección (el mismo que se descarga, con sus sangrías). Se calcula exportando cada sección de
+ * verdad, una detrás de otra para no gastar memoria de golpe, y se recuerda dos minutos: pedirlo varias veces seguidas no repite el trabajo.
+ */
+const cacheTamanos: { cuando: number; datos: Record<Seccion, number> | null; calculando: Promise<Record<Seccion, number>> | null } = { cuando: 0, datos: null, calculando: null };
+
+export async function tamanosSecciones(ej: Ejecutor, fresco = false): Promise<Record<Seccion, number>> {
+  if (!fresco && cacheTamanos.datos && Date.now() - cacheTamanos.cuando < 120_000) return cacheTamanos.datos;
+  if (cacheTamanos.calculando) return cacheTamanos.calculando;
+  cacheTamanos.calculando = (async () => {
+    const r = {} as Record<Seccion, number>;
+    for (const sec of SECCIONES) r[sec] = Buffer.byteLength(JSON.stringify(await exportarSeccion(ej, sec), null, 2), "utf8");
+    cacheTamanos.datos = r;
+    cacheTamanos.cuando = Date.now();
+    return r;
+  })().finally(() => {
+    cacheTamanos.calculando = null;
+  });
+  return cacheTamanos.calculando;
 }
 
 /** Lista breve de planes para elegir cuáles exportar. */

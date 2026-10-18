@@ -67,7 +67,7 @@ export function cuantos(n: number, s: Pick<InfoSeccion, "plural"> & { detalle?: 
   return `1 ${singulares[s.plural] ?? s.plural}`;
 }
 
-const tamanoLegible = (b: number): string => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${(b / 1024).toFixed(1).replace(".", ",")} KB` : `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB`);
+export const tamanoLegible = (b: number): string => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${(b / 1024).toFixed(1).replace(".", ",")} KB` : `${(b / 1024 / 1024).toFixed(1).replace(".", ",")} MB`);
 const fechaHora = (iso: string): string => new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 
 /** Descarga en el navegador el archivo de una sección (o de los planes elegidos). */

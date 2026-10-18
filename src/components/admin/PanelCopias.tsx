@@ -8,6 +8,7 @@ import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
+import ModalDetalleCopia from "./DetalleCopia";
 import type { AjustesCopias, CopiaDto, EstadoCopias } from "@/lib/servicios/copias";
 import type { EstadoDrive, InicioDispositivo, SondeoDispositivo } from "@/lib/servicios/drive";
 
@@ -60,6 +61,7 @@ export default function PanelCopias() {
   const { datos, recargar } = useCarga<Datos>("/api/admin/copias", VACIO);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [restaurar, setRestaurar] = useState<CopiaDto | null>(null);
+  const [detalle, setDetalle] = useState<CopiaDto | null>(null);
   const [marcadas, setMarcadas] = useState<number[]>([]);
   const [form, setForm] = useState({ claveOrigen: "" });
   const [claveNueva, setClaveNueva] = useState("");
@@ -377,6 +379,11 @@ export default function PanelCopias() {
           ) : (
             <span style={{ color: "var(--text-muted)" }}>{c.estado !== "ok" ? "no se puede usar" : "fichero no encontrado"}</span>
           )}
+          {c.archivoPresente && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setDetalle(c)} title="Mira de qué está hecha esta copia y en qué se va su tamaño: qué ocupa cada tabla dentro del archivo, los documentos adjuntos y los datos de la copia.">
+              🔎 Detalle
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => borrar(c)} title="Borra esta copia del servidor (y de Google Drive si estaba subida). No se puede deshacer.">
             Borrar
           </button>
@@ -652,6 +659,7 @@ export default function PanelCopias() {
         )}
       </div>
 
+      {detalle && <ModalDetalleCopia copia={detalle} alCerrar={() => setDetalle(null)} />}
       {restaurar && (
         <Modal
           titulo="⚠️ Restaurar copia de seguridad"
