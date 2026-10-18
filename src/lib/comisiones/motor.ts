@@ -16,7 +16,6 @@ import type {
   ReglaBonusMotor,
   ReglaPreferenceMotor,
   ConceptoId,
-  RepartoConcepto,
   EventoConcepto,
   ResultadoMes,
   TarifaUsadoMotor,
@@ -230,6 +229,12 @@ export function calcularMes(
   });
   /** ¿Está cumplida la tasa que mira una regla financiera? (la de la marca del coche, la global o la de usados) */
   const tasaCumplidaDe = (ambito: AmbitoTasa, idMarca: number | null): boolean => (ambito === "global" ? tasaGlobal.cumplida : ambito === "vo" ? tasaVo.cumplida : tasaDe(idMarca));
+  const ratioDe = (ambito: AmbitoTasa, idMarca: number | null): { cumplida: boolean; numerador: number; denominador: number } => {
+    if (ambito === "global") return tasaGlobal;
+    if (ambito === "vo") return tasaVo;
+    const t = idMarca === null ? undefined : tasas.find((x) => x.idMarca === idMarca);
+    return t ? { cumplida: t.cumplida, numerador: t.numerador, denominador: t.denominador } : { cumplida: idMarca !== null, numerador: 0, denominador: 0 };
+  };
 
   /* Pasos 5 y 8.5: reglas y bonus (puntos e importes) */
   let puntosReglas: Centesimas = 0;
@@ -281,7 +286,7 @@ export function calcularMes(
   /* Pasos 8.3 y 8.4: financiación y Preference (mes de la fecha RCI) */
   for (const i of infos) {
     if (mesDe(i.e.fechaRci) !== mes) continue;
-    for (const c of financiacionYPreference(plan, i.e, mes, tasaCumplidaDe)) anotar(i, c);
+    for (const c of financiacionYPreference(plan, i.e, mes, ratioDe)) anotar(i, c);
   }
 
   /* Paso 8.6: conceptos especiales del expediente */
@@ -543,17 +548,13 @@ function especificidad(r: ReglaPreferenceMotor): number {
   return 1;
 }
 
-/** Identificador de concepto de un reparto: los propios del programa se respetan y cualquier otro nombre es un concepto «extra:». */
-export function idConceptoReparto(texto: string): ConceptoId {
+/** Identificador de la columna de destino de una línea: las propias del programa se respetan y cualquier otro nombre es un concepto «extra:». */
+export function idConceptoDestino(texto: string): ConceptoId {
   const limpio = texto.trim();
   if (limpio === "financiacion" || limpio === "preference") return limpio;
   return `extra:${limpio.replace(/^extra:/, "")}`;
 }
 
-/**
- * Reparte un importe entre conceptos: cada parte del reparto va a su concepto (sin pasarse del importe) y lo que sobra, al concepto habitual.
- * Sin reparto sale una sola línea, igual que antes.
- */
 /** Fecha que decide el mes de un concepto especial según el evento elegido (por defecto, el evento principal del coche). */
 function fechaDeConcepto(evento: EventoConcepto | undefined, i: Info): Fecha | null {
   switch (evento) {
@@ -576,24 +577,7 @@ function fechaDeConcepto(evento: EventoConcepto | undefined, i: Info): Fecha | n
   }
 }
 
-function repartir(defecto: ConceptoId, descripcion: string, importe: Centimos, reparto: RepartoConcepto[] | undefined, mk: (concepto: ConceptoId, descripcion: string, importe: Centimos) => ConceptoLinea): ConceptoLinea[] {
-  const partes = (reparto ?? []).filter((r) => r.importe > 0 && r.concepto.replace(/^extra:/, "").trim() !== "");
-  if (partes.length === 0) return [mk(defecto, descripcion, importe)];
-  const porConcepto = new Map<ConceptoId, Centimos>();
-  let resto = importe;
-  for (const p of partes) {
-    const parte = Math.min(p.importe, resto);
-    if (parte <= 0) continue;
-    const id = idConceptoReparto(p.concepto);
-    porConcepto.set(id, (porConcepto.get(id) ?? 0) + parte);
-    resto -= parte;
-  }
-  if (resto > 0) porConcepto.set(defecto, (porConcepto.get(defecto) ?? 0) + resto);
-  if (porConcepto.size === 0) return [mk(defecto, descripcion, importe)];
-  return [...porConcepto.entries()].map(([id, v]) => mk(id, porConcepto.size === 1 ? descripcion : `${descripcion} · parte a ${id.startsWith("extra:") ? id.slice(6) : id === "financiacion" ? "financiación" : "Preference"}`, v));
-}
-
-function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, tasaCumplidaDe: (ambito: AmbitoTasa, idMarca: number | null) => boolean): ConceptoLinea[] {
+function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, ratioDe: (ambito: AmbitoTasa, idMarca: number | null) => { cumplida: boolean; numerador: number; denominador: number }): ConceptoLinea[] {
   const res: ConceptoLinea[] = [];
   const mk = (concepto: ConceptoId, descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
     concepto,
@@ -612,48 +596,66 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, 
   const cat = e.categoriaVenta;
   if (cat === null || !FINANCIADAS.includes(cat)) return res; // CONTADO no genera incentivo
 
-  // El incentivo de una venta Preference se enseña en la columna «Preference», junto a las reglas BOX3
-  const conceptoFin = cat === "PREFERENCE" ? "preference" : "financiacion";
-  // Una regla puede cobrarse solo si la tasa de intervención está (o no) cumplida; las que llevan condición mandan sobre las que no
-  const cumpleTasa = (r: { tasaIntervencion?: CondicionTasa; tasaAmbito?: AmbitoTasa }): boolean => {
+  // Por defecto, el incentivo de una venta Preference se enseña en la columna «Preference», junto a las reglas BOX3
+  const conceptoFin: ConceptoId = cat === "PREFERENCE" ? "preference" : "financiacion";
+  const destinoDe = (r: { concepto?: string }, defecto: ConceptoId): ConceptoId => (r.concepto && r.concepto.replace(/^extra:/, "").trim() !== "" ? idConceptoDestino(r.concepto) : defecto);
+  // Una línea puede cobrarse solo si la tasa de intervención está (o no) cumplida; con «tasaUmbral» se compara la tasa real con ese %
+  const cumpleTasa = (r: { tasaIntervencion?: CondicionTasa; tasaAmbito?: AmbitoTasa; tasaUmbral?: number | null }): boolean => {
     const c = r.tasaIntervencion ?? "indiferente";
-    return c === "indiferente" || tasaCumplidaDe(r.tasaAmbito ?? "marca", e.idMarca) === (c === "cumplida");
+    if (c === "indiferente") return true;
+    const t = ratioDe(r.tasaAmbito ?? "marca", e.idMarca);
+    const cumplida = r.tasaUmbral === null || r.tasaUmbral === undefined ? t.cumplida : t.denominador === 0 || t.numerador * 100 >= r.tasaUmbral * t.denominador;
+    return cumplida === (c === "cumplida");
   };
   const condicionada = (r: { tasaIntervencion?: CondicionTasa }) => ((r.tasaIntervencion ?? "indiferente") === "indiferente" ? 1 : 0);
+  const porDestino = <T extends { concepto?: string }>(lineas: T[], defecto: ConceptoId): Map<ConceptoId, T[]> => {
+    const grupos = new Map<ConceptoId, T[]>();
+    for (const l of lineas) {
+      const d = destinoDe(l, defecto);
+      grupos.set(d, [...(grupos.get(d) ?? []), l]);
+    }
+    return grupos;
+  };
+
+  // Líneas de financiación: cada columna de destino suma como mucho una línea (la que lleva condición manda sobre la que no)
   const delCoche = plan.financiacionPorMarcaTipo.filter((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e));
-  const tarifa = delCoche.filter(cumpleTasa).sort((a, b) => condicionada(a) - condicionada(b))[0];
-  if (!tarifa && e.clase === "VO" && delCoche.length === 0) return res; // los usados solo cobran financiación si hay una regla que se aplique a usados
-  if (!tarifa && delCoche.length > 0) {
-    // Hay incentivo para este coche, pero solo con otra situación de la tasa de intervención
-    const ambitos = [...new Set(delCoche.map((f) => f.tasaAmbito ?? "marca"))].map((a) => (a === "global" ? "global" : a === "vo" ? "de usados" : `de ${e.idMarca === null ? "la marca" : (plan.nombresMarca?.[e.idMarca] ?? "la marca")}`));
-    res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `No se cobra la financiación ${cat}: la tasa de intervención ${ambitos.join(" / ")} no está en la situación que pide la regla`));
-  } else if (!tarifa) {
-    res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
-  } else {
-    const v = enteroValido(tarifa.importe);
-    if (v === null) res.push(mk(conceptoFin, `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0"));
-    else res.push(...repartir(conceptoFin, `Financiación ${cat}`, v, tarifa.reparto, mk));
+  if (!(e.clase === "VO" && delCoche.length === 0)) {
+    // los usados solo cobran financiación si hay una regla que se aplique a usados
+    let cobrada = false;
+    for (const [destino, lineas] of porDestino(delCoche, conceptoFin)) {
+      const tarifa = lineas.filter(cumpleTasa).sort((a, b) => condicionada(a) - condicionada(b))[0];
+      if (!tarifa) continue;
+      const v = enteroValido(tarifa.importe);
+      cobrada = true;
+      res.push(v === null ? mk(destino, `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0") : mk(destino, `Financiación ${cat}`, v));
+    }
+    if (!cobrada && delCoche.length > 0) {
+      // Hay incentivo para este coche, pero solo con otra situación de la tasa de intervención
+      const ambitos = [...new Set(delCoche.map((f) => f.tasaAmbito ?? "marca"))].map((a) => (a === "global" ? "global" : a === "vo" ? "de usados" : `de ${e.idMarca === null ? "la marca" : (plan.nombresMarca?.[e.idMarca] ?? "la marca")}`));
+      res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `No se cobra la financiación ${cat}: la tasa de intervención ${ambitos.join(" / ")} no está en la situación que pide la regla`));
+    } else if (!cobrada) {
+      res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
+    }
   }
 
+  // Reglas Preference / BOX3: por cada columna de destino se aplica solo la más específica
   if (cat === "PREFERENCE") {
-    const candidatas = plan.reglasPreference
-      .filter(
-        (r) =>
-          r.activa !== false &&
-          aplica(r.aplicaA, e) &&
-          (r.idMarca === null || r.idMarca === e.idMarca) &&
-          (r.idModelo === null || r.idModelo === e.idModelo) &&
-          (r.tipo === null || r.tipo === "PREFERENCE") &&
-          cumpleTasa(r),
-      )
-      .sort((a, b) => condicionada(a) - condicionada(b) || especificidad(b) - especificidad(a) || a.id - b.id);
-    const mejor = candidatas[0];
-    if (mejor) {
+    const candidatas = plan.reglasPreference.filter(
+      (r) =>
+        r.activa !== false &&
+        aplica(r.aplicaA, e) &&
+        (r.idMarca === null || r.idMarca === e.idMarca) &&
+        (r.idModelo === null || r.idModelo === e.idModelo) &&
+        (r.tipo === null || r.tipo === "PREFERENCE") &&
+        cumpleTasa(r),
+    );
+    for (const [destino, lineas] of porDestino(candidatas, "preference")) {
+      const mejor = lineas.sort((a, b) => condicionada(a) - condicionada(b) || especificidad(b) - especificidad(a) || a.id - b.id)[0];
       const v = enteroValido(mejor.importe);
       const desc = `Preference / BOX3${mejor.nombre ? ` (${mejor.nombre})` : ""}`;
-      if (v === null) res.push(mk("preference", desc, 0, "Importe de la regla Preference no válido: se usa 0"));
-      else res.push(...repartir("preference", desc, v, mejor.reparto, mk));
+      res.push(v === null ? mk(destino, desc, 0, "Importe de la regla Preference no válido: se usa 0") : mk(destino, desc, v));
     }
   }
   return res;
 }
+

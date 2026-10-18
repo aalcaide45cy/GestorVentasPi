@@ -159,31 +159,66 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
     expect(julio.financiacionesFueraDeMes).toEqual([{ idExpediente: 200, clase: "VN", tipo: "anterior", mesRci: "2026-06", mesComputo: "2026-07" }]);
   });
 
-  it("un importe se puede repartir entre conceptos: 125 € de Preference = 50 € a financiación y 75 € a Preference", () => {
+  it("cada línea va a su columna: un Dacia Preference de 125 € son 50 € en Financiación y 75 € en Preference, con dos líneas del mismo disparador", () => {
     const e = [coche(1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10" })];
-    const fila = { idMarca: 1, tipo: "PREFERENCE" as const, aplicaA: "VN", importe: 12500, reparto: [{ concepto: "financiacion", importe: 5000 }] };
-    const r = calcularMes(plan({ financiacionPorMarcaTipo: [fila] }), V, "2026-06", e);
+    const lineas = [
+      { idMarca: 1, tipo: "PREFERENCE" as const, aplicaA: "VN", importe: 5000, concepto: "financiacion" },
+      { idMarca: 1, tipo: "PREFERENCE" as const, aplicaA: "VN", importe: 7500, concepto: "preference" },
+    ];
+    const r = calcularMes(plan({ financiacionPorMarcaTipo: lineas }), V, "2026-06", e);
     expect(importeDe(r, "financiacion")).toBe(5000);
     expect(importeDe(r, "preference")).toBe(7500);
     expect(r.bruto).toBe(12500);
   });
 
-  it("los conceptos propios del reparto crean su propio concepto y nunca superan el importe", () => {
-    const e = [coche(1, { categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];
-    const fila = { idMarca: 1, tipo: "CREDITO" as const, aplicaA: "VN", importe: 5000, reparto: [{ concepto: "Seguro", importe: 2000 }, { concepto: "extra:Garantía", importe: 9000 }] };
-    const r = calcularMes(plan({ financiacionPorMarcaTipo: [fila] }), V, "2026-06", e);
-    expect(importeDe(r, "extra:Seguro")).toBe(2000);
-    expect(importeDe(r, "extra:Garantía")).toBe(3000); // solo queda lo que no se ha repartido
-    expect(importeDe(r, "financiacion")).toBe(0);
-    expect(r.bruto).toBe(5000);
+  it("sin destino, el importe va a la columna habitual (Preference en ventas Preference, Financiación en las demás)", () => {
+    const pref = calcularMes(plan({ financiacionPorMarcaTipo: [{ idMarca: 1, tipo: "PREFERENCE" as const, aplicaA: "VN", importe: 4000 }] }), V, "2026-06", [coche(1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10" })]);
+    expect(importeDe(pref, "preference")).toBe(4000);
+    const cred = calcularMes(plan({ financiacionPorMarcaTipo: [{ idMarca: 1, tipo: "CREDITO" as const, aplicaA: "VN", importe: 3000 }] }), V, "2026-06", [coche(1, { categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })]);
+    expect(importeDe(cred, "financiacion")).toBe(3000);
   });
 
-  it("la regla Preference también se reparte y el resto va a Preference", () => {
+  it("una línea puede ir a una columna propia con el nombre que se quiera", () => {
+    const e = [coche(1, { categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];
+    const linea = { idMarca: 1, tipo: "CREDITO" as const, aplicaA: "VN", importe: 2000, concepto: "extra:Seguro" };
+    const r = calcularMes(plan({ financiacionPorMarcaTipo: [linea, { idMarca: 1, tipo: "CREDITO" as const, aplicaA: "VN", importe: 5000 }] }), V, "2026-06", e);
+    expect(importeDe(r, "extra:Seguro")).toBe(2000);
+    expect(importeDe(r, "financiacion")).toBe(5000);
+    expect(r.bruto).toBe(7000);
+  });
+
+  it("en cada columna de destino solo suma una línea: la que lleva condición manda sobre la general", () => {
+    const e = [coche(1, { categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];
+    const lineas = [
+      { idMarca: 1, tipo: "CREDITO" as const, aplicaA: "VN", importe: 1000 },
+      { idMarca: 1, tipo: "CREDITO" as const, aplicaA: "VN", importe: 3000, tasaIntervencion: "cumplida" as const, tasaAmbito: "global" as const },
+    ];
+    const cumple = calcularMes(plan({ financiacionPorMarcaTipo: lineas, tasaGlobal: { tipoTasa: "porcentaje", objetivo: 50 } }), V, "2026-06", e); // 1/1 = 100 %
+    expect(importeDe(cumple, "financiacion")).toBe(3000);
+    const noCumple = calcularMes(plan({ financiacionPorMarcaTipo: lineas, tasaGlobal: { tipoTasa: "porcentaje", objetivo: 101 } }), V, "2026-06", e);
+    expect(importeDe(noCumple, "financiacion")).toBe(1000);
+  });
+
+  it("la tasa se puede fijar a mano en la línea: «solo si la tasa de la marca llega al 75 %»", () => {
+    const linea = { idMarca: 1, tipo: "PREFERENCE" as const, aplicaA: "VN", importe: 7500, concepto: "preference", tasaIntervencion: "cumplida" as const, tasaAmbito: "marca" as const, tasaUmbral: 75 };
+    const pref = (n: number) => Array.from({ length: n }, (_, i) => coche(10 + i, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10" }));
+    const contado = (n: number) => Array.from({ length: n }, (_, i) => coche(50 + i));
+    // 3 de 4 financiados = 75 %: llega; 2 de 4 = 50 %: no llega (aunque el objetivo del plan sea otro)
+    const llega = calcularMes(plan({ financiacionPorMarcaTipo: [linea] }), V, "2026-06", [...pref(3), ...contado(1)]);
+    expect(importeDe(llega, "preference")).toBe(3 * 7500);
+    const noLlega = calcularMes(plan({ financiacionPorMarcaTipo: [linea] }), V, "2026-06", [...pref(2), ...contado(2)]);
+    expect(importeDe(noLlega, "preference")).toBe(0);
+  });
+
+  it("las reglas Preference también van a su columna y se eligen por columna de destino", () => {
     const e = [coche(1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10" })];
-    const regla = { id: 1, idMarca: null, idModelo: null, tipo: null, importe: 10000, reparto: [{ concepto: "Seguro", importe: 4000 }] };
-    const r = calcularMes(plan({ reglasPreference: [regla] }), V, "2026-06", e);
-    expect(importeDe(r, "extra:Seguro")).toBe(4000);
+    const reglas = [
+      { id: 1, idMarca: null, idModelo: null, tipo: null, importe: 6000 },
+      { id: 2, idMarca: null, idModelo: null, tipo: null, importe: 4000, concepto: "extra:Seguro" },
+    ];
+    const r = calcularMes(plan({ reglasPreference: reglas }), V, "2026-06", e);
     expect(importeDe(r, "preference")).toBe(6000);
+    expect(importeDe(r, "extra:Seguro")).toBe(4000);
   });
 
   it("un concepto especial cuenta en el mes de la fecha del expediente que se elija", () => {

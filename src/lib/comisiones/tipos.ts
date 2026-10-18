@@ -112,14 +112,10 @@ export interface FinanciacionMotor {
   tasaIntervencion?: CondicionTasa;
   /** Qué tasa se mira (por defecto, la de la marca del coche). */
   tasaAmbito?: AmbitoTasa;
-  /** Partes del importe que van a otros conceptos; el resto va al concepto habitual. */
-  reparto?: RepartoConcepto[];
-}
-
-/** Parte de un importe que se anota en un concepto concreto («financiacion», «preference» o «extra:Nombre»). */
-export interface RepartoConcepto {
-  concepto: string;
-  importe: Centimos;
+  /** Columna de comisiones a la que va el importe («financiacion», «preference» o «extra:Nombre»); vacío = la habitual. */
+  concepto?: string;
+  /** Si tiene valor, la condición de la tasa compara la tasa real (%) con este valor en vez de con el objetivo del plan. */
+  tasaUmbral?: number | null;
 }
 
 /** Condición sobre la tasa de intervención financiera. */
@@ -139,7 +135,8 @@ export interface ReglaPreferenceMotor {
   activa?: boolean;
   tasaIntervencion?: CondicionTasa;
   tasaAmbito?: AmbitoTasa;
-  reparto?: RepartoConcepto[];
+  concepto?: string;
+  tasaUmbral?: number | null;
 }
 
 export interface ReglaBonusMotor {

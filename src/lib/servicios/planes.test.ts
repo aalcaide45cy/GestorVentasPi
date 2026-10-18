@@ -202,13 +202,20 @@ describe("auditoría: casos límite", () => {
     expect(await listarLiquidaciones(db, { idPlan: plan.idPlan })).toHaveLength(1);
   });
 
-  it("guarda y devuelve el reparto de un importe entre conceptos, y rechaza un reparto mayor que el importe", async () => {
+  it("guarda varias líneas del mismo disparador con distinta columna de destino y un % de tasa propio", async () => {
     await base();
     const [marca] = await db.select().from(marcas).limit(1);
-    const datos = { nombre: "Septiembre 2026", fechaInicio: "2026-09-01", fechaFin: "2026-09-30" };
-    const guardado = await guardarPlan(db, null, { ...datos, financiacion: [{ idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 12500, reparto: [{ concepto: "financiacion", importe: 5000 }, { concepto: "extra:Seguro", importe: 1000 }] }] });
+    const guardado = await guardarPlan(db, null, {
+      nombre: "Septiembre 2026",
+      fechaInicio: "2026-09-01",
+      fechaFin: "2026-09-30",
+      financiacion: [
+        { idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 5000, concepto: "financiacion" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 7500, concepto: "preference" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 1000, concepto: "extra:Seguro", tasaIntervencion: "cumplida", tasaAmbito: "global", tasaUmbral: 75 },
+      ],
+    });
     const leido = await leerPlan(db, guardado.plan.idPlan);
-    expect(leido?.financiacion[0].reparto).toEqual([{ concepto: "financiacion", importe: 5000 }, { concepto: "extra:Seguro", importe: 1000 }]);
-    await expect(guardarPlan(db, null, { ...datos, nombre: "Octubre 2026", fechaInicio: "2026-10-01", fechaFin: "2026-10-31", financiacion: [{ idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 1000, reparto: [{ concepto: "preference", importe: 2000 }] }] })).rejects.toThrow();
+    expect(leido?.financiacion.map((f) => [f.concepto, f.importe, f.tasaUmbral]).sort()).toEqual([["extra:Seguro", 1000, 75], ["financiacion", 5000, null], ["preference", 7500, null]]);
   });
 });

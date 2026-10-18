@@ -541,10 +541,12 @@ export const commissionFinanceRates = pgTable(
     tasaIntervencion: varchar("tasa_intervencion", { length: 20 }).notNull().default("indiferente"),
     /** Qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
     tasaAmbito: varchar("tasa_ambito", { length: 10 }).notNull().default("marca"),
-    /** Reparto del importe entre conceptos: [{ concepto, importe }]. Lo que no se reparte va al concepto habitual de la línea. */
-    reparto: jsonb("reparto").$type<{ concepto: string; importe: number }[]>().notNull().default([]),
+    /** Columna de comisiones a la que va el importe: «financiacion», «preference» o «extra:Nombre». Vacío = la habitual (Preference en ventas Preference, Financiación en las demás). */
+    concepto: varchar("concepto", { length: 80 }).notNull().default(""),
+    /** Si tiene valor, la condición de la tasa compara la tasa real con este % en lugar de con el objetivo del plan. */
+    tasaUmbral: integer("tasa_umbral"),
   },
-  (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion, t.aplicaA, t.tasaIntervencion, t.tasaAmbito)],
+  (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion, t.aplicaA, t.tasaIntervencion, t.tasaAmbito, t.concepto, sql`coalesce(${t.tasaUmbral}, -1)`)],
 );
 
 export const commissionPreferenceRules = pgTable("commission_preference_rules", {
@@ -562,8 +564,10 @@ export const commissionPreferenceRules = pgTable("commission_preference_rules", 
   tasaIntervencion: varchar("tasa_intervencion", { length: 20 }).notNull().default("indiferente"),
   /** Qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
   tasaAmbito: varchar("tasa_ambito", { length: 10 }).notNull().default("marca"),
-  /** Reparto del importe entre conceptos: [{ concepto, importe }]. Lo que no se reparte va al concepto habitual de la línea. */
-  reparto: jsonb("reparto").$type<{ concepto: string; importe: number }[]>().notNull().default([]),
+  /** Columna de comisiones a la que va el importe: «financiacion», «preference» o «extra:Nombre». Vacío = la habitual (Preference en ventas Preference, Financiación en las demás). */
+  concepto: varchar("concepto", { length: 80 }).notNull().default(""),
+  /** Si tiene valor, la condición de la tasa compara la tasa real con este % en lugar de con el objetivo del plan. */
+  tasaUmbral: integer("tasa_umbral"),
 });
 
 /** Columnas comunes de reglas y bonus (las penalizaciones son bonus con `es_penalizacion`). */

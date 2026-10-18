@@ -1,10 +1,10 @@
 "use client";
 
 import EditorTasas from "./EditorTasas";
-import RepartoImporte, { conceptosPropiosDelPlan } from "./RepartoImporte";
+import SelectorConcepto, { conceptosPropiosDelPlan } from "./SelectorConcepto";
 import EditorReglas from "./EditorReglas";
 import SelectorVehiculo from "./SelectorVehiculo";
-import { BotonMini, InputCentesimas, Seccion } from "./campos";
+import { BotonMini, InputCentesimas, InputEntero, Seccion } from "./campos";
 import { reglaNueva, type PropsPestana } from "./tipos";
 
 const TIPOS = ["CREDITO", "PREFERENCE", "RENTING", "CONTADO"] as const;
@@ -17,7 +17,7 @@ type AmbitoTasa = "marca" | "global" | "vo";
  * Condición de una regla financiera sobre la tasa de intervención: «indiferente» (siempre se cobra), «cumplida» o «no cumplida», y
  * qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados.
  */
-function SelectorTasa({ condicion, ambito, alCambiar }: { condicion: CondicionTasa; ambito: AmbitoTasa; alCambiar: (c: { tasaIntervencion?: CondicionTasa; tasaAmbito?: AmbitoTasa }) => void }) {
+function SelectorTasa({ condicion, ambito, umbral, alCambiar }: { condicion: CondicionTasa; ambito: AmbitoTasa; umbral: number | null; alCambiar: (c: { tasaIntervencion?: CondicionTasa; tasaAmbito?: AmbitoTasa; tasaUmbral?: number | null }) => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "190px" }}>
       <select className="form-input" value={condicion} onChange={(e) => alCambiar({ tasaIntervencion: e.target.value as CondicionTasa })} title="Indiferente: se cobra siempre. Cumplida o no cumplida: solo se cobra en esa situación de la tasa del mes.">
@@ -26,11 +26,23 @@ function SelectorTasa({ condicion, ambito, alCambiar }: { condicion: CondicionTa
         <option value="no_cumplida">Solo si NO está cumplida</option>
       </select>
       {condicion !== "indiferente" && (
-        <select className="form-input" value={ambito} onChange={(e) => alCambiar({ tasaAmbito: e.target.value as AmbitoTasa })} title="Qué tasa de intervención financiera se comprueba">
-          <option value="marca">Tasa de la marca del coche</option>
-          <option value="global">Tasa global (todos los nuevos)</option>
-          <option value="vo">Tasa de usados (VO)</option>
-        </select>
+        <>
+          <select className="form-input" value={ambito} onChange={(e) => alCambiar({ tasaAmbito: e.target.value as AmbitoTasa })} title="Qué tasa de intervención financiera se comprueba">
+            <option value="marca">Tasa de la marca del coche</option>
+            <option value="global">Tasa global (todos los nuevos)</option>
+            <option value="vo">Tasa de usados (VO)</option>
+          </select>
+          <select className="form-input" value={umbral === null ? "plan" : "propio"} onChange={(e) => alCambiar({ tasaUmbral: e.target.value === "plan" ? null : 70 })} title="Con qué se compara la tasa real: el objetivo fijado en el plan o un porcentaje que escribes en esta línea">
+            <option value="plan">Según el objetivo del plan</option>
+            <option value="propio">Con un % propio…</option>
+          </select>
+          {umbral !== null && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <InputEntero valor={umbral} min={0} max={100} onChange={(n) => alCambiar({ tasaUmbral: n })} />
+              <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>% de tasa</span>
+            </span>
+          )}
+        </>
       )}
     </div>
   );
@@ -47,7 +59,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
           <BotonMini
             onClick={() => {
               const marca = cat.marcas[0];
-              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 0, tasaIntervencion: "indiferente", tasaAmbito: "marca", reparto: [] }] }));
+              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 0, tasaIntervencion: "indiferente", tasaAmbito: "marca", concepto: "", tasaUmbral: null }] }));
             }}
           >
             + Añadir incentivo
@@ -60,9 +72,10 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
             <thead>
               <tr>
                 <th>Marca</th>
-                <th>Tipo de financiación</th>
+                <th title="Tipo de pago del expediente que activa esta línea (el disparador)">Disparador (tipo de financiación)</th>
                 <th title="A qué coches afecta esta regla: nuevos, usados o los dos">Se aplica a</th>
-                <th title="Solo se cobra si la tasa de intervención financiera está (o no) cumplida. Elige también qué tasa se mira.">Tasa de intervención</th>
+                <th title="Solo se cobra si la tasa de intervención financiera está (o no) cumplida. Elige qué tasa se mira y con qué se compara.">Tasa de intervención</th>
+                <th title="Columna de las tablas de comisiones en la que se anota el importe">Va a la columna</th>
                 <th>Importe (€)</th>
                 <th />
               </tr>
@@ -92,13 +105,13 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                     <SelectorVehiculo estilo="financiacion" valor={f.aplicaA} alCambiar={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, aplicaA: v } : x)) }))} />
                   </td>
                   <td>
-                    <SelectorTasa condicion={f.tasaIntervencion} ambito={f.tasaAmbito} alCambiar={(c) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, ...c } : x)) }))} />
+                    <SelectorTasa condicion={f.tasaIntervencion} ambito={f.tasaAmbito} umbral={f.tasaUmbral} alCambiar={(c) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, ...c } : x)) }))} />
                   </td>
                   <td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
-                      <RepartoImporte importe={f.importe} reparto={f.reparto} defecto={f.tipoFinanciacion === "PREFERENCE" ? "preference" : "financiacion"} sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} titulo={`${cat.marcas.find((m) => m.id === f.idMarca)?.nombre ?? "Marca"} · ${ETIQUETA[f.tipoFinanciacion]}`} alCambiar={(r) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, reparto: r } : x)) }))} />
-                    </div>
+                    <SelectorConcepto valor={f.concepto} defecto={f.tipoFinanciacion === "PREFERENCE" ? "preference" : "financiacion"} sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} alCambiar={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, concepto: v } : x)) }))} />
+                  </td>
+                  <td>
+                    <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: "6px" }}>
@@ -114,7 +127,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
               ))}
               {plan.financiacion.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)" }}>
                     Sin incentivos de financiación en el plan.
                   </td>
                 </tr>
@@ -127,7 +140,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
       <Seccion
         titulo="Reglas Preference / BOX3"
         ayuda="Se aplica solo la regla más específica: marca + modelo, después modelo, después marca y por último la general."
-        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, aplicaA: "VN", importe: 0, activa: true, tasaIntervencion: "indiferente", tasaAmbito: "marca", reparto: [] }] }))}>+ Nueva regla</BotonMini>}
+        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, aplicaA: "VN", importe: 0, activa: true, tasaIntervencion: "indiferente", tasaAmbito: "marca", concepto: "", tasaUmbral: null }] }))}>+ Nueva regla</BotonMini>}
       >
         <div className="table-container">
           <table className="table-premium table-compact">
@@ -137,7 +150,8 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                 <th>Marca</th>
                 <th>Modelo</th>
                 <th title="A qué coches afecta esta regla: nuevos, usados o los dos">Se aplica a</th>
-                <th title="Solo se cobra si la tasa de intervención financiera está (o no) cumplida. Elige también qué tasa se mira.">Tasa de intervención</th>
+                <th title="Solo se cobra si la tasa de intervención financiera está (o no) cumplida. Elige qué tasa se mira y con qué se compara.">Tasa de intervención</th>
+                <th title="Columna de las tablas de comisiones en la que se anota el importe">Va a la columna</th>
                 <th>Importe (€)</th>
                 <th>Activa</th>
                 <th />
@@ -177,13 +191,13 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                       <SelectorVehiculo estilo="financiacion" valor={r.aplicaA} alCambiar={(v) => set({ aplicaA: v })} />
                     </td>
                     <td>
-                      <SelectorTasa condicion={r.tasaIntervencion} ambito={r.tasaAmbito} alCambiar={(c) => set(c)} />
+                      <SelectorTasa condicion={r.tasaIntervencion} ambito={r.tasaAmbito} umbral={r.tasaUmbral} alCambiar={(c) => set(c)} />
                     </td>
                     <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />
-                        <RepartoImporte importe={r.importe} reparto={r.reparto} defecto="preference" sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} titulo={r.nombre || "Regla Preference"} alCambiar={(rep) => set({ reparto: rep })} />
-                      </div>
+                      <SelectorConcepto valor={r.concepto} defecto="preference" sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} alCambiar={(v) => set({ concepto: v })} />
+                    </td>
+                    <td>
+                      <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />
                     </td>
                     <td>
                       <input type="checkbox" checked={r.activa} onChange={(e) => set({ activa: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
@@ -203,7 +217,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
               })}
               {plan.preference.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={9} style={{ textAlign: "center", color: "var(--text-muted)" }}>
                     Sin reglas de Preference / BOX3 en el plan.
                   </td>
                 </tr>
