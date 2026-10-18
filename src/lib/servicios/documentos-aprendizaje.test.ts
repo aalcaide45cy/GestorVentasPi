@@ -37,6 +37,10 @@ describe("pedidos que ya existen", () => {
     const porCliente = await buscarExpedientesSimilares(db, { ...base, dni: "02251153m", fechaExpediente: "2026-09-28", idModelo: modelo.idModelo });
     expect(porCliente[0].motivo).toBe("mismo cliente, fecha y modelo");
     expect(await buscarExpedientesSimilares(db, { ...base, dni: "02251153M", fechaExpediente: "2026-10-01", idModelo: modelo.idModelo })).toEqual([]);
+    // Mismo cliente y fecha pero otro modelo: es otra compra, no un duplicado
+    const [otroModelo] = await db.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: "Duster" }).returning();
+    expect(await buscarExpedientesSimilares(db, { ...base, dni: "02251153M", fechaExpediente: "2026-09-28", idModelo: otroModelo.idModelo })).toEqual([]);
+    expect(await buscarExpedientesSimilares(db, { ...base, cliente: "Luisa", fechaExpediente: "2026-09-28", idModelo: otroModelo.idModelo })).toEqual([]);
     // Sin DNI (pedido de coche nuevo mal leído): el nombre del cliente y la fecha bastan
     expect((await buscarExpedientesSimilares(db, { ...base, cliente: "LUISA", fechaExpediente: "2026-09-28", idModelo: modelo.idModelo }))[0].idExpediente).toBe(exp.idExpediente);
     expect(await buscarExpedientesSimilares(db, { ...base, cliente: "OTRA PERSONA", fechaExpediente: "2026-09-28", idModelo: modelo.idModelo })).toEqual([]);
