@@ -316,8 +316,10 @@ export const esquemaAFondo = z.object({
   confirmacion: z.string(),
   /** También purga los documentos leídos y nunca vinculados (pueden estar en tu cola de pedidos). */
   incluirSinVincular: z.boolean().default(false),
-  /** Conservar el historial de deshacer y el registro de auditoría. */
+  /** Conservar el historial de deshacer y rehacer. */
   conservarHistorial: z.boolean().default(true),
+  /** Vaciar también el registro de auditoría (queda solo la anotación de esta purga). */
+  vaciarAuditoria: z.boolean().default(false),
 });
 
 export interface ResultadoPurga {
@@ -400,8 +402,8 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
   if (entrada.confirmacion.trim().toUpperCase() !== "PURGAR") throw new HttpError(400, "Escribe PURGAR para confirmar");
   const { categoria } = entrada;
   const dias = entrada.antesDeDias;
-  if (categoria === "auditoria" && dias === undefined && !entrada.todo) throw new HttpError(400, "Indica de cuántos días atrás quieres purgar el registro de auditoría");
-  if (!entrada.todo && !(entrada.ids && entrada.ids.length > 0) && dias === undefined) throw new HttpError(400, "No hay nada elegido para purgar");
+  const porIds = !entrada.todo && !!entrada.ids && entrada.ids.length > 0;
+  if (!entrada.todo && !porIds && dias === undefined) throw new HttpError(400, "No hay nada elegido para purgar: elige filas, purga todo o indica de cuántos días atrás");
   let copiaPrevia: string | null = null;
   try {
     copiaPrevia = (await crearCopia(ej, "previa", idAdmin, `Antes de purgar «${TEXTOS[categoria].titulo}». Restáurala si algo no era lo que esperabas.`)).nombre;
@@ -418,11 +420,14 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
     else if (categoria === "documentos") res.purgados = await purgarDocumentos(tx, idsNumericos(ids));
     else if (categoria === "catalogo") Object.assign(res, await purgarCatalogo(tx, ids));
     else if (categoria === "historial") {
-      res.purgados = ((await tx.execute(sql`delete from historial_cambios ${dias !== undefined ? sql`where en < now() - (${dias} || ' days')::interval` : sql``} returning id`)) as unknown as Filas<unknown>).rows.length;
+      const filtro = porIds ? sql`where id in (${lista(idsNumericos(ids))})` : dias !== undefined ? sql`where en < now() - (${dias} || ' days')::interval` : sql``;
+      res.purgados = ((await tx.execute(sql`delete from historial_cambios ${filtro} returning id`)) as unknown as Filas<unknown>).rows.length;
     } else if (categoria === "lecturas") {
-      res.purgados = ((await tx.execute(sql`delete from lecturas_pedidos where estado in ('descartado', 'cancelado', 'pedido', 'error') ${dias !== undefined ? sql`and creada_en < now() - (${dias} || ' days')::interval` : sql``} returning id`)) as unknown as Filas<unknown>).rows.length;
+      const filtro = porIds ? sql`and id in (${lista(idsNumericos(ids))})` : dias !== undefined ? sql`and creada_en < now() - (${dias} || ' days')::interval` : sql``;
+      res.purgados = ((await tx.execute(sql`delete from lecturas_pedidos where estado in ('descartado', 'cancelado', 'pedido', 'error') ${filtro} returning id`)) as unknown as Filas<unknown>).rows.length;
     } else {
-      res.purgados = ((await tx.execute(sql`delete from auditoria ${dias !== undefined ? sql`where en < now() - (${dias} || ' days')::interval` : sql``} returning id`)) as unknown as Filas<unknown>).rows.length;
+      const filtro = porIds ? sql`where id in (${lista(idsNumericos(ids))})` : dias !== undefined ? sql`where en < now() - (${dias} || ' days')::interval` : sql``;
+      res.purgados = ((await tx.execute(sql`delete from auditoria ${filtro} returning id`)) as unknown as Filas<unknown>).rows.length;
     }
     return res;
   });
@@ -470,6 +475,7 @@ export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.inf
     }
     suma("registros de lecturas de pedidos", ((await tx.execute(sql`delete from lecturas_pedidos where estado in ('descartado', 'cancelado', 'pedido', 'error') returning id`)) as unknown as Filas<unknown>).rows.length);
     if (!entrada.conservarHistorial) suma("entradas del historial de deshacer", ((await tx.execute(sql`delete from historial_cambios returning id`)) as unknown as Filas<unknown>).rows.length);
+    if (entrada.vaciarAuditoria) suma("anotaciones del registro de auditoría", ((await tx.execute(sql`delete from auditoria returning id`)) as unknown as Filas<unknown>).rows.length);
     return { purgados, bloqueados, copiaPrevia, detalle };
   });
   const compactado = await compactar(ej).catch(() => null);

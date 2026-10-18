@@ -266,6 +266,7 @@ export default function PanelPapelera() {
   const [aFondo, setAFondo] = useState(false);
   const [sinVincular, setSinVincular] = useState(false);
   const [conservarHistorial, setConservarHistorial] = useState(true);
+  const [vaciarAuditoria, setVaciarAuditoria] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
   const [dias, setDias] = useState<Record<string, number>>({ historial: 30, lecturas: 30, auditoria: 365 });
   const [compactando, setCompactando] = useState(false);
@@ -295,7 +296,7 @@ export default function PanelPapelera() {
   const ejecutarAFondo = async () => {
     setTrabajando(true);
     try {
-      const { data } = await llamar<ResultadoPurga & { compactado: ResultadoCompactado | null }>("/api/admin/papelera", { method: "POST", cuerpo: { accion: "a_fondo", confirmacion: "PURGAR A FONDO", incluirSinVincular: sinVincular, conservarHistorial } });
+      const { data } = await llamar<ResultadoPurga & { compactado: ResultadoCompactado | null }>("/api/admin/papelera", { method: "POST", cuerpo: { accion: "a_fondo", confirmacion: "PURGAR A FONDO", incluirSinVincular: sinVincular, conservarHistorial, vaciarAuditoria } });
       mostrar(`✅ Purga a fondo hecha: ${data.detalle.length > 0 ? data.detalle.join(", ") : "no había nada que purgar"}${data.bloqueados > 0 ? `; ${data.bloqueados} se han dejado porque algo los usa aún` : ""}. ${data.compactado ? `La base pasó de ${tamano(data.compactado.antes)} a ${tamano(data.compactado.despues)}.` : ""} Copia previa: ${data.copiaPrevia}.`, undefined, 15000);
       setAFondo(false);
       refrescar();
@@ -395,6 +396,10 @@ export default function PanelPapelera() {
           <input type="checkbox" checked={conservarHistorial} onChange={(e) => setConservarHistorial(e.target.checked)} style={{ marginTop: "3px" }} />
           <span>Conservar el historial de deshacer y rehacer (si lo desmarcas, también se vacía).</span>
         </label>
+        <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "0.85rem" }}>
+          <input type="checkbox" checked={vaciarAuditoria} onChange={(e) => setVaciarAuditoria(e.target.checked)} style={{ marginTop: "3px" }} />
+          <span>Vaciar también el registro de <b>auditoría</b> (quién hizo qué). Siempre quedará la anotación de esta propia purga.</span>
+        </label>
         <div>
           <button type="button" className="btn btn-danger" onClick={() => setAFondo(true)}>
             🔥 Purgar a fondo…
@@ -417,7 +422,7 @@ export default function PanelPapelera() {
       {aFondo && (
         <ModalConfirmarPurga
           titulo="🔥 Purgar a fondo"
-          texto={`Se van a borrar de verdad ${datos.categorias.filter((c) => ["expedientes", "clientes", "catalogo", "lecturas"].includes(c.categoria)).reduce((a, c) => a + c.cantidad, 0).toLocaleString("es-ES")} elementos entre expedientes, clientes, catálogos y lecturas eliminados${sinVincular ? ", más los documentos sin vincular" : ""}${conservarHistorial ? "" : " y todo el historial de deshacer"}, y la base se compactará.`}
+          texto={`Se van a borrar de verdad ${datos.categorias.filter((c) => ["expedientes", "clientes", "catalogo", "lecturas"].includes(c.categoria)).reduce((a, c) => a + c.cantidad, 0).toLocaleString("es-ES")} elementos entre expedientes, clientes, catálogos y lecturas eliminados${sinVincular ? ", más los documentos sin vincular" : ""}${conservarHistorial ? "" : " y todo el historial de deshacer"}${vaciarAuditoria ? ", y se vaciará el registro de auditoría" : ""}, y la base se compactará.`}
           palabra="PURGAR A FONDO"
           boton="Purgar a fondo"
           trabajando={trabajando}
