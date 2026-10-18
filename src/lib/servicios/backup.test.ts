@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { clientes, expedientes, tiendas, usuarios } from "@/db/schema";
+import { adjuntos, clientes, expedientes, tiendas, usuarios } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCopia, exportarCopia, restaurarCopia, VERSION_COPIA } from "./backup";
@@ -85,5 +85,29 @@ describe("mantenimiento de la base de datos", () => {
     expect(analisis.stats.totalAnomalies).toBe(0);
     expect(await limpiarBbdd(db, esquemaLimpieza.parse({}))).toBe(0);
     expect(await listarExpedientes(db)).toHaveLength(1);
+  });
+
+  it("avisa de lo que hay que revisar a mano (sin tocarlo) y limpia solo los adjuntos sueltos de más de dos días", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana", dni: "12345678Z" }, expediente: { vin: "VF1ABC", matricula: "1234BCD" } }));
+    await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana Dos" }, expediente: { vin: "vf1 abc", matricula: "9999ZZZ" } }));
+    await db.insert(clientes).values([{ clienteId: "solo", nombre: "Sin Compras" }, { clienteId: "d1", nombre: "Dup Uno", dni: "11111111H" }, { clienteId: "d2", nombre: "Dup Dos", dni: "11111111h" }]);
+    const viejo = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+    const [suelto] = await db.insert(adjuntos).values({ ambito: "pendiente", tipo: "pedido", nombre: "viejo.pdf", mime: "application/pdf", tamano: 1, creadoEn: viejo }).returning();
+    const [reciente] = await db.insert(adjuntos).values({ ambito: "pendiente", tipo: "pedido", nombre: "reciente.pdf", mime: "application/pdf", tamano: 1 }).returning();
+
+    const a = await analizarBbdd(db);
+    const cat = (id: string) => a.categorias.find((c) => c.id === id)!;
+    expect(cat("exp_bastidor_repetido").cantidad).toBe(2);
+    expect(cat("cli_dni_repetido").cantidad).toBe(2);
+    expect(cat("cli_sin_expedientes").filas.map((f) => f.texto).join()).toMatch(/Sin Compras/);
+    expect(cat("exp_sin_modelo").cantidad).toBe(2);
+    // Lo limpiable es solo el adjunto viejo; lo «a revisar» no cuenta como limpieza
+    expect(a.stats.totalAnomalies).toBe(1);
+    expect(a.stats.totalARevisar).toBeGreaterThan(0);
+
+    expect(await limpiarBbdd(db, esquemaLimpieza.parse({ cleanAdjuntos: [suelto.id, reciente.id] }))).toBe(1);
+    expect((await db.select().from(adjuntos)).map((x) => x.nombre)).toEqual(["reciente.pdf"]);
+    expect(await listarExpedientes(db)).toHaveLength(2);
   });
 });

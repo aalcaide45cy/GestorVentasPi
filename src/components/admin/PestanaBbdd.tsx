@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
-import { descargarTexto } from "@/lib/csv-expedientes";
 import { mensajeDeError } from "@/components/expedientes/comun";
-import type { AnalisisBbdd } from "@/lib/servicios/mantenimiento";
+import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import type { AnalisisBbdd, CategoriaAnomalia, FilaAnomalia } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
 import PanelDatos from "./PanelDatos";
 import PanelActualizar from "./PanelActualizar";
@@ -44,37 +45,34 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
     }
   };
 
-  const respaldarYLimpiar = async () => {
+  const limpiar = async () => {
     if (!analisis || analisis.stats.totalAnomalies === 0) {
-      mostrar("No hay anomalías que limpiar.", "error");
+      mostrar("No hay registros huérfanos que limpiar.", "error");
       return;
     }
-    if (!window.confirm(`¿Estás seguro de que deseas limpiar las ${analisis.stats.totalAnomalies} anomalías detectadas?\n\nSe descargará automáticamente un backup JSON antes de proceder de forma segura.`)) return;
+    if (!window.confirm(`Se van a borrar ${analisis.stats.totalAnomalies} registro(s) huérfano(s) (solo los de las tarjetas «Se puede limpiar»).\n\nAntes se guarda una copia de seguridad completa; la verás en «Copias de seguridad» y podrás restaurarla si algo no era lo que esperabas. Los avisos «A revisar» no se tocan. ¿Continuar?`)) return;
 
     setLimpiando(true);
     try {
-      const copia = await fetch("/api/admin/backup");
-      if (!copia.ok) throw new Error("Error al generar el backup previo.");
-      descargarTexto(`backup_previo_limpieza_${new Date().toISOString().split("T")[0]}.json`, JSON.stringify(await copia.json(), null, 2), "application/json");
-
       const d = analisis.details;
       const res = await fetch("/api/admin/db-cleanup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cleanLines: d.orphanLines.map((l) => l.id_line),
           cleanEmails: d.orphanEmails.map((e) => e.id),
           cleanTelefonos: d.orphanTelefonos.map((t) => t.id),
           cleanUserTiendas: d.orphanUserTiendas.map((u) => u.id),
           cleanImportRegistros: d.orphanImportRegistros.map((r) => r.id),
+          cleanAdjuntos: d.orphanAdjuntos.map((a) => a.id),
         }),
       });
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al ejecutar limpieza."));
-      mostrar("Base de datos limpiada con éxito. Backup descargado.");
+      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al ejecutar la limpieza."));
+      mostrar("Limpieza hecha. Se guardó antes una copia de seguridad (en «Copias de seguridad»).");
+      setVersionCopias((n) => n + 1);
       await analizar();
       router.refresh();
     } catch (e) {
-      mostrar(e instanceof Error ? e.message : "Error al realizar backup y limpieza.", "error");
+      mostrar(e instanceof Error ? e.message : "Error al limpiar la base de datos.", "error");
     } finally {
       setLimpiando(false);
     }
@@ -93,12 +91,32 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
     }
   };
 
-  const tarjetaCifra = (etiqueta: string, cifra: number, ancho2 = false) => (
-    <div style={{ ...tarjeta, ...(ancho2 ? { gridColumn: "span 2" } : {}) }}>
-      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{etiqueta}</div>
-      <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color: cifra > 0 ? "var(--warning)" : "var(--text-muted)" }}>{cifra}</div>
-    </div>
-  );
+  const [abierta, setAbierta] = useState<CategoriaAnomalia | null>(null);
+  const columnasAnomalia: ColumnaTabla<FilaAnomalia>[] = [
+    { clave: "texto", etiqueta: "Qué es", valor: (f) => f.texto, celda: (f) => <b>{f.texto}</b> },
+    { clave: "detalle", etiqueta: "Por qué se señala", valor: (f) => f.detalle, celda: (f) => <span style={{ whiteSpace: "normal" }}>{f.detalle}</span> },
+    {
+      clave: "enlace",
+      etiqueta: "",
+      valor: () => "",
+      celda: (f) =>
+        f.enlace ? (
+          <a href={f.enlace} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", whiteSpace: "nowrap" }}>
+            Abrir ↗
+          </a>
+        ) : null,
+    },
+  ];
+  const tarjetaCategoria = (c: CategoriaAnomalia) => {
+    const color = c.cantidad === 0 ? "var(--text-muted)" : c.tipo === "limpiable" ? "var(--warning)" : "var(--info)";
+    return (
+      <button key={c.id} type="button" onClick={() => c.cantidad > 0 && setAbierta(c)} disabled={c.cantidad === 0} title={c.cantidad > 0 ? "Ver cuáles son" : c.explicacion} style={{ ...tarjeta, textAlign: "left", cursor: c.cantidad > 0 ? "pointer" : "default", color: "inherit", font: "inherit" }}>
+        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.02em" }}>{c.titulo}</div>
+        <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color }}>{c.cantidad}</div>
+        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>{c.cantidad > 0 ? "Pulsa para ver cuáles" : "Todo en orden"}</div>
+      </button>
+    );
+  };
 
   return (
     <div className="glass-panel" style={{ ...estiloPanel, padding: "32px" }}>
@@ -107,45 +125,57 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
 
       <div>
-        <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🗄️ Herramientas de Mantenimiento y Limpieza de BBDD</h3>
+        <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🗄️ Análisis y limpieza de la base de datos</h3>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5" }}>
-          Analiza y depura registros huérfanos o anomalías de la base de datos de manera segura.
+          Busca dos cosas: <b>registros huérfanos</b> que se pueden borrar sin riesgo (correos y teléfonos sin cliente, archivos subidos que nunca se vincularon…) y <b>cosas a revisar a mano</b> (expedientes sin cliente, bastidores o DNI repetidos, clientes sin expedientes…). Pulsa cualquier tarjeta para ver la lista.
           <br />
-          <strong style={{ color: "var(--warning)" }}>IMPORTANTE:</strong> Para garantizar la seguridad de tus datos, se descargará automáticamente un backup JSON completo antes de ejecutar cualquier acción de limpieza.
+          <strong style={{ color: "var(--warning)" }}>Seguro:</strong> solo se borra lo de «Se puede limpiar», y antes se guarda una copia de seguridad completa que puedes restaurar. Lo de «A revisar» nunca se toca solo.
         </p>
       </div>
 
       <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
         <button type="button" className="btn btn-secondary" onClick={() => void analizar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px" }}>
-          {analizando ? "Analizando..." : "🔍 Analizar Base de Datos"}
+          {analizando ? "Analizando..." : analisis ? "🔍 Analizar de nuevo" : "🔍 Analizar la base de datos"}
         </button>
         {analisis && analisis.stats.totalAnomalies > 0 && (
-          <button type="button" className="btn btn-primary" onClick={() => void respaldarYLimpiar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "var(--warning)", borderColor: "var(--warning)" }}>
-            {limpiando ? "Limpiando BBDD..." : "💾 Descargar Backup y Limpiar BBDD"}
+          <button type="button" className="btn btn-primary" onClick={() => void limpiar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "var(--warning)", borderColor: "var(--warning)" }}>
+            {limpiando ? "Limpiando..." : `🧹 Limpiar los ${analisis.stats.totalAnomalies} huérfanos (con copia previa)`}
           </button>
         )}
       </div>
 
       {analisis && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "8px" }}>
-          <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>Resultados del Análisis:</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-            {tarjetaCifra("LÍNEAS FANTASMA (#EXP-null)", analisis.stats.orphanLinesCount)}
-            {tarjetaCifra("EMAILS HUÉRFANOS DE CLIENTES", analisis.stats.orphanEmailsCount)}
-            {tarjetaCifra("TELÉFONOS HUÉRFANOS DE CLIENTES", analisis.stats.orphanTelefonosCount)}
-            {tarjetaCifra("RELACIONES TIENDA-USUARIO OBSOLETAS", analisis.stats.orphanUserTiendasCount)}
-            {tarjetaCifra("REGISTROS DE IMPORTACIÓN HUÉRFANOS", analisis.stats.orphanImportRegistrosCount, true)}
-          </div>
+          <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>🧹 Se puede limpiar</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>{analisis.categorias.filter((c) => c.tipo === "limpiable").map(tarjetaCategoria)}</div>
           {analisis.stats.totalAnomalies === 0 ? (
-            <div style={{ padding: "16px 20px", background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--success)", fontSize: "0.9rem", fontWeight: 600 }}>
-              ✅ Base de datos completamente optimizada. No se detectaron registros huérfanos.
-            </div>
+            <div style={{ padding: "12px 16px", background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--success)", fontSize: "0.9rem", fontWeight: 600 }}>✅ No hay registros huérfanos que borrar.</div>
           ) : (
-            <div style={{ padding: "16px 20px", background: "rgba(245, 158, 11, 0.06)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--warning)", fontSize: "0.9rem", fontWeight: 600 }}>
-              ⚠️ Se han detectado {analisis.stats.totalAnomalies} registros huérfanos/obsoletos que pueden ser depurados de forma segura.
+            <div style={{ padding: "12px 16px", background: "rgba(245, 158, 11, 0.06)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--warning)", fontSize: "0.9rem", fontWeight: 600 }}>
+              ⚠️ Hay {analisis.stats.totalAnomalies} registros huérfanos que se pueden borrar de forma segura.
             </div>
           )}
+          <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>🔎 A revisar a mano ({analisis.stats.totalARevisar})</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>{analisis.categorias.filter((c) => c.tipo === "revisar").map(tarjetaCategoria)}</div>
         </div>
+      )}
+
+      {abierta && (
+        <Modal
+          titulo={`${abierta.titulo} (${abierta.cantidad})`}
+          ancho="900px"
+          pie={
+            <button type="button" className="btn btn-secondary" onClick={() => setAbierta(null)}>
+              Cerrar
+            </button>
+          }
+        >
+          <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.88rem", lineHeight: 1.5 }}>
+            {abierta.explicacion}
+            {abierta.cantidad > abierta.filas.length ? ` Se muestran las primeras ${abierta.filas.length}.` : ""}
+          </p>
+          <TablaDatos<FilaAnomalia> id={`bbdd-${abierta.id}`} columnas={columnasAnomalia} filas={abierta.filas} clave={(f) => `${abierta.id}-${f.id}-${f.detalle}`} placeholder="Buscar…" />
+        </Modal>
       )}
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
