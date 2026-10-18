@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { mensajeDeError } from "@/components/expedientes/comun";
 import type { BloqueImportacionDto } from "@/lib/servicios/importaciones";
@@ -51,6 +52,35 @@ function Cambios({ json }: { json: string | null }) {
     </div>
   );
 }
+
+const columnasBaseRegistros: ColumnaTabla<Registro>[] = [
+  { clave: "cliente", etiqueta: "Cliente", valor: (r) => r.cliente_nombre, celda: (r) => <b>{r.cliente_nombre}</b> },
+  { clave: "dni", etiqueta: "DNI/NIF", valor: (r) => r.expediente?.cliente?.dni ?? "", celda: (r) => r.expediente?.cliente?.dni || r.bastidor || "N/D" },
+  { clave: "matricula", etiqueta: "Matrícula", valor: (r) => r.matricula || r.expediente?.matricula || "", celda: (r) => r.matricula || r.expediente?.matricula || "N/D" },
+  { clave: "bastidor", etiqueta: "Bastidor (VIN)", valor: (r) => r.bastidor || r.expediente?.vin || "", celda: (r) => <code style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.bastidor || r.expediente?.vin || "N/D"}</code> },
+  { clave: "tipo", etiqueta: "VN / VO", valor: (r) => r.expediente?.estadoVehiculo?.clase ?? "", celda: (r) => (r.expediente?.estadoVehiculo ? <b style={{ color: r.expediente.estadoVehiculo.clase === "VO" ? "var(--warning)" : "var(--success)" }}>{r.expediente.estadoVehiculo.clase}</b> : "—"), alinear: "center" },
+  { clave: "marca", etiqueta: "Marca", valor: (r) => r.expediente?.modelo?.marca?.nombre ?? "" },
+  { clave: "modelo", etiqueta: "Modelo", valor: (r) => r.expediente?.modelo?.nombre_modelo ?? "" },
+  { clave: "estado", etiqueta: "Estado", valor: (r) => r.expediente?.estadoVehiculo?.nombre_estado_vehiculo ?? "", oculta: true },
+  {
+    clave: "accion",
+    etiqueta: "Acción",
+    valor: (r) => r.tipo_accion,
+    celda: (r) => (
+      <span
+        className={`badge ${r.tipo_accion === "creado" ? "badge-tienda" : r.tipo_accion === "modificado" ? "badge-vendedor" : ""}`}
+        style={{
+          fontSize: "0.75rem",
+          backgroundColor: r.tipo_accion === "creado" ? "rgba(59, 130, 246, 0.15)" : r.tipo_accion === "modificado" ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
+          color: r.tipo_accion === "creado" ? "var(--info)" : r.tipo_accion === "modificado" ? "var(--success)" : "var(--text-muted)",
+        }}
+      >
+        {r.tipo_accion.toUpperCase()}
+      </span>
+    ),
+  },
+  { clave: "cambios", etiqueta: "Cambios / Detalles", valor: (r) => r.cambios ?? "", celda: (r) => <div style={{ maxWidth: "350px", whiteSpace: "normal" }}><Cambios json={r.cambios} /></div> },
+];
 
 /** «Log de Importaciones»: historial de cargas CSV/Excel con corrección rápida de cada expediente. */
 export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
@@ -137,6 +167,23 @@ Los clientes que se crearan con ella no se borran. Las comisiones se recalculan 
       mostrar(e instanceof Error ? e.message : "Error al deshacer la importación", "error");
     }
   };
+
+  const columnasRegistros: ColumnaTabla<Registro>[] = [
+    ...columnasBaseRegistros,
+    {
+      clave: "corregir",
+      etiqueta: "",
+      valor: () => "",
+      celda: (r) =>
+        r.id_expediente ? (
+          <button type="button" className="btn btn-secondary" onClick={() => abrirCorreccion(r)} style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+            ✏️ Corregir
+          </button>
+        ) : (
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>No editable</span>
+        ),
+    },
+  ];
 
   const abrirCorreccion = (r: Registro) => {
     const e = r.expediente;
@@ -338,53 +385,15 @@ Los clientes que se crearan con ella no se borran. Las comisiones se recalculan 
                     {b.coincidentes.length === 0 ? (
                       <p style={{ color: "var(--text-muted)", fontStyle: "italic", textAlign: "center" }}>No hay registros coincidentes con los filtros aplicados en este bloque.</p>
                     ) : (
-                      <div style={{ overflowX: "auto" }}>
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>Cliente</th>
-                              <th>DNI/NIF</th>
-                              <th>Matrícula</th>
-                              <th>Bastidor (VIN)</th>
-                              <th>Acción</th>
-                              <th>Cambios / Detalles</th>
-                              <th style={{ width: "100px" }}>Acción</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {b.coincidentes.map((r) => (
-                              <tr key={r.id}>
-                                <td><div style={{ fontWeight: 600 }}>{r.cliente_nombre}</div></td>
-                                <td>{r.expediente?.cliente?.dni || r.bastidor || "N/D"}</td>
-                                <td>{r.matricula || r.expediente?.matricula || "N/D"}</td>
-                                <td><code style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.bastidor || r.expediente?.vin || "N/D"}</code></td>
-                                <td>
-                                  <span
-                                    className={`badge ${r.tipo_accion === "creado" ? "badge-tienda" : r.tipo_accion === "modificado" ? "badge-vendedor" : ""}`}
-                                    style={{
-                                      fontSize: "0.75rem",
-                                      backgroundColor: r.tipo_accion === "creado" ? "rgba(59, 130, 246, 0.15)" : r.tipo_accion === "modificado" ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                                      color: r.tipo_accion === "creado" ? "var(--info)" : r.tipo_accion === "modificado" ? "var(--success)" : "var(--text-muted)",
-                                    }}
-                                  >
-                                    {r.tipo_accion.toUpperCase()}
-                                  </span>
-                                </td>
-                                <td style={{ maxWidth: "350px" }}><Cambios json={r.cambios} /></td>
-                                <td>
-                                  {r.id_expediente ? (
-                                    <button type="button" className="btn btn-secondary" onClick={() => abrirCorreccion(r)} style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-                                      ✏️ Corregir
-                                    </button>
-                                  ) : (
-                                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>No editable</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <TablaDatos<Registro>
+                        id="log-importacion"
+                        columnas={columnasRegistros}
+                        filas={b.coincidentes}
+                        clave={(r) => r.id}
+                        placeholder="Buscar por cliente, matrícula, bastidor, acción…"
+                        textoExtra={(r) => r.cambios ?? ""}
+                        pie={(fs) => ({ cliente: `${fs.length} registro${fs.length === 1 ? "" : "s"}` })}
+                      />
                     )}
                   </div>
                 )}

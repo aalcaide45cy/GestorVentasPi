@@ -1,5 +1,6 @@
 "use client";
 
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
@@ -65,6 +66,43 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
 
   if (items.length === 0) return null;
 
+  const columnasCola: ColumnaTabla<(typeof items)[number]>[] = [
+    {
+      clave: "pedido",
+      etiqueta: "Pedido",
+      valor: (i) => i.pedido.datos.numeroPedido ?? i.nombre,
+      celda: (i) => (
+        <span title={i.nombre}>
+          {i.pedido.datos.numeroPedido ?? i.nombre}
+          {i.pedido.datos.tipoPedido === "usado" && <span title="Vehículo de ocasión vendido"> 🚗</span>}
+          {i.pedido.datos.retoma && <span title={`Lleva vehículo de retoma${i.pedido.datos.retoma.matricula ? ` (${i.pedido.datos.retoma.matricula})` : ""}`}> 🔁</span>}
+        </span>
+      ),
+    },
+    { clave: "cliente", etiqueta: "Cliente", valor: (i) => i.pedido.datos.cliente ?? "", celda: (i) => i.pedido.datos.cliente ?? <span style={{ color: "var(--text-muted)" }}>—</span> },
+    { clave: "tipo", etiqueta: "VN / VO", valor: (i) => (i.pedido.datos.tipoPedido === "usado" ? "VO" : i.pedido.datos.tipoPedido === "nuevo" ? "VN" : ""), alinear: "center" },
+    { clave: "vehiculo", etiqueta: "Vehículo", valor: (i) => i.pedido.datos.modeloTexto ?? "", celda: (i) => i.pedido.datos.modeloTexto ?? "—" },
+    { clave: "fecha", etiqueta: "Fecha", valor: (i) => i.pedido.datos.fechaExpediente ?? "", celda: (i) => (i.pedido.datos.fechaExpediente ? formatDate(i.pedido.datos.fechaExpediente) : "—") },
+    { clave: "destino", etiqueta: "Destino", valor: (i) => (i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente") },
+    {
+      clave: "acciones",
+      etiqueta: "",
+      valor: () => "",
+      celda: (i) => (
+        <span style={{ display: "inline-flex", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => abrirDeCola(i.id)}>
+            Abrir
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => quitarDeCola(i.id)} title="Quita el pedido de la cola sin aplicarlo">
+            Descartar
+          </button>
+        </div>
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="glass-panel" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
@@ -91,45 +129,14 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0 }}>
         Los pedidos leídos esperan aquí hasta que los apliques: puedes cerrar la ventana de un pedido y volver a abrirlo cuando quieras.
       </p>
-      <div className="table-container" style={{ maxHeight: "420px", overflowY: "auto" }}>
-        <table className="table-premium table-compact">
-          <thead>
-            <tr>
-              <th>Pedido</th>
-              <th>Cliente</th>
-              <th>Vehículo</th>
-              <th>Fecha</th>
-              <th>Destino</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((i) => (
-              <tr key={i.id}>
-                <td style={{ maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={i.nombre}>
-                  {i.pedido.datos.numeroPedido ?? i.nombre}
-                  {i.pedido.datos.tipoPedido === "usado" && <span title="Vehículo de ocasión vendido"> 🚗</span>}
-                  {i.pedido.datos.retoma && <span title={`Lleva vehículo de retoma${i.pedido.datos.retoma.matricula ? ` (${i.pedido.datos.retoma.matricula})` : ""}`}> 🔁</span>}
-                </td>
-                <td>{i.pedido.datos.cliente ?? <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
-                <td>{i.pedido.datos.modeloTexto ?? "—"}</td>
-                <td>{i.pedido.datos.fechaExpediente ? formatDate(i.pedido.datos.fechaExpediente) : "—"}</td>
-                <td>{i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente"}</td>
-                <td style={{ whiteSpace: "nowrap" }}>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => abrirDeCola(i.id)}>
-                      Abrir
-                    </button>
-                    <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => quitarDeCola(i.id)} title="Quita el pedido de la cola sin aplicarlo">
-                      Descartar
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <TablaDatos<(typeof items)[number]>
+        id="cola-pedidos"
+        columnas={columnasCola}
+        filas={items}
+        clave={(i) => i.id}
+        placeholder="Buscar por pedido, cliente, vehículo…"
+        vacio="La cola está vacía."
+      />
 
       {actual && !actual.idExpediente && (
         <PedidoRapidoModal
