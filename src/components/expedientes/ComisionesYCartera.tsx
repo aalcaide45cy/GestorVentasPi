@@ -212,7 +212,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
         <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
           El denominador son los coches que cuentan este mes y el numerador los financiados (RCI este mes).{esVo || resultado.tasaIncluyeVo ? "" : " Los usados no cuentan porque el plan lo tiene desactivado."}
         </p>
-        <TablaDatos<FilaTasa> id="detalle-tasa-coches" columnas={columnasTasa} claseFila={(f) => claseFinanciacionFuera(f.fila)} compacta filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." />
+        <TablaDatos<FilaTasa> id="detalle-tasa-coches" columnas={columnasTasa} claseFila={(f) => claseFinanciacionFuera(f.fila)} compacta filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." pie={(fs) => ({ cliente: `${fs.length} coche${fs.length === 1 ? "" : "s"}`, cuenta: `${fs.filter((f) => f.coche.cuenta).length} cuentan`, financiado: `${fs.filter((f) => f.coche.financiado).length} financiados`, aviso: fs.some((f) => f.fila.fuera) ? `${fs.filter((f) => f.fila.fuera).length} de otro mes` : "" })} />
       </>
     );
   } else if (tipo === "objetivo") {
@@ -244,7 +244,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
           textoExtra={(f) => f.linea.conceptos.map((c) => c.descripcion).join(" ")}
           placeholder="Buscar por cliente, modelo, marca, matrícula…"
           vacio="Todavía no hay coches que cuenten en este mes."
-          pie={(fs) => ({ cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`, puntos: puntos(fs.reduce((t, f) => t + f.linea.puntos, 0)), total: euros(fs.reduce((t, f) => t + f.linea.importe, 0)) })}
+          pie={(fs) => ({ cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`, puntos: puntos(fs.reduce((t, f) => t + f.linea.puntos, 0)), coche: euros(fs.reduce((t, f) => t + f.coche, 0)), financiacion: euros(fs.reduce((t, f) => t + f.financiacion, 0)), preference: euros(fs.reduce((t, f) => t + f.preference, 0)), bonus: euros(fs.reduce((t, f) => t + f.bonus, 0)), total: euros(fs.reduce((t, f) => t + f.linea.importe, 0)) })}
         />
       </>
     );
