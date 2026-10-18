@@ -13,6 +13,8 @@ import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/Bo
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import NombreConFoto from "./documentos/FotoCliente";
 import { mensajeDeError } from "./expedientes/comun";
+import ModalPedidoEnExpediente, { type CambiosDelPedido } from "./expedientes/ModalPedidoEnExpediente";
+import type { ResultadoPedido } from "@/lib/servicios/documentos";
 import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 
@@ -197,6 +199,65 @@ function FormularioEditarExpediente({
     setTelefonos(telefonosDeCliente(c));
     setBusqueda("");
     setResultados([]);
+  };
+
+  /* ---- Pedido leído: vista previa en un modal y, al aplicar, se rellena el formulario ---- */
+  const [pedidoLeido, setPedidoLeido] = useState<ResultadoPedido | null>(null);
+  const etiquetaModelo = (id: number | ""): string => {
+    if (id === "") return "";
+    for (const [idMarca, lista] of Object.entries(modelosPorMarca)) {
+      const m = lista.find((x) => x.id === id);
+      if (m) return `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim();
+    }
+    return "";
+  };
+  const aplicarPedido = async (c: CambiosDelPedido, r: ResultadoPedido) => {
+    if (c.idModelo) {
+      const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === c.idModelo));
+      if (marcaDe) {
+        setMarca(Number(marcaDe[0]));
+        setModelo(c.idModelo);
+      }
+    }
+    if (c.idTipoVenta) setTipoVenta(c.idTipoVenta);
+    if (c.vin) setVin(c.vin);
+    if (c.matricula) setMatricula(c.matricula);
+    if (c.fExp) setFExp(c.fExp);
+    if (c.fEntrega) setFEntrega(c.fEntrega);
+    if (c.fMat) setFMat(c.fMat);
+    const dc = c.datosCliente;
+    const conPrincipal = (lista: ContactoEdicion[], valor: string): ContactoEdicion[] => {
+      const rellenos = lista.filter((x) => x.valor.trim() !== "");
+      if (rellenos.some((x) => x.valor.trim().toLowerCase() === valor.trim().toLowerCase())) return lista;
+      return [...rellenos, { valor, tipo: rellenos.length === 0 ? "Principal" : "Otro" }];
+    };
+    if (c.cliente.modo === "existente") {
+      const id = c.cliente.id;
+      const buscar = r.datos.dni || r.datos.cliente || "";
+      const encontrados = buscar ? await fetch(`/api/clientes/buscar?q=${encodeURIComponent(buscar)}`).then((x) => (x.ok ? (x.json() as Promise<{ data?: ClienteDto[] }>) : null)).catch(() => null) : null;
+      const elegido = encontrados?.data?.find((x) => x.id === id);
+      if (!elegido) throw new Error("No se ha podido cargar el cliente elegido. Búscalo a mano en el cuadro de clientes.");
+      elegirCliente(elegido);
+    } else if (c.cliente.modo === "nuevo") {
+      desasignar();
+      setDni(dc.dni ?? "");
+      setNombre(dc.nombre ?? "");
+      setEmails(dc.email ? [{ valor: dc.email, tipo: "Principal" }] : [contactoVacio()]);
+      setTelefonos(dc.telefono ? [{ valor: dc.telefono, tipo: "Principal" }] : [contactoVacio()]);
+    } else if (c.cliente.modo === "mantener") {
+      if (dc.dni) setDni(dc.dni);
+      if (dc.nombre) setNombre(dc.nombre);
+      if (dc.email) setEmails((l) => conPrincipal(l, dc.email as string));
+      if (dc.telefono) setTelefonos((l) => conPrincipal(l, dc.telefono as string));
+    }
+    try {
+      await vincularAdjuntos([r.adjunto.id], { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+      setVersionAdjuntos((v) => v + 1);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.", "error");
+    }
+    setPedidoLeido(null);
+    mostrar("Pedido aplicado: revisa los datos y pulsa «Guardar Cambios».");
   };
 
   const desasignar = () => {
@@ -657,34 +718,17 @@ function FormularioEditarExpediente({
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerPedido
-                compacta
-                disabled={cargando}
-                alLeer={async (r) => {
-                  const d = r.datos;
-                  if (d.vin) setVin(d.vin);
-                  if (d.matricula) setMatricula(d.matricula);
-                  if (d.fechaExpediente) setFExp(d.fechaExpediente);
-                  if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
-                  if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
-                  if (d.idModelo) {
-                    const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
-                    if (marcaDe) {
-                      setMarca(Number(marcaDe[0]));
-                      setModelo(d.idModelo);
-                    }
-                  }
-                  if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
-                  try {
-                    await vincularAdjuntos([r.adjunto.id], { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
-                    setVersionAdjuntos((v) => v + 1);
-                  } catch (e) {
-                    mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.", "error");
-                  }
-                  mostrar("Pedido leído: revisa los datos y pulsa «Guardar Cambios».");
-                }}
-              />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido para rellenar lo que reconozca (se guarda al pulsar «Guardar Cambios»).</span>
+              <BotonLeerPedido compacta disabled={cargando} alLeer={async (r) => setPedidoLeido(r)} />
+              {pedidoLeido && (
+                <ModalPedidoEnExpediente
+                  pedido={pedidoLeido}
+                  actuales={{ idModelo: modelo, modelo: etiquetaModelo(modelo), idTipoVenta: tipoVenta, tipoVenta: tiposVenta.find((t) => t.id === Number(tipoVenta))?.nombre ?? "", vin, matricula, fExp, fEntrega, fMat, idCliente: asignado ? asignado.id : null, dni, nombre, telefono: telefonos.find((t) => t.valor.trim() !== "")?.valor ?? "", email: emails.find((m) => m.valor.trim() !== "")?.valor ?? "" }}
+                  nombres={{ modelo: pedidoLeido.datos.idModelo ? etiquetaModelo(pedidoLeido.datos.idModelo) : null, tipoVenta: tiposVenta.find((t) => t.id === pedidoLeido.datos.idTipoDeVenta)?.nombre ?? null }}
+                  alAplicar={(c) => aplicarPedido(c, pedidoLeido)}
+                  alCancelar={() => setPedidoLeido(null)}
+                />
+              )}
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido: verás una vista previa para marcar qué datos aplicar (cliente incluido). Se guarda al pulsar «Guardar Cambios».</span>
             </div>
 
             <div className="rejilla-ficha">
