@@ -726,7 +726,6 @@ export default function ExpedientesList({
       setEdicionMasiva(false);
       setSeleccionados([]);
       router.refresh();
-      setTimeout(() => window.location.reload(), 1000);
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error de conexión al actualizar.", "error");
     } finally {
@@ -779,7 +778,6 @@ export default function ExpedientesList({
       setFalloCopia(null);
       setSeleccionados([]);
       router.refresh();
-      setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
       mostrar(`No se ha creado ninguna copia. Motivo: ${e instanceof Error ? e.message : "error inesperado."}`, "error");
     } finally {

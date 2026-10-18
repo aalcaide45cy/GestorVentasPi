@@ -240,4 +240,37 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
       expect(importeDe(otro, "especial"), `${evento} en otro mes`).toBe(0);
     }
   });
+
+  describe("rejilla de la empresa (Resultado PROPIO)", () => {
+    const fin = (id: number, idMarca: number, o: Partial<ExpedienteMotor> = {}) => coche(id, { idMarca, categoriaVenta: "CREDITO", fechaRci: "2026-06-10", ...o });
+    const marcaDe = (r: ReturnType<typeof calcularMes>, idMarca: number) => r.tasaIntervencion.find((t) => t.idMarca === idMarca);
+
+    it("hoja 1: Renault 2/2 = 100 %, Dacia 3/3 = 100 %, y la global cuenta también los 2 usados: 6/7 = 85,71 %", () => {
+      const e = [
+        fin(1, 2),
+        fin(2, 2),
+        fin(3, 3),
+        fin(4, 3),
+        fin(5, 3),
+        fin(6, 3, { clase: "VO", subtipoVO: "USADO", fechaMatriculacion: null, fechaFacturacion: "2026-06-12" }),
+        coche(7, { idMarca: 3, clase: "VO", subtipoVO: "USADO", categoriaVenta: "CONTADO", fechaMatriculacion: null, fechaFacturacion: "2026-06-13" }),
+      ];
+      const r = calcularMes(plan({ tasaGlobal: { tipoTasa: "porcentaje", objetivo: 65 } }), V, "2026-06", e);
+      expect(marcaDe(r, 2)).toMatchObject({ numerador: 2, denominador: 2, porcentaje: 100 });
+      expect(marcaDe(r, 3)).toMatchObject({ numerador: 4, denominador: 5 }); // los usados de esa marca suman a su tasa
+      expect(r.tasaGlobal).toMatchObject({ numerador: 6, denominador: 7, porcentaje: 85.71 });
+      // Solo con los nuevos de cada marca (sin usados) también se ve el 100 %
+      const soloNuevos = calcularMes(plan({ tasaIncluyeVo: false }), V, "2026-06", e);
+      expect(marcaDe(soloNuevos, 3)).toMatchObject({ numerador: 3, denominador: 3, porcentaje: 100 });
+    });
+
+    it("hoja 2: con financiaciones contratadas sin que el coche cuente, la tasa pasa del 100 %: Renault 3/2 = 150 %, Dacia 6/5 = 120 %, global 9/7 = 128,57 %", () => {
+      const adelantada = (id: number, idMarca: number) => fin(id, idMarca, { fechaMatriculacion: "2026-07-05" });
+      const e = [fin(1, 2), fin(2, 2), adelantada(3, 2), fin(4, 3), fin(5, 3), fin(6, 3), fin(7, 3), fin(8, 3), adelantada(9, 3)];
+      const r = calcularMes(plan(), V, "2026-06", e);
+      expect(marcaDe(r, 2)).toMatchObject({ numerador: 3, denominador: 2, porcentaje: 150 });
+      expect(marcaDe(r, 3)).toMatchObject({ numerador: 6, denominador: 5, porcentaje: 120 });
+      expect(r.tasaGlobal).toMatchObject({ numerador: 9, denominador: 7, porcentaje: 128.57, cumplida: true });
+    });
+  });
 });

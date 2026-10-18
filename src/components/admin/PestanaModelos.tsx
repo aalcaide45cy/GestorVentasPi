@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { ModeloDto } from "@/lib/dto";
 import type { MarcaConModelos } from "./PestanaMarcas";
@@ -20,6 +21,7 @@ interface FilaModelo {
 
 /** Pestaña «Modelos»: marcas con sistema de comisiones primero y el resto agrupado. */
 export default function PestanaModelos({ marcas, setMarcas }: Props) {
+  const router = useRouter();
   const { cargando, llamar, ejecutar } = usePeticion();
   const orden = useOrden("orden_acceso_rapido");
   const [marcaNueva, setMarcaNueva] = useState<number | "">("");
@@ -158,7 +160,7 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
     if (ok) {
       setReasignando(null);
       // El modelo nuevo aparece al recargar la lista
-      if (destino === "nuevo") window.location.reload();
+      if (destino === "nuevo") router.refresh();
     }
   };
 

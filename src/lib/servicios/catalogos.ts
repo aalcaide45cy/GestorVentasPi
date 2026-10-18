@@ -10,7 +10,7 @@ const nombre = z.string().trim().min(1, "El nombre es requerido").max(255);
 const idPositivo = z.coerce.number().int().positive("Falta el identificador");
 const CATEGORIAS = ["CONTADO", "CREDITO", "PREFERENCE", "RENTING"] as const;
 const CLASES = ["VN", "VO"] as const;
-const color = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido (usa #RRGGBB)");
+const color = z.string().trim().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "Color no válido (usa #RRGGBB o #RRGGBBAA)");
 
 export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
   z.object({

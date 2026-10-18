@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
+import { avisarCambioDeDatos } from "@/lib/datos-version";
 import type { EstadoHistorial, PasoHistorial } from "@/lib/servicios/historial";
-
-const CLAVE_AVISO = "historial-aviso";
 
 const cuando = (iso: string): string => new Date(iso).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -31,6 +31,7 @@ const queCambio = (p: PasoHistorial): string => {
 /** Deshacer, rehacer e historial de cambios del usuario (menú lateral). Atajos: Ctrl+Z, Ctrl+Y y Ctrl+Mayús+Z fuera de los campos de texto. */
 export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
   const { mostrar } = useToast();
+  const router = useRouter();
   const [estado, setEstado] = useState<EstadoHistorial | null>(null);
   const [lista, setLista] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -49,15 +50,6 @@ export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
 
   useEffect(() => {
     cargar();
-    try {
-      const aviso = sessionStorage.getItem(CLAVE_AVISO);
-      if (aviso) {
-        sessionStorage.removeItem(CLAVE_AVISO);
-        mostrar(aviso);
-      }
-    } catch {
-      /* sin almacenamiento de sesión */
-    }
     // Cada cambio que hace la aplicación (una petición que no es de lectura y sale bien) actualiza el historial
     const fetchOriginal = window.fetch;
     window.fetch = async (...args: Parameters<typeof fetch>) => {
@@ -84,12 +76,12 @@ export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
         try {
           const r = await llamar<{ pasos: number; accion: string }>(`/api/historial/${direccion}`, { method: "POST", cuerpo: { grupo, forzar } });
           const texto = direccion === "deshacer" ? "Deshecho" : "Rehecho";
-          try {
-            sessionStorage.setItem(CLAVE_AVISO, r.data.pasos > 1 ? `${texto}: ${r.data.pasos} cambios, hasta «${r.data.accion}»` : `${texto}: ${r.data.accion}`);
-          } catch {
-            /* sin almacenamiento de sesión */
-          }
-          window.location.reload();
+          // Sin recargar la página: se refrescan los datos en su sitio y se conserva el scroll
+          router.refresh();
+          avisarCambioDeDatos();
+          mostrar(r.data.pasos > 1 ? `${texto}: ${r.data.pasos} cambios, hasta «${r.data.accion}»` : `${texto}: ${r.data.accion}`);
+          setOcupado(false);
+          cargar();
           return;
         } catch (e) {
           const mensaje = textoError(e);
@@ -103,7 +95,7 @@ export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
         }
       }
     },
-    [cargar, mostrar],
+    [cargar, mostrar, router],
   );
 
   // Atajos de teclado, solo cuando no se está escribiendo ni hay una ventana abierta

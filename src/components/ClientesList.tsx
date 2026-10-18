@@ -69,6 +69,12 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const { mostrar } = useToast();
 
   const [clientes, setClientes] = useState<ClienteItem[]>(clientesIniciales);
+  // Si el servidor entrega datos nuevos (router.refresh, deshacer o rehacer), se reemplazan los locales
+  const [inicialesPrevios, setInicialesPrevios] = useState(clientesIniciales);
+  if (clientesIniciales !== inicialesPrevios) {
+    setInicialesPrevios(clientesIniciales);
+    setClientes(clientesIniciales);
+  }
   const [formulario, setFormulario] = useState<"crear" | "editar" | null>(null);
   const [seleccionado, setSeleccionado] = useState<ClienteItem | null>(null);
   const [cargando, setCargando] = useState(false);

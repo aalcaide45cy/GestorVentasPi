@@ -2,6 +2,7 @@
 
 import { EtiquetaClase } from "@/components/etiquetas";
 import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import type { EstadoVehiculoDto } from "@/lib/dto";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
 
@@ -44,6 +45,7 @@ function SelectorSubtipo({ valor, alCambiar, opciones, pequeno }: { valor: strin
 
 /** Pestaña «Estados» del vehículo. Solo uno puede ser el predeterminado. */
 export default function PestanaEstados({ estados, setEstados }: Props) {
+  const router = useRouter();
   const { cargando, llamar, ejecutar } = usePeticion();
   const orden = useOrden("id");
   const [nombre, setNombre] = useState("");
@@ -81,7 +83,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
     const ok = await ejecutar(async () => {
       setLista(await llamar<typeof lista>("/api/admin/subtipos-vo", metodo, cuerpo, "No se ha podido guardar el subtipo"));
     }, exito);
-    if (ok && metodo === "PUT") window.location.reload();
+    if (ok && metodo === "PUT") router.refresh();
     return ok;
   };
   const valor = (e: EstadoVehiculoDto): string | number => (orden.campo === "nombre" ? e.nombre_estado_vehiculo : e.id_estado_vehiculo);

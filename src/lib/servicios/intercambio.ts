@@ -802,9 +802,9 @@ const filaMarca = z.object({
   activo: z.boolean().nullish(),
   accesoRapido: z.boolean().nullish(),
   sistemaComisiones: z.boolean().nullish(),
-  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "color no válido (usa #RRGGBB)").nullish(),
+  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "color no válido (usa #RRGGBB o #RRGGBBAA)").nullish(),
   punto: z.string().trim().max(8).nullish(),
-  puntoColor: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "color del punto no válido (usa #RRGGBB)").nullish(),
+  puntoColor: z.string().trim().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "color del punto no válido (usa #RRGGBB o #RRGGBBAA)").nullish(),
   modelos: z.array(z.object({ nombre: z.string().trim().min(1).max(150), accesoRapido: z.boolean().nullish(), ordenAccesoRapido: entero })).default([]),
 });
 

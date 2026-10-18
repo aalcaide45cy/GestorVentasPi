@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import type { MarcaDto, ModeloDto } from "@/lib/dto";
 import { EtiquetaMarca, PuntoMarca } from "@/components/etiquetas";
+import SelectorColor from "@/components/SelectorColor";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
 
 export type MarcaConModelos = MarcaDto & { modelos: ModeloDto[] };
@@ -140,19 +141,12 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
         <input type="text" className="form-input" placeholder="Nombre de nueva marca... (Ej. Nissan)" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={cargando} required style={{ flex: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <label style={{ fontSize: "0.85rem", fontWeight: 600 }}>Borde de la cápsula:</label>
-          <input type="color" value={color || "#3b82f6"} onChange={(e) => setColor(e.target.value)} style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer" }} title="Color de la marca: su marca y modelo se enseñan en una cápsula de este color" />
-          {color ? (
-            <button type="button" className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.75rem" }} onClick={() => setColor("")}>
-              Sin color
-            </button>
-          ) : (
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>sin color</span>
-          )}
+          <SelectorColor valor={color || null} alCambiar={(v) => setColor(v ?? "")} titulo="Borde de la cápsula de la marca" />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <label style={{ fontSize: "0.85rem", fontWeight: 600 }}>Punto:</label>
           <input type="text" className="form-input" maxLength={8} placeholder="●" value={punto} onChange={(e) => setPunto(e.target.value)} style={{ width: "64px", textAlign: "center" }} title="El símbolo de la columna del punto: un punto, una coma, un emoticono… Vacío = un punto" />
-          <input type="color" value={puntoColor || "#3b82f6"} onChange={(e) => setPuntoColor(e.target.value)} style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer" }} title="Color del punto" />
+          <SelectorColor valor={puntoColor || null} alCambiar={(v) => setPuntoColor(v ?? "")} titulo="Color del punto de la marca" permitirVacio={false} />
           {puntoColor || punto ? (
             <button
               type="button"
@@ -212,23 +206,14 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
                 </td>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                    <input type="color" value={m.color ?? "#3b82f6"} onChange={(e) => void cambiarColor(m, e.target.value)} disabled={cargando} style={{ width: "30px", height: "30px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer", opacity: m.color ? 1 : 0.5 }} title="Elige el color de la marca" />
-                    {m.color ? (
-                      <>
-                        <EtiquetaMarca texto={m.nombre} color={m.color} />
-                        <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => void cambiarColor(m, null)} disabled={cargando} title="Quitar el color de esta marca">
-                          Quitar
-                        </button>
-                      </>
-                    ) : (
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>sin color</span>
-                    )}
+                    <SelectorColor valor={m.color} alCambiar={(v) => void cambiarColor(m, v)} disabled={cargando} titulo={`Borde de la cápsula de ${m.nombre}`} />
+                    {m.color && <EtiquetaMarca texto={m.nombre} color={m.color} />}
                   </div>
                 </td>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                     <input type="text" className="form-input" maxLength={8} placeholder="●" value={puntosEscritos[m.id_marca] ?? m.punto ?? ""} onChange={(e) => setPuntosEscritos((p) => ({ ...p, [m.id_marca]: e.target.value }))} onBlur={() => guardarPuntoEscrito(m)} disabled={cargando} style={{ width: "60px", textAlign: "center", padding: "4px" }} title="Símbolo del punto: un punto, una coma, un emoticono… Vacío = un punto" />
-                    <input type="color" value={m.punto_color ?? "#3b82f6"} onChange={(e) => void cambiarPunto(m, { punto_color: e.target.value })} disabled={cargando} style={{ width: "30px", height: "30px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer", opacity: m.punto_color ? 1 : 0.5 }} title="Color del punto" />
+                    <SelectorColor valor={m.punto_color} alCambiar={(v) => void cambiarPunto(m, { punto_color: v })} disabled={cargando} titulo={`Color del punto de ${m.nombre}`} textoVacio={<span style={{ color: "var(--text-muted)" }}>sin color</span>} />
                     {m.punto_color || m.punto ? (
                       <>
                         <PuntoMarca punto={m.punto} color={m.punto_color} />
