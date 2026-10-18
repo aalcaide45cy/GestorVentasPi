@@ -310,3 +310,5 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 ## Versión 1.1.1 (19/10/2026)
 
 - **Papelera**: en el registro de auditoría, el historial de deshacer y el registro de lecturas, «Purgar lo elegido» purga las filas marcadas (antes pedía un número de días); «Purgar a fondo» puede vaciar también la auditoría.
+- **Subidas de más de 10 MB**: Next recortaba en silencio los cuerpos de petición de más de 10 MB (por el «proxy»): los pedidos de entre 10 y 15 MB se guardaban cortados y las copias .dump subidas desde el navegador llegaban incompletas. Ahora el límite es de 2 GB (`proxyClientMaxBodySize`). Los pedidos ya guardados cortados no se pueden reparar.
+- **Visor de la Papelera** incrustable en la propia aplicación (salía en blanco) y **la pestaña de Configuración abierta se recuerda** al recargar.
