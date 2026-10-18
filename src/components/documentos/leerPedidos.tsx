@@ -23,8 +23,11 @@ export async function leerYEncolar(
   alError: (mensaje: string) => void,
   /** Se llama con cada pedido en cuanto se lee (el primero se puede abrir mientras se leen los demás). */
   alLeer?: (item: ItemCola) => void,
+  /** Se llama una vez al terminar con los documentos que no eran pedidos y se han ignorado. */
+  alIgnorados?: (ignorados: string[]) => void,
 ): Promise<ItemCola[]> {
   const leidos: ItemCola[] = [];
+  const ignorados: string[] = [];
   for (let i = 0; i < ficheros.length; i++) {
     alProgreso(i, ficheros.length);
     if (huecosEnCola() === 0) {
@@ -37,10 +40,14 @@ export async function leerYEncolar(
       leidos.push(...nuevos);
       for (const n of nuevos) alLeer?.(n);
     } catch (e) {
-      alError(`${ficheros[i].name}: ${e instanceof Error ? e.message : "no se pudo leer"}`);
+      const mensaje = e instanceof Error ? e.message : "no se pudo leer";
+      // Un documento que no es un pedido no es un error: se descarta en silencio y solo se cuenta al final
+      if (mensaje.startsWith("No parece un pedido")) ignorados.push(ficheros[i].name);
+      else alError(`${ficheros[i].name}: ${mensaje}`);
     }
   }
   alProgreso(ficheros.length, ficheros.length);
+  alIgnorados?.(ignorados);
   return leidos;
 }
 
@@ -56,11 +63,12 @@ export function useLeerPedidos() {
       mostrar(`La cola está llena (${MAXIMO_COLA} pedidos). Procesa o descarta alguno antes de añadir más.`, "error");
       return;
     }
-    const aceptados = ficheros.slice(0, huecos);
-    if (aceptados.length < ficheros.length) mostrar(`La cola admite ${MAXIMO_COLA} pedidos a la vez: se leerán los primeros ${aceptados.length} de ${ficheros.length}.`, "error");
+    // Se leen todos: los que no son pedidos se descartan y no ocupan sitio en la cola (la lectura se detiene si se llena de pedidos)
+    const aceptados = ficheros;
     setProgreso({ hechos: 0, total: aceptados.length });
     fijarLectura({ hechos: 0, total: aceptados.length });
     let abierto = false;
+    let ignoradosFinal: string[] = [];
     const leidos = await leerYEncolar(
       aceptados,
       destino,
@@ -76,10 +84,15 @@ export function useLeerPedidos() {
           abrirDeCola(item.id);
         }
       },
+      (ign) => {
+        ignoradosFinal = ign;
+      },
     );
     setProgreso(null);
     fijarLectura(null);
-    if (leidos.length > 1) mostrar(`${leidos.length} pedidos leídos: están en la cola de pedidos.`);
+    if (ficheros.length > 1 || leidos.length > 1 || ignoradosFinal.length > 0) {
+      mostrar(`${leidos.length} pedido${leidos.length === 1 ? "" : "s"} leído${leidos.length === 1 ? "" : "s"}${leidos.length > 0 ? " (están en la cola de pedidos)" : ""}${ignoradosFinal.length > 0 ? ` y ${ignoradosFinal.length} documento${ignoradosFinal.length === 1 ? "" : "s"} que no eran pedidos, ignorado${ignoradosFinal.length === 1 ? "" : "s"}` : ""}.`);
+    }
   };
   return { leer, leyendo: progreso !== null, textoProgreso: progreso && progreso.total > 1 ? `Leyendo ${progreso.hechos + 1} de ${progreso.total}…` : "Leyendo…" };
 }

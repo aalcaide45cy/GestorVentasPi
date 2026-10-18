@@ -37,6 +37,9 @@ export interface ExpedienteSimilar {
   fecha: string | null;
 }
 
+/** Mensaje con que se avisa de un documento que no es un pedido; la cola lo cuenta aparte de los errores. */
+export const NO_ES_PEDIDO = "No parece un pedido, así que se ha ignorado (no se ha guardado ni adjuntado a nada).";
+
 export interface ResultadoPedido {
   datos: DatosPedido;
   /** Expedientes ya existentes que parecen ser este mismo pedido (solo aviso: no bloquea nada). */
@@ -132,7 +135,8 @@ export async function leerDni(ej: Ejecutor, idUsuario: number, nombreFichero: st
 
 /** Lee un pedido (PDF o imagen) y propone los datos del expediente comparando con los catálogos. */
 export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false): Promise<ResultadoPedido> {
-  const { texto, metodo } = await textoDeDocumento(datos);
+  const { texto, metodo, descartado } = await textoDeDocumento(datos, { cribar: true });
+  if (descartado) throw new HttpError(422, NO_ES_PEDIDO);
   const catalogos = await leerCatalogos(ej);
   const marcas = new Map(catalogos.marcas.map((m) => [m.id_marca, m.nombre]));
   const parsed = parsearPedido(texto, {
@@ -142,7 +146,7 @@ export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero:
     marcas: catalogos.marcas.map((m) => m.nombre),
   });
   // Un PDF que no es un pedido (otros papeles con datos de un cliente) se ignora: ni se propone nada ni se guarda en ningún sitio
-  if (!parsed.esPedido) throw new HttpError(422, "No parece un pedido, así que se ha ignorado (no se ha guardado ni adjuntado a nada).");
+  if (!parsed.esPedido) throw new HttpError(422, NO_ES_PEDIDO);
   const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
   // Con «Permitir expedientes duplicados» no se busca ni se avisa de pedidos parecidos
   const similares = permitirDuplicados ? [] : await buscarExpedientesSimilares(ej, parsed);

@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import BotonApagar from "@/components/BotonApagar";
+import BotonApagar, { BotonReiniciarServidor } from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { CLAVE_ABIERTO, CLAVE_MOSTRAR_LABORATORIO } from "@/components/LaboratorioComisiones";
@@ -424,6 +424,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
 
       {/* Pie */}
       <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        {isAdmin && <BotonReiniciarServidor colapsado={isCollapsed} />}
         <button
           onClick={cerrarSesion}
           className="glass-panel-interactive"

@@ -8,7 +8,8 @@ import { Readable } from "node:stream";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { ajustes, conexionDrive, copiasSeguridad } from "@/db/schema";
+import { sembrar } from "@/db/semilla";
+import { ajustes, conexionDrive, copiasSeguridad, plantillasPlan, plantillasTarifasVn } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { ajustarCifradoTrasRestaurar, asegurarComprobacion } from "./clave-recuperacion";
@@ -618,6 +619,21 @@ async function pgRestore(ruta: string): Promise<void> {
 }
 
 /** Pasos posteriores a restaurar: migraciones pendientes y vaciado de sesiones. */
+/**
+ * Las plantillas (de tarifas y de planes) son del administrador y no dependen de los datos: se guardan antes de restaurar una
+ * copia y se reponen después las que la copia no traía (así restaurar una copia antigua no las hace desaparecer).
+ */
+async function guardarPlantillas(ej: Ejecutor) {
+  return { tarifas: await ej.select().from(plantillasTarifasVn), planes: await ej.select().from(plantillasPlan) };
+}
+
+async function reponerPlantillas(ej: Ejecutor, g: Awaited<ReturnType<typeof guardarPlantillas>>): Promise<void> {
+  for (const t of g.tarifas) await ej.insert(plantillasTarifasVn).values({ nombre: t.nombre, descripcion: t.descripcion, sistema: t.sistema, datos: t.datos, creadaEn: t.creadaEn, actualizadaEn: t.actualizadaEn }).onConflictDoNothing();
+  for (const p of g.planes) await ej.insert(plantillasPlan).values({ ambito: p.ambito, nombre: p.nombre, descripcion: p.descripcion, datos: p.datos, creadaEn: p.creadaEn, actualizadaEn: p.actualizadaEn }).onConflictDoNothing();
+  // La plantilla genérica que trae la aplicación vuelve siempre, aunque la copia fuera de una versión anterior
+  await sembrar(ej as never);
+}
+
 async function posRestauracion(ej: Ejecutor): Promise<void> {
   const { migrate } = await import("drizzle-orm/node-postgres/migrator");
   const { Pool } = await import("pg");
@@ -649,9 +665,11 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
     notaPrevia = `Antes de restaurar la copia ${path.basename(ruta)}. Si algo sale mal, restaura esta para volver al estado anterior.`;
     previa = await crearCopia(ej, "previa", idAdmin, notaPrevia);
     const rutaPrevia = path.join(/*turbopackIgnore: true*/ dirCopias(), previa.nombre);
+    const plantillas = await guardarPlantillas(ej);
     try {
       await pgRestore(ruta);
       await posRestauracion(ej);
+      await reponerPlantillas(ej, plantillas);
       // Si la copia viene de otra instalación, sus datos cifrados se vuelven a cifrar con la clave de esta (o se deshace todo)
       recifrado = (await ajustarCifradoTrasRestaurar(ej, entrada.claveOrigen)).recifrado;
     } catch (e) {

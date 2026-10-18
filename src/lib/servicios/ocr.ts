@@ -272,20 +272,40 @@ export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean 
 }
 
 /** Texto de un PDF (capa de texto si la hay; si no, OCR) o de una imagen. Sirve para pedidos y otros documentos. */
-export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo: "texto-pdf" | "ocr" }> {
+/**
+ * Criba rápida para cargas masivas: lee solo el tercio de arriba de la primera página (donde va «PEDIDO DE VEHÍCULO», el logotipo
+ * y el bloque de cliente). Si hay texto legible y no aparece ninguna señal de pedido, el documento se descarta sin leerlo entero.
+ * Si no se puede juzgar (poco texto, página girada…) devuelve false y se hace la lectura completa.
+ */
+async function pareceAjenoAlPedido(primeraPagina: Buffer): Promise<boolean> {
+  const meta = await sharp(primeraPagina, { failOn: "none" }).metadata();
+  if (!meta.width || !meta.height) return false;
+  const arriba = await sharp(primeraPagina, { failOn: "none" }).extract({ left: 0, top: 0, width: meta.width, height: Math.max(1, Math.round(meta.height * 0.34)) }).png().toBuffer();
+  const texto = (await ocrOrientado([arriba], { columnas: true })).map((l) => l.texto).join(" ");
+  const limpio = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if ((limpio.match(/[A-Z]/g) ?? []).length < 25) return false;
+  return !/PEDIDO|RENAULT|DACIA|VEHICULO|ESTABLECIMIENTO|CLIENTE|RENEW|MATRICULA|BASTIDOR/.test(limpio);
+}
+
+export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean } = {}): Promise<{ texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean }> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
   if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {
     try {
-      if (tipo === "imagen") return { texto: (await ocrOrientado([datos], { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      if (tipo === "imagen") {
+        if (opciones.cribar && (await pareceAjenoAlPedido(datos))) return { texto: "", metodo: "ocr" as const, descartado: true };
+        return { texto: (await ocrOrientado([datos], { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      }
       const doc = await abrirPdf(datos);
       try {
         const paginas = Math.min(doc.numPages, MAX_PAGINAS);
         const texto = await textoDePaginas(doc, paginas);
         if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
-        return { texto: (await ocrOrientado(await paginasComoImagenes(doc, Math.min(paginas, MAX_PAGINAS_PEDIDO)), { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        const imagenes = await paginasComoImagenes(doc, Math.min(paginas, MAX_PAGINAS_PEDIDO));
+        if (opciones.cribar && (await pareceAjenoAlPedido(imagenes[0]))) return { texto: "", metodo: "ocr" as const, descartado: true };
+        return { texto: (await ocrOrientado(imagenes, { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       } finally {
         await doc.cleanup?.();
       }

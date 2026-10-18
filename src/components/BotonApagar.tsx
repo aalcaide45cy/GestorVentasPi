@@ -16,12 +16,14 @@ interface PropsAccion {
   aviso: string;
   cuerpo?: Record<string, unknown>;
   icono: ReactNode;
+  /** Se llama tras pedir la acción con éxito (por defecto solo se muestra el aviso). */
+  alHecho?: () => void;
 }
 
 const iconoProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
 /** Botón de sistema (solo administrador): pide al servidor (Raspberry Pi) una acción, siempre tras confirmar. Solo si el instalador la activó. */
-function BotonAccion({ colapsado, api, etiqueta, etiquetaOcupado, ayuda, confirmacion, aviso, cuerpo, icono }: PropsAccion) {
+function BotonAccion({ colapsado, api, etiqueta, etiquetaOcupado, ayuda, confirmacion, aviso, cuerpo, icono, alHecho }: PropsAccion) {
   const { mostrar } = useToast();
   const { datos } = useCarga<{ disponible: boolean } | null>(api, null);
   const [ocupado, setOcupado] = useState(false);
@@ -33,6 +35,7 @@ function BotonAccion({ colapsado, api, etiqueta, etiquetaOcupado, ayuda, confirm
     try {
       await llamar(api, { method: "POST", cuerpo: { confirmar: true, ...cuerpo } });
       mostrar(aviso);
+      alHecho?.();
     } catch (e) {
       mostrar(textoError(e), "error");
       setOcupado(false);
@@ -121,5 +124,37 @@ export default function BotonApagar({ colapsado }: { colapsado: boolean }) {
         }
       />
     </>
+  );
+}
+
+/** «Reiniciar servidor» (solo el programa, no el equipo): va encima de «Cerrar sesión». */
+export function BotonReiniciarServidor({ colapsado }: { colapsado: boolean }) {
+  return (
+    <BotonAccion
+        colapsado={colapsado}
+        api="/api/admin/reiniciar-servidor"
+        etiqueta="Reiniciar servidor"
+        etiquetaOcupado="Reiniciando…"
+        ayuda="Reinicia solo el programa (no el equipo). Sirve para que cojan efecto los cambios o si algo se queda colgado (pide confirmación)"
+        confirmacion={"¿Reiniciar el servidor de la aplicación?\n\nNo estará disponible unos segundos y la página se recargará sola."}
+        aviso="Reiniciando el servidor… la página se recargará sola."
+        alHecho={() => {
+          // Se espera a que vuelva a responder y se recarga
+          const intento = (n: number) => {
+            if (n > 60) return;
+            window.setTimeout(() => {
+              fetch("/api/salud", { cache: "no-store" }).then((r) => (r.ok && n > 2 ? window.location.reload() : intento(n + 1))).catch(() => intento(n + 1));
+            }, 2000);
+          };
+          intento(0);
+        }}
+        icono={
+          <svg {...iconoProps}>
+            <rect x="3" y="4" width="18" height="6" rx="1" />
+            <rect x="3" y="14" width="18" height="6" rx="1" />
+            <path d="M7 7h.01M7 17h.01" />
+          </svg>
+        }
+      />
   );
 }

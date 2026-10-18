@@ -5,7 +5,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { copiasSeguridad, marcas, sesiones } from "@/db/schema";
+import { copiasSeguridad, marcas, plantillasPlan, plantillasTarifasVn, sesiones } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { copiaAutomaticaSiToca } from "./planificador";
 import {
@@ -154,6 +154,8 @@ describe.skipIf(!hayPg)("copias completas con PostgreSQL", () => {
     const copia = await crearCopia(db, "manual", admin.idUsuario);
 
     await db.insert(marcas).values({ nombre: "Marca posterior" });
+    // Una plantilla creada después de la copia no debe perderse al restaurarla
+    await db.insert(plantillasPlan).values({ ambito: "global", nombre: "Mi plantilla", datos: {} });
     await db.insert(sesiones).values({ idUsuario: admin.idUsuario, tokenHash: "x".repeat(10), caducaEn: new Date(Date.now() + 1e6), mfaVerificado: true });
 
     // Una copia que no existe no toca nada
@@ -168,6 +170,8 @@ describe.skipIf(!hayPg)("copias completas con PostgreSQL", () => {
     expect(existsSync(path.join(dir, r.previa))).toBe(true);
     expect((await db.select().from(marcas)).map((m) => m.nombre)).toEqual(["Marca original"]);
     expect(await db.select().from(sesiones)).toHaveLength(0);
+    expect((await db.select().from(plantillasPlan)).map((p) => p.nombre)).toContain("Mi plantilla");
+    expect((await db.select().from(plantillasTarifasVn)).some((p) => p.sistema)).toBe(true);
     expect(enMantenimiento()).toBe(false);
     // La copia previa queda listada tras la restauración
     expect((await listarCopias(db)).some((c) => c.tipo === "previa")).toBe(true);

@@ -32,7 +32,7 @@ export interface EstadoCola {
 
 const CLAVE = "gv_cola_pedidos";
 /** Pedidos que caben a la vez en la cola. */
-export const MAXIMO_COLA = 100;
+export const MAXIMO_COLA = 300;
 const MAXIMO = MAXIMO_COLA;
 const VACIO: EstadoCola = { items: [], abierto: null };
 

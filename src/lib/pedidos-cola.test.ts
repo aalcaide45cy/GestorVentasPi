@@ -17,20 +17,20 @@ describe("cola de pedidos", () => {
     vaciarCola();
   });
 
-  it("admite hasta 100 pedidos y avisa de los huecos libres", async () => {
+  it("admite hasta 300 pedidos y avisa de los huecos libres", async () => {
     const { MAXIMO_COLA, anadirACola, huecosEnCola, leerCola } = await import("./pedidos-cola");
-    expect(MAXIMO_COLA).toBe(100);
-    expect(huecosEnCola()).toBe(100);
-    anadirACola(Array.from({ length: 100 }, (_, i) => ({ nombre: `p${i}.pdf`, pedido, eleccion: null, idExpediente: null })));
-    expect(leerCola().items).toHaveLength(100);
+    expect(MAXIMO_COLA).toBe(300);
+    expect(huecosEnCola()).toBe(300);
+    anadirACola(Array.from({ length: 300 }, (_, i) => ({ nombre: `p${i}.pdf`, pedido, eleccion: null, idExpediente: null })));
+    expect(leerCola().items).toHaveLength(300);
     expect(huecosEnCola()).toBe(0);
   });
 
   it("quitar un pedido libera un hueco", async () => {
     const { anadirACola, huecosEnCola, quitarDeCola } = await import("./pedidos-cola");
     const [uno] = anadirACola([{ nombre: "a.pdf", pedido, eleccion: null, idExpediente: null }]);
-    expect(huecosEnCola()).toBe(99);
+    expect(huecosEnCola()).toBe(299);
     quitarDeCola(uno.id);
-    expect(huecosEnCola()).toBe(100);
+    expect(huecosEnCola()).toBe(300);
   });
 });
