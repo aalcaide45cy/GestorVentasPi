@@ -1,6 +1,7 @@
 "use client";
 
 import { CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_DESDE, CLAVE_SELECCION_MINUTOS, formatoCuentaAtras, useModoTemporal } from "@/lib/modo-temporal";
+import { avisarCambioDeDatos } from "@/lib/datos-version";
 import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
@@ -708,6 +709,7 @@ export default function ExpedientesList({
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al eliminar el expediente"));
       setExpedientes((prev) => prev.filter((e) => !ids.includes(e.id_expediente)));
       setSeleccionados((prev) => prev.filter((x) => !ids.includes(x)));
+      avisarCambioDeDatos();
       mostrar(ids.length === 1 ? "Expediente eliminado con éxito." : `${ids.length} expedientes eliminados con éxito.`);
       setABorrar(null);
       setConfirmarBorradoMasivo(false);
@@ -731,6 +733,7 @@ export default function ExpedientesList({
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo cambiar el estado de los expedientes."));
       setExpedientes((prev) => prev.map((e) => (ids.includes(e.id_expediente) ? { ...e, deshabilitado } : e)));
+      avisarCambioDeDatos();
       mostrar(deshabilitado ? `${ids.length} expedientes deshabilitados: ya no cuentan en las comisiones.` : `${ids.length} expedientes habilitados: vuelven a contar en las comisiones.`);
       router.refresh();
     } catch (e) {
@@ -747,6 +750,7 @@ export default function ExpedientesList({
         body: JSON.stringify({ isBulkEdit: true, ids: seleccionados, expediente: cambios }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar expedientes."));
+      avisarCambioDeDatos();
       mostrar(`${seleccionados.length} expedientes modificados correctamente.`);
       // Lo que falta (por ejemplo, la fecha RCI de un pago que la pide) no impide guardar: se avisa
       const avisos = ((await res.json().catch(() => ({}))) as { avisos?: { mensaje: string }[] }).avisos ?? [];

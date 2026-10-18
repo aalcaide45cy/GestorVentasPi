@@ -64,13 +64,14 @@ export async function recortarFotoDni(anverso: Buffer, foto: RegionFoto | null):
   try {
     const { width: W, height: H } = await sharp(anverso, { failOn: "none" }).metadata();
     if (!W || !H) return null;
-    // Con margen alrededor de la cara (la región detectada es justa): un 55 % más de alto y el ancho que pida la proporción de carnet
+    // La región detectada es la parte densa de la foto: en el DNI la frente y el pelo salen lavados y quedan fuera de ella, así que el
+    // recorte se amplía un 25 % y se sube un 15 % de su alto para que la cabeza entre entera; el ancho lo pide la proporción de carnet
     const altoCara = foto.alto * H;
     const anchoCara = Math.min(foto.ancho * W, altoCara * 0.82);
-    const alto = Math.min(H, altoCara * 1.55);
-    const ancho = Math.min(W, Math.max(anchoCara * 1.55, alto * 0.79));
+    const alto = Math.min(H, altoCara * 1.25);
+    const ancho = Math.min(W, Math.max(anchoCara * 1.25, alto * 0.79));
     const cx = foto.x * W + anchoCara / 2;
-    const cy = foto.y * H + altoCara / 2;
+    const cy = foto.y * H + altoCara / 2 - altoCara * 0.15;
     const left = Math.max(0, Math.min(W - ancho, Math.round(cx - ancho / 2)));
     const top = Math.max(0, Math.min(H - alto, Math.round(cy - alto / 2)));
     return await sharp(anverso, { failOn: "none" })
