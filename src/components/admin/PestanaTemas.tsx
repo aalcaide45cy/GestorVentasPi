@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TEMAS, TEMA_CLARO, TEMA_OSCURO, muestraTema, type TemaColor } from "@/lib/temas";
+import { Plegable, SubPestanas } from "./estructura";
 import { estiloPanel } from "./utilidades";
 
 declare global {
@@ -23,50 +24,30 @@ function temaGuardado(): string {
   }
 }
 
-/** Pestaña «Tema»: 152 combinaciones de color (2 originales + 150 nuevas, con distintos grados de claridad). Se guarda en este navegador. */
+const INTENSIDADES: { v: number; titulo: string; ayuda: string }[] = [
+  { v: 0, titulo: "Más intensos", ayuda: "Muy oscuros o muy claros" },
+  { v: 1, titulo: "Intermedios", ayuda: "Ni muy intensos ni muy suaves" },
+  { v: 2, titulo: "Suaves", ayuda: "Menos oscuros o menos claros" },
+];
+
+/** Pestaña «Tema»: 152 combinaciones de color (2 originales + 150 nuevas), ordenadas en oscuros, claros y originales, y dentro de cada uno por intensidad. Se guarda en este navegador. */
 export default function PestanaTemas() {
   const [actual, setActual] = useState(temaGuardado);
-  const [filtro, setFiltro] = useState<"todos" | "dark" | "light">("todos");
-  const [variante, setVariante] = useState<"todas" | "0" | "1" | "2">("todas");
 
   const elegir = (id: string) => {
     window.__gvTema?.(id);
     setActual(id);
   };
 
-  const lista = [...OFICIALES, ...TEMAS].filter((t) => (filtro === "todos" || t.modo === filtro) && (variante === "todas" || String(t.v) === variante));
+  const todos = [...OFICIALES, ...TEMAS];
+  const oscuros = TEMAS.filter((t) => t.modo === "dark");
+  const claros = TEMAS.filter((t) => t.modo === "light");
+  const nombreActual = todos.find((t) => t.id === actual)?.nombre ?? "—";
 
-  return (
-    <div className="glass-panel" style={{ ...estiloPanel, padding: "32px" }}>
-      <div>
-        <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🎨 Tema de colores</h3>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.5, margin: 0 }}>
-          Elige la combinación de colores de la aplicación. El cambio es inmediato y se recuerda en este navegador: cada persona (o cada dispositivo) puede tener el suyo.
-        </p>
-      </div>
-
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-        {(["todos", "dark", "light"] as const).map((f) => (
-          <button key={f} type="button" className={`btn ${filtro === f ? "btn-primary" : "btn-secondary"}`} onClick={() => setFiltro(f)} style={{ padding: "8px 16px", fontSize: "0.85rem" }} title={f === "todos" ? "Mostrar todos los temas" : f === "dark" ? "Solo los temas de fondo oscuro" : "Solo los temas de fondo claro"}>
-            {f === "todos" ? "Todos" : f === "dark" ? "🌙 Oscuros" : "☀️ Claros"}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Intensidad del fondo:</span>
-        {([["todas", "Todas"], ["0", "Más intensos (muy oscuros / muy claros)"], ["1", "Intermedios"], ["2", "Suaves (menos oscuros / menos claros)"]] as const).map(([clave, texto]) => (
-          <button key={clave} type="button" className={`btn ${variante === clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setVariante(clave)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Filtra los temas por lo claro u oscuro que es su fondo">
-            {texto}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "14px" }}>
-        {lista.map((t) => {
-          const m = muestraTema(t);
-          const activo = actual === t.id;
-          return (
+  const tarjetaTema = (t: TemaColor) => {
+    const m = muestraTema(t);
+    const activo = actual === t.id;
+    return (
             <button
               key={t.id}
               type="button"
@@ -91,9 +72,43 @@ export default function PestanaTemas() {
                 {t.nombre}
               </span>
             </button>
-          );
-        })}
+    );
+  };
+
+  const rejilla = (lista: TemaColor[]) => (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "14px" }}>{lista.map(tarjetaTema)}</div>
+  );
+
+  /** Los temas de un modo, en bloques plegables por intensidad. */
+  const porIntensidad = (lista: TemaColor[], modo: string) =>
+    INTENSIDADES.map((i) => {
+      const delGrupo = lista.filter((t) => t.v === i.v);
+      return delGrupo.length === 0 ? null : (
+        <Plegable key={i.v} id={`temas-${modo}-${i.v}`} titulo={i.titulo} resumen={`${delGrupo.length} temas · ${i.ayuda}`} abiertoPorDefecto={i.v === 0}>
+          {rejilla(delGrupo)}
+        </Plegable>
+      );
+    });
+
+  return (
+    <div className="glass-panel" style={{ ...estiloPanel, padding: "32px" }}>
+      <div>
+        <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🎨 Tema de colores</h3>
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.5, margin: 0 }}>
+          Elige la combinación de colores de la aplicación. El cambio es inmediato y se recuerda en este navegador: cada persona (o cada dispositivo) puede tener el suyo. Ahora: <b>{nombreActual}</b>.
+        </p>
       </div>
+
+      <SubPestanas
+        id="temas"
+        pestanas={[
+          { clave: "oscuros", etiqueta: "🌙 Oscuros", insignia: oscuros.length, ayuda: "Temas de fondo oscuro" },
+          { clave: "claros", etiqueta: "☀️ Claros", insignia: claros.length, ayuda: "Temas de fondo claro" },
+          { clave: "originales", etiqueta: "⭐ Originales", insignia: OFICIALES.length, ayuda: "Los dos temas de la aplicación original" },
+        ]}
+      >
+        {(pestana) => (pestana === "oscuros" ? porIntensidad(oscuros, "oscuros") : pestana === "claros" ? porIntensidad(claros, "claros") : rejilla(OFICIALES))}
+      </SubPestanas>
     </div>
   );
 }

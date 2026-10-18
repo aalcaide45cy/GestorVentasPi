@@ -34,6 +34,7 @@ export function clienteDto(c: FilaCliente): ClienteDto {
     codigo_postal: c.codigoPostal,
     tienda_id: c.tiendaId,
     foto_id: c.fotoAdjuntoId,
+    comentarios: c.comentarios,
     emails: (c.emails ?? []).map((e) => ({
       id_email_cliente: e.idEmailCliente,
       email: e.email,
@@ -54,6 +55,9 @@ export function marcaDto(m: typeof marcas.$inferSelect): MarcaDto {
     activo: m.activo,
     acceso_rapido: m.accesoRapido,
     sistema_comisiones: m.sistemaComisiones,
+    color: m.color,
+    punto: m.punto,
+    punto_color: m.puntoColor,
   };
 }
 
@@ -76,6 +80,7 @@ export function tipoVentaDto(t: typeof tipoDeVenta.$inferSelect): TipoVentaDto {
     orden: t.orden,
     categoria: t.categoria,
     requiere_rci_al_matricular: t.requiereRciAlMatricular,
+    cuenta_para_tasa: t.cuentaParaTasa,
   };
 }
 
@@ -86,6 +91,11 @@ export function estadoDto(e: typeof estadoVehiculo.$inferSelect): EstadoVehiculo
     predeterminado: e.predeterminado,
     clase: e.clase,
     subtipo_vo: e.subtipoVo,
+    color: e.color,
+    capsula_color: e.capsulaColor,
+    punto: e.punto,
+    punto_color: e.puntoColor,
+    prevalece: e.prevalece === "estado" ? "estado" : "marca",
   };
 }
 

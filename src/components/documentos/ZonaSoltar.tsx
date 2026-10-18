@@ -15,11 +15,13 @@ interface Props {
   disabled?: boolean;
   /** Franja baja de una sola línea (para fichas), en vez del cuadro grande. */
   compacta?: boolean;
+  /** Si se indica, mientras está ocupado se ve un botón para cancelar la lectura. */
+  alCancelar?: () => void;
   alSoltar: (ficheros: File[]) => void | Promise<void>;
 }
 
 /** Cuadro para arrastrar ficheros encima o pulsar para elegirlos (imágenes y PDF). */
-export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocupado = false, textoOcupado = "Leyendo…", disabled = false, compacta = false, alSoltar }: Props) {
+export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocupado = false, textoOcupado = "Leyendo…", disabled = false, compacta = false, alCancelar, alSoltar }: Props) {
   const entrada = useRef<HTMLInputElement>(null);
   const [encima, setEncima] = useState(false);
   const inactivo = disabled || ocupado;
@@ -53,7 +55,7 @@ export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocu
         recibir(e.dataTransfer.files);
       }}
       style={{
-        ...(compacta ? { flex: "0 0 auto", padding: "8px 14px", flexDirection: "row", gap: "10px" } : { flex: "1 1 180px", minWidth: "160px", padding: "14px 12px" }),
+        ...(compacta ? { flex: "0 0 auto", padding: "6px 14px", flexDirection: "row", gap: "10px", justifyContent: "center" } : { flex: "1 1 180px", minWidth: "160px", padding: "14px 12px" }),
         textAlign: "center",
         borderRadius: "var(--radius-sm)",
         border: `2px dashed ${encima ? "var(--primary)" : "var(--border-light)"}`,
@@ -68,7 +70,21 @@ export default function ZonaSoltar({ icono, titulo, ayuda, multiple = false, ocu
     >
       <span style={{ fontSize: compacta ? "1.2rem" : "1.6rem" }}>{ocupado ? "⏳" : icono}</span>
       <strong style={{ fontSize: "0.85rem" }}>{ocupado ? textoOcupado : titulo}</strong>
-      <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{compacta ? "Arrastra o pulsa" : "Arrastra aquí o pulsa para elegir"}</span>
+      {ocupado && alCancelar ? (
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ padding: "2px 10px", fontSize: "0.78rem" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            alCancelar();
+          }}
+        >
+          ✖ Cancelar lectura
+        </button>
+      ) : (
+        <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{compacta ? "Arrastra o pulsa" : "Arrastra aquí o pulsa para elegir"}</span>
+      )}
       <input
         ref={entrada}
         type="file"

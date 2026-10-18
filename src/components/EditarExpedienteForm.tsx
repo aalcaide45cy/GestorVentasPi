@@ -1,8 +1,9 @@
 "use client";
 
+import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import ComisionadoExpediente from "@/components/expedientes/ComisionadoExpediente";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
@@ -10,7 +11,12 @@ import { usePreferencia } from "@/lib/preferencias";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
+import NombreConFoto from "./documentos/FotoCliente";
 import { mensajeDeError } from "./expedientes/comun";
+import { señalarPrimero } from "@/lib/resaltar";
+import { MENSAJE_CAMPO_FALTANTE } from "@/lib/campos-faltantes";
+import ModalPedidoEnExpediente, { type CambiosDelPedido } from "./expedientes/ModalPedidoEnExpediente";
+import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 
@@ -41,7 +47,7 @@ const textoOVacio = (v: string) => v.trim() || null;
 const cadena = (n: number | null | undefined) => (n ? String(n) : "");
 
 /** «Editar Expediente»: cliente, vehículo, fechas y comisionamiento. */
-export default function EditarExpedienteForm({
+function FormularioEditarExpediente({
   expediente,
   marcas,
   modelosPorMarca,
@@ -52,12 +58,27 @@ export default function EditarExpedienteForm({
 }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
+  // Lo que había sin guardar si se recargó la página (F5): se recupera al volver
+  const claveBorrador = `expediente-${expediente.id_expediente}`;
+  const [borrador] = useState(() => (typeof window === "undefined" ? null : leerBorrador(claveBorrador)));
+  const ini = <T,>(k: string, valor: T): T => (borrador && k in borrador ? (borrador[k] as T) : valor);
   const [versionAdjuntos, setVersionAdjuntos] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Lo que falta pero no impide guardar: se guarda igualmente, se avisa y se señala el campo con un resplandor. */
+  // Al llegar desde «Nuevo expediente» con algo sin rellenar (?falta=fRci,nombre) se avisa y se señala el campo
+  const faltaDeLaDireccion = useSearchParams().get("falta");
+  const [advertencias, setAdvertencias] = useState<{ campo: string; mensaje: string }[]>(() =>
+    (faltaDeLaDireccion ? faltaDeLaDireccion.split(",") : []).filter((c) => MENSAJE_CAMPO_FALTANTE[c]).map((c) => ({ campo: c, mensaje: MENSAJE_CAMPO_FALTANTE[c] })),
+  );
+  useEffect(() => {
+    if (!faltaDeLaDireccion) return;
+    const t = setTimeout(() => señalarPrimero(faltaDeLaDireccion.split(",")), 700);
+    return () => clearTimeout(t);
+  }, [faltaDeLaDireccion]);
   const [saliendo, setSaliendo] = useState(false);
   const [destino, setDestino] = useState<string | null>(null);
 
@@ -75,36 +96,40 @@ export default function EditarExpedienteForm({
   }, [idsVisibles, expediente.id_expediente]);
 
   // Cliente
-  const [asignado, setAsignado] = useState<ClienteDto | null>(expediente.cliente);
-  const [dni, setDni] = useState(expediente.cliente?.dni ?? "");
-  const [nombre, setNombre] = useState(expediente.cliente?.nombre ?? "");
-  const [fechaNacimiento, setFechaNacimiento] = useState(expediente.cliente?.fecha_de_nacimiento ?? "");
-  const [tiendaId, setTiendaId] = useState(cadena(expediente.id_tienda));
-  const [emails, setEmails] = useState<ContactoEdicion[]>(emailsDeCliente(expediente.cliente));
-  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(telefonosDeCliente(expediente.cliente));
+  const [asignado, setAsignado] = useState<ClienteDto | null>(ini("asignado", expediente.cliente));
+  // Foto del cliente (recortada de su DNI): se enseña al dejar el ratón sobre su nombre; se actualiza al leer un DNI nuevo
+  const [fotoNueva, setFotoNueva] = useState<number | null>(null);
+  const [dni, setDni] = useState(ini("dni", expediente.cliente?.dni ?? ""));
+  const [nombre, setNombre] = useState(ini("nombre", expediente.cliente?.nombre ?? ""));
+  const [fechaNacimiento, setFechaNacimiento] = useState(ini("fechaNacimiento", expediente.cliente?.fecha_de_nacimiento ?? ""));
+  const [tiendaId, setTiendaId] = useState(ini("tiendaId", cadena(expediente.id_tienda)));
+  const [emails, setEmails] = useState<ContactoEdicion[]>(ini("emails", emailsDeCliente(expediente.cliente)));
+  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(ini("telefonos", telefonosDeCliente(expediente.cliente)));
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ClienteDto[]>([]);
   const [buscando, setBuscando] = useState(false);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Vehículo y expediente
-  const [marca, setMarca] = useState<number | "">(expediente.modelo?.marca_id ?? "");
-  const [modelo, setModelo] = useState<number | "">(expediente.id_modelo ?? "");
-  const [tipoVenta, setTipoVenta] = useState<number | "">(expediente.id_tipo_de_venta ?? "");
-  const [estado, setEstado] = useState<number | "">(expediente.id_estado_vehiculo ?? "");
-  const [vendedor, setVendedor] = useState(cadena(expediente.id_usuario));
-  const [fExp, setFExp] = useState(expediente.fecha_expediente ?? "");
-  const [fAfect, setFAfect] = useState(expediente.fecha_afectacion ?? "");
-  const [fRci, setFRci] = useState(expediente.fecha_rci ?? "");
-  const [fMat, setFMat] = useState(expediente.fecha_matriculacion ?? "");
-  const [fFact, setFFact] = useState(expediente.fecha_facturacion ?? "");
-  const [fEntrega, setFEntrega] = useState(expediente.fecha_entrega ?? "");
-  const [matricula, setMatricula] = useState(expediente.matricula ?? "");
-  const [vin, setVin] = useState(expediente.vin ?? "");
-  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(expediente.cobrado_otra_fecha);
-  const [fCobrado, setFCobrado] = useState(expediente.fecha_cobrado ?? "");
+  const [marca, setMarca] = useState<number | "">(ini("marca", expediente.modelo?.marca_id ?? ""));
+  const [modelo, setModelo] = useState<number | "">(ini("modelo", expediente.id_modelo ?? ""));
+  const [tipoVenta, setTipoVenta] = useState<number | "">(ini("tipoVenta", expediente.id_tipo_de_venta ?? ""));
+  const [estado, setEstado] = useState<number | "">(ini("estado", expediente.id_estado_vehiculo ?? ""));
+  const [vendedor, setVendedor] = useState(ini("vendedor", cadena(expediente.id_usuario)));
+  const [fExp, setFExp] = useState(ini("fExp", expediente.fecha_expediente ?? ""));
+  const [fAfect, setFAfect] = useState(ini("fAfect", expediente.fecha_afectacion ?? ""));
+  const [fRci, setFRci] = useState(ini("fRci", expediente.fecha_rci ?? ""));
+  const [fMat, setFMat] = useState(ini("fMat", expediente.fecha_matriculacion ?? ""));
+  const [fFact, setFFact] = useState(ini("fFact", expediente.fecha_facturacion ?? ""));
+  const [fEntrega, setFEntrega] = useState(ini("fEntrega", expediente.fecha_entrega ?? ""));
+  const [matricula, setMatricula] = useState(ini("matricula", expediente.matricula ?? ""));
+  const [vin, setVin] = useState(ini("vin", expediente.vin ?? ""));
+  const [comentarios, setComentarios] = useState(ini("comentarios", expediente.comentarios ?? ""));
+  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(ini("cobradoOtraFecha", expediente.cobrado_otra_fecha));
+  const [deshabilitado, setDeshabilitado] = useState(ini("deshabilitado", expediente.deshabilitado));
+  const [fCobrado, setFCobrado] = useState(ini("fCobrado", expediente.fecha_cobrado ?? ""));
 
-  const [com, setCom] = useState<ComisionForm>(comisionInicial(expediente));
+  const [com, setCom] = useState<ComisionForm>(ini("com", comisionInicial(expediente)));
   const comOriginal = useMemo(() => JSON.stringify(comisionInicial(expediente)), [expediente]);
 
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
@@ -146,6 +171,8 @@ export default function EditarExpedienteForm({
       fCobrado !== (expediente.fecha_cobrado ?? "") ||
       matricula !== (expediente.matricula ?? "") ||
       vin !== (expediente.vin ?? "") ||
+      comentarios !== (expediente.comentarios ?? "") ||
+      deshabilitado !== expediente.deshabilitado ||
       JSON.stringify(com) !== comOriginal
     );
   };
@@ -189,6 +216,88 @@ export default function EditarExpedienteForm({
     setResultados([]);
   };
 
+  /* ---- Pedido leído: vista previa en un modal y, al aplicar, se rellena el formulario ---- */
+  const [pedidoLeido, setPedidoLeido] = useState<ResultadoPedido | null>(null);
+  // DNI leído (cara y datos): junta lo que dan el anverso y el reverso, por si se sueltan por separado
+  const [dniLeido, setDniLeido] = useState<ResultadoDni | null>(null);
+  const juntarDni = (r: ResultadoDni) =>
+    setDniLeido((previo) =>
+      previo
+        ? { ...r, datos: { ...r.datos, dni: r.datos.dni ?? previo.datos.dni, nombre: r.datos.nombre ?? previo.datos.nombre, apellidos: r.datos.apellidos ?? previo.datos.apellidos, nombreCompleto: r.datos.nombreCompleto ?? previo.datos.nombreCompleto, fechaNacimiento: r.datos.fechaNacimiento ?? previo.datos.fechaNacimiento }, fotoId: r.fotoId ?? previo.fotoId }
+        : r,
+    );
+  // DNI suelto en cualquiera de las casillas: se guarda como documento del expediente y de él sale la foto del cliente
+  const alLeerDniSuelto = async (r: ResultadoDni) => {
+    try {
+      await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+      setVersionAdjuntos((v) => v + 1);
+      if (r.fotoId) setFotoNueva(r.fotoId);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
+    }
+    juntarDni(r);
+    mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
+  };
+  // «Aplicar» en el modal del pedido guarda el expediente con su cliente: se envía el formulario cuando ya tiene los datos nuevos
+  const formularioRef = useRef<HTMLFormElement>(null);
+  const etiquetaModelo = (id: number | ""): string => {
+    if (id === "") return "";
+    for (const [idMarca, lista] of Object.entries(modelosPorMarca)) {
+      const m = lista.find((x) => x.id === id);
+      if (m) return `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim();
+    }
+    return "";
+  };
+  const aplicarPedido = async (c: CambiosDelPedido, r: ResultadoPedido) => {
+    if (c.idModelo) {
+      const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === c.idModelo));
+      if (marcaDe) {
+        setMarca(Number(marcaDe[0]));
+        setModelo(c.idModelo);
+      }
+    }
+    if (c.idTipoVenta) setTipoVenta(c.idTipoVenta);
+    if (c.vin) setVin(c.vin);
+    if (c.matricula) setMatricula(c.matricula);
+    if (c.fExp) setFExp(c.fExp);
+    if (c.fEntrega) setFEntrega(c.fEntrega);
+    if (c.fMat) setFMat(c.fMat);
+    const dc = c.datosCliente;
+    if (dc.fechaNacimiento && c.cliente.modo !== "existente") setFechaNacimiento(dc.fechaNacimiento);
+    const conPrincipal = (lista: ContactoEdicion[], valor: string): ContactoEdicion[] => {
+      const rellenos = lista.filter((x) => x.valor.trim() !== "");
+      if (rellenos.some((x) => x.valor.trim().toLowerCase() === valor.trim().toLowerCase())) return lista;
+      return [...rellenos, { valor, tipo: rellenos.length === 0 ? "Principal" : "Otro" }];
+    };
+    if (c.cliente.modo === "existente") {
+      const id = c.cliente.id;
+      const buscar = r.datos.dni || r.datos.cliente || "";
+      const encontrados = buscar ? await fetch(`/api/clientes/buscar?q=${encodeURIComponent(buscar)}`).then((x) => (x.ok ? (x.json() as Promise<{ data?: ClienteDto[] }>) : null)).catch(() => null) : null;
+      const elegido = encontrados?.data?.find((x) => x.id === id);
+      if (!elegido) throw new Error("No se ha podido cargar el cliente elegido. Búscalo a mano en el cuadro de clientes.");
+      elegirCliente(elegido);
+    } else if (c.cliente.modo === "nuevo") {
+      desasignar();
+      setDni(dc.dni ?? "");
+      setNombre(dc.nombre ?? "");
+      setEmails(dc.email ? [{ valor: dc.email, tipo: "Principal" }] : [contactoVacio()]);
+      setTelefonos(dc.telefono ? [{ valor: dc.telefono, tipo: "Principal" }] : [contactoVacio()]);
+    } else if (c.cliente.modo === "mantener") {
+      if (dc.dni) setDni(dc.dni);
+      if (dc.nombre) setNombre(dc.nombre);
+      if (dc.email) setEmails((l) => conPrincipal(l, dc.email as string));
+      if (dc.telefono) setTelefonos((l) => conPrincipal(l, dc.telefono as string));
+    }
+    try {
+      await vincularAdjuntos([r.adjunto.id], { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+      setVersionAdjuntos((v) => v + 1);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.", "error");
+    }
+    setPedidoLeido(null);
+    setTimeout(() => formularioRef.current?.requestSubmit(), 150);
+  };
+
   const desasignar = () => {
     setAsignado(null);
     setDni("");
@@ -218,14 +327,17 @@ export default function EditarExpedienteForm({
     telefonos: rellenos(telefonos).map((t) => ({ telefono: t.valor.trim(), tipo_telefono: t.tipo })),
   });
 
-  /** Datos del cliente que viajan con el expediente en el mismo guardado (null si no hay cliente ni nada que crear). */
-  const clienteParaGuardar = (): { error?: string; cliente: Record<string, unknown> | null } => {
+  /**
+   * Datos del cliente que viajan con el expediente en el mismo guardado (null si no hay cliente ni nada que crear). Si falta el nombre
+   * no se guarda el cliente (no puede existir sin nombre), pero el expediente sí: se devuelve una advertencia.
+   */
+  const clienteParaGuardar = (): { advertencia?: { campo: string; mensaje: string }; cliente: Record<string, unknown> | null } => {
     const hayDatos = dni.trim() !== "" || fechaNacimiento !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0;
     if (asignado) {
-      if (nombre.trim() === "") return { error: "El nombre del cliente es obligatorio.", cliente: null };
+      if (nombre.trim() === "") return { advertencia: { campo: "nombre", mensaje: "Falta el nombre del cliente: se ha guardado el expediente, pero no los cambios en los datos del cliente." }, cliente: null };
       return { cliente: clienteModificado() ? cuerpoCliente(asignado.id) : null };
     }
-    if (nombre.trim() === "") return hayDatos ? { error: "Para guardar los datos del cliente escribe al menos su nombre (o busca un cliente existente).", cliente: null } : { cliente: null };
+    if (nombre.trim() === "") return hayDatos ? { advertencia: { campo: "nombre", mensaje: "Falta el nombre del cliente: se ha guardado el expediente, pero no los datos del cliente (un cliente necesita al menos su nombre)." }, cliente: null } : { cliente: null };
     const { id: _sinId, ...nuevo } = cuerpoCliente(0);
     void _sinId;
     return { cliente: nuevo };
@@ -234,16 +346,13 @@ export default function EditarExpedienteForm({
   /* ---- Guardado del expediente ---- */
   const guardar = async (): Promise<boolean> => {
     setError(null);
-    const faltaRci = rciObligatoria();
-    if (faltaRci) {
-      setError(faltaRci);
-      return false;
-    }
+    // Nada de esto impide guardar: se guarda y después se avisa y se señala el campo
     const datosCliente = clienteParaGuardar();
-    if (datosCliente.error) {
-      setError(datosCliente.error);
-      return false;
-    }
+    const pendientes: { campo: string; mensaje: string }[] = [];
+    const faltaRci = rciObligatoria();
+    if (faltaRci) pendientes.push({ campo: "fRci", mensaje: faltaRci });
+    if (datosCliente.advertencia) pendientes.push(datosCliente.advertencia);
+    if (cobradoOtraFecha && !fCobrado) pendientes.push({ campo: "fCobrado", mensaje: "Has marcado que se cobró en otra fecha pero falta esa fecha: el expediente se ha guardado sin ella." });
     try {
       const cuerpo: Record<string, unknown> = {
         id_modelo: modelo || null,
@@ -258,6 +367,7 @@ export default function EditarExpedienteForm({
         fecha_entrega: fEntrega || null,
         matricula: matricula || null,
         vin: vin || null,
+        comentarios: comentarios.trim() || null,
         cobrado_otra_fecha: cobradoOtraFecha,
         fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
         puntos: com.puntos,
@@ -265,6 +375,8 @@ export default function EditarExpedienteForm({
         comision_coche_manual: com.comision_coche_manual,
         comision_financiacion_manual: com.comision_financiacion_manual,
         conceptos_especiales: com.conceptos.filter((c) => c.titulo.trim() !== ""),
+        bonus_manuales: com.bonus_manuales,
+        deshabilitado,
       };
       // El vendedor solo se envía si ha cambiado: el servidor decide quién puede reasignarlo
       if (vendedor !== cadena(expediente.id_usuario)) cuerpo.id_usuario = vendedor ? Number(vendedor) : null;
@@ -279,7 +391,13 @@ export default function EditarExpedienteForm({
       const r = (await res.json().catch(() => ({}))) as {
         impactos?: { mes: string; netoAnterior: number; netoNuevo: number; diferencia: number }[];
         cliente?: { id: number; accion: "actualizado" | "creado" | "asociado_existente" } | null;
+        avisos?: { campo: string; mensaje: string }[];
       };
+      // Lo que añade el servidor (sin repetir lo que ya se ha detectado aquí)
+      const delServidor = (r.avisos ?? []).map((x) => ({ campo: x.campo === "fecha_rci" ? "fRci" : x.campo, mensaje: x.mensaje })).filter((x) => !pendientes.some((p) => p.campo === x.campo));
+      const todas = [...pendientes, ...delServidor];
+      setAdvertencias(todas);
+      if (todas.length > 0) setTimeout(() => señalarPrimero(todas.map((x) => x.campo)), 250);
       let avisoGuardado: string | null = null;
       if (r.cliente?.accion === "actualizado" && asignado) {
         setAsignado(clienteActualizado(asignado));
@@ -303,6 +421,7 @@ export default function EditarExpedienteForm({
         setAviso(avisoGuardado);
         setTimeout(() => setAviso(null), 8000);
       }
+      borrarBorrador(claveBorrador);
       setExito(true);
       return true;
     } catch (e) {
@@ -326,6 +445,7 @@ export default function EditarExpedienteForm({
       router.refresh();
     }
   };
+
 
   /* ---- Salida con cambios sin guardar ---- */
   const navegar = (url: string) => {
@@ -351,6 +471,7 @@ export default function EditarExpedienteForm({
     }
   };
 
+  useGuardarBorrador(claveBorrador, () => ({ asignado, dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marca, modelo, tipoVenta, estado, vendedor, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, cobradoOtraFecha, fCobrado, deshabilitado, com }), hayCambios());
   const cambiosRef = useRef(hayCambios);
   useEffect(() => {
     cambiosRef.current = hayCambios;
@@ -380,9 +501,9 @@ export default function EditarExpedienteForm({
   }, []);
 
   /** Columnas (de 12) que ocupa cada campo y su etiqueta corta; la explicación larga va en el icono de ayuda. */
-  const DISENO: Record<string, { cols: number; etiqueta?: string; ayuda?: string }> = {
-    "DNI / NIE": { cols: 2 },
-    "Nombre Completo *": { cols: 5, etiqueta: "Nombre completo *" },
+  const DISENO: Record<string, { cols: number; etiqueta?: string; ayuda?: string; clave?: string }> = {
+    "DNI / NIE": { cols: 2, clave: "dni" },
+    "Nombre Completo *": { cols: 5, etiqueta: "Nombre completo *", clave: "nombre" },
     "Fecha de Nacimiento": { cols: 2, etiqueta: "F. nacimiento" },
     Tienda: { cols: 3 },
     Marca: { cols: 3 },
@@ -390,11 +511,11 @@ export default function EditarExpedienteForm({
     "Tipo de Venta": { cols: 2, etiqueta: "Tipo de venta" },
     "Estado de Vehículo": { cols: 2, etiqueta: "Estado" },
     "Vendedor Asignado": { cols: 2, etiqueta: "Vendedor" },
-    "Matrícula": { cols: 2 },
+    "Matrícula": { cols: 2, clave: "matricula" },
     "Número de Bastidor (VIN)": { cols: 4, etiqueta: "Bastidor (VIN)" },
     "Fecha Expediente": { cols: 2, etiqueta: "F. expediente" },
     "Fecha Afectación": { cols: 2, etiqueta: "F. afectación" },
-    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference es obligatoria antes de poder matricular o facturar." },
+    "Fecha RCI (Financiación)": { cols: 2, clave: "fRci", etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference hace falta para matricular o facturar; si falta, se guarda igualmente y se avisa." },
     "Fecha Matriculación": { cols: 2, etiqueta: "F. matriculación" },
     "Fecha Facturación": { cols: 2, etiqueta: "F. facturación", ayuda: "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI." },
     "Fecha Entrega": { cols: 2, etiqueta: "F. entrega" },
@@ -402,7 +523,7 @@ export default function EditarExpedienteForm({
   const campo = (etiqueta: string, control: React.ReactNode) => {
     const d = DISENO[etiqueta] ?? { cols: 3 };
     return (
-      <div className={`form-group c${d.cols}`} style={{ marginBottom: 0 }}>
+      <div className={`form-group c${d.cols}`} style={{ marginBottom: 0 }} data-campo={d.clave}>
         <label className="form-label" style={{ marginBottom: "4px" }}>
           {d.etiqueta ?? etiqueta}
           {d.ayuda && (
@@ -425,7 +546,7 @@ export default function EditarExpedienteForm({
     const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
     // La facturación solo se comprueba si se toca ella, la RCI o el tipo de pago (los expedientes antiguos que ya incumplían la regla se pueden seguir editando)
     const factTocada = fFact !== (expediente.fecha_facturacion ?? "") || fRci !== (expediente.fecha_rci ?? "") || Number(tipoVenta) !== expediente.id_tipo_de_venta;
-    if (!fRci && t?.requiereRci && (fMat || (fFact && factTocada))) return `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder ${fMat ? "matricular" : "facturar"}. Indica primero la Fecha RCI.`;
+    if (!fRci && t?.requiereRci && (fMat || (fFact && factTocada))) return `Falta la fecha RCI (contratación de la financiera): los pagos «${t.nombre}» la piden para poder ${fMat ? "matricular" : "facturar"}. Puedes guardar igualmente, pero faltará ese dato.`;
     return null;
   };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
@@ -508,7 +629,15 @@ export default function EditarExpedienteForm({
         </div>
       </div>
 
-      <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {borrador && (
+        <div role="status" style={{ padding: "10px 14px", borderLeft: "4px solid var(--info)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          ♻️ Se han recuperado los cambios que tenías sin guardar (la página se recargó). Revísalos y guarda.
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => { borrarBorrador(claveBorrador); window.location.reload(); }}>
+            Descartarlos y volver a lo guardado
+          </button>
+        </div>
+      )}
+      <form ref={formularioRef} onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {aviso && (
           <div className="glass-panel" style={{ padding: "16px 20px", backgroundColor: "rgba(16, 185, 129, 0.1)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontWeight: 600, fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -516,6 +645,21 @@ export default function EditarExpedienteForm({
               <span>{aviso}</span>
             </div>
             <button type="button" onClick={() => setAviso(null)} style={{ background: "none", border: "none", color: "var(--success)", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
+              ✕
+            </button>
+          </div>
+        )}
+        {advertencias.length > 0 && (
+          <div className="glass-panel" role="alert" style={{ padding: "14px 18px", backgroundColor: "rgba(245, 158, 11, 0.1)", borderLeft: "4px solid var(--warning)", color: "var(--warning)", fontSize: "0.9rem", display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <strong>⚠️ Guardado, pero revisa esto:</strong>
+              {advertencias.map((a) => (
+                <button key={a.campo} type="button" onClick={() => señalarPrimero([a.campo])} title="Pulsa para ir al campo" style={{ all: "unset", cursor: "pointer", textDecoration: "underline dotted" }}>
+                  {a.mensaje}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setAdvertencias([])} style={{ background: "none", border: "none", color: "var(--warning)", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
               ✕
             </button>
           </div>
@@ -547,7 +691,7 @@ export default function EditarExpedienteForm({
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{ fontSize: "1.5rem" }}>👤</span>
                   <div>
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>Cliente Asociado: {asignado.nombre}</div>
+                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>Cliente Asociado: <NombreConFoto fotoId={fotoNueva ?? asignado.foto_id}>{asignado.nombre}</NombreConFoto></div>
                     <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>DNI / NIE: {asignado.dni}</div>
                   </div>
                 </div>
@@ -584,23 +728,8 @@ export default function EditarExpedienteForm({
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerDni
-                compacta
-                disabled={cargando}
-                alLeer={async (r) => {
-                  if (r.datos.dni) setDni(r.datos.dni);
-                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
-                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
-                  try {
-                    await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
-                    setVersionAdjuntos((v) => v + 1);
-                  } catch (e) {
-                    mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
-                  }
-                  mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos y pulsa «Guardar Cambios».");
-                }}
-              />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI para rellenar los datos del cliente (se guardan al pulsar «Guardar Cambios»).</span>
+              <BotonLeerDni compacta disabled={cargando} alLeer={alLeerDniSuelto} alLeerPedido={async (r) => setPedidoLeido(r)} />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI o el pedido (o los dos a la vez), da igual en qué casilla: se reconoce solo. El DNI se guarda y de él sale la foto del cliente; del pedido verás una vista previa con sus datos.</span>
             </div>
 
             <div className="rejilla-ficha">
@@ -638,34 +767,29 @@ export default function EditarExpedienteForm({
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerPedido
-                compacta
-                disabled={cargando}
-                alLeer={async (r) => {
-                  const d = r.datos;
-                  if (d.vin) setVin(d.vin);
-                  if (d.matricula) setMatricula(d.matricula);
-                  if (d.fechaExpediente) setFExp(d.fechaExpediente);
-                  if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
-                  if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
-                  if (d.idModelo) {
-                    const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
-                    if (marcaDe) {
-                      setMarca(Number(marcaDe[0]));
-                      setModelo(d.idModelo);
+              <BotonLeerPedido compacta disabled={cargando} alLeer={async (r) => setPedidoLeido(r)} alLeerDni={alLeerDniSuelto} />
+              {pedidoLeido && (
+                <ModalPedidoEnExpediente
+                  pedido={pedidoLeido}
+                  actuales={{ idModelo: modelo, modelo: etiquetaModelo(modelo), idTipoVenta: tipoVenta, tipoVenta: tiposVenta.find((t) => t.id === Number(tipoVenta))?.nombre ?? "", vin, matricula, fExp, fEntrega, fMat, idCliente: asignado ? asignado.id : null, dni, nombre, fNac: fechaNacimiento, telefono: telefonos.find((t) => t.valor.trim() !== "")?.valor ?? "", email: emails.find((m) => m.valor.trim() !== "")?.valor ?? "" }}
+                  opcionesModelo={Object.entries(modelosPorMarca).flatMap(([idMarca, lista]) => lista.map((m) => ({ id: m.id, etiqueta: `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim() })))}
+                  opcionesTipoVenta={tiposVenta.map((t) => ({ id: t.id, etiqueta: t.nombre }))}
+                  dni={dniLeido}
+                  alLeerDni={async (r) => {
+                    try {
+                      await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+                      setVersionAdjuntos((v) => v + 1);
+                      if (r.fotoId) setFotoNueva(r.fotoId);
+                    } catch (e) {
+                      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
                     }
-                  }
-                  if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
-                  try {
-                    await vincularAdjuntos([r.adjunto.id], { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
-                    setVersionAdjuntos((v) => v + 1);
-                  } catch (e) {
-                    mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.", "error");
-                  }
-                  mostrar("Pedido leído: revisa los datos y pulsa «Guardar Cambios».");
-                }}
-              />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido para rellenar lo que reconozca (se guarda al pulsar «Guardar Cambios»).</span>
+                    juntarDni(r);
+                  }}
+                  alAplicar={(c) => aplicarPedido(c, pedidoLeido)}
+                  alCancelar={() => setPedidoLeido(null)}
+                />
+              )}
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido: verás una vista previa para marcar qué datos aplicar (cliente incluido). Se guarda al pulsar «Guardar Cambios».</span>
             </div>
 
             <div className="rejilla-ficha">
@@ -734,6 +858,17 @@ export default function EditarExpedienteForm({
               {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
               {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
             </div>
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginTop: "16px", padding: "10px 12px", border: `1px solid ${deshabilitado ? "var(--warning)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)", cursor: "pointer" }} title="Un expediente deshabilitado sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones">
+              <input type="checkbox" checked={deshabilitado} onChange={(e) => setDeshabilitado(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--warning)", marginTop: "2px" }} />
+              <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <strong style={{ fontSize: "0.9rem" }}>⏸ Deshabilitar este expediente</strong>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones mientras esté marcado.</span>
+              </span>
+            </label>
+            <div className="form-group" style={{ marginTop: "16px", marginBottom: 0 }}>
+              <label className="form-label">Comentarios del expediente</label>
+              <textarea className="form-input" rows={3} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre este expediente…" style={{ resize: "vertical", minHeight: "80px" }} />
+            </div>
           </div>
 
           {/* FECHAS */}
@@ -756,7 +891,8 @@ export default function EditarExpedienteForm({
               {campo("Fecha Facturación", fecha(fFact, setFFact))}
               {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
 
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.02)", padding: "8px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", justifySelf: "start", gridColumn: "1 / -1" }}>
+              {estadosVehiculo.find((x) => x.id === Number(estado))?.clase !== "VO" && (
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.02)", padding: "8px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", justifySelf: "start", gridColumn: "1 / -1" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <input
                     type="checkbox"
@@ -775,13 +911,14 @@ export default function EditarExpedienteForm({
                 {cobradoOtraFecha && (
                   <div className="form-group" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: "8px" }}>
                     <label className="form-label" style={{ fontSize: "0.78rem", marginBottom: 0, whiteSpace: "nowrap" }}>Fecha de Cobrado</label>
-                    <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} required />
+                    <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} data-campo="fCobrado" />
                   </div>
                 )}
-              </div>
+                </div>
+              )}
 
               {rciObligatoria() && (
-                <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.08)", color: "var(--danger)", fontSize: "0.85rem", fontWeight: 600 }}>
+                <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--warning)", background: "rgba(245, 158, 11, 0.08)", color: "var(--warning)", fontSize: "0.85rem", fontWeight: 600 }}>
                   ⚠️ {rciObligatoria()}
                 </div>
               )}
@@ -824,6 +961,7 @@ export default function EditarExpedienteForm({
             fecha_rci: fRci || null,
             fecha_matriculacion: fMat || null,
             fecha_facturacion: fFact || null,
+            fecha_entrega: fEntrega || null,
             fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
             cobrado_otra_fecha: cobradoOtraFecha,
           }}
@@ -861,6 +999,7 @@ export default function EditarExpedienteForm({
               type="button"
               className="btn"
               onClick={() => {
+                borrarBorrador(claveBorrador);
                 setSaliendo(false);
                 setExito(true);
                 setTimeout(() => irA(destino), 100);
@@ -887,4 +1026,18 @@ export default function EditarExpedienteForm({
       )}
     </div>
   );
+}
+
+/**
+ * El borrador de lo que se estaba editando solo existe en el navegador, así que el formulario se pinta ya en el navegador (no en
+ * el servidor): así lo recuperado y lo pintado coinciden y no hay desajustes al recargar con F5.
+ */
+export default function EditarExpedienteForm(props: Props) {
+  const enNavegador = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
+  if (!enNavegador) return <p style={{ color: "var(--text-secondary)" }}>Cargando…</p>;
+  return <FormularioEditarExpediente {...props} />;
 }

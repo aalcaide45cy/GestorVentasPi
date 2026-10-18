@@ -40,6 +40,13 @@ RUN apt-get update \
  && apt-get purge -y --auto-remove curl gnupg \
  && rm -rf /var/lib/apt/lists/*
 
+# «Llave» de Google Drive de la aplicación (se inyecta al construir la imagen; vacía si no se da). Para apps instaladas Google
+# no la considera secreta: solo identifica a la aplicación, nunca da acceso a ningún Drive sin el permiso de su dueño.
+ARG GOOGLE_CLIENT_ID=""
+ARG GOOGLE_CLIENT_SECRET=""
+ENV GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID \
+    GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \

@@ -5,7 +5,10 @@ import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { codigoExpediente } from "@/lib/date-utils";
 import { euros, mesActual } from "@/lib/formato";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import type { Cotejo, ConceptoCotejo } from "@/lib/servicios/comisiones-gestion";
+import type { DetalleExpediente } from "@/lib/servicios/detalle-expedientes";
 import { llamar, textoError } from "./api";
 import { Seccion } from "./campos";
 import { useCarga } from "./useCarga";
@@ -27,7 +30,7 @@ export default function CotejoCobros({ cat, usuarioInicial, esAdmin }: { cat: Ca
   const [mes, setMes] = useState(mesActual());
   const [filtro, setFiltro] = useState<"todos" | "pendientes" | "cobrados">("todos");
 
-  const { datos, recargar: cargar } = useCarga<Cotejo | null>(`/api/comisiones/verificar?usuario=${usuario}&mes=${mes}`, null);
+  const { datos, recargar: cargar } = useCarga<(Cotejo & { detalle: Record<string, DetalleExpediente> }) | null>(`/api/comisiones/verificar?usuario=${usuario}&mes=${mes}`, null);
 
   const marcar = async (idExpediente: number, concepto: ConceptoCotejo, cobrado: boolean) => {
     try {
@@ -39,6 +42,41 @@ export default function CotejoCobros({ cat, usuarioInicial, esAdmin }: { cat: Ca
   };
 
   const filas = (datos?.filas ?? []).filter((f) => (filtro === "todos" ? true : filtro === "cobrados" ? f.cobradoTotal === f.total : f.cobradoTotal < f.total));
+
+  const d = (f: { idExpediente: number }): DetalleExpediente | undefined => datos?.detalle?.[String(f.idExpediente)];
+  const columnas: ColumnaTabla<(typeof filas)[number]>[] = [
+    {
+      clave: "expediente",
+      etiqueta: "Expediente",
+      valor: (f) => f.idExpediente,
+      celda: (f) => (
+        <Link href={`/dashboard/expedientes/editar/${f.idExpediente}`} style={{ color: "var(--primary)" }}>
+          {codigoExpediente(f.idExpediente)}
+        </Link>
+      ),
+    },
+    { clave: "matricula", etiqueta: "Matrícula", valor: (f) => d(f)?.matricula ?? "", celda: (f) => <b>{d(f)?.matricula ?? "—"}</b> },
+    { clave: "cliente", etiqueta: "Cliente", valor: (f) => d(f)?.cliente ?? "" },
+    ...columnasVehiculo<(typeof filas)[number]>((f) => ({ clase: d(f)?.clase, marca: d(f)?.marca, modelo: d(f)?.modelo, estado: d(f)?.estado })),
+    ...COLUMNAS.map(
+      (c): ColumnaTabla<(typeof filas)[number]> => ({
+        clave: c.c,
+        etiqueta: c.t,
+        valor: (f) => f.importes[c.c],
+        alinear: "right",
+        celda: (f) =>
+          f.importes[c.c] !== 0 ? (
+            <label style={{ display: "inline-flex", gap: "6px", alignItems: "center", cursor: "pointer" }}>
+              <input type="checkbox" checked={f.cobrado[c.c]} onChange={(e) => marcar(f.idExpediente, c.c, e.target.checked)} />
+              {euros(f.importes[c.c])}
+            </label>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>—</span>
+          ),
+      }),
+    ),
+    { clave: "total", etiqueta: "Total", valor: (f) => f.total, celda: (f) => <b>{euros(f.total)}</b>, alinear: "right" },
+  ];
 
   return (
     <Seccion titulo="🔍 Control y Verificación de Cobros de Comisiones" ayuda="Compara tu nómina con la liquidación: marca cada concepto cuando lo veas cobrado.">
@@ -76,52 +114,20 @@ export default function CotejoCobros({ cat, usuarioInicial, esAdmin }: { cat: Ca
         </div>
       )}
       <h4>📋 Expedientes a Verificar ({filas.length})</h4>
-      <div className="table-container">
-        <table className="table-premium">
-          <thead>
-            <tr>
-              <th>Expediente</th>
-              {COLUMNAS.map((c) => (
-                <th key={c.c} style={{ textAlign: "right" }}>
-                  {c.t}
-                </th>
-              ))}
-              <th style={{ textAlign: "right" }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((f) => (
-              <tr key={f.idExpediente}>
-                <td>
-                  <Link href={`/dashboard/expedientes/editar/${f.idExpediente}`} style={{ color: "var(--primary)" }}>
-                    {codigoExpediente(f.idExpediente)}
-                  </Link>
-                </td>
-                {COLUMNAS.map((c) => (
-                  <td key={c.c} style={{ textAlign: "right" }}>
-                    {f.importes[c.c] !== 0 ? (
-                      <label style={{ display: "inline-flex", gap: "6px", alignItems: "center", cursor: "pointer" }}>
-                        <input type="checkbox" checked={f.cobrado[c.c]} onChange={(e) => marcar(f.idExpediente, c.c, e.target.checked)} />
-                        {euros(f.importes[c.c])}
-                      </label>
-                    ) : (
-                      <span style={{ color: "var(--text-muted)" }}>—</span>
-                    )}
-                  </td>
-                ))}
-                <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(f.total)}</td>
-              </tr>
-            ))}
-            {filas.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ color: "var(--text-muted)" }}>
-                  No hay liquidación para ese mes o no hay expedientes que coincidan.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <TablaDatos<(typeof filas)[number]>
+        id="cotejo-nomina"
+        columnas={columnas}
+        filas={filas}
+        clave={(f) => f.idExpediente}
+        placeholder="Buscar por expediente, matrícula, cliente, marca, modelo…"
+        vacio="No hay liquidación para ese mes o no hay expedientes que coincidan."
+        textoExtra={(f) => codigoExpediente(f.idExpediente)}
+        pie={(fs) => ({
+          expediente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`,
+          ...Object.fromEntries(COLUMNAS.map((c) => [c.c, euros(fs.reduce((t, f) => t + f.importes[c.c], 0))])),
+          total: euros(fs.reduce((t, f) => t + f.total, 0)),
+        })}
+      />
     </Seccion>
   );
 }

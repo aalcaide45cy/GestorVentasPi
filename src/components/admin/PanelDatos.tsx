@@ -1,30 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
 import { useCarga } from "@/components/comisiones/useCarga";
-import { ICONOS, ModalCopiasInternas, ModalExportar, ModalImportar, botonChico, cuantos, type DatosPanel, type SeccionDatos } from "@/components/datos/DatosSeccion";
-import type { Seccion } from "@/lib/servicios/intercambio";
+import { ICONOS, ModalContenido, ModalCopiasInternas, ModalExportar, ModalImportar, botonChico, cuantos, tamanoLegible, type DatosPanel, type SeccionDatos } from "@/components/datos/DatosSeccion";
+import { INFO_SECCIONES, SECCIONES, type Seccion } from "@/lib/secciones-info";
 
-const VACIO: DatosPanel = { secciones: [], planes: [] };
+/** Las cajitas salen al instante con lo que no depende de la base de datos; los recuentos (-1 = «…») llegan después. */
+const INICIAL: DatosPanel = { secciones: SECCIONES.map((s) => ({ seccion: s, registros: -1, ...INFO_SECCIONES[s] })), planes: [] };
+
+/** Lo último que se vio, para que al volver a entrar salga al momento mientras se vuelve a pedir. */
+let ultimoPanel: DatosPanel | null = null;
+let ultimosTamanos: Record<string, number> | null = null;
 
 const GRUPOS: { titulo: string; ayuda: string; secciones: Seccion[] }[] = [
-  { titulo: "Personas y ventas", ayuda: "Lo que más cambia día a día.", secciones: ["clientes", "expedientes"] },
+  { titulo: "Personas y ventas", ayuda: "Lo que más cambia día a día.", secciones: ["clientes_expedientes", "clientes", "expedientes"] },
   { titulo: "Catálogos", ayuda: "Listas que se eligen al crear un expediente.", secciones: ["marcas_modelos", "tipos_venta", "estados", "tiendas"] },
   { titulo: "Comisiones", ayuda: "Planes, plantillas de tarifas y hojas de cotejo.", secciones: ["planes", "plantillas_tarifas", "plantillas_plan", "rejillas"] },
   { titulo: "Sistema", ayuda: "Configuración y usuarios.", secciones: ["ajustes", "usuarios"] },
 ];
 
 /** «Datos por secciones»: exportar, importar y guardar copias internas de cada tipo de datos por separado. */
-export default function PanelDatos() {
+export default function PanelDatos({ alIrACopias }: { alIrACopias?: () => void }) {
   const router = useRouter();
-  const { datos, recargar } = useCarga<DatosPanel>("/api/admin/datos", VACIO);
+  const { datos, recargar } = useCarga<DatosPanel>("/api/admin/datos", ultimoPanel ?? INICIAL);
+  // Lo que pesa cada archivo se calcula exportando de verdad cada sección: va en otra petición para no retrasar las cajitas
+  const [versionTamanos, setVersionTamanos] = useState(0);
+  const { datos: tamanos } = useCarga<Record<string, number>>(`/api/admin/datos/tamanos${versionTamanos > 0 ? `?fresco=1&v=${versionTamanos}` : ""}`, ultimosTamanos ?? {});
+  useEffect(() => {
+    if (datos.secciones.every((s) => s.registros >= 0)) ultimoPanel = datos;
+    if (Object.keys(tamanos).length > 0) ultimosTamanos = tamanos;
+  }, [datos, tamanos]);
   const { datos: copias, recargar: recargarCopias } = useCarga<{ conteo: Record<string, number> }>("/api/admin/datos/copias?soloConteo=1", { conteo: {} });
-  const [modal, setModal] = useState<{ tipo: "exportar" | "importar" | "copias"; seccion: SeccionDatos | null } | null>(null);
+  const [modal, setModal] = useState<{ tipo: "exportar" | "importar" | "copias" | "contenido"; seccion: SeccionDatos | null } | null>(null);
 
   const refrescar = () => {
     recargar();
+    setVersionTamanos((v) => v + 1);
     recargarCopias();
     router.refresh();
   };
@@ -39,14 +52,16 @@ export default function PanelDatos() {
       </div>
 
       <div className="glass-panel" style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)" }}>
-        <div style={{ fontWeight: 700 }}>🗄️ Toda la aplicación</div>
+        <div style={{ fontWeight: 700 }}>🗄️ Toda la aplicación a la vez</div>
         <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-          Para guardar o restaurar <b>todo</b> a la vez tienes dos opciones. La <b>copia completa (.dump)</b> es la más segura y la recomendada: incluye todo, se valida al crearla y está justo debajo, en «Copias de seguridad». El <b>JSON de datos básicos</b> es legible y sirve para llevar tiendas, usuarios, clientes, expedientes y catálogos a otro equipo, pero <b>NO incluye planes de comisionamiento, liquidaciones, puntos ni documentos</b> y <b>sí incluye las contraseñas cifradas y los secretos del doble factor</b>: guárdalo en un sitio seguro y guarda también el archivo .env (o al menos APP_SECRET).
+          Lo más seguro es la <b>copia completa (.dump)</b>: incluye todo y se valida al crearla (pestaña «Copias de seguridad»). El <b>JSON de datos básicos</b> es legible y sirve para llevar tiendas, usuarios, clientes, expedientes y catálogos a otro equipo, pero <b>NO incluye planes de comisionamiento, liquidaciones, puntos ni documentos</b> y <b>sí incluye las contraseñas cifradas y los secretos del doble factor</b>: guárdalo en un sitio seguro (y el archivo .env, o al menos APP_SECRET).
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-          <a className="btn btn-primary" style={botonChico} href="#copias-de-seguridad" title="Baja a «Copias de seguridad»: crea una copia completa (.dump) de toda la aplicación, descárgala, súbela o restáurala. Es la forma más segura de guardar todo.">
-            💾 Copia completa (.dump)…
-          </a>
+          {alIrACopias && (
+            <button type="button" className="btn btn-primary" style={botonChico} onClick={alIrACopias} title="Abre la pestaña «Copias de seguridad»: crea una copia completa (.dump) de toda la aplicación, descárgala, súbela o restáurala.">
+              💾 Ir a las copias completas (.dump)
+            </button>
+          )}
           <BotonesBackup deshabilitado={false} />
         </div>
       </div>
@@ -69,13 +84,14 @@ export default function PanelDatos() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "14px", alignItems: "stretch" }} className="rejilla-propia">
               {secciones.map((s) => (
-                <TarjetaSeccion key={s.seccion} s={s} copias={copias.conteo[s.seccion] ?? 0} alAbrir={(tipo) => setModal({ tipo, seccion: s })} />
+                <TarjetaSeccion key={s.seccion} s={s} copias={copias.conteo[s.seccion] ?? 0} bytes={tamanos[s.seccion]} alAbrir={(tipo) => setModal({ tipo, seccion: s })} />
               ))}
             </div>
           </section>
         );
       })}
 
+      {modal?.tipo === "contenido" && modal.seccion && <ModalContenido seccion={modal.seccion} alCerrar={() => setModal(null)} />}
       {modal?.tipo === "exportar" && modal.seccion && <ModalExportar seccion={modal.seccion} planes={datos.planes} alCerrar={() => setModal(null)} />}
       {modal?.tipo === "importar" && modal.seccion && <ModalImportar seccion={modal.seccion} alCerrar={() => setModal(null)} alTerminar={refrescar} />}
       {modal?.tipo === "copias" && <ModalCopiasInternas seccion={modal.seccion?.seccion ?? null} secciones={datos.secciones} alCerrar={() => setModal(null)} alCambiar={refrescar} />}
@@ -83,15 +99,17 @@ export default function PanelDatos() {
   );
 }
 
-function TarjetaSeccion({ s, copias, alAbrir }: { s: SeccionDatos; copias: number; alAbrir: (tipo: "exportar" | "importar" | "copias") => void }) {
+function TarjetaSeccion({ s, copias, bytes, alAbrir }: { s: SeccionDatos; copias: number; bytes: number | undefined; alAbrir: (tipo: "exportar" | "importar" | "copias" | "contenido") => void }) {
+  // Mientras llegan los recuentos no se enseña ningún número
+  const contar = s.registros < 0 ? "…" : cuantos(s.registros, s);
   return (
     <div className="glass-panel" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)", height: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
+      <button type="button" onClick={() => alAbrir("contenido")} title="Pulsa para ver qué contiene: una tabla con orden, buscador y columnas a tu gusto, tal cual se exportaría." style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", background: "none", border: "none", padding: 0, color: "inherit", font: "inherit", cursor: "pointer", textAlign: "left" }}>
         <strong>
           {ICONOS[s.seccion]} {s.titulo}
         </strong>
-        <span style={{ color: "var(--text-muted)", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{cuantos(s.registros, s)}</span>
-      </div>
+        <span style={{ color: "var(--primary)", fontSize: "0.8rem", textAlign: "right" }}>👁 {contar}</span>
+      </button>
       <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.45, flex: 1 }}>
         {s.descripcion}
         {s.aviso && (
@@ -100,9 +118,12 @@ function TarjetaSeccion({ s, copias, alAbrir }: { s: SeccionDatos; copias: numbe
           </span>
         )}
       </div>
+      <div title="Lo que pesaría hoy el archivo .json que se descarga al exportar esta sección (el mismo archivo, con sus sangrías). Se recalcula tras cada importación." style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px" }}>
+        ⚖️ Peso del archivo: <strong style={{ color: "var(--text-primary)" }}>{bytes === undefined ? "calculando…" : s.registros === 0 ? "vacío" : tamanoLegible(bytes)}</strong>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: s.importable ? "repeat(3, 1fr)" : "1fr", gap: "8px", marginTop: "auto" }}>
-        <button type="button" className="btn btn-secondary" style={{ ...botonChico, padding: "8px 6px" }} onClick={() => alAbrir("exportar")} title={`Descarga un archivo .json con ${s.seccion === "planes" ? "los planes que elijas (todos o uno a uno)" : `los ${s.plural}`} (${cuantos(s.registros, s)}). No borra ni cambia nada.${s.aviso ? ` ${s.aviso}` : ""}`}>
-          📤 Exportar
+        <button type="button" className="btn btn-secondary" style={{ ...botonChico, padding: "8px 6px" }} onClick={() => alAbrir("exportar")} title={`Descarga un archivo .json con ${s.seccion === "planes" ? "los planes que elijas (todos o uno a uno)" : `los ${s.plural}`} (${contar}). No borra ni cambia nada.${s.aviso ? ` ${s.aviso}` : ""}`}>
+          📤 Exportar SOLO {s.plural}
         </button>
         {s.importable ? (
           <>

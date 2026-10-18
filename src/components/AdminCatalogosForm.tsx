@@ -52,6 +52,15 @@ export default function AdminCatalogosForm({
   const [estados, setEstados] = useState(estadosIniciales);
   const [tiendas, setTiendas] = useState(tiendasIniciales);
   const [predeterminadaId, setPredeterminadaId] = useState(tiendaPredeterminadaIdInicial);
+  // Si el servidor entrega datos nuevos (router.refresh, deshacer o rehacer), se reemplazan los locales
+  const [previos, setPrevios] = useState({ marcasIniciales, tiposVentaIniciales, estadosIniciales, tiendasIniciales });
+  if (previos.marcasIniciales !== marcasIniciales || previos.tiposVentaIniciales !== tiposVentaIniciales || previos.estadosIniciales !== estadosIniciales || previos.tiendasIniciales !== tiendasIniciales) {
+    setPrevios({ marcasIniciales, tiposVentaIniciales, estadosIniciales, tiendasIniciales });
+    setMarcas(marcasIniciales);
+    setTipos(tiposVentaIniciales);
+    setEstados(estadosIniciales);
+    setTiendas(tiendasIniciales);
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>

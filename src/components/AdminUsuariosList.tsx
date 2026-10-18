@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { formatDate } from "@/lib/date-utils";
 import type { UsuarioAdminDto } from "@/lib/dto";
+import type { ResumenBorradoTotal } from "@/lib/servicios/usuarios";
 import { mensajeDeError } from "./expedientes/comun";
 
 interface Props {
@@ -13,7 +15,6 @@ interface Props {
   currentUserId: number;
 }
 
-type CampoOrden = "nombre" | "fecha_de_registro" | "rol" | "bloqueado";
 
 const ROLES_OPCIONES = [
   ["administrador", "Administrador"],
@@ -30,13 +31,32 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const { mostrar } = useToast();
   const [usuarios, setUsuarios] = useState<UsuarioAdminDto[]>(usuariosIniciales);
   const [actualizando, setActualizando] = useState<number | null>(null);
-  const [campoOrden, setCampoOrden] = useState<CampoOrden | null>(null);
-  const [asc, setAsc] = useState(true);
 
   const [formulario, setFormulario] = useState<"crear" | "editar" | null>(null);
   const [seleccionado, setSeleccionado] = useState<UsuarioAdminDto | null>(null);
   const [aEliminar, setAEliminar] = useState<UsuarioAdminDto | null>(null);
   const [textoConfirmar, setTextoConfirmar] = useState("");
+  // Borrar también todo lo del usuario (expedientes, liquidaciones…): sirve para quitar usuarios de prueba
+  const [conTodoId, setConTodoId] = useState<number | null>(null);
+  const [detrasDe, setDetrasDe] = useState<{ id: number; datos: ResumenBorradoTotal } | null>(null);
+  const conTodo = aEliminar !== null && conTodoId === aEliminar.id_usuario;
+  const detras = aEliminar !== null && detrasDe?.id === aEliminar.id_usuario ? detrasDe.datos : null;
+  useEffect(() => {
+    if (!aEliminar) return;
+    const id = aEliminar.id_usuario;
+    let vigente = true;
+    void (async () => {
+      try {
+        const r = await fetch(`/api/admin/usuarios?resumen=${id}`, { credentials: "same-origin" });
+        if (r.ok && vigente) setDetrasDe({ id, datos: ((await r.json()) as { data: ResumenBorradoTotal }).data });
+      } catch {
+        /* sin el resumen solo se puede borrar al usuario vacío */
+      }
+    })();
+    return () => {
+      vigente = false;
+    };
+  }, [aEliminar]);
   const [passwordTemporal, setPasswordTemporal] = useState<{ email: string; password: string } | null>(null);
 
   const [nombre, setNombre] = useState("");
@@ -47,26 +67,6 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const [tipoVendedor, setTipoVendedor] = useState("VN");
   const [patronVo, setPatronVo] = useState("Estándar VO");
   const [cargando, setCargando] = useState(false);
-
-  const ordenar = (c: CampoOrden) => {
-    if (campoOrden === c) setAsc(!asc);
-    else {
-      setCampoOrden(c);
-      setAsc(true);
-    }
-  };
-  const flecha = (c: CampoOrden) => (campoOrden === c ? (asc ? " ▲" : " ▼") : " ↕");
-
-  const ordenados = [...usuarios].sort((a, b) => {
-    if (!campoOrden) return 0;
-    const va = a[campoOrden] ?? "";
-    const vb = b[campoOrden] ?? "";
-    const na = typeof va === "boolean" ? Number(va) : va;
-    const nb = typeof vb === "boolean" ? Number(vb) : vb;
-    if (na < nb) return asc ? -1 : 1;
-    if (na > nb) return asc ? 1 : -1;
-    return 0;
-  });
 
   const abrirCrear = () => {
     setNombre("");
@@ -117,11 +117,6 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
         if (r.passwordTemporal) setPasswordTemporal({ email, password: r.passwordTemporal });
         mostrar("Usuario creado correctamente.");
       } else if (formulario === "editar" && seleccionado) {
-        if (rol === "administrador" && bloqueado) {
-          mostrar("No se puede suspender a un usuario con el rol de Administrador.", "error");
-          setCargando(false);
-          return;
-        }
         await enviarJson(
           "PUT",
           { id_usuario: seleccionado.id_usuario, nombre, rol, bloqueado, email, telefono, tipo_vendedor: tipoVendedor, patron_vo: patronVo },
@@ -182,10 +177,6 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
       mostrar("No puedes bloquear tu propia cuenta.", "error");
       return;
     }
-    if (u.rol === "administrador") {
-      mostrar("No se puede suspender a un usuario con el rol de Administrador.", "error");
-      return;
-    }
     const nuevo = !u.bloqueado;
     setActualizando(u.id_usuario);
     try {
@@ -224,7 +215,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const eliminar = async (id: number) => {
     setActualizando(id);
     try {
-      await enviarJson("DELETE", { id_usuario: id }, "Error al eliminar usuario.");
+      await enviarJson("DELETE", { id_usuario: id, con_todo: conTodo }, "Error al eliminar usuario.");
       setUsuarios((prev) => prev.filter((u) => u.id_usuario !== id));
       mostrar("Usuario eliminado del sistema.");
       setAEliminar(null);
@@ -236,6 +227,119 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
     }
   };
 
+  const columnasUsuarios: ColumnaTabla<UsuarioAdminDto>[] = [
+    { clave: "usuario", etiqueta: "Usuario", valor: (u) => u.nombre ?? "", celda: (u) => (
+        <>
+          <div style={{ fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+            {u.nombre}
+            {(u.tipo_vendedor === "VO" || u.rol === "vendedor") && (
+              <span className="badge badge-tienda" style={{ fontSize: "0.65rem", padding: "2px 6px" }}>
+                {u.tipo_vendedor === "VO" ? `VO (${u.patron_vo})` : "VN"}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+            Acceso: {u.login_email}
+            {u.totp_activo ? " · 2FA" : ""}
+          </div>
+        
+        </>
+      ) },
+    { clave: "contacto", etiqueta: "Contacto", valor: (u) => u.emails[0]?.email ?? u.telefonos[0]?.telefono ?? "", celda: (u) => (
+        <>
+          <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "2px" }}>
+            {u.emails[0]?.email && <span>📧 {u.emails[0].email}</span>}
+            {u.telefonos[0]?.telefono && <span>📞 {u.telefonos[0].telefono}</span>}
+            {!u.emails[0] && !u.telefonos[0] && <span style={{ color: "var(--text-muted)" }}>Sin contacto</span>}
+          </div>
+        
+        </>
+      ) },
+    { clave: "fecha", etiqueta: "Fecha ingreso", valor: (u) => u.fecha_de_registro ?? "", celda: (u) => (<>{u.fecha_de_registro ? formatDate(u.fecha_de_registro) : "No registrada"}</>) },
+    { clave: "estado", etiqueta: "Estado", valor: (u) => (u.bloqueado ? "Suspendido" : "Activo"), celda: (u) => (
+        <>
+          <span className={`badge ${u.bloqueado ? "badge-admin" : "badge-tienda"}`} style={{ fontSize: "0.7rem" }}>
+            {u.bloqueado ? "🔒 Suspendido" : "🔓 Activo"}
+          </span>
+        
+        </>
+      ) },
+    { clave: "rol", etiqueta: "Rol", valor: (u) => u.rol ?? "", celda: (u) => (
+        <>
+          <select
+            className="form-select"
+            value={u.rol || "invitado"}
+            onChange={(e) => void cambiarRol(u, e.target.value)}
+            disabled={actualizando === u.id_usuario}
+            style={{ padding: "6px 12px", width: "150px", fontSize: "0.85rem" }}
+          >
+            {ROLES_OPCIONES.map(([valor, etiqueta]) => (
+              <option key={valor} value={valor}>
+                {etiqueta}
+              </option>
+            ))}
+          </select>
+        
+        </>
+      ) },
+    { clave: "acciones", etiqueta: "Acciones", valor: () => "", celda: (u) => (
+        <>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {u.id_usuario !== currentUserId && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void alternarBloqueo(u)}
+                disabled={actualizando === u.id_usuario}
+                style={{ padding: "6px 10px", fontSize: "0.8rem", color: u.bloqueado ? "var(--success)" : "var(--warning)", cursor: "pointer" }}
+                title={u.bloqueado ? "Activar acceso" : "Suspender acceso"}
+              >
+                {u.bloqueado ? "🔓 Activar" : "🔒 Suspender"}
+              </button>
+            )}
+            <button type="button" className="btn btn-secondary" onClick={() => abrirEditar(u)} disabled={actualizando === u.id_usuario} style={{ padding: "6px 10px", fontSize: "0.8rem" }}>
+              ✏️ Editar
+            </button>
+            {u.totp_activo && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void accionSeguridad(u, "reset_2fa")}
+                disabled={actualizando === u.id_usuario}
+                style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+                title="Restablecer el doble factor (pierde el móvil y los códigos)"
+              >
+                🔑 Reset 2FA
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void accionSeguridad(u, "cerrar_sesiones")}
+              disabled={actualizando === u.id_usuario}
+              style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+              title="Cerrar todas las sesiones abiertas de este usuario"
+            >
+              🚪 Cerrar sesiones
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setAEliminar(u);
+                setTextoConfirmar("");
+              }}
+              disabled={actualizando === u.id_usuario}
+              style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
+            >
+              🗑️
+            </button>
+          </div>
+        
+        </>
+      ) },
+  ];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -244,121 +348,16 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
         </button>
       </div>
 
-      <div className="table-container">
-        <table className="table-premium">
-          <thead>
-            <tr>
-              <th onClick={() => ordenar("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>Usuario{flecha("nombre")}</th>
-              <th>Contacto</th>
-              <th onClick={() => ordenar("fecha_de_registro")} style={{ cursor: "pointer", userSelect: "none" }}>Fecha Ingreso{flecha("fecha_de_registro")}</th>
-              <th onClick={() => ordenar("bloqueado")} style={{ cursor: "pointer", userSelect: "none" }}>Estado{flecha("bloqueado")}</th>
-              <th onClick={() => ordenar("rol")} style={{ cursor: "pointer", userSelect: "none" }}>Rol{flecha("rol")}</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ordenados.map((u) => (
-              <tr key={u.id_usuario}>
-                <td>
-                  <div style={{ fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
-                    {u.nombre}
-                    {(u.tipo_vendedor === "VO" || u.rol === "vendedor") && (
-                      <span className="badge badge-tienda" style={{ fontSize: "0.65rem", padding: "2px 6px" }}>
-                        {u.tipo_vendedor === "VO" ? `VO (${u.patron_vo})` : "VN"}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
-                    Acceso: {u.login_email}
-                    {u.totp_activo ? " · 2FA" : ""}
-                  </div>
-                </td>
-                <td>
-                  <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "2px" }}>
-                    {u.emails[0]?.email && <span>📧 {u.emails[0].email}</span>}
-                    {u.telefonos[0]?.telefono && <span>📞 {u.telefonos[0].telefono}</span>}
-                    {!u.emails[0] && !u.telefonos[0] && <span style={{ color: "var(--text-muted)" }}>Sin contacto</span>}
-                  </div>
-                </td>
-                <td>{u.fecha_de_registro ? formatDate(u.fecha_de_registro) : "No registrada"}</td>
-                <td>
-                  <span className={`badge ${u.bloqueado ? "badge-admin" : "badge-tienda"}`} style={{ fontSize: "0.7rem" }}>
-                    {u.bloqueado ? "🔒 Suspendido" : "🔓 Activo"}
-                  </span>
-                </td>
-                <td>
-                  <select
-                    className="form-select"
-                    value={u.rol || "invitado"}
-                    onChange={(e) => void cambiarRol(u, e.target.value)}
-                    disabled={actualizando === u.id_usuario}
-                    style={{ padding: "6px 12px", width: "150px", fontSize: "0.85rem" }}
-                  >
-                    {ROLES_OPCIONES.map(([valor, etiqueta]) => (
-                      <option key={valor} value={valor}>
-                        {etiqueta}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    {u.rol !== "administrador" && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => void alternarBloqueo(u)}
-                        disabled={actualizando === u.id_usuario}
-                        style={{ padding: "6px 10px", fontSize: "0.8rem", color: u.bloqueado ? "var(--success)" : "var(--warning)", cursor: "pointer" }}
-                        title={u.bloqueado ? "Activar acceso" : "Suspender acceso"}
-                      >
-                        {u.bloqueado ? "🔓 Activar" : "🔒 Suspender"}
-                      </button>
-                    )}
-                    <button type="button" className="btn btn-secondary" onClick={() => abrirEditar(u)} disabled={actualizando === u.id_usuario} style={{ padding: "6px 10px", fontSize: "0.8rem" }}>
-                      ✏️ Editar
-                    </button>
-                    {u.totp_activo && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => void accionSeguridad(u, "reset_2fa")}
-                        disabled={actualizando === u.id_usuario}
-                        style={{ padding: "6px 10px", fontSize: "0.8rem" }}
-                        title="Restablecer el doble factor (pierde el móvil y los códigos)"
-                      >
-                        🔑 Reset 2FA
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => void accionSeguridad(u, "cerrar_sesiones")}
-                      disabled={actualizando === u.id_usuario}
-                      style={{ padding: "6px 10px", fontSize: "0.8rem" }}
-                      title="Cerrar todas las sesiones abiertas de este usuario"
-                    >
-                      🚪 Cerrar sesiones
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => {
-                        setAEliminar(u);
-                        setTextoConfirmar("");
-                      }}
-                      disabled={actualizando === u.id_usuario}
-                      style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <TablaDatos<UsuarioAdminDto>
+        id="usuarios-admin"
+        columnas={columnasUsuarios}
+        filas={usuarios}
+        clave={(u) => u.id_usuario}
+        placeholder="Buscar por nombre, correo, teléfono, rol…"
+        vacio="No hay usuarios."
+        textoExtra={(u) => `${u.login_email} ${u.emails.map((e) => e.email).join(" ")} ${u.telefonos.map((t) => t.telefono).join(" ")}`}
+        pie={(fs) => ({ usuario: `${fs.length} usuario${fs.length === 1 ? "" : "s"}` })}
+      />
 
       {formulario && (
         <Modal titulo={formulario === "crear" ? "Registrar Nuevo Usuario" : "Editar Usuario"} ancho="500px" tamanoTitulo="1.25rem">
@@ -485,6 +484,28 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
           <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5", margin: 0 }}>
             ¿Estás seguro de que deseas eliminar definitivamente al usuario <strong>{aEliminar.nombre}</strong>? Esta acción no se puede deshacer.
           </p>
+          {detras && (detras.expedientes > 0 || detras.liquidaciones > 0 || detras.rejillas > 0 || detras.historial > 0) && (
+            <div style={{ border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)", padding: "10px 12px", fontSize: "0.88rem", lineHeight: 1.5 }}>
+              Este usuario tiene <b>{detras.expedientes}</b> expediente(s) activo(s), <b>{detras.liquidaciones}</b> liquidación(es), <b>{detras.rejillas}</b> rejilla(s) y <b>{detras.historial}</b> apunte(s) de puntos, planes o validaciones. Mientras existan, no se puede borrar. Si es un usuario de prueba, puedes borrarlo con todo lo suyo:
+              {detras.lista.length > 0 && (
+                <div style={{ maxHeight: "160px", overflowY: "auto", margin: "8px 0", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "6px 8px" }}>
+                  {detras.lista.map((x) => (
+                    <div key={x.id} style={{ display: "flex", gap: "8px", justifyContent: "space-between" }}>
+                      <a href={`/dashboard/expedientes/editar/${x.id}`} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
+                        #{x.id} · {x.cliente ?? "Sin cliente"}
+                      </a>
+                      <span style={{ color: "var(--text-muted)" }}>{x.matricula ?? "sin matrícula"}</span>
+                    </div>
+                  ))}
+                  {detras.expedientes > detras.lista.length && <div style={{ color: "var(--text-muted)" }}>… y {detras.expedientes - detras.lista.length} más</div>}
+                </div>
+              )}
+              <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px", fontWeight: 600 }}>
+                <input type="checkbox" checked={conTodo} onChange={(e) => setConTodoId(e.target.checked && aEliminar ? aEliminar.id_usuario : null)} />
+                Borrar también sus expedientes, liquidaciones, rejillas y puntos
+              </label>
+            </div>
+          )}
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">
               Escribe <strong>ELIMINAR</strong> para confirmar:

@@ -33,6 +33,10 @@ export const CLAVE_ETIQUETA_COPIA = "expedientes-etiqueta-copia";
  */
 export const CLAVE_VENTANA_SOLO_SI_NUEVO = "pedidos-ventana-solo-si-falta-marca-modelo";
 
+/** Preferencia del navegador: segundos que hay que dejar el ratón sobre el nombre de un cliente para ver su foto. Por defecto, 3. */
+export const CLAVE_RETRASO_FOTO = "foto-cliente-retraso-segundos";
+export const RETRASO_FOTO_POR_DEFECTO = 3;
+
 /** Lectura puntual (fuera de componentes): ¿se permiten expedientes duplicados en este navegador? */
 export function permitirDuplicadosAhora(): boolean {
   return leer(CLAVE_PERMITIR_DUPLICADOS) === "true";

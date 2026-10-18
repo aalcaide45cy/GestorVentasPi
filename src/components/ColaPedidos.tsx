@@ -1,14 +1,19 @@
 "use client";
 
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "./etiquetas";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { ExpedienteDto, MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola } from "@/lib/pedidos-cola";
+import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola, type ItemCola } from "@/lib/pedidos-cola";
+import { anotarResolucion, cancelarLecturas } from "@/lib/lecturas-pedidos-cliente";
+import EstadoLecturas from "./EstadoLecturas";
 import PedidoRapidoModal from "./PedidoRapidoModal";
 import RellenarDesdePedidoModal from "./RellenarDesdePedidoModal";
+import { vincularDniAlExpediente } from "@/lib/crear-desde-pedido";
 
 interface Props {
   marcas: (MarcaDto & { modelos: ModeloDto[] })[];
@@ -53,9 +58,17 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     if (destino) abrirDeCola(destino.id);
   };
 
+  /** Los documentos de un pedido que se descarta ya no sirven para nada: se marcan como eliminados (se borran del todo desde Configuración › BBDD). */
+  const soltarDocumentos = (lista: ItemCola[]) => {
+    for (const i of lista) for (const id of [i.pedido.adjunto.id, ...(i.dni?.adjuntos ?? [])]) void fetch(`/api/adjuntos?id=${id}`, { method: "DELETE", credentials: "same-origin" }).catch(() => undefined);
+  };
+
   /** Quita el pedido aplicado y abre el siguiente de la cola, si lo hay. */
-  const terminado = (mensaje: string) => {
+  const terminado = (mensaje: string, idExpedienteCreado?: number) => {
     if (!actual) return;
+    if (actual.idExpediente && actual.dni?.adjuntos.length && !mensaje.startsWith("Pedido descartado")) void vincularDniAlExpediente(actual.dni.adjuntos, actual.idExpediente).catch((e: unknown) => mostrar(`No se ha podido unir el DNI al expediente: ${textoError(e)}`, "error"));
+    if (mensaje.startsWith("Pedido descartado")) soltarDocumentos([actual]);
+    anotarResolucion(actual.idLectura, mensaje.startsWith("Pedido descartado") ? "quitado" : actual.idExpediente ? "completado" : "creado", actual.idExpediente ?? idExpedienteCreado ?? null);
     const siguiente = items[indice + 1] ?? items[indice - 1] ?? null;
     quitarDeCola(actual.id);
     mostrar(mensaje);
@@ -63,14 +76,52 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     abrirDeCola(siguiente && siguiente.id !== actual.id ? siguiente.id : null);
   };
 
-  if (items.length === 0) return null;
+  if (items.length === 0) return <EstadoLecturas />;
+
+  const columnasCola: ColumnaTabla<(typeof items)[number]>[] = [
+    {
+      clave: "pedido",
+      etiqueta: "Pedido",
+      valor: (i) => i.pedido.datos.numeroPedido ?? i.nombre,
+      celda: (i) => (
+        <span title={i.nombre}>
+          {i.pedido.datos.numeroPedido ?? i.nombre}
+          {i.pedido.datos.tipoPedido === "usado" && <span title="Vehículo de ocasión vendido"> 🚗</span>}
+          {i.pedido.datos.retoma && <span title={`Lleva vehículo de retoma${i.pedido.datos.retoma.matricula ? ` (${i.pedido.datos.retoma.matricula})` : ""}`}> 🔁</span>}
+        </span>
+      ),
+    },
+    { clave: "cliente", etiqueta: "Cliente", valor: (i) => i.pedido.datos.cliente ?? "", celda: (i) => i.pedido.datos.cliente ?? <span style={{ color: "var(--text-muted)" }}>—</span> },
+    ...columnasVehiculo<(typeof items)[number]>((i) => ({ clase: i.pedido.datos.tipoPedido === "usado" ? "VO" : i.pedido.datos.tipoPedido === "nuevo" ? "VN" : null, marca: i.pedido.datos.marcaPropuesta, modelo: i.pedido.datos.modeloPropuesto ?? i.pedido.datos.modeloTexto }), { sin: ["estado", "tipoPago"] }),
+    { clave: "fecha", etiqueta: "Fecha", valor: (i) => i.pedido.datos.fechaExpediente ?? "", celda: (i) => (i.pedido.datos.fechaExpediente ? formatDate(i.pedido.datos.fechaExpediente) : "—") },
+    { clave: "destino", etiqueta: "Destino", valor: (i) => (i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente") + (i.dni ? " · con DNI" : "") },
+    {
+      clave: "acciones",
+      etiqueta: "",
+      valor: () => "",
+      celda: (i) => (
+        <span style={{ display: "inline-flex", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => abrirDeCola(i.id)}>
+            Abrir
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => { anotarResolucion(i.idLectura, "quitado"); soltarDocumentos([i]); quitarDeCola(i.id); }} title="Quita el pedido de la cola sin aplicarlo">
+            Descartar
+          </button>
+        </div>
+        </span>
+      ),
+    },
+  ];
 
   return (
+    <>
+    <EstadoLecturas />
     <div className="glass-panel" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <h3 style={{ fontSize: "1.05rem" }}>
           📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length} de {MAXIMO_COLA})</span>
-          {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…</span>}
+          {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…<button type="button" className="btn btn-secondary" style={{ marginLeft: "8px", padding: "1px 8px", fontSize: "0.78rem" }} onClick={() => void cancelarLecturas()}>✖ Cancelar lectura</button></span>}
         </h3>
         <div style={{ display: "flex", gap: "8px" }}>
           <button type="button" className="btn btn-primary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => abrirDeCola(items[0].id)}>
@@ -81,7 +132,10 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
             className="btn btn-secondary"
             style={{ padding: "6px 14px", fontSize: "0.85rem" }}
             onClick={() => {
-              if (window.confirm("¿Descartar todos los pedidos de la cola? Los ficheros ya leídos quedan guardados como documentos sin asignar, pero habrá que volver a soltarlos para usarlos.")) vaciarCola();
+              if (window.confirm("¿Descartar todos los pedidos de la cola? Sus ficheros se marcan como eliminados (se borran del todo desde Configuración › BBDD) y habrá que volver a soltarlos para usarlos.")) {
+                soltarDocumentos(items);
+                vaciarCola();
+              }
             }}
           >
             Vaciar cola
@@ -91,45 +145,14 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0 }}>
         Los pedidos leídos esperan aquí hasta que los apliques: puedes cerrar la ventana de un pedido y volver a abrirlo cuando quieras.
       </p>
-      <div className="table-container" style={{ maxHeight: "420px", overflowY: "auto" }}>
-        <table className="table-premium table-compact">
-          <thead>
-            <tr>
-              <th>Pedido</th>
-              <th>Cliente</th>
-              <th>Vehículo</th>
-              <th>Fecha</th>
-              <th>Destino</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((i) => (
-              <tr key={i.id}>
-                <td style={{ maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={i.nombre}>
-                  {i.pedido.datos.numeroPedido ?? i.nombre}
-                  {i.pedido.datos.tipoPedido === "usado" && <span title="Vehículo de ocasión vendido"> 🚗</span>}
-                  {i.pedido.datos.retoma && <span title={`Lleva vehículo de retoma${i.pedido.datos.retoma.matricula ? ` (${i.pedido.datos.retoma.matricula})` : ""}`}> 🔁</span>}
-                </td>
-                <td>{i.pedido.datos.cliente ?? <span style={{ color: "var(--text-muted)" }}>—</span>}</td>
-                <td>{i.pedido.datos.modeloTexto ?? "—"}</td>
-                <td>{i.pedido.datos.fechaExpediente ? formatDate(i.pedido.datos.fechaExpediente) : "—"}</td>
-                <td>{i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente"}</td>
-                <td style={{ whiteSpace: "nowrap" }}>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => abrirDeCola(i.id)}>
-                      Abrir
-                    </button>
-                    <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => quitarDeCola(i.id)} title="Quita el pedido de la cola sin aplicarlo">
-                      Descartar
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <TablaDatos<(typeof items)[number]>
+        id="cola-pedidos"
+        columnas={columnasCola}
+        filas={items}
+        clave={(i) => i.id}
+        placeholder="Buscar por pedido, cliente, vehículo…"
+        vacio="La cola está vacía."
+      />
 
       {actual && !actual.idExpediente && (
         <PedidoRapidoModal
@@ -159,5 +182,6 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
         />
       )}
     </div>
+    </>
   );
 }

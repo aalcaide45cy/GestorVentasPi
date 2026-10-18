@@ -61,9 +61,30 @@ export interface DatosPedido {
   idTipoDeVenta: number | null;
   /** «nuevo» (pedido de vehículo nuevo), «usado» (vehículo de ocasión vendido) o null si no se reconoce. */
   tipoPedido: "nuevo" | "usado" | null;
+  /** false si el documento no tiene pinta de pedido (otro PDF con datos de un cliente): no debe crear ni adjuntarse a nada. */
+  esPedido: boolean;
   /** Vehículo de retoma (usado que deja el cliente), de la sección «Valoración VO»: su matrícula nunca es la del coche vendido. */
   retoma: { matricula: string | null; vin: string | null; texto: string | null } | null;
   avisos: string[];
+}
+
+/**
+ * Documentos de la red que se parecen a un pedido pero no lo son (se descubrieron revisando miles de PDF): la hoja de prueba de
+ * un vehículo de demostración, el anexo de condiciones de comercialización de vehículos de ocasión (Anexo VO), la información o
+ * oferta de un vehículo, presupuestos y contratos. Si su cabecera lo dice, no es un pedido aunque lleve el mismo bloque de cliente.
+ */
+const CABECERA_QUE_NO_ES_PEDIDO = /HOJA\s+DE\s+PRUEBA|VEHICULO\s+DE\s+DEMOSTRACION|PRUEBA\s+DE\s+VEHICULO|ANEXO\s+(VO|A\s+LAS\s+CONDICIONES)|^\W*ANEXO\b|INFORMACION\s+DE\s+VEHICULO|OFERTA\s+(DE|FINANCIERA)|PRESUPUESTO|CONTRATO\s+DE/;
+const SENAL_DE_PEDIDO = /PEDIDO\s+DE\s+VEH|N[UÚ]MERO\s+(DE\s+)?PEDIDO\s*:?\s*\d{5,}|(HOJA|ORDEN)\s+DE\s+PEDIDO/;
+
+/** ¿La cabecera (ya sin acentos y en mayúsculas) es de uno de esos documentos que no son pedidos? */
+export function cabeceraDeOtroDocumento(cabeceraNormalizada: string): boolean {
+  return CABECERA_QUE_NO_ES_PEDIDO.test(cabeceraNormalizada.slice(0, 900));
+}
+
+/** Un pedido lleva «PEDIDO DE VEHÍCULO…» o «Número Pedido 12345678» arriba, y no es uno de los documentos de la lista anterior. */
+export function textoDePedido(texto: string): boolean {
+  const t = sinAcentos(texto.slice(0, 2500));
+  return !cabeceraDeOtroDocumento(t) && SENAL_DE_PEDIDO.test(t);
 }
 
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
@@ -127,12 +148,34 @@ interface Estructura {
 }
 
 /** Pedido de Renault/Dacia: bloque «CLIENTE» a la izquierda, establecimiento a la derecha, «RESUMEN» con el modelo. */
+/**
+ * El OCR pierde la «@» de los correos o la confunde con «E», «Q», «G», «©» o un espacio, y a veces deforma el dominio
+ * («hoimail», «gnail»). Si el resto cuadra con un proveedor conocido, se recompone el correo.
+ */
+function repararCorreo(c: string): string | null {
+  const m = c.trim().match(/^([\w.+-]{3,}?)(?:\s+|[EQG©@])(g[mn]a[il1]l|h[o0][tli1]{0,2}mail|outlook|yahoo|icloud|live|msn|me)\.([a-z.]{2,})$/);
+  if (!m) return null;
+  const d = m[2].toLowerCase();
+  const dominio = d.startsWith("g") ? "gmail" : d.startsWith("h") ? "hotmail" : d;
+  return `${m[1]}@${dominio}.${m[3]}`.toLowerCase();
+}
+
 function leerEstructuraRenault(lineas: string[]): Estructura | null {
   const iCliente = lineas.findIndex((l) => /^CLIENTE\b/.test(l.trim()) && /ESTABLECIMIENTO/i.test(l));
   if (iCliente < 0) return null;
   const bloque = lineas.slice(iCliente + 1);
   const iResumen = bloque.findIndex((l) => /^RESUMEN\b/.test(l.trim()));
-  const datos = iResumen >= 0 ? bloque.slice(0, iResumen) : bloque.slice(0, 12);
+  let datos = iResumen >= 0 ? bloque.slice(0, iResumen) : bloque.slice(0, 12);
+  // En un escaneo, la rayita o el logotipo de encima del nombre salen como una línea de basura: se salta hasta la línea del
+  // cliente («Sr. D. …», «Sra. Doña …») o, si no hay tratamiento, hasta la primera que parezca un nombre
+  const esNombre = (l: string) => {
+    const c = primeraColumna(l).trim();
+    const letras = (c.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g) ?? []).length;
+    return c.length >= 5 && /\s/.test(c) && letras / c.length >= 0.85 && !/\d/.test(c);
+  };
+  const iNombre = datos.findIndex((l) => HONORIFICO.test(primeraColumna(l).trim()));
+  const iPlausible = iNombre >= 0 ? iNombre : datos.findIndex(esNombre);
+  if (iPlausible > 0 && iPlausible < 4) datos = datos.slice(iPlausible);
 
   const e: Estructura = { numeroPedido: null, cliente: null, dni: null, domicilio: null, telefono: null, email: null, vendedor: null, fecha: null, plazo: null, modeloLinea: null };
   const num = lineas.join("\n").match(/N[úu]mero\s+Pedido\s+(\d{5,})/i);
@@ -151,8 +194,8 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   e.telefono = tel ? tel.replace(/\s/g, "") : null;
   const mail = col.slice(iCP + 1).find((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c));
   // El OCR suele perder la «@» (y a veces la deja como «Q»): «luisimarino gmail.com»
-  const mailSinArroba = col.slice(iCP + 1).map((c) => c.match(/^([\w.+-]+)\s+((?:gmail|hotmail|outlook|yahoo|icloud|live|msn)\.[a-z.]+)$/i)).find(Boolean);
-  e.email = mail ?? (mailSinArroba ? `${mailSinArroba[1]}@${mailSinArroba[2]}`.toLowerCase() : null);
+  const mailSinArroba = col.slice(iCP + 1).map(repararCorreo).find(Boolean);
+  e.email = mail ?? mailSinArroba ?? null;
   // Vendedor: el nombre que precede a la línea con su correo y teléfono (la segunda dirección de correo del bloque)
   const iVend = datos.findIndex((l, i) => i > 0 && /@|[a-z]Q[a-z]+\.(?:es|com)\b/.test(l) && /\d{9}/.test(l));
   if (iVend > 0) e.vendedor = primeraColumna(datos[iVend - 1]) || null;
@@ -169,6 +212,7 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
 }
 
 const ENCABEZADO_RETOMA = /^(?:FICHA\s+DE\s+)?(?:VALORACION|TASACION)\b.{0,45}$|^(?:RETOMA|VEHICULO\s+(?:USADO|DE\s+OCASION|DE\s+RETOMA))\b.{0,35}$/;
+const LINEA_VALORACION_VO = /^(?:VALORACION|TASACION)\s+(?:VO|DE\s+VEHICULO\s+USADO)\b/;
 const FIN_SECCION = /^(?:CLIENTE|RESUMEN|TOTAL|FORMA\s+DE\s+PAGO|PLAZO\s+DE\s+ENTREGA|ESTABLECIMIENTO|BASE\s+IMPONIBLE|SENAL|FIRMA|ESTIPULACIONES|PEDIDO\s+DE|HEMOS\s+RECIBIDO)\b/;
 
 /**
@@ -187,6 +231,12 @@ export function separarRetoma(lineas: string[]): { principales: string[]; retoma
       continue;
     }
     dentro = 0;
+    // «Valoración VO: RENAULT Mégane … - Matrícula 9835DNC -0,00 €»: el dato va en la misma línea del encabezado
+    if (LINEA_VALORACION_VO.test(n)) {
+      retoma.push(l);
+      dentro = 4;
+      continue;
+    }
     if (n.length <= 60 && ENCABEZADO_RETOMA.test(n) && !/[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}/.test(l)) {
       retoma.push(l);
       dentro = 14;
@@ -197,6 +247,9 @@ export function separarRetoma(lineas: string[]): { principales: string[]; retoma
   return { principales, retoma };
 }
 
+/** Quita los bastidores (17 caracteres) de una línea: en «Matrícula 1504JPN Bastidor VF1…» la matrícula comparte línea con el bastidor. */
+const sinBastidores = (l: string): string => l.replace(/(?<![A-Z0-9])[A-HJ-NP-Z0-9]{17}(?![A-Z0-9])/gi, " ");
+
 export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPedido {
   // Solo la primera hoja cuenta: las siguientes son las condiciones generales, que citan todas las formas de pago
   const corte = texto.search(/ESTIPULACIONES GENERALES|Queda prohibida la reproducci/i);
@@ -206,7 +259,9 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   const lineas = primera.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const sinRetoma = separarRetoma(lineas).principales;
   const cabecera = sinAcentos(texto.slice(0, 1500));
-  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) ? "usado" : null;
+  // Un pedido escaneado puede perder el rótulo «USADO»: se reconoce también por «Renew», «Uso anterior» o el régimen R.E.B.U.
+  const señalesUsado = /PEDIDO\s+DE\s+VEHICULO\s+RENEW|\bUSO\s+ANTERIOR\b|REGIMEN\s+R\.?\s?E\.?\s?B\.?\s?U|VEHICULOS?\s+DE\s+OCASION/.test(sinAcentos(texto.slice(0, 6000)));
+  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : /^Modelo:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a:/im.test(texto.slice(0, 4000)) ? "nuevo" : null; // sin rótulo, la hoja con «Modelo / Color / Tapicería» es la de un coche nuevo
   const mayus = sinAcentos(sinRetoma.join("\n"));
   const avisos: string[] = [];
   const estructura = leerEstructuraRenault(lineas);
@@ -227,13 +282,13 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   }
 
   // Un pedido de vehículo nuevo no tiene matrícula (la del usado de retoma se trata aparte)
-  const matricula = tipoPedido === "nuevo" ? null : (lineasBusqueda.flatMap((l) => (/\b[A-HJ-NP-Z0-9]{17}\b/i.test(l) ? [] : matriculasEnTexto(l)))[0] ?? null);
+  const matricula = tipoPedido === "nuevo" ? null : (lineasBusqueda.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
 
   let retoma: DatosPedido["retoma"] = null;
   if (lineasRetoma.length > 0) {
-    const cuerpo = lineasRetoma.slice(1).map(sinCorreos);
+    const cuerpo = lineasRetoma.map(sinCorreos);
     const vinRetoma = sinAcentos(cuerpo.join("\n")).match(/(?<![A-Z0-9])([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])/)?.[1] ?? null;
-    const matriculaRetoma = cuerpo.flatMap((l) => (/\b[A-HJ-NP-Z0-9]{17}\b/i.test(l) ? [] : matriculasEnTexto(l)))[0] ?? null;
+    const matriculaRetoma = cuerpo.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null;
     const resumen = cuerpo.map((l) => l.replace(/\s{2,}-?[\d.]+,\d{2}\s*€?\s*$/, "").replace(/\s{2,}/g, " ").trim()).filter(Boolean).slice(0, 3).join(" · ").slice(0, 140) || null;
     retoma = { matricula: matriculaRetoma, vin: vinRetoma, texto: resumen };
   }
@@ -331,6 +386,7 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     modeloTexto: modelo?.nombre ?? ([propuesta?.marca, propuesta?.modelo].filter(Boolean).join(" ") || estructura?.modeloLinea) ?? null,
     idTipoDeVenta,
     tipoPedido,
+    esPedido: textoDePedido(texto),
     retoma,
     avisos,
   };

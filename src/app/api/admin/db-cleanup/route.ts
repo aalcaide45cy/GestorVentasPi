@@ -13,11 +13,11 @@ export const GET = manejar(async () => {
   return NextResponse.json({ success: true, ...(await analizarBbdd(db)) });
 });
 
-/** Elimina los huérfanos indicados (la interfaz descarga antes una copia JSON). */
+/** Elimina los huérfanos indicados; antes se guarda una copia de seguridad «previa» completa (si falla, no se borra nada). */
 export const POST = manejar(async (req: Request) => {
   const admin = await requireSession("administrador");
   const entrada = await leerJson(req, esquemaLimpieza);
-  const borrados = await limpiarBbdd(db, entrada);
+  const borrados = await limpiarBbdd(db, entrada, admin.idUsuario);
   await auditar({ idUsuario: admin.idUsuario, accion: "bbdd_limpiada", entidad: "backup", detalle: { borrados } });
   return NextResponse.json({ success: true, message: `Limpieza completada: ${borrados} registro(s) eliminados.` });
 });

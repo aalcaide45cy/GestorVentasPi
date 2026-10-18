@@ -3,7 +3,9 @@ import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdQuery, manejar } from "@/lib/http";
-import { borrarCopia, borrarCopiasInvalidas, crearCopia, estadoCopias, leerAjustesCopias, listarCopias } from "@/lib/servicios/copias";
+import { z } from "zod";
+import { leerJson } from "@/lib/http";
+import { guardarNotaCopia, borrarCopia, borrarCopiasInvalidas, crearCopia, estadoCopias, leerAjustesCopias, listarCopias } from "@/lib/servicios/copias";
 import { avisoEspacioCopias } from "@/lib/servicios/copias";
 import { estadoClaveRecuperacion } from "@/lib/servicios/clave-recuperacion";
 import { borrarEnDrive, estadoDrive, subirCopiaADrive } from "@/lib/servicios/drive";
@@ -32,6 +34,15 @@ export const POST = manejar(async (req: Request) => {
     }
   }
   return NextResponse.json({ success: true, data: copia, aviso }, { status: 201 });
+});
+
+/** Pone o cambia la nota de una copia. */
+export const PATCH = manejar(async (req: Request) => {
+  const admin = await requireSession("administrador");
+  const e = await leerJson(req, z.object({ id: z.number().int().positive(), notas: z.string().max(2000).nullable() }));
+  await guardarNotaCopia(db, e.id, e.notas);
+  await auditar({ idUsuario: admin.idUsuario, accion: "copia_nota", entidad: "copias_seguridad", entidadId: e.id });
+  return NextResponse.json({ success: true });
 });
 
 export const DELETE = manejar(async (req: Request) => {

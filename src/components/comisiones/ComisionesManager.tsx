@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { BotonesDatosSeccion, descargarSeccion } from "@/components/datos/DatosSeccion";
 import { useToast } from "@/components/Toast";
 import { euros, etiquetaTramo, nombreMes, puntos } from "@/lib/formato";
 import type { LiquidacionResumen, PrevisionMes } from "@/lib/servicios/comisiones-gestion";
 import type { ResumenPlan } from "@/lib/servicios/planes";
 import { llamar, textoError } from "./api";
-import CotejoCobros from "./CotejoCobros";
 import PlanEditor from "./PlanEditor";
-import ValidacionRejilla from "./ValidacionRejilla";
+import { ajustarFechasDelPlan, contarFechasInternas } from "@/lib/comisiones/ajustar-fechas";
 import { BotonMini, Seccion } from "./campos";
-import type { CatalogosComisiones, Plan } from "./tipos";
+import { nuevaClave, type CatalogosComisiones, type Plan } from "./tipos";
 import { useCarga } from "./useCarga";
 
 interface Props {
@@ -21,11 +22,18 @@ interface Props {
   idUsuario: number;
 }
 
+const AVISO_COTEJO = (
+  <div style={{ padding: "12px 16px", borderLeft: "3px solid var(--primary)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.9rem" }}>
+    🔎 La validación con la hoja de la empresa y el control de cobros ahora están junto al resto del cotejo en <Link href="/dashboard/cotejo-pagos" style={{ color: "var(--primary)", fontWeight: 700 }}>Cotejo de pagos</Link>.
+  </div>
+);
+
 /** «Planes de Comisionamiento»: lista de planes + cotejo, y el editor de un plan. Los no administradores ven solo lo suyo. */
-export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
+export default function ComisionesManager({ cat, esAdmin }: Props) {
   const { mostrar } = useToast();
   const [editando, setEditando] = useState<{ plan: Plan | null; solapados: string[] } | null>(null);
   const [aBorrar, setABorrar] = useState<ResumenPlan | null>(null);
+  const [pestanaInicial, setPestanaInicial] = useState<string | undefined>(undefined);
 
   const { datos: planes, recargar: cargar } = useCarga<ResumenPlan[]>(esAdmin ? "/api/comisiones/planes" : null, []);
   const { datos: mias } = useCarga<LiquidacionResumen[]>(esAdmin ? null : "/api/comisiones/liquidaciones", []);
@@ -40,16 +48,60 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
     }
   };
 
-  /** Abre una copia independiente del plan (sin guardar): mismos valores, como borrador, sin liquidaciones ni pendientes. */
-  const duplicar = async (p: ResumenPlan) => {
+  // Enlace desde el desglose de un expediente: ?plan=ID&tab=usados abre ese plan en esa pestaña
+  useEffect(() => {
+    if (!esAdmin) return;
+    const q = new URLSearchParams(window.location.search);
+    // ?plan=nuevo: el plan nuevo que se estaba escribiendo al recargar la página (el borrador lo trae el editor)
+    if (q.get("plan") === "nuevo") {
+      void Promise.resolve().then(() => {
+        setPestanaInicial(q.get("tab") ?? undefined);
+        setEditando({ plan: null, solapados: [] });
+      });
+      return;
+    }
+    const id = Number(q.get("plan"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    void (async () => {
+      try {
+        const { data } = await llamar<Plan>(`/api/comisiones/planes?id=${id}`);
+        setPestanaInicial(q.get("tab") ?? undefined);
+        setEditando({ plan: data, solapados: [] });
+      } catch (e) {
+        mostrar(textoError(e), "error");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esAdmin]);
+
+  /** Plan que se va a duplicar: antes de abrir la copia se pregunta el mes del plan nuevo y si se ajustan sus fechas internas. */
+  const [duplicando, setDuplicando] = useState<{ original: Plan; mes: string; ajustar: boolean } | null>(null);
+
+  const preguntarDuplicar = async (p: ResumenPlan) => {
     try {
       const { data } = await llamar<Plan>(`/api/comisiones/planes?id=${p.idPlan}`);
-      const copia: Plan = { ...data, idPlan: 0, nombre: `Copia de ${data.nombre}`, estado: "borrador", pendientes: [], promociones: data.promociones.map((x) => ({ ...x, id: undefined })) };
-      setEditando({ plan: copia, solapados: [] });
-      mostrar("Copia del plan abierta: cambia el nombre y las fechas y pulsa «Guardar plan».", "exito");
+      // El mes que sigue al del plan original
+      const base = /^\d{4}-\d{2}/.test(data.fechaInicio) ? data.fechaInicio : new Date().toISOString().slice(0, 10);
+      const total = Number(base.slice(0, 4)) * 12 + Number(base.slice(5, 7)) - 1 + 1;
+      const siguiente = `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+      setDuplicando({ original: data, mes: siguiente, ajustar: contarFechasInternas(data) > 0 });
     } catch (e) {
       mostrar(textoError(e), "error");
     }
+  };
+
+  /** Abre una copia independiente del plan (sin guardar): mismos valores, como borrador, sin liquidaciones ni pendientes. */
+  const duplicar = () => {
+    if (!duplicando || !/^\d{4}-\d{2}$/.test(duplicando.mes)) return;
+    const { original, mes, ajustar } = duplicando;
+    const ultimo = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0).getDate();
+    const nuevo = { inicio: `${mes}-01`, fin: `${mes}-${String(ultimo).padStart(2, "0")}` };
+    // Cada regla y bonus de la copia necesita su propia clave (los bonus manuales se eligen por ella)
+    const base: Plan = { ...original, idPlan: 0, nombre: nombreMes(mes), estado: "borrador", pendientes: [], promociones: original.promociones.map((x) => ({ ...x, id: undefined })), reglas: original.reglas.map((r) => ({ ...r, clave: nuevaClave() })), bonus: original.bonus.map((r) => ({ ...r, clave: nuevaClave() })) };
+    const r = ajustar ? ajustarFechasDelPlan(base, nuevo) : { plan: { ...base, fechaInicio: nuevo.inicio, fechaFin: nuevo.fin }, cambiadas: 0 };
+    setDuplicando(null);
+    setEditando({ plan: r.plan, solapados: [] });
+    mostrar(ajustar && r.cambiadas > 0 ? `Copia del plan abierta para ${nombreMes(mes)}: ${r.cambiadas} fechas internas ajustadas. Revisa y pulsa «Guardar plan».` : `Copia del plan abierta para ${nombreMes(mes)}: revisa y pulsa «Guardar plan».`, "exito");
   };
 
   /** Descarga un único plan como archivo .json. */
@@ -65,7 +117,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
   const borrar = async () => {
     if (!aBorrar) return;
     try {
-      await llamar(`/api/comisiones/planes?id=${aBorrar.idPlan}`, { method: "DELETE" });
+      await llamar(`/api/comisiones/planes?id=${aBorrar.idPlan}${aBorrar.liquidaciones > 0 ? "&forzar=1" : ""}`, { method: "DELETE" });
       mostrar("Plan eliminado", "exito");
       setABorrar(null);
       cargar();
@@ -75,12 +127,58 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
     }
   };
 
+  const columnasMias: ColumnaTabla<LiquidacionResumen>[] = [
+    { clave: "mes", etiqueta: "Mes", valor: (l) => l.mes, celda: (l) => nombreMes(l.mes) },
+    { clave: "estado", etiqueta: "Estado", valor: (l) => l.estado },
+    { clave: "puntos", etiqueta: "Puntos / Objetivo", valor: (l) => l.puntosMes, celda: (l) => `${puntos(l.puntosMes)} / ${puntos(l.objetivoX)}`, alinear: "right" },
+    { clave: "tramo", etiqueta: "Tramo", valor: (l) => l.tramo, celda: (l) => etiquetaTramo(l.tramo) },
+    { clave: "neto", etiqueta: "Neto", valor: (l) => l.neto, celda: (l) => <b>{euros(l.neto)}</b>, alinear: "right" },
+    { clave: "mesPago", etiqueta: "Se cobra en", valor: (l) => l.mesPago, celda: (l) => nombreMes(l.mesPago) },
+  ];
+  const columnasPlanes: ColumnaTabla<ResumenPlan>[] = [
+    {
+      clave: "plan",
+      etiqueta: "Plan",
+      valor: (p) => p.nombre,
+      celda: (p) => (
+        <>
+          {p.nombre}
+          {p.solapadoCon.length > 0 && <div style={{ color: "var(--warning)", fontSize: "0.8rem" }}>⚠️ Plan ya existente: se solapa con «{p.solapadoCon.map((x) => x.nombre).join("», «")}»</div>}
+        </>
+      ),
+    },
+    { clave: "periodo", etiqueta: "Periodo", valor: (p) => p.fechaInicio, celda: (p) => `${p.fechaInicio.split("-").reverse().join("/")} – ${p.fechaFin.split("-").reverse().join("/")}` },
+    { clave: "estado", etiqueta: "Estado", valor: (p) => p.estado },
+    { clave: "vendedores", etiqueta: "Vendedores", valor: (p) => p.vendedores, alinear: "right" },
+    { clave: "liquidaciones", etiqueta: "Liquidaciones", valor: (p) => p.liquidaciones, alinear: "right" },
+    {
+      clave: "acciones",
+      etiqueta: "Acciones",
+      valor: () => "",
+      celda: (p) => (
+        <span style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap" }}>
+          <BotonMini onClick={() => void abrir(p)}>Abrir</BotonMini>
+          <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => void preguntarDuplicar(p)}>
+            Duplicar
+          </BotonMini>
+          <BotonMini titulo="Descarga solo este plan como archivo .json (se puede importar en otra instalación o en esta con «Importar»)." onClick={() => void exportarUno(p)}>
+            Exportar SOLO este plan
+          </BotonMini>
+          <BotonMini peligro onClick={() => setABorrar(p)}>
+            Eliminar
+          </BotonMini>
+        </span>
+      ),
+    },
+  ];
+
   if (editando) {
     return (
       <PlanEditor
         inicial={editando.plan}
         cat={cat}
         solapados={editando.solapados}
+        pestanaInicial={pestanaInicial}
         onGuardado={async (id) => {
           const resumen = (await llamar<ResumenPlan[]>("/api/comisiones/planes")).data.find((p) => p.idPlan === id);
           if (resumen) await abrir(resumen);
@@ -97,41 +195,15 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <Seccion titulo="Mis liquidaciones" ayuda="Solo lectura. Lo generado en un mes se cobra en la nómina de fin del mes siguiente.">
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Mes</th>
-                  <th>Estado</th>
-                  <th style={{ textAlign: "right" }}>Puntos / Objetivo</th>
-                  <th>Tramo</th>
-                  <th style={{ textAlign: "right" }}>Neto</th>
-                  <th>Se cobra en</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mias.map((l) => (
-                  <tr key={l.idLiquidation}>
-                    <td>{nombreMes(l.mes)}</td>
-                    <td>{l.estado}</td>
-                    <td style={{ textAlign: "right" }}>
-                      {puntos(l.puntosMes)} / {puntos(l.objetivoX)}
-                    </td>
-                    <td>{etiquetaTramo(l.tramo)}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(l.neto)}</td>
-                    <td>{nombreMes(l.mesPago)}</td>
-                  </tr>
-                ))}
-                {mias.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ color: "var(--text-muted)" }}>
-                      Todavía no hay liquidaciones calculadas.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos<LiquidacionResumen>
+            id="mis-liquidaciones"
+            columnas={columnasMias}
+            filas={mias}
+            clave={(l) => l.idLiquidation}
+            placeholder="Buscar por mes o estado…"
+            vacio="Todavía no hay liquidaciones calculadas."
+            pie={(fs) => ({ mes: `${fs.length} liquidación${fs.length === 1 ? "" : "es"}`, neto: euros(fs.reduce((t, l) => t + l.neto, 0)) })}
+          />
         </Seccion>
         {prevision.length > 0 && (
           <Seccion titulo="Previsión de nómina">
@@ -142,8 +214,7 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
             ))}
           </Seccion>
         )}
-        <ValidacionRejilla cat={{ ...cat, vendedores: cat.vendedores.filter((v) => v.id === idUsuario) }} usuarioInicial={idUsuario} esAdmin={false} />
-        <CotejoCobros cat={{ ...cat, vendedores: cat.vendedores.filter((v) => v.id === idUsuario) }} usuarioInicial={idUsuario} esAdmin={false} />
+        {AVISO_COTEJO}
       </div>
     );
   }
@@ -161,63 +232,54 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
           </div>
         }
       >
-        <div className="table-container">
-          <table className="table-premium">
-            <thead>
-              <tr>
-                <th>Plan</th>
-                <th>Periodo</th>
-                <th>Estado</th>
-                <th>Vendedores</th>
-                <th>Liquidaciones</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {planes.map((p) => (
-                <tr key={p.idPlan}>
-                  <td>
-                    {p.nombre}
-                    {p.solapadoCon.length > 0 && (
-                      <div style={{ color: "var(--warning)", fontSize: "0.8rem" }}>⚠️ Plan ya existente: se solapa con «{p.solapadoCon.map((s) => s.nombre).join("», «")}»</div>
-                    )}
-                  </td>
-                  <td>
-                    {p.fechaInicio.split("-").reverse().join("/")} – {p.fechaFin.split("-").reverse().join("/")}
-                  </td>
-                  <td>{p.estado}</td>
-                  <td>{p.vendedores}</td>
-                  <td>{p.liquidaciones}</td>
-                  <td style={{ display: "flex", gap: "6px", flexWrap: "wrap", minWidth: "200px" }}>
-                    <BotonMini onClick={() => abrir(p)}>Abrir</BotonMini>
-                    <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => duplicar(p)}>
-                      Duplicar
-                    </BotonMini>
-                    <BotonMini titulo="Descarga solo este plan como archivo .json (se puede importar en otra instalación o en esta con «Importar»)." onClick={() => void exportarUno(p)}>
-                      Exportar
-                    </BotonMini>
-                    <BotonMini peligro onClick={() => setABorrar(p)}>
-                      Eliminar
-                    </BotonMini>
-                  </td>
-                </tr>
-              ))}
-              {planes.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ color: "var(--text-muted)" }}>
-                    Aún no hay planes. Crea el primero con «Nuevo plan».
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <TablaDatos<ResumenPlan>
+          id="planes-comisiones"
+          columnas={columnasPlanes}
+          filas={planes}
+          clave={(p) => p.idPlan}
+          placeholder="Buscar por plan, periodo, estado…"
+          vacio="Aún no hay planes. Crea el primero con «Nuevo plan»."
+          pie={(fs) => ({ plan: `${fs.length} plan${fs.length === 1 ? "" : "es"}`, liquidaciones: fs.reduce((t, p) => t + p.liquidaciones, 0) })}
+        />
       </Seccion>
 
-      <ValidacionRejilla cat={cat} usuarioInicial={cat.vendedores[0]?.id ?? idUsuario} esAdmin />
+      {AVISO_COTEJO}
 
-      <CotejoCobros cat={cat} usuarioInicial={cat.vendedores[0]?.id ?? idUsuario} esAdmin />
-
+      {duplicando && (
+        <Modal
+          titulo={`Duplicar «${duplicando.original.nombre}»`}
+          ancho="560px"
+          pie={
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setDuplicando(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={duplicar} disabled={!/^\d{4}-\d{2}$/.test(duplicando.mes)}>
+                Crear la copia
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)" }}>Se abre una copia independiente (como borrador) con las mismas tarifas, puntos, objetivos, reglas y bonus. Elige para qué mes es.</p>
+          <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.85rem", fontWeight: 600 }}>
+            Mes del plan nuevo
+            <input className="form-input" type="month" value={duplicando.mes} onChange={(e) => setDuplicando({ ...duplicando, mes: e.target.value })} style={{ width: "220px" }} />
+          </label>
+          {contarFechasInternas(duplicando.original) > 0 ? (
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "10px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", cursor: "pointer" }}>
+              <input type="checkbox" checked={duplicando.ajustar} onChange={(e) => setDuplicando({ ...duplicando, ajustar: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)", marginTop: "2px" }} />
+              <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <strong style={{ fontSize: "0.9rem" }}>Ajustar las fechas internas al nuevo mes</strong>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                  Este plan tiene {contarFechasInternas(duplicando.original)} fechas en sus bonus, reglas y penalizaciones (por ejemplo, «válida desde el 5 de septiembre»). Si lo marcas, pasan al nuevo mes: las que coinciden con el inicio o el fin del plan pasan al inicio o al fin del nuevo, y las demás se mueven los meses de diferencia. Si no, se copian tal cual.
+                </span>
+              </span>
+            </label>
+          ) : (
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Este plan no tiene fechas internas en sus bonus ni reglas, así que no hay nada que ajustar.</span>
+          )}
+        </Modal>
+      )}
       {aBorrar && (
         <Modal
           titulo="⚠️ Eliminar plan"
@@ -234,8 +296,13 @@ export default function ComisionesManager({ cat, esAdmin, idUsuario }: Props) {
           }
         >
           <p>
-            ¿Eliminar el plan «{aBorrar.nombre}»? No se puede si tiene liquidaciones. Esta acción no se puede deshacer.
+            ¿Eliminar el plan «{aBorrar.nombre}»? Esta acción no se puede deshacer.
           </p>
+          {aBorrar.liquidaciones > 0 && (
+            <p style={{ color: "var(--warning)" }}>
+              Tiene {aBorrar.liquidaciones} liquidación(es) calculada(s): se borrarán con el plan. No pasa nada grave, se pueden volver a generar con otro plan (por ejemplo, una copia de este). Si solo quieres otro plan parecido, usa «Duplicar» en vez de eliminar.
+            </p>
+          )}
         </Modal>
       )}
     </div>

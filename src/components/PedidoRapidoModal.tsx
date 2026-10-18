@@ -1,15 +1,18 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { CLAVE_VENTANA_SOLO_SI_NUEVO, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
+import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
 import type { EleccionRapida, ItemCola } from "@/lib/pedidos-cola";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import VisorPedido from "./documentos/VisorPedido";
 
 export type { EleccionRapida };
 type MarcaConModelos = MarcaDto & { modelos: ModeloDto[] };
@@ -24,7 +27,7 @@ interface Props {
   total: number;
   alIr: (delta: -1 | 1) => void;
   alCerrar: () => void;
-  alTerminar: (mensaje: string) => void;
+  alTerminar: (mensaje: string, idExpediente?: number) => void;
   /** Descarta el pedido: lo quita de la cola sin crear nada. */
   alDescartar: () => void;
 }
@@ -38,6 +41,9 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
  */
 export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
   const { mostrar } = useToast();
+  const router = useRouter();
+  const [verPdf, setVerPdf] = useState(false);
+  const [masivo, setMasivo] = useState<{ hechos: number; total: number } | null>(null);
   const pedido = item.pedido;
   const eleccion = item.eleccion;
   const d = pedido.datos;
@@ -116,11 +122,40 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   // Pedido de un vehículo de ocasión vendido: el expediente es de usados
   const estadoNombre = eleccion?.estadoNombre ?? (d.tipoPedido === "usado" ? "usado" : undefined);
 
+  // Crea de una vez todos los pedidos de la cola que no ofrecen duda ni están duplicados (aunque «permitir duplicados» esté apagado)
+  const crearTodos = async () => {
+    if (!window.confirm(`Se van a crear de una vez los expedientes de los ${total} pedidos de la cola que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar). Los demás se quedan en la cola. ¿Continuar?`)) return;
+    setMasivo({ hechos: 0, total });
+    try {
+      const r = await crearTodosLosPedidos(vendedorId, (hechos, tot) => setMasivo({ hechos, total: tot }));
+      const resumen = `${r.creados} expediente${r.creados === 1 ? "" : "s"} creado${r.creados === 1 ? "" : "s"}${r.omitidos.length > 0 ? ` y ${r.omitidos.length} sin crear (se quedan en la cola): ${r.omitidos.slice(0, 3).map((o) => `${o.nombre} (${o.motivo})`).join("; ")}${r.omitidos.length > 3 ? "…" : ""}` : ""}.`;
+      mostrar(resumen, r.creados === 0 ? "error" : undefined);
+      router.refresh();
+      alCerrar();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setMasivo(null);
+    }
+  };
+
   const crear = async () => {
     if (cliente === null || tipoFinal === null) return;
     setConfirmando(false);
     setTrabajando(true);
     try {
+      // Justo antes de crear se vuelve a mirar si ya existe (otro pedido de la cola pudo crearlo hace un momento): nunca se duplica
+      if (!permitirDuplicadosAhora()) {
+        const { data: yaHay } = await llamar<{ idExpediente: number; motivo: string }[]>("/api/documentos/similares", {
+          method: "POST",
+          cuerpo: { vin: d.vin, matricula: d.matricula, dni: d.dni, cliente: d.cliente, fechaExpediente: d.fechaExpediente, idModelo: idModeloFinal },
+        }).catch(() => ({ data: [] as { idExpediente: number; motivo: string }[] }));
+        if (yaHay.length > 0) {
+          mostrar(`No se ha creado: ya existe el expediente nº ${yaHay[0].idExpediente} (${yaHay[0].motivo}). Ábrelo desde Expedientes si quieres completarlo.`, "error");
+          setTrabajando(false);
+          return;
+        }
+      }
       let idModeloCreado: number | null = null;
       if (usaNuevo) {
         const { data } = await llamar<{ id_modelo: number }>("/api/documentos/crear-modelo", {
@@ -140,6 +175,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             domicilio: activo("domicilio") ? d.domicilio : null,
             poblacion: activo("poblacion") ? d.poblacion : null,
             codigo_postal: activo("poblacion") ? d.codigoPostal : null,
+            fecha_de_nacimiento: item.dni?.fechaNacimiento ?? undefined,
             emails: activo("email") && d.email ? [{ email: d.email, tipo: "Principal" }] : [],
             telefonos: activo("telefono") && d.telefono ? [{ telefono: d.telefono, tipo: "Principal" }] : [],
           },
@@ -168,12 +204,14 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       if (!eleccion && !usaNuevo && d.idModelo === null && d.modeloTexto && idModeloFinal) {
         await llamar("/api/documentos/aprender-modelo", { method: "POST", cuerpo: { texto: d.modeloTexto, id_modelo: idModeloFinal } }).catch(() => undefined);
       }
-      await vincularAdjuntos([pedido.adjunto.id], { idExpediente: creado.id_expediente, idCliente });
+      // El DNI soltado junto con el pedido (si lo hay) se une al mismo expediente y cliente; su foto pasa a ser la del cliente
+      await vincularAdjuntos([pedido.adjunto.id, ...(item.dni?.adjuntos ?? [])], { idExpediente: creado.id_expediente, idCliente });
       const modeloTexto = eleccion ? eleccion.nombreModelo : usaNuevo ? `${marcaNueva.trim()} ${modeloNuevo.trim()}` : (modelosPlanos.find((m) => m.id === (idModeloCreado ?? idModeloFinal))?.texto ?? "");
       const tipoTexto = eleccion ? eleccion.tipo.nombre_tipo_venta : (tiposVenta.find((t) => t.id_tipo_de_venta === tipoFinal)?.nombre_tipo_venta ?? "");
       const resumen = [modeloTexto, tipoTexto].filter(Boolean).join(" · ");
       alTerminar(
         `${cliente === "nuevo" ? `Expediente creado con el cliente nuevo ${d.cliente}` : idCliente ? "Expediente creado y asociado al cliente" : "Expediente creado sin cliente"}${resumen ? ` (${resumen})` : ""}.`,
+        creado.id_expediente,
       );
     } catch (e) {
       mostrar(textoError(e), "error");
@@ -300,22 +338,31 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           )}
         </span>
       }
-      ancho="700px"
+      ancho={verPdf ? "1500px" : "700px"}
       pie={
         <>
+          <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
+            {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
+          </button>
           <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
             Cancelar
           </button>
           <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
             Cerrar (queda en la cola)
           </button>
-          <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear}>
+          {total > 1 && (
+            <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
+              {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
             {trabajando ? "Creando…" : "Crear expediente"}
           </button>
         </>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", flex: "1 1 0", minWidth: 0 }}>
         <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
           Fichero: {item.nombre}
           {d.numeroPedido ? ` · Pedido ${d.numeroPedido}` : ""}
@@ -419,6 +466,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             </>
           )}
         </div>
+      </div>
+      {verPdf && <VisorPedido idAdjunto={pedido.adjunto.id} nombre={item.nombre} />}
       </div>
     </Modal>
   );

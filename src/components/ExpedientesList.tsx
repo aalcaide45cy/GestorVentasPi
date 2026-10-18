@@ -1,5 +1,8 @@
 "use client";
 
+import { CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_DESDE, CLAVE_SELECCION_MINUTOS, formatoCuentaAtras, useModoTemporal } from "@/lib/modo-temporal";
+import { avisarCambioDeDatos } from "@/lib/datos-version";
+import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -24,9 +27,11 @@ import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, pe
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
+import { EtiquetaClase, EtiquetaMarca, PuntoMarca } from "./etiquetas";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, TextoCopiable, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
+import ModalCompletarDatos from "./expedientes/ModalCompletarDatos";
 import ModalContrasteListado from "./expedientes/ModalContrasteListado";
 import { leerListadoVentas, type ResultadoContraste } from "@/lib/contraste-listado";
 import ModalConflictoExcel, { type ConflictoExcel } from "./expedientes/ModalConflictoExcel";
@@ -65,6 +70,8 @@ type Columna =
   | "cliente"
   | "telefono"
   | "email"
+  | "clase"
+  | "punto"
   | "marca"
   | "modelo"
   | "marca_modelo"
@@ -83,6 +90,8 @@ const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
   { clave: "cliente", etiqueta: "Cliente" },
   { clave: "telefono", etiqueta: "Teléfono" },
   { clave: "email", etiqueta: "Email" },
+  { clave: "clase", etiqueta: "VN / VO" },
+  { clave: "punto", etiqueta: "Punto de color de la marca" },
   { clave: "marca", etiqueta: "Marca" },
   { clave: "modelo", etiqueta: "Modelo" },
   { clave: "marca_modelo", etiqueta: "Marca y modelo" },
@@ -105,7 +114,7 @@ const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false };
 const ORDEN_POR_DEFECTO: Columna[] = COLUMNAS.map((c) => c.clave);
 const solo = (claves: Columna[]): Visibles => Object.fromEntries(COLUMNAS.map((c) => [c.clave, claves.includes(c.clave)])) as Visibles;
 const VISTAS_INCLUIDAS: { id: string; nombre: string; ayuda: string; config: ConfigColumnas }[] = [
-  { id: "compacta", nombre: "Compacta", ayuda: "Cliente, marca y modelo juntos, tipo de venta, estado, vendedor y fecha de expediente.", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "marca_modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente"]) } },
+  { id: "compacta", nombre: "Compacta", ayuda: "Cliente, marca y modelo juntos, tipo de venta, estado, vendedor y fecha de expediente.", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "clase", "marca_modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente"]) } },
   { id: "fechas", nombre: "Seguimiento de fechas", ayuda: "Cliente, vehículo, vendedor y todas las fechas (expediente, afectación, RCI, matriculación, facturación, entrega).", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "marca_modelo", "vendedor", "fecha_expediente", "fecha_afectacion", "fecha_rci", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega"]) } },
   { id: "contacto", nombre: "Contacto", ayuda: "Cliente, teléfono, email, vehículo y vendedor para llamar o escribir.", config: { orden: ["cliente", "telefono", "email", "marca_modelo", "vendedor", ...ORDEN_POR_DEFECTO.filter((c) => !["cliente", "telefono", "email", "marca_modelo", "vendedor"].includes(c))], visibles: solo(["cliente", "telefono", "email", "marca_modelo", "vendedor"]) } },
   { id: "todas", nombre: "Todas las columnas", ayuda: "Todas las columnas, con marca y modelo por separado.", config: { orden: ORDEN_POR_DEFECTO, visibles: { ...TODAS, marca_modelo: false } } },
@@ -119,6 +128,8 @@ const ANCHO_COLUMNA: Record<Columna, number> = {
   marca: 90,
   modelo: 150,
   marca_modelo: 170,
+  clase: 70,
+  punto: 34,
   tipo_venta: 100,
   estado: 100,
   vendedor: 130,
@@ -144,6 +155,8 @@ const ENCABEZADOS: Record<Columna, { etiqueta: string; fondo?: string }> = {
   cliente: { etiqueta: "Cliente" },
   telefono: { etiqueta: "Teléfono" },
   email: { etiqueta: "Email" },
+  clase: { etiqueta: "VN / VO" },
+  punto: { etiqueta: "●" },
   marca: { etiqueta: "Marca" },
   modelo: { etiqueta: "Modelo" },
   marca_modelo: { etiqueta: "Marca y modelo" },
@@ -287,8 +300,11 @@ export default function ExpedientesList({
     fijarFiltrosAbiertos(hayPanelAbierto ? "false" : "true");
   };
   const [menuDatos, setMenuDatos] = useState(false);
-  const [seleccionActiva, setSeleccionActiva] = useState(false);
-  const [borradoActivo, setBorradoActivo] = useState(false);
+  // Los dos modos se quedan activados hasta que se desactiven (o hasta que pase el tiempo configurado en Configuración de expedientes)
+  const modoSeleccion = useModoTemporal(CLAVE_SELECCION_DESDE, CLAVE_SELECCION_MINUTOS);
+  const modoBorrado = useModoTemporal(CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS);
+  const seleccionActiva = modoSeleccion.activo;
+  const borradoActivo = modoBorrado.activo;
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
   const [edicionMasiva, setEdicionMasiva] = useState(false);
 
@@ -361,6 +377,7 @@ export default function ExpedientesList({
   }, [filtrosListos, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
 
   const [importandoExcel, setImportandoExcel] = useState(false);
+  const [completando, setCompletando] = useState(false);
   const [contraste, setContraste] = useState<{ archivo: string; resultado: ResultadoContraste } | null>(null);
   const [nombreExcel, setNombreExcel] = useState("");
   const [conflictos, setConflictos] = useState<ConflictoExcel[]>([]);
@@ -452,6 +469,11 @@ export default function ExpedientesList({
           return e.cliente?.telefonos[0]?.telefono ?? "";
         case "email":
           return e.cliente?.emails[0]?.email ?? "";
+        case "clase":
+          return e.estadoVehiculo?.clase ?? "";
+        case "punto":
+          const a = aspectoVehiculo(e.modelo?.marca, e.estadoVehiculo);
+          return `${a.puntoColor ?? a.capsula ?? "~"}|${e.modelo?.marca?.nombre ?? ""}`;
         case "marca":
           return e.modelo?.marca?.nombre ?? "";
         case "modelo":
@@ -687,6 +709,7 @@ export default function ExpedientesList({
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al eliminar el expediente"));
       setExpedientes((prev) => prev.filter((e) => !ids.includes(e.id_expediente)));
       setSeleccionados((prev) => prev.filter((x) => !ids.includes(x)));
+      avisarCambioDeDatos();
       mostrar(ids.length === 1 ? "Expediente eliminado con éxito." : `${ids.length} expedientes eliminados con éxito.`);
       setABorrar(null);
       setConfirmarBorradoMasivo(false);
@@ -695,6 +718,26 @@ export default function ExpedientesList({
       mostrar(e instanceof Error ? e.message : "Ocurrió un error inesperado al eliminar el expediente.", "error");
     } finally {
       setBorrando(false);
+    }
+  };
+
+  /** Deshabilita (o vuelve a habilitar) los expedientes seleccionados: dejan de contar en las comisiones, la tasa y las liquidaciones. */
+  const deshabilitarSeleccionados = async (deshabilitado: boolean) => {
+    const ids = seleccionados;
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBulkEdit: true, ids, expediente: { deshabilitado } }),
+      });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo cambiar el estado de los expedientes."));
+      setExpedientes((prev) => prev.map((e) => (ids.includes(e.id_expediente) ? { ...e, deshabilitado } : e)));
+      avisarCambioDeDatos();
+      mostrar(deshabilitado ? `${ids.length} expedientes deshabilitados: ya no cuentan en las comisiones.` : `${ids.length} expedientes habilitados: vuelven a contar en las comisiones.`);
+      router.refresh();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "Error de conexión al actualizar.", "error");
     }
   };
 
@@ -707,11 +750,14 @@ export default function ExpedientesList({
         body: JSON.stringify({ isBulkEdit: true, ids: seleccionados, expediente: cambios }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar expedientes."));
+      avisarCambioDeDatos();
       mostrar(`${seleccionados.length} expedientes modificados correctamente.`);
+      // Lo que falta (por ejemplo, la fecha RCI de un pago que la pide) no impide guardar: se avisa
+      const avisos = ((await res.json().catch(() => ({}))) as { avisos?: { mensaje: string }[] }).avisos ?? [];
+      if (avisos.length > 0) mostrar(avisos.length === 1 ? avisos[0].mensaje : `${avisos.length} expedientes se han guardado con algo sin rellenar (por ejemplo: ${avisos[0].mensaje.replace(/^Expediente \d+: /, "")})`, "aviso", 10000);
       setEdicionMasiva(false);
       setSeleccionados([]);
       router.refresh();
-      setTimeout(() => window.location.reload(), 1000);
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error de conexión al actualizar.", "error");
     } finally {
@@ -764,7 +810,6 @@ export default function ExpedientesList({
       setFalloCopia(null);
       setSeleccionados([]);
       router.refresh();
-      setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
       mostrar(`No se ha creado ninguna copia. Motivo: ${e instanceof Error ? e.message : "error inesperado."}`, "error");
     } finally {
@@ -802,27 +847,8 @@ export default function ExpedientesList({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      {/* BUSCADOR GENERAL */}
-      <div className="glass-panel" style={{ padding: "8px 14px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Buscador Global:</span>
-        <input
-          type="text"
-          className="form-input"
-          placeholder="Busca por cliente, matrícula, DNI, vendedor, VIN..."
-          value={busqueda}
-          onChange={(e) => {
-            setBusqueda(e.target.value);
-            setPagina(1);
-          }}
-          style={{ flex: 1, padding: "5px 12px" }}
-        />
-        {busqueda && (
-          <button type="button" className="btn btn-secondary" onClick={() => setBusqueda("")} style={{ padding: "8px 14px", fontSize: "0.85rem" }}>
-            Limpiar
-          </button>
-        )}
-      </div>
-
+      {/* Cabecera fija: herramientas y filtros se quedan arriba al bajar por la lista (el buscador global es el del encabezado de la aplicación) */}
+      <div style={{ position: "sticky", top: 0, zIndex: 40, background: "var(--bg-app)", paddingBottom: "6px", display: "flex", flexDirection: "column", gap: "10px" }}>
       {/* BARRA DE HERRAMIENTAS */}
       <div
         style={{
@@ -875,22 +901,24 @@ export default function ExpedientesList({
             className="btn"
             onClick={() => {
               if (seleccionActiva) setSeleccionados([]);
-              setSeleccionActiva(!seleccionActiva);
+              modoSeleccion.alternar();
             }}
             style={botonHerramienta(seleccionActiva, "var(--warning)", "black")}
-            title={seleccionActiva ? "Bloquear Selección Masiva" : "Desbloquear Selección Masiva"}
+            title={seleccionActiva ? "Bloquear Selección Masiva. Se queda activa hasta que la desactives" + (modoSeleccion.restante !== null ? "; si no, se desactiva sola cuando acabe la cuenta atrás (se configura en Configuración de expedientes)." : ".") : "Desbloquear Selección Masiva. Se queda activa hasta que la desactives o hasta que pase el tiempo configurado."}
           >
             {seleccionActiva ? "🔓 Selección Activa" : "🔒 Selección Inactiva"}
+            {modoSeleccion.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoSeleccion.restante)}</span>}
           </button>
 
           <button
             type="button"
             className="btn"
-            onClick={() => setBorradoActivo(!borradoActivo)}
+            onClick={modoBorrado.alternar}
             style={botonHerramienta(borradoActivo, "var(--danger)", "white")}
-            title={borradoActivo ? "Bloquear Eliminación" : "Desbloquear Eliminación"}
+            title={borradoActivo ? "Bloquear Eliminación. Se queda activa hasta que la desactives" + (modoBorrado.restante !== null ? "; si no, se desactiva sola cuando acabe la cuenta atrás (se configura en Configuración de expedientes)." : ".") : "Desbloquear Eliminación. Se queda activa hasta que la desactives o hasta que pase el tiempo configurado."}
           >
             {borradoActivo ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
+            {modoBorrado.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoBorrado.restante)}</span>}
           </button>
 
           <button
@@ -944,13 +972,19 @@ export default function ExpedientesList({
               >
                 🗑️ Eliminar Seleccionados
               </button>
+              <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Los expedientes deshabilitados siguen en la lista, pero no cuentan en las comisiones, la tasa ni las liquidaciones hasta que los vuelvas a habilitar">
+                ⏸ Deshabilitar
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(false)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Vuelve a contar los expedientes seleccionados en las comisiones, la tasa y las liquidaciones">
+                ▶ Habilitar
+              </button>
               {permitirDup && (
                 <button type="button" className="btn btn-secondary" onClick={() => { setCopias("1"); setDuplicando(seleccionados); }} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Crea copias de los expedientes seleccionados (para pruebas)">
                   📑 Duplicar Seleccionados
                 </button>
               )}
               <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                📤 Exportar Seleccionados (CSV)
+                📤 Exportar SOLO expedientes seleccionados (CSV)
               </button>
               <button
                 type="button"
@@ -990,7 +1024,7 @@ export default function ExpedientesList({
                 icono="🟢"
                 titulo="Importar datos de Excel"
                 texto="Lee el listado de ventas en Excel (.xlsx) y crea o actualiza expedientes. Si hay conflictos te los enseña antes de cambiar nada."
-                ayuda="Elige un archivo Excel del listado de ventas. Crea los expedientes que no existan y te pregunta qué hacer con los que ya existen."
+                ayuda="Elige un archivo Excel del listado de ventas. Solo actualiza datos de expedientes que ya existen (por cliente); no crea expedientes y te pregunta qué hacer cuando un cliente tiene varios. Para listados del fabricante es mejor «Completar datos desde listados»."
                 archivo=".xlsx, .xls"
                 deshabilitado={importandoExcel || cargando}
                 alElegir={(e) => {
@@ -1003,7 +1037,7 @@ export default function ExpedientesList({
                   icono="📥"
                   titulo="Importar CSV"
                   texto="Carga expedientes desde un archivo CSV exportado antes con esta aplicación."
-                  ayuda="Elige un archivo .csv con el formato de «Exportar todo (CSV)». Te dice cuántos expedientes se crean antes de aplicarlo."
+                  ayuda="Elige un archivo .csv con el formato de «Exportar todo (CSV)». Crea expedientes y los enlaza con las marcas, modelos, tipos de venta y estados que ya tienes; nunca crea ni cambia esos catálogos."
                   archivo=".csv"
                   deshabilitado={cargando}
                   alElegir={(e) => {
@@ -1012,6 +1046,19 @@ export default function ExpedientesList({
                   }}
                 />
               )}
+            </GrupoDatos>
+
+            <GrupoDatos titulo="🧩 Completar datos de expedientes que ya tienes" ayuda="No crea nada: solo rellena huecos o corrige datos.">
+              <OpcionDatos
+                icono="🧩"
+                titulo="Completar datos desde listados"
+                texto="Sube los Excel o CSV del fabricante (Expedientes, Llamadas de calidad…): la app reconoce las columnas, encuentra tus expedientes por bastidor, matrícula o NIF y propone rellenar o corregir. Ves todo antes de aplicar."
+                ayuda="Completa matrícula, bastidor, fechas, NIF, código postal, correo y teléfono de expedientes existentes. No crea expedientes ni modelos y se puede deshacer desde el Log de importaciones."
+                alPulsar={() => {
+                  setMenuDatos(false);
+                  setCompletando(true);
+                }}
+              />
             </GrupoDatos>
 
             <GrupoDatos titulo="🔎 Comprobar sin cambiar nada" ayuda="Para revisar, no modifica ningún expediente.">
@@ -1033,7 +1080,7 @@ export default function ExpedientesList({
               <GrupoDatos titulo="📤 Sacar expedientes" ayuda="Descarga un archivo con los expedientes.">
                 <OpcionDatos
                   icono="📤"
-                  titulo="Exportar todo (CSV)"
+                  titulo="Exportar SOLO expedientes: todos (CSV)"
                   texto="Descarga todos los expedientes (los que ves con los filtros actuales) en un CSV que se abre con Excel."
                   ayuda="Descarga un archivo .csv en tu equipo con los expedientes de la tabla. No cambia nada en la aplicación."
                   alPulsar={() => {
@@ -1043,7 +1090,7 @@ export default function ExpedientesList({
                 />
                 <OpcionDatos
                   icono="☑️"
-                  titulo="Exportar seleccionados (CSV)"
+                  titulo="Exportar SOLO expedientes: los seleccionados (CSV)"
                   texto={seleccionados.length > 0 ? `Descarga solo los ${seleccionados.length} expedientes que has marcado.` : "Primero activa «Selección» en la barra y marca los expedientes que quieras."}
                   ayuda="Descarga solo los expedientes marcados. Requiere activar la selección masiva y marcar alguno."
                   deshabilitado={seleccionados.length === 0}
@@ -1313,9 +1360,11 @@ export default function ExpedientesList({
 
       {totalEnBd !== undefined && totalEnBd > expedientes.length && (
         <div style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.9rem" }}>
-          ⚠️ Se muestran los {expedientes.length.toLocaleString("es-ES")} expedientes más recientes de {totalEnBd.toLocaleString("es-ES")}. Para localizar uno anterior usa el buscador global (arriba) o la ficha del cliente.
+          ⚠️ Se muestran los {expedientes.length.toLocaleString("es-ES")} expedientes más recientes de {totalEnBd.toLocaleString("es-ES")}. Para localizar uno anterior usa el buscador de arriba o la ficha del cliente.
         </div>
       )}
+
+      </div>
 
       {/* TABLA */}
       <div className="glass-panel" style={{ padding: "8px" }}>
@@ -1332,7 +1381,7 @@ export default function ExpedientesList({
           alIrAPagina={(p) => setPagina(Math.max(1, Math.min(p, totalPaginas)))}
         />
 
-        <div className="table-container">
+        <div className="table-container tabla-scroll" style={{ ["--alto-tabla" as string]: "min(68vh, 760px)" }}>
           <table className="table-premium table-compact tabla-fija" style={{ width: (seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + ANCHO_COLUMNA[c.clave], 0) + ANCHO_ACCIONES, minWidth: "100%" }}>
             <colgroup>
               {seleccionActiva && <col style={{ width: ANCHO_SELECCION }} />}
@@ -1370,7 +1419,8 @@ export default function ExpedientesList({
                       if ((ev.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
                       seleccionarUno(exp.id_expediente, !marcada);
                     }}
-                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : undefined, cursor: seleccionActiva ? "pointer" : "default" }}
+                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : undefined, cursor: seleccionActiva ? "pointer" : "default", opacity: exp.deshabilitado ? 0.5 : undefined }}
+                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : undefined}
                   >
                     {seleccionActiva && (
                       <td style={{ textAlign: "center" }}>
@@ -1387,6 +1437,7 @@ export default function ExpedientesList({
                       cliente: mostrarCol("cliente") && (
                           <td style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
                             <CeldaCliente exp={exp} alAsignar={setAsignandoId} />
+                            {exp.deshabilitado && <span style={{ marginLeft: "6px", fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", border: "1px solid var(--border-light)", borderRadius: "999px", padding: "1px 6px" }}>⏸ Deshabilitado</span>}
                           </td>
                       ),
                       telefono: mostrarCol("telefono") && (
@@ -1399,13 +1450,25 @@ export default function ExpedientesList({
                             {exp.cliente?.emails[0]?.email ? <TextoCopiable texto={exp.cliente.emails[0].email} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
                           </td>
                       ),
+                      punto: mostrarCol("punto") && (
+                          <td style={{ textAlign: "center" }}>
+                            <PuntoMarca punto={aspectoVehiculo(exp.modelo?.marca, exp.estadoVehiculo).punto} color={aspectoVehiculo(exp.modelo?.marca, exp.estadoVehiculo).puntoColor} />
+                          </td>
+                      ),
+                      clase: mostrarCol("clase") && (
+                          <td style={{ textAlign: "center" }}>
+                            <EtiquetaClase clase={exp.estadoVehiculo?.clase} />
+                          </td>
+                      ),
                       marca: mostrarCol("marca") && (
-                          <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre} /> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
+                          <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre}><EtiquetaMarca texto={exp.modelo.marca.nombre} color={aspectoVehiculo(exp.modelo.marca, exp.estadoVehiculo).capsula} /></TextoCopiable> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
                       ),
                       modelo: mostrarCol("modelo") && (
                           <td>
                             {exp.modelo ? (
-                              <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
+                              <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                                <EtiquetaMarca texto={exp.modelo.nombre_modelo} color={aspectoVehiculo(exp.modelo.marca, exp.estadoVehiculo).capsula} />
+                              </TextoCopiable>
                             ) : (
                               <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
                             )}
@@ -1416,7 +1479,9 @@ export default function ExpedientesList({
                       marca_modelo: mostrarCol("marca_modelo") && (
                           <td>
                             {marcaYModelo(exp) ? (
-                              <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
+                              <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                                <EtiquetaMarca texto={marcaYModelo(exp)} color={aspectoVehiculo(exp.modelo?.marca, exp.estadoVehiculo).capsula} />
+                              </TextoCopiable>
                             ) : (
                               <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca ni modelo)</span>
                             )}
@@ -1430,7 +1495,7 @@ export default function ExpedientesList({
                           </td>
                       ),
                       estado: mostrarCol("estado") && (
-                          <td>
+                          <td style={{ textAlign: "center" }}>
                             <BadgeEstado exp={exp} />
                           </td>
                       ),
@@ -1658,6 +1723,7 @@ export default function ExpedientesList({
         />
       )}
 
+      {completando && <ModalCompletarDatos alCerrar={() => setCompletando(false)} alAplicar={() => router.refresh()} />}
       {contraste && <ModalContrasteListado nombreArchivo={contraste.archivo} resultado={contraste.resultado} alCerrar={() => setContraste(null)} />}
 
       {conflictos.length > 0 && conflictos[indiceConflicto] && (

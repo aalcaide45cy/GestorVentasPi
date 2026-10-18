@@ -27,6 +27,7 @@ export interface ClienteDto {
   tienda_id: number | null;
   /** Adjunto con la foto del cliente (se ve al pasar el ratón), si se ha leído su DNI. */
   foto_id?: number | null;
+  comentarios?: string | null;
   emails: EmailDto[];
   telefonos: TelefonoDto[];
 }
@@ -37,6 +38,11 @@ export interface MarcaDto {
   activo: boolean | null;
   acceso_rapido: boolean | null;
   sistema_comisiones: boolean;
+  /** Color del borde de la cápsula de la marca y el modelo (#RRGGBB) o null. */
+  color: string | null;
+  /** Símbolo y color de la columna del punto, o null. */
+  punto: string | null;
+  punto_color: string | null;
 }
 
 export interface ModeloDto {
@@ -56,6 +62,8 @@ export interface TipoVentaDto {
   categoria: string;
   /** Exige fecha RCI para poder matricular (crédito y preference por defecto). */
   requiere_rci_al_matricular: boolean;
+  /** Suma a la tasa de intervención financiera. */
+  cuenta_para_tasa: boolean;
 }
 
 export interface EstadoVehiculoDto {
@@ -64,6 +72,12 @@ export interface EstadoVehiculoDto {
   predeterminado: boolean | null;
   clase: string;
   subtipo_vo: string | null;
+  color: string | null;
+  /** Borde de la cápsula, punto y quién prevalece (el estado o la marca) para los coches de este estado. */
+  capsula_color: string | null;
+  punto: string | null;
+  punto_color: string | null;
+  prevalece: "marca" | "estado";
 }
 
 export interface TiendaDto {
@@ -93,6 +107,7 @@ export interface ExpedienteDto {
   fecha_facturacion: string | null;
   matricula: string | null;
   vin: string | null;
+  comentarios?: string | null;
   cobrado_otra_fecha: boolean;
   fecha_cobrado: string | null;
   comision_cobrada: boolean;
@@ -111,7 +126,11 @@ export interface ExpedienteDto {
   id_promocion: number | null;
   comision_coche_manual: number | null;
   comision_financiacion_manual: number | null;
-  conceptos_especiales: { titulo: string; importe_centimos: number; descripcion: string; evento: "afectacion" | "matriculacion" | "cobro"; cobrado: boolean }[];
+  conceptos_especiales: { titulo: string; importe_centimos: number; descripcion: string; evento: "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro"; cobrado: boolean }[];
+  /** Claves de los bonus «manuales» del plan elegidos para este expediente. */
+  bonus_manuales: string[];
+  /** Deshabilitado: no cuenta en las comisiones ni en la tasa mientras lo esté. */
+  deshabilitado: boolean;
   cliente: ClienteDto | null;
   modelo: ModeloDto | null;
   tipoDeVenta: TipoVentaDto | null;

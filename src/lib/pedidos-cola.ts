@@ -13,6 +13,13 @@ export interface EleccionRapida {
   estadoNombre?: string;
 }
 
+/** DNI que se soltó junto con un pedido: sus documentos (y la foto del cliente) ya están guardados como adjuntos pendientes. */
+export interface DniAsociado {
+  adjuntos: number[];
+  fotoId?: number | null;
+  fechaNacimiento?: string | null;
+}
+
 export interface ItemCola {
   id: string;
   nombre: string;
@@ -22,6 +29,10 @@ export interface ItemCola {
   eleccion: EleccionRapida | null;
   /** Expediente al que se soltó (para completarlo) o null si se creará uno nuevo. */
   idExpediente: number | null;
+  /** DNI soltado junto con el pedido: se une al expediente al crearlo o completarlo. */
+  dni?: DniAsociado | null;
+  /** Lectura del servidor de la que viene (para anotar en el registro qué se hizo con el pedido). */
+  idLectura?: number;
 }
 
 export interface EstadoCola {
@@ -32,7 +43,7 @@ export interface EstadoCola {
 
 const CLAVE = "gv_cola_pedidos";
 /** Pedidos que caben a la vez en la cola. */
-export const MAXIMO_COLA = 100;
+export const MAXIMO_COLA = 300;
 const MAXIMO = MAXIMO_COLA;
 const VACIO: EstadoCola = { items: [], abierto: null };
 
@@ -136,3 +147,19 @@ export function suscribirLectura(cb: () => void): () => void {
   return () => oyentesLectura.delete(cb);
 }
 export const leerLectura = (): ProgresoLectura | null => lectura;
+
+/** Cancelación de la lectura en curso: corta la petición que está leyendo y no empieza las siguientes. */
+let canceladaLectura = false;
+let controladorLectura: AbortController | null = null;
+export const lecturaCancelada = (): boolean => canceladaLectura;
+export function iniciarLectura(): void {
+  canceladaLectura = false;
+}
+export function nuevoControladorLectura(): AbortController {
+  controladorLectura = new AbortController();
+  return controladorLectura;
+}
+export function cancelarLectura(): void {
+  canceladaLectura = true;
+  controladorLectura?.abort();
+}

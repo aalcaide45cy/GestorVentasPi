@@ -141,6 +141,10 @@ export function interpretarCsvExpedientes(texto: string): RegistroImportacionCsv
   const cabecera = lineas[inicio];
   const delimitador = cabecera.includes(";") ? ";" : ",";
   const cabeceras = partirLinea(cabecera, delimitador).map((h) => h.replace(/^["']|["']$/g, "").toLowerCase());
+  // Los listados que se descargan del sistema del fabricante no son un CSV de la aplicación: crearían expedientes sueltos
+  if (cabeceras.includes("comercial") && cabeceras.includes("bastidor") && cabeceras.some((h) => h.startsWith("f. afect") || h.startsWith("fecha encuesta") || h.startsWith("fecha entrega"))) {
+    throw new Error("Este archivo es un listado del fabricante (Expedientes o Llamadas de calidad), no un CSV de la aplicación. Para usarlo elige «Completar datos desde listados»: solo rellena y corrige datos de expedientes que ya tienes y no crea nada.");
+  }
   // Primero coincidencia exacta con algún nombre (por orden de preferencia) y, si no la hay, por
   // fragmento: así «matricula» no se confunde con «f. matriculacion».
   const col = (nombres: string[]) => {

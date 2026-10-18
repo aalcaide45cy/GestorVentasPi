@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { estadoVehiculo, expedientes, tipoDeVenta } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
-import { actualizarExpedientes, crearExpediente } from "./expedientes-escritura";
+import { actualizarExpedientes, crearExpediente, type AvisoGuardado } from "./expedientes-escritura";
 
 beforeEach(reiniciarBd);
 
@@ -48,34 +48,44 @@ describe("facturación de un VN", () => {
 });
 
 describe("«Requerido al matricular»", () => {
-  it("no deja matricular un crédito sin fecha RCI, ni al crear ni al editar", async () => {
+  it("avisa pero no impide guardar un crédito matriculado sin fecha RCI, ni al crear ni al editar", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const credito = await tipo("Crédito Prueba", "CREDITO", true);
-    await expect(crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: credito, fecha_matriculacion: "2026-09-10" } }))).rejects.toMatchObject({ status: 400 });
+    const avisosAlta: AvisoGuardado[] = [];
+    const creado = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: credito, fecha_matriculacion: "2026-09-10" } }), avisosAlta);
+    expect(creado.fecha_matriculacion).toBe("2026-09-10"); // se ha guardado igualmente
+    expect(avisosAlta).toHaveLength(1);
+    expect(avisosAlta[0].campo).toBe("fecha_rci");
 
     const e = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: credito } }));
-    await expect(actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: e.id_expediente, expediente: { fecha_matriculacion: "2026-09-10" } }))).rejects.toMatchObject({ status: 400 });
-    expect((await leer(e.id_expediente)).fechaMatriculacion).toBeNull();
+    const r = await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: e.id_expediente, expediente: { fecha_matriculacion: "2026-09-10" } }));
+    expect(r.avisos.map((a) => a.campo)).toEqual(["fecha_rci"]);
+    expect((await leer(e.id_expediente)).fechaMatriculacion).toBe("2026-09-10");
 
-    // Con la RCI en la misma operación sí se puede
-    await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: e.id_expediente, expediente: { fecha_matriculacion: "2026-09-10", fecha_rci: "2026-09-01" } }));
+    // Con la RCI en la misma operación no hay aviso
+    const ok = await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: e.id_expediente, expediente: { fecha_matriculacion: "2026-09-11", fecha_rci: "2026-09-01" } }));
+    expect(ok.avisos).toEqual([]);
     const fin = await leer(e.id_expediente);
-    expect(fin.fechaMatriculacion).toBe("2026-09-10");
+    expect(fin.fechaMatriculacion).toBe("2026-09-11");
     expect(fin.fechaRci).toBe("2026-09-01");
   });
 
-  it("un pago de contado (sin la marca) se matricula sin RCI", async () => {
+  it("un pago de contado (sin la marca) se matricula sin RCI y sin aviso", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const contado = await tipo("Contado Prueba", "CONTADO", false);
-    const e = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: contado, fecha_matriculacion: "2026-09-10" } }));
+    const avisos: AvisoGuardado[] = [];
+    const e = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: contado, fecha_matriculacion: "2026-09-10" } }), avisos);
     expect(e.fecha_matriculacion).toBe("2026-09-10");
+    expect(avisos).toEqual([]);
   });
 
-  it("cambiar el pago a uno que lo exige tampoco permite dejar un expediente matriculado sin RCI", async () => {
+  it("cambiar el pago a uno que lo exige se guarda y avisa de que falta la RCI", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const contado = await tipo("Contado Prueba", "CONTADO", false);
     const credito = await tipo("Crédito Prueba", "CREDITO", true);
     const e = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_tipo_de_venta: contado, fecha_matriculacion: "2026-09-10" } }));
-    await expect(actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: e.id_expediente, expediente: { id_tipo_de_venta: credito } }))).rejects.toMatchObject({ status: 400 });
+    const r = await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: e.id_expediente, expediente: { id_tipo_de_venta: credito } }));
+    expect(r.avisos.map((a) => a.campo)).toEqual(["fecha_rci"]);
+    expect((await leer(e.id_expediente)).idTipoDeVenta).toBe(credito);
   });
 });

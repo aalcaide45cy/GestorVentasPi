@@ -3,7 +3,8 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import BotonApagar from "@/components/BotonApagar";
+import BarraHistorial from "@/components/BarraHistorial";
+import BotonApagar, { BotonReiniciarServidor } from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { CLAVE_ABIERTO, CLAVE_MOSTRAR_LABORATORIO } from "@/components/LaboratorioComisiones";
@@ -400,6 +401,10 @@ export default function Sidebar({ user, version }: SidebarProps) {
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10 9 9 9 8 9" />
               </EnlaceNav>
+              <EnlaceNav href="/dashboard/log-lecturas" titulo="Log Lecturas" colapsado={isCollapsed}>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M7 8h10M7 12h10M7 16h6" />
+              </EnlaceNav>
             </>
           )}
           {isVendedorOrUp && labMostrar !== "false" && (
@@ -424,6 +429,8 @@ export default function Sidebar({ user, version }: SidebarProps) {
 
       {/* Pie */}
       <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <BarraHistorial colapsado={isCollapsed} />
+        {isAdmin && <BotonReiniciarServidor colapsado={isCollapsed} />}
         <button
           onClick={cerrarSesion}
           className="glass-panel-interactive"

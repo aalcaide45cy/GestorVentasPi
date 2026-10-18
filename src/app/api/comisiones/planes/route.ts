@@ -36,7 +36,7 @@ export const DELETE = manejar(async (req: Request) => {
   const u = await requireSession("administrador");
   const id = leerIdQuery(req);
   if (!id) return errorJson(400, "Falta el ID del plan");
-  await eliminarPlan(db, id);
+  await eliminarPlan(db, id, new URL(req.url).searchParams.get("forzar") === "1");
   await auditar({ idUsuario: u.idUsuario, accion: "plan_eliminado", entidad: "commission_plans", entidadId: String(id) });
   return NextResponse.json({ success: true });
 });

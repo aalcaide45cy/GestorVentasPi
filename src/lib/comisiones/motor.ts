@@ -1,6 +1,8 @@
 import type {
+  AmbitoTasa,
   ApuntePuntos,
   CategoriaVenta,
+  CondicionTasa,
   Centimos,
   Centesimas,
   ConceptoLinea,
@@ -13,16 +15,37 @@ import type {
   PlanMotor,
   ReglaBonusMotor,
   ReglaPreferenceMotor,
+  ConceptoId,
+  EventoConcepto,
   ResultadoMes,
   TarifaUsadoMotor,
+  TasaAmbitoResultado,
+  TasaCocheDetalle,
+  FinanciacionFueraDeMes,
+  TasaConfigMotor,
   TasaMarcaResultado,
   VendedorMotor,
 } from "./tipos";
-import { enteroValido, etiquetaTramo, fechaQueCuenta, floorDiv, limitar, mesDe, mesEnRango, sumarMeses } from "./util";
+import { ambitoCoincide, enteroValido, etiquetaTramo, fechaQueCuenta, floorDiv, limitar, mesDe, mesEnRango, sumarMeses } from "./util";
 
 const FINANCIADAS: CategoriaVenta[] = ["CREDITO", "PREFERENCE", "RENTING"];
+
+/** ¿El tipo de pago del expediente suma a la tasa de intervención? Lo decide el propio tipo de pago; sin dato, la categoría. */
+function esFinanciadoParaTasa(e: ExpedienteMotor): boolean {
+  return e.cuentaParaTasa ?? (e.categoriaVenta !== null && FINANCIADAS.includes(e.categoriaVenta));
+}
 const PUNTOS_DEFECTO: Centesimas = 100;
 const VO_SIN_ESCALA: Centimos = 15000;
+
+/**
+ * ¿Suma este coche al numerador de la tasa global (o de usados) del mes? Su RCI cae en el mes, es una venta financiada y el coche cuenta
+ * ESE MISMO mes. Una financiación adelantada (coche que cuenta en otro mes, o en ninguno todavía) NO suma a la global ni a la de usados, para
+ * que poner o cambiar la fecha de matriculación de ese coche no mueva la tasa global del mes en que se contrató (decisión del propietario).
+ * Sí suma a la tasa de su marca.
+ */
+function financiaEnElMes(i: { e: ExpedienteMotor; mesComputo: Mes | null }, mes: Mes): boolean {
+  return i.mesComputo === mes && mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e);
+}
 
 interface Info {
   e: ExpedienteMotor;
@@ -63,6 +86,13 @@ function resultadoVacio(mes: Mes, idVendedor: number, idPlan: number | null, avi
     puntosMes: 0,
     tramo: 0,
     tasaIntervencion: [],
+    tasaGlobal: tasaVacia(),
+    tasaVo: tasaVacia(),
+    tasaIncluyeVo: true,
+    tasaCoches: [],
+    financiacionesFueraDeMes: [],
+    objetivoBase: 0,
+    objetivoArrastre: 0,
     lineas: [],
     bruto: 0,
     penalizacion: 0,
@@ -149,10 +179,12 @@ export function calcularMes(
       if (e.idPromocion !== null) avisos.push(`Expediente ${e.id}: la promoción ${e.idPromocion} no existe en el plan; se usan sus puntos propios o por defecto`);
       p =
         enteroValido(e.puntos) ??
+        (e.clase === "VO" ? (enteroValido(plan.voPuntos ?? undefined) ?? undefined) : undefined) ??
         (e.idModelo !== null ? plan.puntosPorDefectoModelo[e.idModelo] : undefined) ??
         (e.idMarca !== null ? plan.puntosPorDefectoMarca[e.idMarca] : undefined) ??
         PUNTOS_DEFECTO;
     }
+    if (e.clase === "VO" && plan.voPuntosModo === "no") continue; // en este plan los usados no suman puntos
     puntosCoches += p;
     anotar(i, {
       concepto: "puntos_coche",
@@ -191,6 +223,25 @@ export function calcularMes(
   const tasaDe = (idMarca: number | null): boolean => {
     if (idMarca === null) return false;
     return tasas.find((t) => t.idMarca === idMarca)?.cumplida ?? true;
+  };
+  const incluyeVo = plan.tasaIncluyeVo !== false;
+  const tasaGlobal = calcularTasaAmbito(infos, mes, incluyeVo ? ["VN", "VO"] : ["VN"], plan.tasaGlobal);
+  const tasaVo = calcularTasaAmbito(infos, mes, ["VO"], plan.tasaVo);
+  const tasaCoches: TasaCocheDetalle[] = infos
+    .filter((i) => i.mesComputo === mes || mesDe(i.e.fechaRci) === mes)
+    .map((i) => ({ idExpediente: i.e.id, clase: i.e.clase, idMarca: i.e.idMarca, cuenta: i.mesComputo === mes, financiado: mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e) }));
+  const financiacionesFueraDeMes: FinanciacionFueraDeMes[] = infos.flatMap((i): FinanciacionFueraDeMes[] => {
+    const mesRci = mesDe(i.e.fechaRci);
+    if (mesRci === null || !esFinanciadoParaTasa(i.e)) return [];
+    if (i.mesComputo === mes && mesRci < mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "anterior" as const, mesRci, mesComputo: i.mesComputo }];
+    if (i.mesComputo !== mes && mesRci === mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "adelantada" as const, mesRci, mesComputo: i.mesComputo }];
+    return [];
+  });
+  const ratioDe = (ambito: AmbitoTasa, idMarca: number | null): { cumplida: boolean; numerador: number; denominador: number } => {
+    if (ambito === "global") return tasaGlobal;
+    if (ambito === "vo") return tasaVo;
+    const t = idMarca === null ? undefined : tasas.find((x) => x.idMarca === idMarca);
+    return t ? { cumplida: t.cumplida, numerador: t.numerador, denominador: t.denominador } : { cumplida: idMarca !== null, numerador: 0, denominador: 0 };
   };
 
   /* Pasos 5 y 8.5: reglas y bonus (puntos e importes) */
@@ -236,21 +287,20 @@ export function calcularMes(
     anotar(i, comisionVn(plan, vendedor, i.e, tramo, tasaDe(i.e.idMarca), mes));
   }
 
-  /* Paso 8.2: comisión VO (mes de cobro) */
-  const vo = infos.filter((i) => i.e.clase === "VO" && mesDe(i.e.fechaCobro) === mes);
+  /* Paso 8.2: comisión VO (en el mes que cuenta el usado: facturación o cobro, según el plan) */
+  const vo = infos.filter((i) => i.e.clase === "VO" && i.mesComputo === mes);
   for (const [i, c] of comisionesVo(plan, vendedor, vo, mes)) anotar(i, c);
 
   /* Pasos 8.3 y 8.4: financiación y Preference (mes de la fecha RCI) */
   for (const i of infos) {
     if (mesDe(i.e.fechaRci) !== mes) continue;
-    for (const c of financiacionYPreference(plan, i.e, mes)) anotar(i, c);
+    for (const c of financiacionYPreference(plan, i.e, mes, ratioDe)) anotar(i, c);
   }
 
   /* Paso 8.6: conceptos especiales del expediente */
   for (const i of infos) {
     for (const c of i.e.conceptosEspeciales) {
-      const fecha =
-        c.evento === "afectacion" ? i.e.fechaAfectacion : c.evento === "cobro" ? i.e.fechaCobro : c.evento === "matriculacion" || c.evento === undefined ? i.fechaComputo : null;
+      const fecha = fechaDeConcepto(c.evento, i);
       if (mesDe(fecha) !== mes) continue;
       let imp = enteroValido(c.importe);
       let aviso: string | undefined;
@@ -276,6 +326,13 @@ export function calcularMes(
     puntosMes,
     tramo,
     tasaIntervencion: tasas,
+    tasaGlobal,
+    tasaVo,
+    tasaIncluyeVo: incluyeVo,
+    tasaCoches,
+    financiacionesFueraDeMes,
+    objetivoBase: obj ? obj.base : 0,
+    objetivoArrastre: obj ? obj.arrastre : 0,
     lineas: lineasOrd,
     bruto,
     penalizacion,
@@ -290,18 +347,38 @@ export function calcularMes(
 /* Tasa de intervención (paso 7)                                       */
 /* ------------------------------------------------------------------ */
 
+function tasaVacia(): TasaAmbitoResultado {
+  return { numerador: 0, denominador: 0, porcentaje: null, unidades: 0, cumplida: true, conObjetivo: false, objetivo: null, tipoTasa: "porcentaje" };
+}
+
+/**
+ * Tasa de intervención financiera de los coches nuevos (todas las marcas juntas) o de los usados: coches financiados en el mes
+ * entre los que cuentan en el mes, con el mismo criterio que la tasa por marca. Sin objetivo en el plan se da por cumplida.
+ */
+function calcularTasaAmbito(infos: Info[], mes: Mes, clases: ("VN" | "VO")[], cfg: TasaConfigMotor | undefined): TasaAmbitoResultado {
+  const coches = infos.filter((i) => clases.includes(i.e.clase));
+  const denominador = coches.filter((i) => i.mesComputo === mes).length;
+  const numerador = coches.filter((i) => financiaEnElMes(i, mes)).length;
+  const objetivo = cfg?.objetivo ?? null;
+  const conObjetivo = objetivo !== null;
+  let cumplida = true;
+  if (conObjetivo && denominador > 0) cumplida = cfg?.tipoTasa === "unidades" ? numerador >= objetivo : numerador * 100 >= objetivo * denominador;
+  return { numerador, denominador, porcentaje: denominador === 0 ? null : Math.round((numerador * 10000) / denominador) / 100, unidades: numerador, cumplida, conObjetivo, objetivo, tipoTasa: cfg?.tipoTasa === "unidades" ? "unidades" : "porcentaje" };
+}
+
 function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResultado[] {
   const marcas = new Set<number>();
   for (const i of infos) {
     const e = i.e;
-    if (e.clase !== "VN" || e.idMarca === null) continue;
+    if ((e.clase !== "VN" && !(plan.tasaIncluyeVo !== false && e.clase === "VO")) || e.idMarca === null) continue;
     if (i.mesComputo === mes || mesDe(e.fechaRci) === mes) marcas.add(e.idMarca);
   }
   const res: TasaMarcaResultado[] = [];
+  const incluyeVo = plan.tasaIncluyeVo !== false;
   for (const idMarca of [...marcas].sort((a, b) => a - b)) {
-    const vn = infos.filter((i) => i.e.clase === "VN" && i.e.idMarca === idMarca);
+    const vn = infos.filter((i) => (i.e.clase === "VN" || (incluyeVo && i.e.clase === "VO")) && i.e.idMarca === idMarca);
     const denominador = vn.filter((i) => i.mesComputo === mes).length;
-    const numerador = vn.filter((i) => mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta)).length;
+    const numerador = vn.filter((i) => mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e)).length;
     const cfg = plan.tasaIntervencionPorMarca.find((t) => t.idMarca === idMarca);
     const tipo = cfg?.tipoTasa ?? "porcentaje";
     const objetivo = cfg?.objetivo ?? 70;
@@ -316,6 +393,8 @@ function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResul
       porcentaje: denominador === 0 ? null : Math.round((numerador * 10000) / denominador) / 100,
       unidades: numerador,
       cumplida,
+      objetivo,
+      tipoTasa: tipo,
     });
   }
   return res;
@@ -359,10 +438,13 @@ function aplicaRegla(
     case "preference":
       fecha = e.categoriaVenta === "PREFERENCE" && mesDe(e.fechaRci) === mes ? e.fechaRci : null;
       break;
+    case "manual":
+      // Solo en los expedientes donde se ha elegido este bonus, en el mes en que cuenta el coche
+      fecha = r.clave && (e.bonusManuales ?? []).includes(r.clave) && i.mesComputo === mes ? i.fechaComputo : null;
+      break;
   }
   if (fecha === null) return null;
-  if (r.tipoVehiculo === "nuevo" && e.clase !== "VN") return null;
-  if (r.tipoVehiculo === "usado" && e.clase !== "VO") return null;
+  if (!ambitoCoincide(r.tipoVehiculo, e.clase, e.subtipoVO)) return null;
   if (r.fechaInicio && fecha < r.fechaInicio) return null;
   if (r.fechaFin && fecha > r.fechaFin) return null;
   if (r.idMarca !== null && r.idMarca !== e.idMarca) return null;
@@ -405,7 +487,7 @@ function comisionVn(plan: PlanMotor, vendedor: VendedorMotor, e: ExpedienteMotor
 function comisionesVo(plan: PlanMotor, vendedor: VendedorMotor, vo: Info[], mes: Mes): [Info, ConceptoLinea][] {
   const res: [Info, ConceptoLinea][] = [];
   if (vo.length === 0) return res;
-  const ordenados = [...vo].sort((a, b) => (a.e.fechaCobro ?? "").localeCompare(b.e.fechaCobro ?? "") || a.e.id - b.e.id);
+  const ordenados = [...vo].sort((a, b) => (a.fechaComputo ?? "").localeCompare(b.fechaComputo ?? "") || a.e.id - b.e.id);
   const mk = (descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
     concepto: "vo",
     descripcion,
@@ -434,7 +516,8 @@ function comisionesVo(plan: PlanMotor, vendedor: VendedorMotor, vo: Info[], mes:
       const k = idx + 1;
       let importe = VO_SIN_ESCALA;
       if (tiers.length > 0) {
-        const t = tiers.find((x) => x.unidad === k) ?? tiers[tiers.length - 1];
+        // Rotativo: la unidad 4 vuelve a cobrar como la 1, la 5 como la 2…; si no, desde el último escalón se repite el último
+        const t = tiers.find((x) => x.unidad === k) ?? (patron?.rotativo ? tiers[(k - 1) % tiers.length] : tiers[tiers.length - 1]);
         importe = t.importe;
       }
       const v = enteroValido(importe);
@@ -467,6 +550,11 @@ function comisionesVo(plan: PlanMotor, vendedor: VendedorMotor, vo: Info[], mes:
 /* Financiación y Preference (8.3 y 8.4)                               */
 /* ------------------------------------------------------------------ */
 
+/** ¿Una regla marcada para VN, VO o todos vale para este coche? Sin marca, vale para los nuevos. */
+function aplica(aplicaA: string | undefined, e: ExpedienteMotor): boolean {
+  return ambitoCoincide(aplicaA ?? "VN", e.clase, e.subtipoVO);
+}
+
 function especificidad(r: ReglaPreferenceMotor): number {
   if (r.idMarca !== null && r.idModelo !== null) return 4;
   if (r.idModelo !== null) return 3;
@@ -474,9 +562,38 @@ function especificidad(r: ReglaPreferenceMotor): number {
   return 1;
 }
 
-function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes): ConceptoLinea[] {
+/** Identificador de la columna de destino de una línea: las propias del programa se respetan y cualquier otro nombre es un concepto «extra:». */
+export function idConceptoDestino(texto: string): ConceptoId {
+  const limpio = texto.trim();
+  if (limpio === "financiacion" || limpio === "preference") return limpio;
+  return `extra:${limpio.replace(/^extra:/, "")}`;
+}
+
+/** Fecha que decide el mes de un concepto especial según el evento elegido (por defecto, el evento principal del coche). */
+function fechaDeConcepto(evento: EventoConcepto | undefined, i: Info): Fecha | null {
+  switch (evento) {
+    case "pedido":
+      return i.e.fechaExpediente;
+    case "afectacion":
+      return i.e.fechaAfectacion;
+    case "rci":
+      return i.e.fechaRci;
+    case "fecha_matriculacion":
+      return i.e.fechaMatriculacion;
+    case "facturacion":
+      return i.e.fechaFacturacion ?? null;
+    case "entrega":
+      return i.e.fechaEntrega ?? null;
+    case "cobro":
+      return i.e.fechaCobro;
+    default:
+      return i.fechaComputo;
+  }
+}
+
+function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, ratioDe: (ambito: AmbitoTasa, idMarca: number | null) => { cumplida: boolean; numerador: number; denominador: number }): ConceptoLinea[] {
   const res: ConceptoLinea[] = [];
-  const mk = (concepto: "financiacion" | "preference", descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
+  const mk = (concepto: ConceptoId, descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
     concepto,
     descripcion,
     importe,
@@ -493,30 +610,66 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
   const cat = e.categoriaVenta;
   if (cat === null || !FINANCIADAS.includes(cat)) return res; // CONTADO no genera incentivo
 
-  const tarifa = plan.financiacionPorMarcaTipo.find((f) => f.idMarca === e.idMarca && f.tipo === cat);
-  if (!tarifa) {
-    res.push(mk("financiacion", `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
-  } else {
-    const v = enteroValido(tarifa.importe);
-    res.push(v === null ? mk("financiacion", `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0") : mk("financiacion", `Financiación ${cat}`, v));
+  // Por defecto, el incentivo de una venta Preference se enseña en la columna «Preference», junto a las reglas BOX3
+  const conceptoFin: ConceptoId = cat === "PREFERENCE" ? "preference" : "financiacion";
+  const destinoDe = (r: { concepto?: string }, defecto: ConceptoId): ConceptoId => (r.concepto && r.concepto.replace(/^extra:/, "").trim() !== "" ? idConceptoDestino(r.concepto) : defecto);
+  // Una línea puede cobrarse solo si la tasa de intervención está (o no) cumplida; con «tasaUmbral» se compara la tasa real con ese %
+  const cumpleTasa = (r: { tasaIntervencion?: CondicionTasa; tasaAmbito?: AmbitoTasa; tasaUmbral?: number | null }): boolean => {
+    const c = r.tasaIntervencion ?? "indiferente";
+    if (c === "indiferente") return true;
+    const t = ratioDe(r.tasaAmbito ?? "marca", e.idMarca);
+    const cumplida = r.tasaUmbral === null || r.tasaUmbral === undefined ? t.cumplida : t.denominador === 0 || t.numerador * 100 >= r.tasaUmbral * t.denominador;
+    return cumplida === (c === "cumplida");
+  };
+  const condicionada = (r: { tasaIntervencion?: CondicionTasa }) => ((r.tasaIntervencion ?? "indiferente") === "indiferente" ? 1 : 0);
+  const porDestino = <T extends { concepto?: string }>(lineas: T[], defecto: ConceptoId): Map<ConceptoId, T[]> => {
+    const grupos = new Map<ConceptoId, T[]>();
+    for (const l of lineas) {
+      const d = destinoDe(l, defecto);
+      grupos.set(d, [...(grupos.get(d) ?? []), l]);
+    }
+    return grupos;
+  };
+
+  // Líneas de financiación: cada columna de destino suma como mucho una línea (la que lleva condición manda sobre la que no)
+  const delCoche = plan.financiacionPorMarcaTipo.filter((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e));
+  if (!(e.clase === "VO" && delCoche.length === 0)) {
+    // los usados solo cobran financiación si hay una regla que se aplique a usados
+    let cobrada = false;
+    for (const [destino, lineas] of porDestino(delCoche, conceptoFin)) {
+      const tarifa = lineas.filter(cumpleTasa).sort((a, b) => condicionada(a) - condicionada(b))[0];
+      if (!tarifa) continue;
+      const v = enteroValido(tarifa.importe);
+      cobrada = true;
+      res.push(v === null ? mk(destino, `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0") : mk(destino, `Financiación ${cat}`, v));
+    }
+    if (!cobrada && delCoche.length > 0) {
+      // Hay incentivo para este coche, pero solo con otra situación de la tasa de intervención
+      const ambitos = [...new Set(delCoche.map((f) => f.tasaAmbito ?? "marca"))].map((a) => (a === "global" ? "global" : a === "vo" ? "de usados" : `de ${e.idMarca === null ? "la marca" : (plan.nombresMarca?.[e.idMarca] ?? "la marca")}`));
+      res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `No se cobra la financiación ${cat}: la tasa de intervención ${ambitos.join(" / ")} no está en la situación que pide la regla`));
+    } else if (!cobrada) {
+      res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
+    }
   }
 
+  // Reglas Preference / BOX3: por cada columna de destino se aplica solo la más específica
   if (cat === "PREFERENCE") {
-    const candidatas = plan.reglasPreference
-      .filter(
-        (r) =>
-          r.activa !== false &&
-          (r.idMarca === null || r.idMarca === e.idMarca) &&
-          (r.idModelo === null || r.idModelo === e.idModelo) &&
-          (r.tipo === null || r.tipo === "PREFERENCE"),
-      )
-      .sort((a, b) => especificidad(b) - especificidad(a) || a.id - b.id);
-    const mejor = candidatas[0];
-    if (mejor) {
+    const candidatas = plan.reglasPreference.filter(
+      (r) =>
+        r.activa !== false &&
+        aplica(r.aplicaA, e) &&
+        (r.idMarca === null || r.idMarca === e.idMarca) &&
+        (r.idModelo === null || r.idModelo === e.idModelo) &&
+        (r.tipo === null || r.tipo === "PREFERENCE") &&
+        cumpleTasa(r),
+    );
+    for (const [destino, lineas] of porDestino(candidatas, "preference")) {
+      const mejor = lineas.sort((a, b) => condicionada(a) - condicionada(b) || especificidad(b) - especificidad(a) || a.id - b.id)[0];
       const v = enteroValido(mejor.importe);
       const desc = `Preference / BOX3${mejor.nombre ? ` (${mejor.nombre})` : ""}`;
-      res.push(v === null ? mk("preference", desc, 0, "Importe de la regla Preference no válido: se usa 0") : mk("preference", desc, v));
+      res.push(v === null ? mk(destino, desc, 0, "Importe de la regla Preference no válido: se usa 0") : mk(destino, desc, v));
     }
   }
   return res;
 }
+

@@ -1,9 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { clientes, commissionPlans, expedientes, marcas, modelos, rejillas, tiendas, tipoDeVenta, usuarios } from "@/db/schema";
+import { clientes, commissionPlans, emailsClientes, estadoVehiculo, expedientes, marcas, modelos, rejillas, tiendas, tipoDeVenta, usuarios } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { INFO_SECCIONES, SECCIONES, exportarSeccion, importarSeccion, resumenSecciones } from "./intercambio";
+import { INFO_SECCIONES, SECCIONES, contenidoSeccion, exportarSeccion, importarSeccion, resumenSecciones } from "./intercambio";
 import { guardarPlan } from "./planes";
 
 beforeEach(reiniciarBd);
@@ -174,5 +174,56 @@ describe("exportar e importar por secciones", () => {
     const r = await importarSeccion(db, admin.idUsuario, aj, "actualizar", true);
     expect(r).toMatchObject({ nuevos: 1, totalErrores: 1 });
     expect(JSON.stringify(await exportarSeccion(db, "ajustes"))).not.toMatch(/secret/i);
+  });
+
+  it("clientes y expedientes: un solo archivo que al importarlo recompone clientes (con sus correos) y expedientes enlazados", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const [marca] = await db.insert(marcas).values({ nombre: "Dacia" }).returning();
+    const [modelo] = await db.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: "Sandero" }).returning();
+    const [c1] = await db.insert(clientes).values({ clienteId: "c1", nombre: "Ana Lopez", dni: "12345678Z", domicilio: "Calle Sol 1" }).returning();
+    await db.insert(emailsClientes).values({ idCliente: c1.id, email: "ana@correo.com", tipoEmail: "Principal" });
+    await db.insert(clientes).values({ clienteId: "c2", nombre: "Sin Compras", dni: "87654321X" });
+    const [pago] = await db.insert(tipoDeVenta).values({ nombreTipoVenta: "Contado", categoria: "CONTADO" }).returning();
+    const [estado] = await db.insert(estadoVehiculo).values({ nombreEstadoVehiculo: "Nuevo", clase: "VN" }).returning();
+    await db.insert(expedientes).values({ idUsuario: admin.idUsuario, idCliente: c1.id, idModelo: modelo.idModelo, idTipoDeVenta: pago.idTipoDeVenta, idEstadoVehiculo: estado.idEstadoVehiculo, matricula: "1234BCD", fechaExpediente: "2026-09-01" });
+
+    const paquete = JSON.parse(JSON.stringify(await exportarSeccion(db, "clientes_expedientes")));
+    expect(paquete.registros).toBe(3); // 2 clientes + 1 expediente
+    expect(paquete.datos.filter((d: { _tipo: string }) => d._tipo === "cliente")).toHaveLength(2);
+    expect((await resumenSecciones(db)).find((r) => r.seccion === "clientes_expedientes")?.detalle).toMatch(/2 clientes y 1 expedientes/);
+
+    // Se borran los expedientes y los clientes y se importa el archivo: vuelve todo, enlazado
+    await db.delete(expedientes);
+    await db.delete(emailsClientes);
+    await db.delete(clientes);
+    const previa = await importarSeccion(db, admin.idUsuario, paquete, "anadir", false);
+    expect(previa.aplicado).toBe(false);
+    expect(await activos()).toBe(0);
+    const r = await importarSeccion(db, admin.idUsuario, paquete, "anadir", true);
+    expect(r.errores).toEqual([]);
+    expect(r.nuevos).toBe(3);
+    const ana = (await db.select().from(clientes).where(eq(clientes.dni, "12345678Z")))[0];
+    expect(ana.domicilio).toBe("Calle Sol 1");
+    expect((await db.select().from(emailsClientes).where(eq(emailsClientes.idCliente, ana.id))).map((e) => e.email)).toEqual(["ana@correo.com"]);
+    const exp = (await db.select().from(expedientes))[0];
+    expect(exp.idCliente).toBe(ana.id);
+    expect(exp.matricula).toBe("1234BCD");
+    expect(await activos()).toBe(2);
+  });
+
+  it("el contenido de una sección se puede ver como tabla (clientes con sus correos, y clientes y expedientes en dos tablas)", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const [c1] = await db.insert(clientes).values({ clienteId: "c1", nombre: "Ana Lopez", dni: "12345678Z" }).returning();
+    await db.insert(emailsClientes).values([{ idCliente: c1.id, email: "ana@correo.com" }, { idCliente: c1.id, email: "ana2@correo.com" }]);
+    await db.insert(expedientes).values({ idUsuario: admin.idUsuario, idCliente: c1.id, matricula: "1234BCD" });
+
+    const c = await contenidoSeccion(db, "clientes");
+    expect(c.partes).toHaveLength(1);
+    expect(c.partes[0].columnas.map((x) => x.etiqueta)).toEqual(expect.arrayContaining(["DNI/NIF", "Nombre", "Emails"]));
+    expect(c.partes[0].filas[0]).toMatchObject({ dni: "12345678Z", nombre: "Ana Lopez", emails: "ana@correo.com, ana2@correo.com" });
+
+    const j = await contenidoSeccion(db, "clientes_expedientes");
+    expect(j.partes.map((p) => [p.titulo, p.total])).toEqual([["Clientes", 1], ["Expedientes", 1]]);
+    expect(j.partes[1].filas[0]).toMatchObject({ matricula: "1234BCD", cliente: "Ana Lopez (12345678Z)" });
   });
 });

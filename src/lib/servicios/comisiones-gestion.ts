@@ -242,7 +242,8 @@ export async function cotejo(ej: Ejecutor, idUsuario: number, mes: string): Prom
     if (!e) continue;
     const importes = Object.fromEntries(CONCEPTOS_COTEJO.map((c) => [c, 0])) as Record<ConceptoCotejo, number>;
     for (const i of items.filter((x) => x.idLine === l.idLine)) {
-      const c = CONCEPTO_A_COTEJO[i.concepto];
+      // Un concepto propio del plan («extra:Nombre») se coteja con los bonus
+      const c = CONCEPTO_A_COTEJO[i.concepto] ?? (i.concepto.startsWith("extra:") ? "bonus" : undefined);
       if (c) importes[c] += i.importe;
     }
     const cobrado: Record<ConceptoCotejo, boolean> = {

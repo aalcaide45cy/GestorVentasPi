@@ -1,5 +1,6 @@
 "use client";
 
+import EditorTasas from "./EditorTasas";
 import { BotonMini, InputCentesimas, InputEntero, Seccion } from "./campos";
 import type { PropsPestana } from "./tipos";
 
@@ -73,6 +74,13 @@ export default function TabObjetivo({ plan, setPlan, cat }: PropsPestana) {
             </tbody>
           </table>
         </div>
+      </Seccion>
+
+      <Seccion
+        titulo="Tasa de intervención global y de usados"
+        ayuda="La tasa global suma todos los coches nuevos de todas las marcas; la de usados (VO), los usados. Cada una compara los coches financiados del mes con los que cuentan en el mes. Sin objetivo se da siempre por cumplida. Se usan en las reglas financieras («Solo si está cumplida» o «no cumplida») y se enseñan en el resumen del mes."
+      >
+        <EditorTasas plan={plan} setPlan={setPlan} cat={cat} ambito="global" />
       </Seccion>
 
       <Seccion

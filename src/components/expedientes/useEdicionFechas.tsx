@@ -53,14 +53,16 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
     setBorrando({ expediente, campo, nombre });
   };
 
-  async function enviar(id: number, cambios: Cambios): Promise<boolean> {
+  /** Guarda la fecha; devuelve lo que falta pero no ha impedido guardar (por ejemplo, la fecha RCI). */
+  async function enviar(id: number, cambios: Cambios): Promise<string[]> {
     const res = await fetch("/api/expedientes", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id_expediente: id, expediente: cambios }),
     });
     if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar la fecha"));
-    return true;
+    const r = (await res.json().catch(() => ({}))) as { avisos?: { mensaje: string }[] };
+    return (r.avisos ?? []).map((a) => a.mensaje);
   }
 
   const guardar = async () => {
@@ -74,28 +76,16 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
     }
     if (campo === "fecha_matriculacion") {
       cambios.matricula = matricula || null;
-      // Los pagos marcados «Requerido al matricular» (crédito, preference...) no se pueden matricular sin fecha RCI
-      if (fecha && exigeRci(expediente)) {
-        if (!fechaRciObligatoria) {
-          mostrar(`Los pagos «${expediente.tipoDeVenta?.nombre_tipo_venta}» exigen la fecha RCI (contratación de la financiera) para matricular.`, "error");
-          return;
-        }
-        cambios.fecha_rci = fechaRciObligatoria;
-      }
+      // Los pagos marcados «Requerido al matricular» (crédito, preference...) piden la fecha RCI; si no se indica, se guarda igualmente y se avisa
+      if (fecha && exigeRci(expediente) && fechaRciObligatoria) cambios.fecha_rci = fechaRciObligatoria;
     }
-    if (campo === "fecha_facturacion" && fecha && exigeRci(expediente)) {
-      // Igual que al matricular: crédito, preference... no se facturan sin fecha RCI
-      if (!fechaRciObligatoria) {
-        mostrar(`Los pagos «${expediente.tipoDeVenta?.nombre_tipo_venta}» exigen la fecha RCI (contratación de la financiera) para facturar. Indícala primero.`, "error");
-        return;
-      }
-      cambios.fecha_rci = fechaRciObligatoria;
-    }
+    if (campo === "fecha_facturacion" && fecha && exigeRci(expediente) && fechaRciObligatoria) cambios.fecha_rci = fechaRciObligatoria;
     setOcupado(true);
     try {
-      await enviar(expediente.id_expediente, cambios);
+      const avisos = await enviar(expediente.id_expediente, cambios);
       alCambiar(expediente.id_expediente, cambios);
       mostrar(`Fecha de ${nombre} actualizada correctamente.`);
+      if (avisos.length > 0) mostrar(avisos[0], "aviso", 9000);
       setEditando(null);
       router.refresh();
     } catch (e) {
@@ -156,7 +146,7 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
           )}
           {(editando.campo === "fecha_matriculacion" || editando.campo === "fecha_facturacion") && exigeRci(editando.expediente) && (
             <div className="form-group" style={{ marginBottom: 0, padding: "12px", border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)" }}>
-              <label className="form-label">Fecha RCI * (obligatoria: pago «{editando.expediente.tipoDeVenta?.nombre_tipo_venta}»)</label>
+              <label className="form-label">Fecha RCI (la pide el pago «{editando.expediente.tipoDeVenta?.nombre_tipo_venta}»; si no la sabes, se guarda igualmente y se avisa)</label>
               <FechaRapida valor={fechaRciObligatoria} alCambiar={setFechaRciObligatoria} />
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Fecha de contratación de la financiera. Se tiene en cuenta para la tasa de intervención y las comisiones.</span>
             </div>

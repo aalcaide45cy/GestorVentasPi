@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { mismoModeloBase } from "@/lib/documentos/modelos";
 import { limpiarMatricula, parseFechaFlexible } from "@/lib/fechas-import";
 
 /** Una venta del listado del fabricante (Excel), ya normalizada. */
@@ -144,7 +145,7 @@ function agrupar<T>(items: T[], clave: (t: T) => string): Map<string, T[]> {
 function mismoModelo(a: string, b: string): boolean {
   const x = normalizar(a);
   const y = normalizar(b);
-  return x === y || x.startsWith(y) || y.startsWith(x);
+  return x === y || x.startsWith(y) || y.startsWith(x) || mismoModeloBase(a, b);
 }
 
 function diferenciasEntre(f: FilaListado, e: ExpedienteApp): Diferencia[] {

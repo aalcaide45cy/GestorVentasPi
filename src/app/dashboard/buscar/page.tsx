@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
+import TablaClientesEncontrados from "@/components/TablaClientesEncontrados";
 import ExpedientesList from "@/components/ExpedientesList";
 import { esRolActivo } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
@@ -71,37 +71,7 @@ export default async function ResultadosBusquedaPage({ searchParams }: Props) {
           {clientes.length > 0 && (
             <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
               <h2 style={{ fontSize: "1.2rem", color: "var(--text-primary)" }}>👤 Clientes Encontrados ({clientes.length})</h2>
-              <div className="table-container">
-                <table className="table-premium">
-                  <thead>
-                    <tr>
-                      <th>Nombre</th>
-                      <th>DNI / NIE</th>
-                      <th>Contacto</th>
-                      <th>Historial</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientes.map((c) => (
-                      <tr key={c.id}>
-                        <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>{c.nombre}</td>
-                        <td>{c.dni}</td>
-                        <td>
-                          <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "2px" }}>
-                            {c.emails[0]?.email && <span>📧 {c.emails[0].email}</span>}
-                            {c.telefonos[0]?.telefono && <span>📞 {c.telefonos[0].telefono}</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <Link href="/dashboard/expedientes" style={{ fontSize: "0.85rem", color: "var(--primary)", textDecoration: "underline" }}>
-                            Ver en expedientes
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <TablaClientesEncontrados clientes={clientes} />
             </div>
           )}
         </>

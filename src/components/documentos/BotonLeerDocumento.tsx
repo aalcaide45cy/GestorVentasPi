@@ -1,6 +1,7 @@
 "use client";
 
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
+import { nuevoControladorLectura } from "@/lib/pedidos-cola";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { textoError } from "@/components/comisiones/api";
@@ -10,58 +11,98 @@ import ZonaSoltar from "./ZonaSoltar";
 
 type Tipo = "dni" | "pedido";
 
-interface Props<T> {
-  tipo: Tipo;
-  titulo: string;
-  ayuda: string;
-  icono: string;
-  multiple?: boolean;
-  /** Datos leídos de cada fichero: la pantalla rellena sus campos con ellos. */
-  alLeer: (resultado: T) => void | Promise<void>;
-  disabled?: boolean;
-  compacta?: boolean;
-}
+/** Lo que sale de leer un fichero que puede ser un pedido o un DNI: el servidor lo reconoce y lo lee como corresponda. */
+type Detectado = { tipo: "dni"; resultado: ResultadoDni } | { tipo: "pedido"; resultado: ResultadoPedido };
 
-/** Sube un fichero al servidor, que lo lee con OCR local y devuelve los datos. */
-async function leerFichero<T>(tipo: Tipo, f: File): Promise<T> {
-  const r = await fetch(`/api/documentos/leer?tipo=${tipo}&nombre=${encodeURIComponent(f.name)}${permitirDuplicadosAhora() ? "&duplicados=permitir" : ""}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: AbortSignal.timeout(285_000) }).catch((e: unknown) => {
+/** Sube un fichero al servidor, que reconoce si es un pedido o un DNI y lo lee con OCR local. `aceptar` limita lo que se admite. */
+async function leerFichero(f: File, aceptar: Tipo[]): Promise<Detectado> {
+  // La lectura se puede cancelar desde la cola o desde el cuadro de arrastrar
+  const controlador = nuevoControladorLectura();
+  const senal = AbortSignal.any([AbortSignal.timeout(285_000), controlador.signal]);
+  const r = await fetch(`/api/documentos/leer?tipo=auto&aceptar=${aceptar.join(",")}&nombre=${encodeURIComponent(f.name)}${permitirDuplicadosAhora() ? "&duplicados=permitir" : ""}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: senal }).catch((e: unknown) => {
+    if (controlador.signal.aborted) throw new Error("Lectura cancelada");
     throw new Error(e instanceof DOMException && e.name === "TimeoutError" ? "La lectura ha tardado demasiado. Prueba con otro documento o rellena los datos a mano." : "No se pudo contactar con el servidor.");
   });
-  const json = (await r.json().catch(() => ({}))) as { message?: string; data?: T };
+  const json = (await r.json().catch(() => ({}))) as { message?: string; data?: Detectado };
   if (!r.ok || !json.data) throw new Error(json.message ?? `Error ${r.status}`);
   return json.data;
 }
 
 /** Lee un pedido (PDF o foto) en el servidor y devuelve sus datos; el fichero queda como adjunto pendiente. */
-export const leerPedidoDeFichero = (f: File): Promise<ResultadoPedido> => leerFichero<ResultadoPedido>("pedido", f);
+export async function leerPedidoDeFichero(f: File): Promise<ResultadoPedido> {
+  const r = await leerFichero(f, ["pedido"]);
+  return r.resultado as ResultadoPedido;
+}
 
-/** Cuadro para arrastrar un DNI o un pedido: se lee en este equipo y se devuelven los datos para rellenar la ficha. */
-function ZonaLeer<T>({ tipo, titulo, ayuda, icono, multiple, alLeer, disabled, compacta }: Props<T>) {
+/** Lee un DNI (anverso y reverso, foto o PDF) en el servidor: lo guarda como adjunto pendiente y recorta la foto del cliente. */
+export async function leerDniDeFichero(f: File): Promise<ResultadoDni> {
+  const r = await leerFichero(f, ["dni"]);
+  return r.resultado as ResultadoDni;
+}
+
+/** Dice si un fichero es un pedido, un DNI u otra cosa, sin guardarlo. */
+export async function clasificarFichero(f: File): Promise<"pedido" | "dni" | "otro"> {
+  const r = await fetch(`/api/documentos/leer?tipo=clasificar&nombre=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin", signal: AbortSignal.timeout(120_000) });
+  const json = (await r.json().catch(() => ({}))) as { message?: string; data?: { tipo: "pedido" | "dni" | "otro" } };
+  if (!r.ok || !json.data) throw new Error(json.message ?? `Error ${r.status}`);
+  return json.data.tipo;
+}
+
+interface Props {
+  titulo: string;
+  ayuda: string;
+  icono: string;
+  /** Qué se hace con un DNI leído; sin esto, esta casilla no admite DNI. */
+  alLeerDni?: (resultado: ResultadoDni) => void | Promise<void>;
+  /** Qué se hace con un pedido leído; sin esto, esta casilla no admite pedidos. */
+  alLeerPedido?: (resultado: ResultadoPedido) => void | Promise<void>;
+  disabled?: boolean;
+  compacta?: boolean;
+}
+
+/**
+ * Cuadro para arrastrar un DNI o un pedido, da igual cuál: el servidor reconoce de qué se trata y cada fichero va a su sitio (el
+ * pedido a los datos del expediente, el DNI a sus documentos y a la foto del cliente). Se admiten varios a la vez.
+ */
+function ZonaLeer({ titulo, ayuda, icono, alLeerDni, alLeerPedido, disabled, compacta }: Props) {
   const { mostrar } = useToast();
   const [leyendo, setLeyendo] = useState(false);
+  const aceptar: Tipo[] = [...(alLeerDni ? (["dni"] as const) : []), ...(alLeerPedido ? (["pedido"] as const) : [])];
 
   const procesar = async (ficheros: File[]) => {
     setLeyendo(true);
+    const errores: string[] = [];
     try {
-      // Si se sueltan varios (p. ej. anverso y reverso en ficheros distintos) se leen uno tras otro y los datos se van completando
-      for (const f of ficheros) await alLeer(await leerFichero<T>(tipo, f));
-    } catch (e) {
-      mostrar(textoError(e), "error");
+      // Se leen uno tras otro y los datos se van completando (anverso y reverso en ficheros distintos, o el pedido y su DNI)
+      for (const f of ficheros) {
+        try {
+          const r = await leerFichero(f, aceptar);
+          if (r.tipo === "dni") await alLeerDni?.(r.resultado);
+          else await alLeerPedido?.(r.resultado);
+        } catch (e) {
+          errores.push(ficheros.length > 1 ? `${f.name}: ${textoError(e)}` : textoError(e));
+        }
+      }
     } finally {
       setLeyendo(false);
     }
+    if (errores.length > 0) mostrar(errores.join(" · "), "error");
   };
 
-  return <ZonaSoltar icono={icono} titulo={titulo} ayuda={ayuda} multiple={multiple} ocupado={leyendo} disabled={disabled} compacta={compacta} alSoltar={procesar} />;
+  return <ZonaSoltar icono={icono} titulo={titulo} ayuda={ayuda} multiple ocupado={leyendo} disabled={disabled} compacta={compacta} alSoltar={procesar} />;
 }
 
-type PropsPublicas<T> = Omit<Props<T>, "tipo" | "titulo" | "ayuda" | "icono" | "multiple"> & { etiqueta?: string };
+type PropsPublicas = { etiqueta?: string; disabled?: boolean; compacta?: boolean };
 
-export const BotonLeerDni = (p: PropsPublicas<ResultadoDni>) => (
-  <ZonaLeer<ResultadoDni> tipo="dni" icono="🪪" titulo={p.etiqueta ?? "Leer DNI"} ayuda="Arrastra la foto o el PDF del DNI (puedes soltar anverso y reverso a la vez). Se lee en este equipo, rellena los datos del cliente y guarda su foto." multiple alLeer={p.alLeer} disabled={p.disabled} compacta={p.compacta} />
+const AYUDA_AMBOS = "Arrastra aquí el pedido o el DNI, da igual cuál: la aplicación reconoce de qué se trata. Puedes soltar los dos a la vez. El pedido rellena los datos de la venta y el DNI se guarda como documento y de él se recorta la foto del cliente.";
+
+/** Casilla de DNI: si se le da también `alLeerPedido`, admite igualmente un pedido. */
+export const BotonLeerDni = (p: PropsPublicas & { alLeer: (r: ResultadoDni) => void | Promise<void>; alLeerPedido?: (r: ResultadoPedido) => void | Promise<void> }) => (
+  <ZonaLeer icono="🪪" titulo={p.etiqueta ?? (p.alLeerPedido ? "Leer DNI o pedido" : "Leer DNI")} ayuda={p.alLeerPedido ? AYUDA_AMBOS : "Arrastra la foto o el PDF del DNI (puedes soltar anverso y reverso a la vez). Se guarda el documento y la foto del cliente; los datos no se rellenan."} alLeerDni={p.alLeer} alLeerPedido={p.alLeerPedido} disabled={p.disabled} compacta={p.compacta} />
 );
-export const BotonLeerPedido = (p: PropsPublicas<ResultadoPedido>) => (
-  <ZonaLeer<ResultadoPedido> tipo="pedido" icono="📄" titulo={p.etiqueta ?? "Leer pedido"} ayuda="Arrastra el pedido (PDF o foto). Se lee en este equipo y rellena los datos del cliente y del expediente." alLeer={p.alLeer} disabled={p.disabled} compacta={p.compacta} />
+/** Casilla de pedido: si se le da también `alLeerDni`, admite igualmente un DNI. */
+export const BotonLeerPedido = (p: PropsPublicas & { alLeer: (r: ResultadoPedido) => void | Promise<void>; alLeerDni?: (r: ResultadoDni) => void | Promise<void> }) => (
+  <ZonaLeer icono="📄" titulo={p.etiqueta ?? (p.alLeerDni ? "Leer pedido o DNI" : "Leer pedido")} ayuda={p.alLeerDni ? AYUDA_AMBOS : "Arrastra el pedido (PDF o foto). Se lee en este equipo y rellena los datos del cliente y del expediente."} alLeerPedido={p.alLeer} alLeerDni={p.alLeerDni} disabled={p.disabled} compacta={p.compacta} />
 );
 
 /** Vincula adjuntos subidos antes de guardar (pendientes) al cliente o expediente ya creado. */

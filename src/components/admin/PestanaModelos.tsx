@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import Modal from "@/components/Modal";
 import type { ModeloDto } from "@/lib/dto";
 import type { MarcaConModelos } from "./PestanaMarcas";
-import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
+import { guardarPreferencia } from "@/lib/preferencias";
+import { Plegable } from "./estructura";
+import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, useOrden, usePeticion } from "./utilidades";
 
 interface Props {
   marcas: MarcaConModelos[];
@@ -19,8 +23,9 @@ interface FilaModelo {
 
 /** Pestaña «Modelos»: marcas con sistema de comisiones primero y el resto agrupado. */
 export default function PestanaModelos({ marcas, setMarcas }: Props) {
+  const router = useRouter();
   const { cargando, llamar, ejecutar } = usePeticion();
-  const orden = useOrden("id");
+  const orden = useOrden("orden_acceso_rapido");
   const [marcaNueva, setMarcaNueva] = useState<number | "">("");
   const [nombre, setNombre] = useState("");
   const [accesoRapido, setAccesoRapido] = useState(false);
@@ -111,12 +116,54 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
     if (ok) setOrdenesTemporales({});
   };
 
-  const eliminar = (f: FilaModelo) => {
+  // Eliminar un modelo que usan expedientes: se pregunta a qué modelo pasan (uno que ya existe, uno nuevo o ninguno)
+  const [reasignando, setReasignando] = useState<{ fila: FilaModelo; usos: number } | null>(null);
+  const [destino, setDestino] = useState<string>("");
+  const [nombreNuevoDestino, setNombreNuevoDestino] = useState("");
+
+  const quitarDeLista = (f: FilaModelo) => setMarcas((prev) => prev.map((x) => (x.id_marca === f.idMarca ? { ...x, modelos: x.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) } : x)));
+
+  const eliminar = async (f: FilaModelo) => {
+    let usos = 0;
+    try {
+      const res = await fetch(`/api/admin/catalogos?usos_modelo=${f.modelo.id_modelo}`, { method: "PATCH" });
+      if (res.ok) usos = ((await res.json()) as { data: { expedientes: number } }).data.expedientes;
+    } catch {
+      /* sin el dato se pregunta igual por si el servidor lo exige */
+    }
+    if (usos > 0) {
+      // Por defecto, otro modelo de la misma marca (el que más se le parece por nombre, p. ej. Sandero para Sandero Stepway)
+      const mismos = marcas.find((m) => m.id_marca === f.idMarca)?.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) ?? [];
+      const base = f.modelo.nombre_modelo.toLowerCase();
+      const parecido = [...mismos].sort((a, b) => b.nombre_modelo.length - a.nombre_modelo.length).find((y) => base.startsWith(y.nombre_modelo.toLowerCase()));
+      setDestino(parecido ? String(parecido.id_modelo) : mismos[0] ? String(mismos[0].id_modelo) : "nuevo");
+      setNombreNuevoDestino("");
+      setReasignando({ fila: f, usos });
+      return;
+    }
     if (!confirm("¿Seguro que deseas eliminar este modelo? Se borrará del catálogo.")) return;
     void ejecutar(async () => {
       await llamar("/api/admin/catalogos", "DELETE", { tipo: "modelo", id: f.modelo.id_modelo }, "Error al eliminar modelo");
-      setMarcas((prev) => prev.map((x) => (x.id_marca === f.idMarca ? { ...x, modelos: x.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) } : x)));
+      quitarDeLista(f);
     }, "Modelo eliminado");
+  };
+
+  const confirmarReasignacion = async () => {
+    if (!reasignando) return;
+    const { fila, usos } = reasignando;
+    const cuerpo: Record<string, unknown> = { tipo: "modelo", id: fila.modelo.id_modelo };
+    if (destino === "nuevo") cuerpo.crear_modelo = { marca_id: fila.idMarca, nombre: nombreNuevoDestino };
+    else if (destino === "ninguno") cuerpo.sin_modelo = true;
+    else cuerpo.reasignar_a = Number(destino);
+    const ok = await ejecutar(async () => {
+      await llamar("/api/admin/catalogos", "DELETE", cuerpo, "Error al eliminar modelo");
+      quitarDeLista(fila);
+    }, `Modelo eliminado: ${usos} expediente${usos === 1 ? "" : "s"} cambiado${usos === 1 ? "" : "s"} de modelo`);
+    if (ok) {
+      setReasignando(null);
+      // El modelo nuevo aparece al recargar la lista
+      if (destino === "nuevo") router.refresh();
+    }
   };
 
   const tabla = (lista: FilaModelo[], vacio: string) => (
@@ -190,7 +237,7 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
                     >
                       ✏️ Editar
                     </button>
-                    <button type="button" className="btn btn-secondary" onClick={() => eliminar(f)} style={estiloBotonPeligro}>
+                    <button type="button" className="btn btn-secondary" onClick={() => void eliminar(f)} style={estiloBotonPeligro}>
                       🗑️ Eliminar
                     </button>
                   </div>
@@ -213,62 +260,65 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
   const hayCambiosDeOrden = (lista: FilaModelo[]) =>
     lista.some((f) => ordenesTemporales[f.modelo.id_modelo] !== undefined && ordenesTemporales[f.modelo.id_modelo] !== f.modelo.orden_acceso_rapido);
 
-  const cabeceraBloque = (titulo: React.ReactNode, lista: FilaModelo[]) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <h4 style={{ fontSize: "1.05rem", fontWeight: "bold", display: "flex", alignItems: "center", gap: "8px" }}>{titulo}</h4>
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        {hayCambiosDeOrden(lista) && (
-          <button type="button" className="btn btn-primary" onClick={() => void guardarOrdenes(lista)} style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }} disabled={cargando}>
-            💾 Guardar Orden
-          </button>
-        )}
-        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>{lista.length} modelo(s)</span>
-      </div>
-    </div>
-  );
+  /** Botón «Guardar orden» (si hay cambios) para la cabecera de cada marca. */
+  const accionesBloque = (lista: FilaModelo[]) =>
+    hayCambiosDeOrden(lista) ? (
+      <button type="button" className="btn btn-primary" onClick={() => void guardarOrdenes(lista)} style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }} disabled={cargando}>
+        💾 Guardar Orden
+      </button>
+    ) : null;
 
-  const restoDeMarcas = ordenadas.filter((f) => !f.sistemaComisiones);
+  /** Despliega o pliega de golpe todas las marcas. */
+  const plegarTodas = (abrir: boolean) => marcas.forEach((m) => guardarPreferencia(`plegable-modelos-marca-${m.id_marca}`, abrir ? "abierto" : "cerrado"));
+
+  // Primero las marcas con sistema de comisiones, después el resto, cada una en su bloque plegable
+  const marcasOrdenadas = [...marcas].sort((a, b) => Number(b.sistema_comisiones) - Number(a.sistema_comisiones) || a.nombre.localeCompare(b.nombre, "es"));
 
   return (
-    <div className="glass-panel" style={estiloPanel}>
-      <h3 style={{ fontSize: "1.15rem" }}>Gestión de Modelos</h3>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
+        <h3 style={{ fontSize: "1.15rem", margin: 0 }}>🚙 Gestión de modelos</h3>
+        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{filas.length} modelo(s) en {marcas.length} marca(s)</span>
+      </div>
 
-      <form onSubmit={crear} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-        <select
-          className="form-select"
-          value={marcaNueva}
-          onChange={(e) => {
-            const v = e.target.value ? Number(e.target.value) : "";
-            setMarcaNueva(v);
-            const marca = marcas.find((m) => m.id_marca === v);
-            const n = marca?.nombre.toLowerCase().trim();
-            setAccesoRapido(n === "renault" || n === "dacia");
-          }}
-          required
-          style={{ flex: 1, minWidth: "160px" }}
-        >
-          <option value="">Selecciona Marca</option>
-          {marcas.filter((m) => m.activo).map((m) => (
-            <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
-          ))}
-        </select>
-        <input type="text" className="form-input" placeholder="Nombre de modelo... (Ej. Qashqai)" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={cargando || !marcaNueva} required style={{ flex: 2, minWidth: "200px" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input type="checkbox" id="chkModeloAccesoRapido" checked={accesoRapido} onChange={(e) => setAccesoRapido(e.target.checked)} style={estiloCheck} />
-          <label htmlFor="chkModeloAccesoRapido" style={estiloEtiquetaCheck}>Acceso Rápido</label>
-        </div>
-        {accesoRapido && (
+      <Plegable id="modelos-crear" titulo="➕ Crear un modelo nuevo" abiertoPorDefecto={false}>
+        <form onSubmit={crear} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          <select
+            className="form-select"
+            value={marcaNueva}
+            onChange={(e) => {
+              const v = e.target.value ? Number(e.target.value) : "";
+              setMarcaNueva(v);
+              const marca = marcas.find((m) => m.id_marca === v);
+              const n = marca?.nombre.toLowerCase().trim();
+              setAccesoRapido(n === "renault" || n === "dacia");
+            }}
+            required
+            style={{ flex: 1, minWidth: "160px" }}
+          >
+            <option value="">Selecciona Marca</option>
+            {marcas.filter((m) => m.activo).map((m) => (
+              <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
+            ))}
+          </select>
+          <input type="text" className="form-input" placeholder="Nombre de modelo... (Ej. Qashqai)" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={cargando || !marcaNueva} required style={{ flex: 2, minWidth: "200px" }} />
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>Orden:</span>
-            <input type="number" className="form-input" value={ordenNuevo} onChange={(e) => setOrdenNuevo(Number(e.target.value))} disabled={cargando} style={{ width: "80px", padding: "8px", textAlign: "center" }} min={0} />
+            <input type="checkbox" id="chkModeloAccesoRapido" checked={accesoRapido} onChange={(e) => setAccesoRapido(e.target.checked)} style={estiloCheck} />
+            <label htmlFor="chkModeloAccesoRapido" style={estiloEtiquetaCheck}>Acceso Rápido</label>
           </div>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={cargando || !marcaNueva}>
-          + Crear Modelo
-        </button>
-      </form>
+          {accesoRapido && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>Orden:</span>
+              <input type="number" className="form-input" value={ordenNuevo} onChange={(e) => setOrdenNuevo(Number(e.target.value))} disabled={cargando} style={{ width: "80px", padding: "8px", textAlign: "center" }} min={0} />
+            </div>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={cargando || !marcaNueva}>
+            + Crear Modelo
+          </button>
+        </form>
+      </Plegable>
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "center", background: "rgba(255, 255, 255, 0.03)", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+      <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.03)", padding: "10px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
         <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Filtrar modelos:</span>
         <input type="text" className="form-input" placeholder="Buscar por modelo o marca..." value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ maxWidth: "300px", padding: "6px 12px" }} />
         {filtro && (
@@ -276,31 +326,85 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
             Limpiar
           </button>
         )}
+        <span style={{ flex: 1 }} />
+        <button type="button" className="btn btn-secondary" onClick={() => plegarTodas(true)} style={{ padding: "4px 10px", fontSize: "0.8rem" }} title="Despliega todas las marcas">
+          ▾ Desplegar todas
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={() => plegarTodas(false)} style={{ padding: "4px 10px", fontSize: "0.8rem" }} title="Pliega todas las marcas">
+          ▸ Plegar todas
+        </button>
       </div>
 
-      {marcas
-        .filter((m) => m.sistema_comisiones)
-        .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
-        .map((marca) => {
-          const lista = ordenadas.filter((f) => f.idMarca === marca.id_marca);
-          return (
-            <div key={marca.id_marca} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
-              {cabeceraBloque(
-                <>
-                  <span style={{ color: "var(--primary)" }}>📦 Modelos de {marca.nombre}</span>
-                  <span style={{ fontSize: "0.75rem", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Comisiones Activo</span>
-                </>,
-                lista,
-              )}
-              {tabla(lista, "No hay modelos registrados para esta marca.")}
+      {marcasOrdenadas.map((marca) => {
+        const lista = ordenadas.filter((f) => f.idMarca === marca.id_marca);
+        // Con un filtro puesto, solo las marcas que tienen algo que enseñar
+        if (q && lista.length === 0) return null;
+        return (
+          <Plegable
+            key={marca.id_marca}
+            id={`modelos-marca-${marca.id_marca}`}
+            abiertoPorDefecto={marca.sistema_comisiones}
+            borde={marca.sistema_comisiones ? "1px solid rgba(59, 130, 246, 0.25)" : undefined}
+            titulo={
+              <>
+                <span style={{ color: marca.sistema_comisiones ? "var(--primary)" : undefined }}>{marca.sistema_comisiones ? "📦" : "💼"} {marca.nombre}</span>
+                {marca.sistema_comisiones && <span style={{ fontSize: "0.72rem", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Comisiones Activo</span>}
+                {!marca.activo && <span style={{ fontSize: "0.72rem", background: "var(--bg-surface-tint)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Inactiva</span>}
+              </>
+            }
+            resumen={`${lista.length} modelo(s)`}
+            acciones={accionesBloque(lista)}
+          >
+            {tabla(lista, "No hay modelos registrados para esta marca.")}
+          </Plegable>
+        );
+      })}
+
+      {reasignando && (
+        <Modal
+          titulo={`Eliminar «${reasignando.fila.modelo.nombre_modelo}»`}
+          ancho="520px"
+          peligro
+          pie={
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setReasignando(null)} disabled={cargando}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void confirmarReasignacion()} disabled={cargando || (destino === "nuevo" && !nombreNuevoDestino.trim())}>
+                {cargando ? "Cambiando…" : "Cambiar y eliminar"}
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0, lineHeight: 1.5 }}>
+            Hay <b>{reasignando.usos}</b> expediente{reasignando.usos === 1 ? "" : "s"} con este modelo. Elige a qué modelo {reasignando.usos === 1 ? "pasa" : "pasan"} antes de eliminarlo:
+          </p>
+          <div className="form-group">
+            <select className="form-input" value={destino} onChange={(e) => setDestino(e.target.value)}>
+              {marcas.map((m) => {
+                const otros = m.modelos.filter((y) => y.id_modelo !== reasignando.fila.modelo.id_modelo);
+                return otros.length === 0 ? null : (
+                  <optgroup key={m.id_marca} label={m.nombre}>
+                    {otros.map((y) => (
+                      <option key={y.id_modelo} value={y.id_modelo}>
+                        {m.nombre} {y.nombre_modelo}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+              <option value="nuevo">➕ Un modelo nuevo de {reasignando.fila.nombreMarca}…</option>
+              <option value="ninguno">Dejarlos sin modelo</option>
+            </select>
+          </div>
+          {destino === "nuevo" && (
+            <div className="form-group">
+              <label className="form-label">Nombre del modelo nuevo</label>
+              <input className="form-input" value={nombreNuevoDestino} onChange={(e) => setNombreNuevoDestino(e.target.value)} placeholder="Por ejemplo: Sandero" autoFocus />
             </div>
-          );
-        })}
-
-      <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px" }}>
-        {cabeceraBloque("💼 Resto de Marcas", restoDeMarcas)}
-        {tabla(restoDeMarcas, "No hay modelos para el resto de marcas.")}
-      </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

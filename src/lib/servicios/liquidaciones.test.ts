@@ -52,6 +52,17 @@ async function nuevoExpediente(e: Awaited<ReturnType<typeof escenario>>, idUsuar
 }
 
 describe("liquidaciones persistidas", () => {
+  it("un expediente deshabilitado no cuenta en la liquidación y al habilitarlo vuelve a contar", async () => {
+    const esc = await escenario();
+    const x = await nuevoExpediente(esc, esc.v1.idUsuario, "2026-07-10");
+    expect((await recalcularMes(db, esc.v1.idUsuario, "2026-07", "alta")).netoNuevo).toBe(10000);
+    await db.update(expedientes).set({ deshabilitado: true }).where(eq(expedientes.idExpediente, x.idExpediente));
+    expect(await cargarExpedientesMotor(db, esc.v1.idUsuario)).toHaveLength(0);
+    expect((await recalcularMes(db, esc.v1.idUsuario, "2026-07", "deshabilitar")).netoNuevo).toBe(0);
+    await db.update(expedientes).set({ deshabilitado: false }).where(eq(expedientes.idExpediente, x.idExpediente));
+    expect((await recalcularMes(db, esc.v1.idUsuario, "2026-07", "habilitar")).netoNuevo).toBe(10000);
+  });
+
   it("calcula, guarda y es idempotente (T24)", async () => {
     const esc = await escenario();
     await nuevoExpediente(esc, esc.v1.idUsuario, "2026-07-10");

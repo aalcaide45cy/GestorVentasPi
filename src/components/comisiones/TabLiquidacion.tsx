@@ -7,6 +7,7 @@ import { useToast } from "@/components/Toast";
 import { codigoExpediente } from "@/lib/date-utils";
 import { euros, eurosConSigno, etiquetaTramo, nombreMes, puntos } from "@/lib/formato";
 import type { Comparacion, LiquidacionResumen, PrevisionMes } from "@/lib/servicios/comisiones-gestion";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { llamar, textoError } from "./api";
 import { BotonMini, Seccion } from "./campos";
 import type { PropsPestana } from "./tipos";
@@ -98,6 +99,58 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
     }
   };
 
+  const columnasLiquidaciones: ColumnaTabla<LiquidacionResumen>[] = [
+    { clave: "vendedor", etiqueta: "Vendedor", valor: (l) => l.vendedor ?? "" },
+    { clave: "mes", etiqueta: "Mes", valor: (l) => l.mes, celda: (l) => nombreMes(l.mes) },
+    {
+      clave: "estado",
+      etiqueta: "Estado",
+      valor: (l) => l.estado,
+      celda: (l) => (
+        <>
+          <span style={{ color: COLOR_ESTADO[l.estado], fontWeight: 600 }}>{l.estado}</span>
+          {l.version > 1 && <span style={{ color: "var(--text-muted)" }}> · v{l.version}</span>}
+          {l.origen === "importada_antigua" && <span style={{ color: "var(--text-muted)" }}> · importada</span>}
+        </>
+      ),
+    },
+    { clave: "puntos", etiqueta: "Puntos / Objetivo", valor: (l) => l.puntosMes, celda: (l) => `${puntos(l.puntosMes)} / ${puntos(l.objetivoX)}`, alinear: "right" },
+    { clave: "tramo", etiqueta: "Tramo", valor: (l) => l.tramo, celda: (l) => etiquetaTramo(l.tramo) },
+    { clave: "bruto", etiqueta: "Bruto", valor: (l) => l.bruto, celda: (l) => euros(l.bruto), alinear: "right" },
+    { clave: "penalizacion", etiqueta: "Penalización", valor: (l) => l.penalizacion, celda: (l) => euros(l.penalizacion), alinear: "right" },
+    { clave: "neto", etiqueta: "Neto", valor: (l) => l.neto, celda: (l) => <b>{euros(l.neto)}</b>, alinear: "right" },
+    { clave: "mesPago", etiqueta: "Se cobra en", valor: (l) => l.mesPago, celda: (l) => nombreMes(l.mesPago) },
+    {
+      clave: "acciones",
+      etiqueta: "Acciones",
+      valor: () => "",
+      celda: (l) => (
+        <span style={{ display: "inline-flex", gap: "6px" }}>
+          <BotonMini onClick={() => abrir(l.idLiquidation)}>Desglose</BotonMini>
+          <BotonMini onClick={() => verLibro(l.idUsuario, l.mes)}>Libro</BotonMini>
+          <BotonMini onClick={() => verPrevision(l.idUsuario)}>Nómina</BotonMini>
+          {(l.origen === "importada_antigua" || l.version > 1) && <BotonMini onClick={() => comparar(l.idLiquidation)}>Comparar con la antigua</BotonMini>}
+          {l.estado === "calculada" && <BotonMini onClick={() => cambiarEstado(l.idLiquidation, "revisada")}>Marcar revisada</BotonMini>}
+          {l.estado !== "cerrada" && <BotonMini onClick={() => cambiarEstado(l.idLiquidation, "cerrada")}>Cerrar</BotonMini>}
+        </span>
+      ),
+    },
+  ];
+  const columnasPrevision: ColumnaTabla<PrevisionMes>[] = [
+    { clave: "mes", etiqueta: "Nómina de", valor: (p) => p.mesPago, celda: (p) => nombreMes(p.mesPago) },
+    { clave: "neto", etiqueta: "Comisión neta", valor: (p) => p.neto, celda: (p) => euros(p.neto), alinear: "right" },
+    { clave: "pendientesPlan", etiqueta: "Pendientes del plan", valor: (p) => p.pendientesPlan, celda: (p) => euros(p.pendientesPlan), alinear: "right" },
+    { clave: "pendienteCobro", etiqueta: "Pendiente de cobro", valor: (p) => p.pendienteCobro, celda: (p) => euros(p.pendienteCobro), alinear: "right" },
+    { clave: "total", etiqueta: "Total previsto", valor: (p) => p.total, celda: (p) => <b>{euros(p.total)}</b>, alinear: "right" },
+  ];
+  const columnasLibro: ColumnaTabla<Apunte>[] = [
+    { clave: "fecha", etiqueta: "Fecha", valor: (a) => a.fecha },
+    { clave: "evento", etiqueta: "Evento", valor: (a) => a.evento },
+    { clave: "expediente", etiqueta: "Expediente", valor: (a) => a.idExpediente ?? 0, celda: (a) => (a.idExpediente ? codigoExpediente(a.idExpediente) : "—") },
+    { clave: "regla", etiqueta: "Regla", valor: (a) => a.regla ?? "", celda: (a) => a.regla ?? "—" },
+    { clave: "puntos", etiqueta: "Puntos", valor: (a) => a.puntos, celda: (a) => <span style={{ color: a.puntos < 0 ? "var(--danger)" : undefined }}>{puntos(a.puntos)}</span>, alinear: "right" },
+  ];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <Seccion titulo="Liquidación Consolidada" ayuda="Lo generado en el mes M se cobra en la nómina de fin del mes M+1. Si cambias un expediente de un mes ya cerrado, la liquidación se recalcula sola y se guarda la versión anterior.">
@@ -125,123 +178,52 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
       </Seccion>
 
       <Seccion titulo="Liquidaciones del plan">
-        <div className="table-container">
-          <table className="table-premium">
-            <thead>
-              <tr>
-                <th>Vendedor</th>
-                <th>Mes</th>
-                <th>Estado</th>
-                <th style={{ textAlign: "right" }}>Puntos / Objetivo</th>
-                <th>Tramo</th>
-                <th style={{ textAlign: "right" }}>Bruto</th>
-                <th style={{ textAlign: "right" }}>Penalización</th>
-                <th style={{ textAlign: "right" }}>Neto</th>
-                <th>Se cobra en</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {liqs.map((l) => (
-                <tr key={l.idLiquidation}>
-                  <td>{l.vendedor}</td>
-                  <td>{nombreMes(l.mes)}</td>
-                  <td>
-                    <span style={{ color: COLOR_ESTADO[l.estado], fontWeight: 600 }}>{l.estado}</span>
-                    {l.version > 1 && <span style={{ color: "var(--text-muted)" }}> · v{l.version}</span>}
-                    {l.origen === "importada_antigua" && <span style={{ color: "var(--text-muted)" }}> · importada</span>}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {puntos(l.puntosMes)} / {puntos(l.objetivoX)}
-                  </td>
-                  <td>{etiquetaTramo(l.tramo)}</td>
-                  <td style={{ textAlign: "right" }}>{euros(l.bruto)}</td>
-                  <td style={{ textAlign: "right" }}>{euros(l.penalizacion)}</td>
-                  <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(l.neto)}</td>
-                  <td>{nombreMes(l.mesPago)}</td>
-                  <td style={{ whiteSpace: "nowrap", display: "flex", gap: "6px" }}>
-                    <BotonMini onClick={() => abrir(l.idLiquidation)}>Desglose</BotonMini>
-                    <BotonMini onClick={() => verLibro(l.idUsuario, l.mes)}>Libro</BotonMini>
-                    <BotonMini onClick={() => verPrevision(l.idUsuario)}>Nómina</BotonMini>
-                    {(l.origen === "importada_antigua" || l.version > 1) && <BotonMini onClick={() => comparar(l.idLiquidation)}>Comparar con la antigua</BotonMini>}
-                    {l.estado === "calculada" && <BotonMini onClick={() => cambiarEstado(l.idLiquidation, "revisada")}>Marcar revisada</BotonMini>}
-                    {l.estado !== "cerrada" && <BotonMini onClick={() => cambiarEstado(l.idLiquidation, "cerrada")}>Cerrar</BotonMini>}
-                  </td>
-                </tr>
-              ))}
-              {liqs.length === 0 && (
-                <tr>
-                  <td colSpan={10} style={{ color: "var(--text-muted)" }}>
-                    Aún no hay liquidaciones calculadas para este plan.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <TablaDatos<LiquidacionResumen>
+          id="liquidaciones-plan"
+          columnas={columnasLiquidaciones}
+          filas={liqs}
+          clave={(l) => l.idLiquidation}
+          placeholder="Buscar por vendedor, mes, estado…"
+          vacio="Aún no hay liquidaciones calculadas para este plan."
+          pie={(fs) => ({
+            vendedor: `${fs.length} liquidación${fs.length === 1 ? "" : "es"}`,
+            bruto: euros(fs.reduce((t, l) => t + l.bruto, 0)),
+            penalizacion: euros(fs.reduce((t, l) => t + l.penalizacion, 0)),
+            neto: euros(fs.reduce((t, l) => t + l.neto, 0)),
+          })}
+        />
       </Seccion>
 
       {prevision.length > 0 && (
         <Seccion titulo="Previsión de nómina (M+1)" acciones={<BotonMini onClick={() => setPrevision([])}>Ocultar</BotonMini>}>
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Nómina de</th>
-                  <th style={{ textAlign: "right" }}>Comisión neta</th>
-                  <th style={{ textAlign: "right" }}>Pendientes del plan</th>
-                  <th style={{ textAlign: "right" }}>Pendiente de cobro</th>
-                  <th style={{ textAlign: "right" }}>Total previsto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prevision.map((p) => (
-                  <tr key={p.mesPago}>
-                    <td>{nombreMes(p.mesPago)}</td>
-                    <td style={{ textAlign: "right" }}>{euros(p.neto)}</td>
-                    <td style={{ textAlign: "right" }}>{euros(p.pendientesPlan)}</td>
-                    <td style={{ textAlign: "right" }}>{euros(p.pendienteCobro)}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(p.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos<PrevisionMes>
+            id="prevision-nomina"
+            columnas={columnasPrevision}
+            filas={prevision}
+            clave={(p) => p.mesPago}
+            vacio="Sin previsión."
+            pie={(fs) => ({
+              mes: "Total",
+              neto: euros(fs.reduce((t, p) => t + p.neto, 0)),
+              pendientesPlan: euros(fs.reduce((t, p) => t + p.pendientesPlan, 0)),
+              pendienteCobro: euros(fs.reduce((t, p) => t + p.pendienteCobro, 0)),
+              total: euros(fs.reduce((t, p) => t + p.total, 0)),
+            })}
+          />
         </Seccion>
       )}
 
       {libro && (
         <Seccion titulo="Libro de puntos (solo inserción)" acciones={<BotonMini onClick={() => setLibro(null)}>Ocultar</BotonMini>}>
-          <div className="table-container">
-            <table className="table-premium table-compact">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Evento</th>
-                  <th>Expediente</th>
-                  <th>Regla</th>
-                  <th style={{ textAlign: "right" }}>Puntos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {libro.map((a) => (
-                  <tr key={a.id}>
-                    <td>{a.fecha}</td>
-                    <td>{a.evento}</td>
-                    <td>{a.idExpediente ? codigoExpediente(a.idExpediente) : "—"}</td>
-                    <td>{a.regla ?? "—"}</td>
-                    <td style={{ textAlign: "right", color: a.puntos < 0 ? "var(--danger)" : undefined }}>{puntos(a.puntos)}</td>
-                  </tr>
-                ))}
-                <tr>
-                  <td colSpan={4} style={{ fontWeight: 700 }}>
-                    Total
-                  </td>
-                  <td style={{ textAlign: "right", fontWeight: 700 }}>{puntos(libro.reduce((s, a) => s + a.puntos, 0))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos<Apunte>
+            id="libro-puntos"
+            columnas={columnasLibro}
+            filas={libro}
+            clave={(a) => a.id}
+            placeholder="Buscar por evento, expediente, regla…"
+            vacio="El libro no tiene apuntes."
+            pie={(fs) => ({ fecha: "Total", puntos: puntos(fs.reduce((t, a) => t + a.puntos, 0)) })}
+          />
         </Seccion>
       )}
 

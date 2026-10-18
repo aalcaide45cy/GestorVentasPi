@@ -7,7 +7,9 @@ import {
   CLAVE_RECORDAR_FILTROS,
   leerPredefinidos,
 } from "@/lib/filtros-expedientes";
-import { usePreferencia } from "@/lib/preferencias";
+import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
+import { SubPestanas } from "./estructura";
 import { estiloPanel } from "./utilidades";
 
 const OPCIONES_INICIO = [
@@ -28,9 +30,50 @@ const estiloOpcion = (activa: boolean) =>
     cursor: "pointer",
   }) as const;
 
+const OPCIONES_TIEMPO = [
+  { minutos: 0, texto: "Sin límite" },
+  { minutos: 1, texto: "1 minuto" },
+  { minutos: 5, texto: "5 minutos" },
+  { minutos: 10, texto: "10 minutos" },
+  { minutos: 30, texto: "30 minutos" },
+  { minutos: 60, texto: "1 hora" },
+];
+
+/** Tiempo tras el cual un modo de la lista de expedientes (selección o eliminación) se desactiva solo. */
+function TiempoModo({ titulo, ayuda, clave }: { titulo: string; ayuda: string; clave: string }) {
+  const { mostrar } = useToast();
+  const [guardado, guardar] = usePreferencia(clave);
+  const minutos = leerMinutos(guardado);
+  const elegir = (m: number) => {
+    guardar(String(m));
+    mostrar("Guardado.");
+  };
+  return (
+    <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px", borderLeft: "3px solid var(--primary)" }}>
+      <div>
+        <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>{titulo}</h4>
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>{ayuda}</p>
+      </div>
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+        {OPCIONES_TIEMPO.map((o) => (
+          <button key={o.minutos} type="button" style={estiloOpcion(minutos === o.minutos)} onClick={() => elegir(o.minutos)}>
+            {o.texto}
+          </button>
+        ))}
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
+          Otro (minutos):
+          <input type="number" className="form-input" min={0} max={1440} step={1} style={{ width: "90px" }} value={minutos} onChange={(e) => elegir(Math.max(0, Math.min(1440, Math.round(Number(e.target.value) || 0))))} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
 /** Pestaña «Expedientes»: paginación por defecto de la lista (se guarda en el navegador). */
 export default function PestanaExpedientes() {
   const { mostrar } = useToast();
+  const [retrasoFoto, guardarRetrasoFoto] = usePreferencia(CLAVE_RETRASO_FOTO);
+  const segundosFoto = retrasoFoto !== null && Number(retrasoFoto) >= 0 ? Number(retrasoFoto) : RETRASO_FOTO_POR_DEFECTO;
   const [guardado, guardar] = usePreferencia("exp-default-page-size");
   const tamano = Number(guardado) > 0 ? Number(guardado) : 20;
 
@@ -53,7 +96,7 @@ export default function PestanaExpedientes() {
   };
 
   return (
-    <div className="glass-panel" style={{ ...estiloPanel, gap: "28px" }}>
+    <div className="glass-panel" style={{ ...estiloPanel, gap: "20px" }}>
       <div>
         <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>⚙️ Configuración de Expedientes</h3>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
@@ -61,6 +104,18 @@ export default function PestanaExpedientes() {
         </p>
       </div>
 
+      <SubPestanas
+        id="config-expedientes"
+        pestanas={[
+          { clave: "lista", etiqueta: "📄 Lista", ayuda: "Cuántos expedientes se ven por página, qué se ve al abrir la lista y si se recuerda el filtro" },
+          { clave: "modos", etiqueta: "🔓 Selección y eliminación", ayuda: "Cuánto tiempo se quedan activos los modos de selección y de eliminación de la lista" },
+          { clave: "foto", etiqueta: "🖼️ Foto del cliente", ayuda: "Cuántos segundos hay que esperar con el ratón encima del cliente para ver su foto" },
+        ]}
+      >
+        {(pestana) => (
+          <>
+            {pestana === "lista" && (
+              <>
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", borderLeft: "3px solid var(--primary)" }}>
         <div>
           <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>📄 Número de expedientes por página (por defecto)</h4>
@@ -142,6 +197,39 @@ export default function PestanaExpedientes() {
           </button>
         </div>
       </div>
+              </>
+            )}
+            {pestana === "modos" && (
+              <>
+      <TiempoModo
+        titulo="🔓 Selección masiva: tiempo activa"
+        ayuda="Al activar «Selección» en la lista de expedientes se queda activada (aunque recargues la página) hasta que la desactives. Aquí eliges si además se desactiva sola pasado un tiempo desde que la activaste; en el botón verás la cuenta atrás. Se guarda en este navegador."
+        clave={CLAVE_SELECCION_MINUTOS}
+      />
+      <TiempoModo
+        titulo="🗑️ Eliminación: tiempo activa"
+        ayuda="Igual que la selección, pero para «Eliminación»: se queda activada hasta que la desactives o hasta que pase este tiempo desde que la activaste, con su propia cuenta atrás. Se guarda en este navegador."
+        clave={CLAVE_BORRADO_MINUTOS}
+      />
+              </>
+            )}
+            {pestana === "foto" && (
+              <>
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>🖼️ Foto del cliente al pasar el ratón</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>Si dejas el ratón encima del nombre de un cliente (lista de clientes o expedientes) aparece una ventanita con su foto, tomada del DNI. Aquí eliges cuántos segundos hay que esperar (0 = al instante). Se guarda en este navegador.</p>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.9rem" }}>
+          Segundos de espera:
+          <input type="number" className="form-input" min={0} max={30} step={0.5} style={{ width: "90px" }} value={segundosFoto} onChange={(e) => guardarRetrasoFoto(String(Math.max(0, Math.min(30, Number(e.target.value) || 0))))} />
+        </label>
+      </div>
+              </>
+            )}
+          </>
+        )}
+      </SubPestanas>
     </div>
   );
 }

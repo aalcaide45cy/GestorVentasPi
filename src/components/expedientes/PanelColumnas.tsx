@@ -28,6 +28,8 @@ interface Props {
   actual: ConfigColumnas;
   predeterminada: ConfigColumnas;
   vistasIncluidas: { id: string; nombre: string; ayuda: string; config: ConfigColumnas }[];
+  /** Dónde se guardan las vistas con nombre (por defecto, las de la tabla de expedientes). */
+  claveVistas?: string;
   alCambiar: (c: ConfigColumnas) => void;
   alCerrar: () => void;
 }
@@ -40,9 +42,9 @@ export function normalizarOrden(guardado: string[] | null | undefined, todas: st
 
 const igual = (a: ConfigColumnas, b: ConfigColumnas, claves: string[]): boolean => claves.every((c, i) => a.orden[i] === b.orden[i] && (a.visibles[c] !== false) === (b.visibles[c] !== false));
 
-export default function PanelColumnas({ columnas, actual, predeterminada, vistasIncluidas, alCambiar, alCerrar }: Props) {
+export default function PanelColumnas({ columnas, actual, predeterminada, vistasIncluidas, claveVistas = CLAVE_VISTAS_COLUMNAS, alCambiar, alCerrar }: Props) {
   const { mostrar } = useToast();
-  const [guardadas, fijarGuardadas] = usePreferencia(CLAVE_VISTAS_COLUMNAS);
+  const [guardadas, fijarGuardadas] = usePreferencia(claveVistas);
   const [nombre, setNombre] = useState("");
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);

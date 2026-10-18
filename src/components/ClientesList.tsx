@@ -1,5 +1,6 @@
 "use client";
 
+import { señalarCampo } from "@/lib/resaltar";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
@@ -9,12 +10,14 @@ import { construirCsvClientes, interpretarCsvClientes } from "@/lib/csv-clientes
 import { descargarTexto } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
 import type { ClienteDto, ExpedienteDto, TiendaDto } from "@/lib/dto";
-import { BotonLeerDni, BotonLeerPedido, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import { BotonLeerDni, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
-import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
+import type { ResultadoDni } from "@/lib/servicios/documentos";
 import NombreConFoto from "./documentos/FotoCliente";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
-import { BadgeEstado, BadgeTipoVenta, mensajeDeError } from "./expedientes/comun";
+import { columnasVehiculo } from "./etiquetas";
+import { datosVehiculoDeExpediente, mensajeDeError } from "./expedientes/comun";
+import TablaDatos, { type ColumnaTabla } from "./TablaDatos";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 
 export type ClienteItem = ClienteDto & { num_expedientes: number };
@@ -44,12 +47,35 @@ const botonBloqueo = (activo: boolean, fondo: string, color: string) =>
     gap: "6px",
   }) as const;
 
+const columnasVentas: ColumnaTabla<ExpedienteDto>[] = [
+  { clave: "codigo", etiqueta: "Código", valor: (e) => e.id_expediente, celda: (e) => <b style={{ color: "var(--primary)" }}>#EXP-{String(e.id_expediente).padStart(4, "0")}</b> },
+  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { vacio: "N/D", punto: true }),
+  { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => e.matricula || "N/D" },
+  { clave: "fecha", etiqueta: "Fecha", valor: (e) => e.fecha_expediente ?? "", celda: (e) => (e.fecha_expediente ? formatDate(e.fecha_expediente) : "N/D") },
+  {
+    clave: "editar",
+    etiqueta: "",
+    valor: () => "",
+    celda: (e) => (
+      <a href={`/dashboard/expedientes/editar/${e.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        ✏️ Editar
+      </a>
+    ),
+  },
+];
+
 /** «Base de Clientes»: directorio con filtros por columna, alta/edición, importación y exportación CSV. */
 export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, userRole, tiendaPredeterminadaId }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
 
   const [clientes, setClientes] = useState<ClienteItem[]>(clientesIniciales);
+  // Si el servidor entrega datos nuevos (router.refresh, deshacer o rehacer), se reemplazan los locales
+  const [inicialesPrevios, setInicialesPrevios] = useState(clientesIniciales);
+  if (clientesIniciales !== inicialesPrevios) {
+    setInicialesPrevios(clientesIniciales);
+    setClientes(clientesIniciales);
+  }
   const [formulario, setFormulario] = useState<"crear" | "editar" | null>(null);
   const [seleccionado, setSeleccionado] = useState<ClienteItem | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -79,6 +105,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [domicilio, setDomicilio] = useState("");
   const [poblacion, setPoblacion] = useState("");
   const [codigoPostal, setCodigoPostal] = useState("");
+  const [comentarios, setComentarios] = useState("");
   const [tiendaId, setTiendaId] = useState("");
   const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
   const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
@@ -117,6 +144,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     setDomicilio(c.domicilio ?? "");
     setPoblacion(c.poblacion ?? "");
     setCodigoPostal(c.codigo_postal ?? "");
+    setComentarios(c.comentarios ?? "");
     setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
     setEmails(emailsDeCliente(c));
     setTelefonos(telefonosDeCliente(c));
@@ -142,6 +170,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           domicilio: domicilio.trim() || null,
           poblacion: poblacion.trim() || null,
           codigo_postal: codigoPostal.trim() || null,
+          comentarios: comentarios.trim() || null,
           tienda_id: tiendaId ? Number(tiendaId) : null,
           emails: emailsOk.map((e) => ({ email: e.valor.trim(), tipo: e.tipo })),
           telefonos: telefonosOk.map((t) => ({ telefono: t.valor.trim(), tipo: t.tipo })),
@@ -164,7 +193,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
         setClientes((prev) =>
           prev.map((c) =>
             c.id === seleccionado.id
-              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, domicilio: domicilio.trim() || null, poblacion: poblacion.trim() || null, codigo_postal: codigoPostal.trim() || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
+              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, domicilio: domicilio.trim() || null, poblacion: poblacion.trim() || null, codigo_postal: codigoPostal.trim() || null, comentarios: comentarios.trim() || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
               : c,
           ),
         );
@@ -213,26 +242,18 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   };
 
   const alLeerDni = (r: ResultadoDni) => {
-    if (r.datos.dni) setDni(r.datos.dni);
-    if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
-    if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
     registrarDocumentos(r.adjuntos.map((a) => ({ id: a.id, nombre: a.nombre })), r.fotoId);
-    mostrar(r.datos.avisos.length ? `DNI leído. ${r.datos.avisos[0]}` : "DNI leído: revisa los datos antes de guardar.");
-  };
-
-  const alLeerPedido = (r: ResultadoPedido) => {
-    const d = r.datos;
-    if (d.dni && !dni.trim()) setDni(d.dni);
-    if (d.cliente && !nombre.trim()) setNombre(d.cliente);
-    if (d.telefono && telefonos.every((t) => !t.valor.trim())) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
-    if (d.email && emails.every((e) => !e.valor.trim())) setEmails([{ valor: d.email, tipo: "Principal" }]);
-    registrarDocumentos([{ id: r.adjunto.id, nombre: r.adjunto.nombre }]);
-    mostrar(d.avisos.length ? `Pedido leído. ${d.avisos[0]}` : "Pedido leído: revisa los datos antes de guardar.");
+    mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
   };
 
   const enviarFormulario = async (ev: FormEvent) => {
     ev.preventDefault();
-    if (!nombre.trim()) return;
+    if (!nombre.trim()) {
+      // Un cliente no puede existir sin nombre: se avisa y se señala el campo (sin el aviso del navegador)
+      mostrar("Falta el nombre del cliente: escríbelo para poder guardarlo.", "aviso");
+      señalarCampo("nombreCliente");
+      return;
+    }
     if (formulario === "crear") {
       setCargando(true);
       try {
@@ -457,7 +478,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                 🗑️ Eliminar Seleccionados
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                📤 Exportar Seleccionados (CSV)
+                📤 Exportar SOLO clientes seleccionados (CSV)
               </button>
             </>
           )}
@@ -468,7 +489,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
             + Registrar Nuevo Cliente
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(false)} style={{ padding: "8px 14px", fontSize: "0.85rem" }}>
-            📤 Exportar (CSV)
+            📤 Exportar SOLO clientes (CSV)
           </button>
           <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
             📥 Importar CSV
@@ -708,12 +729,11 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       )}
 
       {formulario && (
-        <Modal titulo={formulario === "editar" ? "Editar Cliente" : "Registrar Nuevo Cliente"} ancho="600px" tamanoTitulo="1.25rem">
+        <Modal titulo={formulario === "editar" ? "Editar Cliente" : "Registrar Nuevo Cliente"} ancho="1000px" tamanoTitulo="1.25rem">
           <form onSubmit={enviarFormulario} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <BotonLeerDni disabled={cargando} alLeer={alLeerDni} />
-                <BotonLeerPedido disabled={cargando} alLeer={alLeerPedido} />
                 {formulario !== "editar" && <ZonaDocumentosVarios disabled={cargando} alSubir={anadirPendientes} />}
               </div>
               <ListaPendientes docs={pendientes.map((id) => ({ id, nombre: nombresPend[id] ?? `Documento ${id}` }))} alQuitar={(id) => void quitarPendiente(id)} />
@@ -722,7 +742,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                   ? "Los documentos que subas aquí se guardan al momento con este cliente."
                   : pendientes.length > 0
                     ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.`
-                    : "Arrastra el DNI (rellena los datos y guarda la foto), el pedido (rellena los datos) o documentos varios. Se lee en este equipo."}
+                    : "Arrastra el DNI para guardarlo y tomar la foto del cliente (los datos se escriben a mano) o documentos varios."}
               </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -732,7 +752,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Nombre Completo *</label>
-                <input type="text" className="form-input" placeholder="Ej. María López" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                <input type="text" className="form-input" placeholder="Ej. María López" value={nombre} onChange={(e) => setNombre(e.target.value)} data-campo="nombreCliente" />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -766,8 +786,14 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                 </select>
               </div>
             </div>
-            <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
-            <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
+              <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
+              <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Comentarios</label>
+              <textarea className="form-input" rows={4} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre el cliente…" style={{ resize: "vertical", minHeight: "90px" }} />
+            </div>
             {formulario === "editar" && seleccionado && <VisorAdjuntos key={refrescoAdjuntos} idCliente={seleccionado.id} />}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
               <button type="button" className="btn btn-secondary" onClick={() => setFormulario(null)} disabled={cargando}>
@@ -794,69 +820,18 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           ancho="800px"
           tamanoTitulo="1.25rem"
         >
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Vehículo</th>
-                  <th>Método de Venta</th>
-                  <th>Estado Vehículo</th>
-                  <th>Matrícula</th>
-                  <th>Fecha</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ventas === null && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
-                      Cargando...
-                    </td>
-                  </tr>
-                )}
-                {ventas?.map((exp) => (
-                  <tr key={exp.id_expediente}>
-                    <td style={{ fontWeight: "bold", color: "var(--primary)" }}>#EXP-{String(exp.id_expediente).padStart(4, "0")}</td>
-                    <td>
-                      {exp.modelo ? (
-                        <>
-                          <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo.nombre_modelo}</div>
-                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.modelo.marca?.nombre}</div>
-                        </>
-                      ) : (
-                        "N/D"
-                      )}
-                    </td>
-                    <td><BadgeTipoVenta exp={exp} /></td>
-                    <td><BadgeEstado exp={exp} /></td>
-                    <td>{exp.matricula || "N/D"}</td>
-                    <td>{exp.fecha_expediente ? formatDate(exp.fecha_expediente) : "N/D"}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          setVentasDe(null);
-                          router.push(`/dashboard/expedientes/editar/${exp.id_expediente}`);
-                        }}
-                        style={{ padding: "6px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}
-                      >
-                        ✏️ Editar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {ventas?.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
-                      No hay expedientes asociados a este cliente.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {ventas === null ? (
+            <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>Cargando...</p>
+          ) : (
+            <TablaDatos<ExpedienteDto>
+              id="cliente-ventas"
+              columnas={columnasVentas}
+              filas={ventas}
+              clave={(e) => e.id_expediente}
+              placeholder="Buscar por código, vehículo, matrícula…"
+              vacio="No hay expedientes asociados a este cliente."
+            />
+          )}
         </Modal>
       )}
 

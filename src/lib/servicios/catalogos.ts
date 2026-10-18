@@ -1,7 +1,7 @@
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, count, eq, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { ajustes, estadoVehiculo, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
+import { ajustes, aliasModelos, estadoVehiculo, expedientes, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { categoriaTipoVenta, claseEstado, idOpcional, textoOpcional } from "./comun";
 import { estadoDto, marcaDto, modeloDto, tiendaDto, tipoVentaDto } from "./mapeos";
@@ -10,7 +10,7 @@ const nombre = z.string().trim().min(1, "El nombre es requerido").max(255);
 const idPositivo = z.coerce.number().int().positive("Falta el identificador");
 const CATEGORIAS = ["CONTADO", "CREDITO", "PREFERENCE", "RENTING"] as const;
 const CLASES = ["VN", "VO"] as const;
-const color = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido (usa #RRGGBB)");
+const color = z.string().trim().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "Color no válido (usa #RRGGBB o #RRGGBBAA)");
 
 export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
   z.object({
@@ -18,6 +18,9 @@ export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
     nombre,
     acceso_rapido: z.boolean().optional(),
     sistema_comisiones: z.boolean().optional(),
+    color: color.nullish(),
+    punto: z.string().trim().max(8).nullish(),
+    punto_color: color.nullish(),
   }),
   z.object({
     tipo: z.literal("modelo"),
@@ -33,6 +36,7 @@ export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
     orden: z.coerce.number().int().optional(),
     categoria: z.enum(CATEGORIAS).optional(),
     requiere_rci_al_matricular: z.boolean().optional(),
+    cuenta_para_tasa: z.boolean().optional(),
   }),
   z.object({
     tipo: z.literal("estado_vehiculo"),
@@ -40,6 +44,11 @@ export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
     predeterminado: z.boolean().optional(),
     clase: z.enum(CLASES).optional(),
     subtipo_vo: textoOpcional(30).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido").nullish(),
+    capsula_color: color.nullish(),
+    punto: z.string().trim().max(8).nullish(),
+    punto_color: color.nullish(),
+    prevalece: z.enum(["marca", "estado"]).optional(),
   }),
 ]);
 export type EntradaCrearCatalogo = z.infer<typeof esquemaCrearCatalogo>;
@@ -51,6 +60,9 @@ export const esquemaActualizarCatalogo = z.discriminatedUnion("tipo", [
     nombre,
     acceso_rapido: z.boolean().optional(),
     sistema_comisiones: z.boolean().optional(),
+    color: color.nullish(),
+    punto: z.string().trim().max(8).nullish(),
+    punto_color: color.nullish(),
   }),
   z.object({
     tipo: z.literal("modelo"),
@@ -67,6 +79,7 @@ export const esquemaActualizarCatalogo = z.discriminatedUnion("tipo", [
     orden: z.coerce.number().int().optional(),
     categoria: z.enum(CATEGORIAS).optional(),
     requiere_rci_al_matricular: z.boolean().optional(),
+    cuenta_para_tasa: z.boolean().optional(),
   }),
   z.object({
     tipo: z.literal("estado_vehiculo"),
@@ -75,6 +88,11 @@ export const esquemaActualizarCatalogo = z.discriminatedUnion("tipo", [
     predeterminado: z.boolean().optional(),
     clase: z.enum(CLASES).optional(),
     subtipo_vo: textoOpcional(30).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color no válido").nullish(),
+    capsula_color: color.nullish(),
+    punto: z.string().trim().max(8).nullish(),
+    punto_color: color.nullish(),
+    prevalece: z.enum(["marca", "estado"]).optional(),
   }),
 ]);
 export type EntradaActualizarCatalogo = z.infer<typeof esquemaActualizarCatalogo>;
@@ -84,6 +102,12 @@ export const esquemaEliminarCatalogo = z.object({
   id: idPositivo,
   toggleActivo: z.boolean().optional(),
   activo: z.boolean().optional(),
+  /** Solo modelos con expedientes: a qué modelo existente pasan. */
+  reasignar_a: idPositivo.optional(),
+  /** Solo modelos con expedientes: crear un modelo nuevo (en esta marca) y pasarlos a él. */
+  crear_modelo: z.object({ marca_id: idPositivo, nombre: z.string().trim().min(1, "Escribe el nombre del modelo nuevo").max(255) }).optional(),
+  /** Solo modelos con expedientes: dejarlos sin modelo. */
+  sin_modelo: z.boolean().optional(),
 });
 export type EntradaEliminarCatalogo = z.infer<typeof esquemaEliminarCatalogo>;
 
@@ -138,7 +162,7 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
     case "marca": {
       const [n] = await ej
         .insert(marcas)
-        .values({ nombre: e.nombre, activo: true, accesoRapido: !!e.acceso_rapido, sistemaComisiones: !!e.sistema_comisiones })
+        .values({ nombre: e.nombre, activo: true, accesoRapido: !!e.acceso_rapido, sistemaComisiones: !!e.sistema_comisiones, color: e.color ?? null, punto: e.punto || null, puntoColor: e.punto_color ?? null })
         .returning();
       return marcaDto(n);
     }
@@ -163,6 +187,7 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
           orden: e.orden ?? 0,
           categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta),
           requiereRciAlMatricular: e.requiere_rci_al_matricular ?? ["CREDITO", "PREFERENCE", "RENTING"].includes(e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta)),
+          cuentaParaTasa: e.cuenta_para_tasa ?? ["CREDITO", "PREFERENCE", "RENTING"].includes(e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta)),
         })
         .returning();
       return tipoVentaDto(n);
@@ -176,7 +201,12 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
             nombreEstadoVehiculo: e.nombre_estado_vehiculo,
             predeterminado: !!e.predeterminado,
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
-            subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
+            subtipoVo: e.clase === "VN" ? null : (e.subtipo_vo ?? (e.clase ? "USADO" : claseEstado(e.nombre_estado_vehiculo).subtipo)),
+            color: e.color ?? null,
+            capsulaColor: e.capsula_color ?? null,
+            punto: e.punto || null,
+            puntoColor: e.punto_color ?? null,
+            prevalece: e.prevalece ?? "marca",
           })
           .returning();
         return estadoDto(n);
@@ -193,6 +223,9 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
           nombre: e.nombre,
           accesoRapido: e.acceso_rapido,
           sistemaComisiones: e.sistema_comisiones,
+          color: e.color,
+          punto: e.punto === undefined ? undefined : e.punto || null,
+          puntoColor: e.punto_color,
         })
         .where(eq(marcas.idMarca, e.id))
         .returning();
@@ -211,7 +244,7 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
     case "tipo_venta": {
       const [n] = await ej
         .update(tipoDeVenta)
-        .set({ nombreTipoVenta: e.nombre_tipo_venta, color: e.color, orden: e.orden, categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta), requiereRciAlMatricular: e.requiere_rci_al_matricular })
+        .set({ nombreTipoVenta: e.nombre_tipo_venta, color: e.color, orden: e.orden, categoria: e.categoria ?? categoriaTipoVenta(e.nombre_tipo_venta), requiereRciAlMatricular: e.requiere_rci_al_matricular, cuentaParaTasa: e.cuenta_para_tasa })
         .where(eq(tipoDeVenta.idTipoDeVenta, e.id))
         .returning();
       if (!n) throw new HttpError(404, "Tipo de venta no encontrado");
@@ -229,7 +262,12 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
             nombreEstadoVehiculo: e.nombre_estado_vehiculo,
             predeterminado: e.predeterminado,
             clase: e.clase ?? claseEstado(e.nombre_estado_vehiculo).clase,
-            subtipoVo: e.subtipo_vo ?? claseEstado(e.nombre_estado_vehiculo).subtipo,
+            subtipoVo: e.clase === "VN" ? null : (e.subtipo_vo ?? (e.clase ? "USADO" : claseEstado(e.nombre_estado_vehiculo).subtipo)),
+            color: e.color,
+            capsulaColor: e.capsula_color,
+            punto: e.punto === undefined ? undefined : e.punto || null,
+            puntoColor: e.punto_color,
+            prevalece: e.prevalece,
           })
           .where(eq(estadoVehiculo.idEstadoVehiculo, e.id))
           .returning();
@@ -237,6 +275,12 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
         return estadoDto(n);
       });
   }
+}
+
+/** Expedientes (también los eliminados, que siguen apuntando al modelo) que usan un modelo. */
+export async function usosDeModelo(ej: Ejecutor, idModelo: number): Promise<number> {
+  const [{ n }] = await ej.select({ n: count() }).from(expedientes).where(eq(expedientes.idModelo, idModelo));
+  return n;
 }
 
 /**
@@ -257,9 +301,34 @@ export async function eliminarCatalogo(ej: Ejecutor, e: EntradaEliminarCatalogo)
       });
       return "Marca eliminada";
     }
-    case "modelo":
-      await ej.update(modelos).set({ eliminadoEn: ahora }).where(eq(modelos.idModelo, e.id));
-      return "Modelo eliminado";
+    case "modelo": {
+      const usos = await usosDeModelo(ej, e.id);
+      const destino = [e.reasignar_a, e.crear_modelo, e.sin_modelo].filter((x) => x !== undefined && x !== false).length;
+      if (usos > 0 && destino === 0) throw new HttpError(409, `El modelo tiene ${usos} expediente${usos === 1 ? "" : "s"}: elige a qué modelo pasan antes de eliminarlo.`);
+      if (destino > 1) throw new HttpError(400, "Elige un solo destino para los expedientes");
+      let aviso = "Modelo eliminado";
+      await ej.transaction(async (tx) => {
+        let nuevo: number | null = null;
+        if (e.reasignar_a !== undefined) {
+          if (e.reasignar_a === e.id) throw new HttpError(400, "El modelo de destino no puede ser el mismo que se elimina");
+          const [d] = await tx.select({ id: modelos.idModelo }).from(modelos).where(and(eq(modelos.idModelo, e.reasignar_a), isNull(modelos.eliminadoEn)));
+          if (!d) throw new HttpError(404, "El modelo de destino no existe");
+          nuevo = d.id;
+        } else if (e.crear_modelo) {
+          const [m] = await tx.select({ id: marcas.idMarca }).from(marcas).where(and(eq(marcas.idMarca, e.crear_modelo.marca_id), isNull(marcas.eliminadoEn)));
+          if (!m) throw new HttpError(404, "La marca del modelo nuevo no existe");
+          const [igual] = await tx.select({ id: modelos.idModelo }).from(modelos).where(and(eq(modelos.marcaId, m.id), eq(modelos.nombreModelo, e.crear_modelo.nombre), isNull(modelos.eliminadoEn)));
+          if (igual) nuevo = igual.id;
+          else nuevo = (await tx.insert(modelos).values({ marcaId: m.id, nombreModelo: e.crear_modelo.nombre, accesoRapido: false, ordenAccesoRapido: 0 }).returning({ id: modelos.idModelo }))[0].id;
+        }
+        // Todos los expedientes (también los eliminados) y las lecturas «enseñadas» de pedidos pasan al destino
+        await tx.update(expedientes).set({ idModelo: nuevo }).where(eq(expedientes.idModelo, e.id));
+        if (nuevo !== null) await tx.update(aliasModelos).set({ idModelo: nuevo }).where(eq(aliasModelos.idModelo, e.id));
+        await tx.update(modelos).set({ eliminadoEn: ahora }).where(eq(modelos.idModelo, e.id));
+        if (usos > 0) aviso = `Modelo eliminado: ${usos} expediente${usos === 1 ? "" : "s"} ${usos === 1 ? "pasa" : "pasan"} ${nuevo === null ? "a no tener modelo" : "al modelo elegido"}`;
+      });
+      return aviso;
+    }
     case "tipo_venta":
       await ej.update(tipoDeVenta).set({ eliminadoEn: ahora }).where(eq(tipoDeVenta.idTipoDeVenta, e.id));
       return "Tipo de venta eliminado";

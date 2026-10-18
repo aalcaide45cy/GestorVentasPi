@@ -1,4 +1,4 @@
-import { and, eq, ilike, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import {
   ajustes,
@@ -42,11 +42,9 @@ async function tiendaUnica(ej: Ejecutor, idUsuario: number): Promise<number | nu
 async function resolverEstado(ej: Ejecutor, id: number | null | undefined, nombre?: string): Promise<number | null> {
   if (id) return id;
   if (nombre?.toLowerCase() === "usado") {
-    const [e] = await ej
-      .select()
-      .from(estadoVehiculo)
-      .where(ilike(estadoVehiculo.nombreEstadoVehiculo, "usado"))
-      .limit(1);
+    // «Usado» se busca por su clase (VO), no por el nombre: así se puede renombrar el estado (por ejemplo a «VO»)
+    const usados = await ej.select().from(estadoVehiculo).where(and(eq(estadoVehiculo.clase, "VO"), isNull(estadoVehiculo.eliminadoEn)));
+    const e = usados.find((x) => x.subtipoVo === "USADO") ?? usados.find((x) => x.nombreEstadoVehiculo.toLowerCase() === "usado") ?? usados[0];
     return e?.idEstadoVehiculo ?? null;
   }
   const [def] = await ej.select().from(estadoVehiculo).where(eq(estadoVehiculo.predeterminado, true)).limit(1);
@@ -58,6 +56,8 @@ export async function crearExpediente(
   ej: Ejecutor,
   usuario: UsuarioActual,
   entrada: EntradaCrearExpediente,
+  /** Se rellena con lo que falta pero no impide guardar. */
+  avisos: AvisoGuardado[] = [],
 ): Promise<ExpedienteDto> {
   if (!puedeCrearExpedientes(usuario.rol)) {
     throw new HttpError(403, "No tienes permiso para crear expedientes");
@@ -87,8 +87,8 @@ export async function crearExpediente(
     const idTienda = e.id_tienda ?? (await tiendaUnica(tx, usuario.idUsuario));
     const idEstado = await resolverEstado(tx, e.id_estado_vehiculo, e.estado_nombre);
     const [tipoVenta] = e.id_tipo_de_venta ? await tx.select().from(tipoDeVenta).where(eq(tipoDeVenta.idTipoDeVenta, e.id_tipo_de_venta)) : [];
-    if (e.fecha_matriculacion && !e.fecha_rci && tipoVenta?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipoVenta.nombreTipoVenta));
-    if (e.fecha_facturacion && !e.fecha_rci && tipoVenta?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipoVenta.nombreTipoVenta, undefined, "facturar"));
+    if (e.fecha_matriculacion && !e.fecha_rci && tipoVenta?.requiereRciAlMatricular) avisos.push({ campo: "fecha_rci", mensaje: avisoRciObligatoria(tipoVenta.nombreTipoVenta) });
+    else if (e.fecha_facturacion && !e.fecha_rci && tipoVenta?.requiereRciAlMatricular) avisos.push({ campo: "fecha_rci", mensaje: avisoRciObligatoria(tipoVenta.nombreTipoVenta, undefined, "facturar") });
     const [estadoNuevo] = idEstado ? await tx.select().from(estadoVehiculo).where(eq(estadoVehiculo.idEstadoVehiculo, idEstado)) : [];
     const [nuevo] = await tx
       .insert(expedientes)
@@ -106,6 +106,7 @@ export async function crearExpediente(
         fechaFacturacion: e.fecha_facturacion ?? (estadoNuevo?.clase === "VN" ? (e.fecha_matriculacion ?? null) : null),
         matricula: e.matricula ?? null,
         vin: e.vin ?? null,
+        comentarios: e.comentarios ?? null,
         idTipoDeVenta: e.id_tipo_de_venta ?? null,
         idEstadoVehiculo: idEstado,
         cobradoOtraFecha: e.cobrado_otra_fecha ?? false,
@@ -160,9 +161,17 @@ function fusionar(destino: CamposActualizables, origen: CamposActualizables): vo
   }
 }
 
+/** Algo que falta o no cuadra pero que NO impide guardar: el expediente se guarda igualmente y la pantalla avisa y señala el campo. */
+export interface AvisoGuardado {
+  /** Campo del expediente al que se refiere (por ejemplo «fecha_rci»). */
+  campo: string;
+  mensaje: string;
+  idExpediente?: number;
+}
+
 /** Mensaje cuando un tipo de pago exige fecha RCI y se intenta matricular o facturar sin ella. */
 function avisoRciObligatoria(nombreTipo: string, idExpediente?: number, accion: "matricular" | "facturar" = "matricular"): string {
-  return `${idExpediente ? `Expediente ${idExpediente}: ` : ""}los pagos «${nombreTipo}» exigen la fecha RCI (fecha de contratación de la financiera) para poder ${accion}. Indica primero la F. RCI.`;
+  return `${idExpediente ? `Expediente ${idExpediente}: ` : ""}falta la fecha RCI (contratación de la financiera): los pagos «${nombreTipo}» la piden para poder ${accion}. Se ha guardado igualmente; indícala cuando la tengas.`;
 }
 
 /**
@@ -172,7 +181,7 @@ function avisoRciObligatoria(nombreTipo: string, idExpediente?: number, accion: 
  *    matriculación anterior); si el vendedor la fija a otra fecha, se respeta y es la que cuenta para comisionar.
  * Devuelve las facturaciones que hay que fijar después de aplicar el cambio, agrupadas por valor.
  */
-async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizables): Promise<{ ids: number[]; fecha: string | null }[]> {
+async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizables, avisos: AvisoGuardado[]): Promise<{ ids: number[]; fecha: string | null }[]> {
   const toca = set.fechaMatriculacion !== undefined || set.fechaFacturacion !== undefined || set.fechaRci !== undefined || set.idTipoDeVenta !== undefined || set.idEstadoVehiculo !== undefined;
   if (!toca || ids.length === 0) return [];
   const filas = await tx
@@ -186,13 +195,13 @@ async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizab
     const mat = set.fechaMatriculacion !== undefined ? set.fechaMatriculacion : f.mat;
     const rci = set.fechaRci !== undefined ? set.fechaRci : f.rci;
     const tipo = tipos.get(set.idTipoDeVenta !== undefined ? (set.idTipoDeVenta ?? -1) : (f.tipo ?? -1));
-    if (mat && !rci && tipo?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipo.nombreTipoVenta, ids.length > 1 ? f.id : undefined));
     // Facturación: solo se comprueba si se está poniendo ahora, o si se quita la RCI o se cambia el tipo de pago (los expedientes
     // que ya incumplían la regla no se tocan mientras no se edite ninguno de esos datos)
     const factFinal = set.fechaFacturacion !== undefined ? set.fechaFacturacion : f.fact;
     // (los formularios envían todos los campos aunque no se hayan tocado: solo cuenta lo que cambia respecto a lo guardado)
     const revisaFact = (set.fechaFacturacion !== undefined && !!set.fechaFacturacion && set.fechaFacturacion !== f.fact) || (set.fechaRci !== undefined && set.fechaRci !== f.rci) || (set.idTipoDeVenta !== undefined && set.idTipoDeVenta !== f.tipo);
-    if (revisaFact && factFinal && !rci && tipo?.requiereRciAlMatricular) throw new HttpError(400, avisoRciObligatoria(tipo.nombreTipoVenta, ids.length > 1 ? f.id : undefined, "facturar"));
+    if (mat && !rci && tipo?.requiereRciAlMatricular) avisos.push({ campo: "fecha_rci", idExpediente: f.id, mensaje: avisoRciObligatoria(tipo.nombreTipoVenta, ids.length > 1 ? f.id : undefined) });
+    else if (revisaFact && factFinal && !rci && tipo?.requiereRciAlMatricular) avisos.push({ campo: "fecha_rci", idExpediente: f.id, mensaje: avisoRciObligatoria(tipo.nombreTipoVenta, ids.length > 1 ? f.id : undefined, "facturar") });
     const clase = clases.get(set.idEstadoVehiculo !== undefined ? (set.idEstadoVehiculo ?? -1) : (f.estado ?? -1));
     const manual = set.fechaFacturacion !== undefined && set.fechaFacturacion !== f.fact;
     if (clase === "VN" && !manual && (f.fact === null || f.fact === f.mat) && (mat ?? null) !== f.fact) {
@@ -212,7 +221,8 @@ export async function actualizarExpedientes(
   ej: Ejecutor,
   usuario: UsuarioActual,
   entrada: EntradaActualizarExpediente,
-): Promise<{ actualizados: number; impactos: ImpactoCerrado[]; cliente?: { id: number; accion: "actualizado" | "creado" | "asociado_existente" } }> {
+): Promise<{ actualizados: number; impactos: ImpactoCerrado[]; cliente?: { id: number; accion: "actualizado" | "creado" | "asociado_existente" }; avisos: AvisoGuardado[] }> {
+  const avisos: AvisoGuardado[] = [];
   if (entrada.modo === "lote") {
     const e = entrada.expediente;
     const set: CamposActualizables = {};
@@ -226,11 +236,12 @@ export async function actualizarExpedientes(
       fechaMatriculacion: e.fecha_matriculacion ?? undefined,
       fechaEntrega: e.fecha_entrega ?? undefined,
       fechaFacturacion: e.fecha_facturacion ?? undefined,
+      deshabilitado: e.deshabilitado,
     });
     if (Object.keys(set).length === 0) throw new HttpError(400, "No se seleccionaron datos para modificar");
     await comprobarAlcance(ej, usuario, entrada.ids);
     const { valor, recalculos } = await conRecalculo(ej, entrada.ids, "Edición de expedientes en lote", async (tx) => {
-      const facturaciones = await prepararFechas(tx, entrada.ids, set);
+      const facturaciones = await prepararFechas(tx, entrada.ids, set, avisos);
       const filas = await tx
         .update(expedientes)
         .set(set)
@@ -239,7 +250,7 @@ export async function actualizarExpedientes(
       await aplicarFacturaciones(tx, facturaciones);
       return { valor: filas.length, idsDespues: entrada.ids };
     });
-    return { actualizados: valor, impactos: impactos(recalculos) };
+    return { actualizados: valor, impactos: impactos(recalculos), avisos };
   }
 
   const e = entrada.expediente;
@@ -260,6 +271,7 @@ export async function actualizarExpedientes(
     fechaCobrado: e.fecha_cobrado,
     matricula: e.matricula,
     vin: e.vin,
+    comentarios: e.comentarios,
     cobradoOtraFecha: e.cobrado_otra_fecha,
     comisionCobrada: e.comision_cobrada,
     comisionCocheCobrada: e.comision_coche_cobrada,
@@ -272,6 +284,8 @@ export async function actualizarExpedientes(
     comisionCocheManual: e.comision_coche_manual,
     comisionFinanciacionManual: e.comision_financiacion_manual,
     conceptosEspeciales: e.conceptos_especiales as ConceptoEspecial[] | undefined,
+    bonusManuales: e.bonus_manuales,
+    deshabilitado: e.deshabilitado,
     idCliente: entrada.id_cliente,
   });
   if (Object.keys(set).length === 0 && !entrada.cliente) throw new HttpError(400, "No hay datos que actualizar");
@@ -293,7 +307,7 @@ export async function actualizarExpedientes(
       }
     }
     if (Object.keys(set).length === 0) throw new HttpError(400, "No hay datos que actualizar");
-    const facturaciones = await prepararFechas(tx, [entrada.id_expediente], set);
+    const facturaciones = await prepararFechas(tx, [entrada.id_expediente], set, avisos);
     const filas = await tx
       .update(expedientes)
       .set(set)
@@ -303,7 +317,7 @@ export async function actualizarExpedientes(
     return { valor: filas.length, idsDespues: [entrada.id_expediente] };
   });
   if (valor === 0) throw new HttpError(404, "Expediente no encontrado");
-  return { actualizados: 1, impactos: impactos(recalculos), cliente: clienteResultado };
+  return { actualizados: 1, impactos: impactos(recalculos), cliente: clienteResultado, avisos };
 }
 
 /**
@@ -325,7 +339,7 @@ export async function duplicarExpedientes(
   let copia: { nombre: string; creadaAhora: boolean; milisegundos: number } | null = null;
   if (ids.length * entrada.copias > UMBRAL_COPIA_PREVIA && !entrada.sin_copia) {
     try {
-      copia = await asegurarCopiaReciente(ej, usuario.idUsuario);
+      copia = await asegurarCopiaReciente(ej, usuario.idUsuario, 15, "Antes de duplicar expedientes en bloque.");
     } catch (e) {
       throw new HttpError(409, `COPIA_PREVIA: No se ha duplicado nada porque no se pudo hacer la copia de seguridad previa. ${e instanceof Error ? e.message : ""}`.trim());
     }

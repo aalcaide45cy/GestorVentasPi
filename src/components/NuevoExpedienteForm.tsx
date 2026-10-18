@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { MENSAJE_CAMPO_FALTANTE, direccionDeEdicion } from "@/lib/campos-faltantes";
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import type { ClienteDto } from "@/lib/dto";
+import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import { hoyIsoCliente } from "@/lib/date-utils";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { BotonLeerDni, BotonLeerPedido, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
@@ -34,47 +37,52 @@ interface Props {
 const textoOVacio = (v: string) => v.trim() || null;
 
 /** «Crear Nuevo Expediente de Venta»: datos del cliente y del vehículo en una sola pantalla. */
-export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
+function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
   const tiendaInicial = tiendas.length === 1 ? String(tiendas[0].id) : "";
   const hoy = hoyIsoCliente();
 
+  // Lo que había sin guardar si se recargó la página (F5): se recupera al volver
+  const [borrador] = useState(() => (typeof window === "undefined" ? null : leerBorrador("expediente-nuevo")));
+  const ini = <T,>(k: string, valor: T): T => (borrador && k in borrador ? (borrador[k] as T) : valor);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
+  const [faltanAlGuardar, setFaltanAlGuardar] = useState<string[]>([]);
 
   // Cliente
-  const [dni, setDni] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [fechaNacimiento, setFechaNacimiento] = useState("");
-  const [tiendaId, setTiendaId] = useState(tiendaInicial);
-  const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
-  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
+  const [dni, setDni] = useState(ini("dni", ""));
+  const [nombre, setNombre] = useState(ini("nombre", ""));
+  const [fechaNacimiento, setFechaNacimiento] = useState(ini("fechaNacimiento", ""));
+  const [tiendaId, setTiendaId] = useState(ini("tiendaId", tiendaInicial));
+  const [emails, setEmails] = useState<ContactoEdicion[]>(ini("emails", [contactoVacio()]));
+  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(ini("telefonos", [contactoVacio()]));
 
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ClienteDto[]>([]);
   const [buscando, setBuscando] = useState(false);
-  const [asignado, setAsignado] = useState<ClienteDto | null>(null);
+  const [asignado, setAsignado] = useState<ClienteDto | null>(ini("asignado", null));
   const [duplicado, setDuplicado] = useState<ClienteDto | null>(null);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Vehículo y expediente
-  const [marca, setMarca] = useState<number | "">("");
-  const [modelo, setModelo] = useState<number | "">("");
-  const [tipoVenta, setTipoVenta] = useState<number | "">("");
-  const [estado, setEstado] = useState<number | "">("");
-  const [fExp, setFExp] = useState(hoy);
-  const [fAfect, setFAfect] = useState("");
-  const [fRci, setFRci] = useState("");
-  const [fMat, setFMat] = useState("");
-  const [fFact, setFFact] = useState("");
-  const [fEntrega, setFEntrega] = useState("");
-  const [matricula, setMatricula] = useState("");
-  const [vin, setVin] = useState("");
+  const [marca, setMarca] = useState<number | "">(ini("marca", ""));
+  const [modelo, setModelo] = useState<number | "">(ini("modelo", ""));
+  const [tipoVenta, setTipoVenta] = useState<number | "">(ini("tipoVenta", ""));
+  const [estado, setEstado] = useState<number | "">(ini("estado", ""));
+  const [fExp, setFExp] = useState(ini("fExp", hoy));
+  const [fAfect, setFAfect] = useState(ini("fAfect", ""));
+  const [fRci, setFRci] = useState(ini("fRci", ""));
+  const [fMat, setFMat] = useState(ini("fMat", ""));
+  const [fFact, setFFact] = useState(ini("fFact", ""));
+  const [fEntrega, setFEntrega] = useState(ini("fEntrega", ""));
+  const [matricula, setMatricula] = useState(ini("matricula", ""));
+  const [vin, setVin] = useState(ini("vin", ""));
+  const [comentarios, setComentarios] = useState(ini("comentarios", ""));
   // Documentos leídos (DNI, pedido) y aún sin vincular: se vinculan al guardar el expediente
-  const [pendientes, setPendientes] = useState<number[]>([]);
-  const [nombresPend, setNombresPend] = useState<Record<number, string>>({});
+  const [pendientes, setPendientes] = useState<number[]>(ini("pendientes", []));
+  const [nombresPend, setNombresPend] = useState<Record<number, string>>(ini("nombresPend", {}));
   const [avisoLectura, setAvisoLectura] = useState<string | null>(null);
 
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
@@ -177,6 +185,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
       marca !== "" || modelo !== "" || tipoVenta !== "" || estado !== "" || matricula !== "" || vin !== "" || fExp !== hoy ||
       fAfect !== "" || fRci !== "" || fMat !== "" || fFact !== "" || fEntrega !== "");
 
+  useGuardarBorrador("expediente-nuevo", () => ({ dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, asignado, marca, modelo, tipoVenta, estado, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, pendientes, nombresPend }), hayCambios());
   const cambiosRef = useRef(hayCambios);
   useEffect(() => {
     cambiosRef.current = hayCambios;
@@ -207,11 +216,10 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
 
   /* ---- Guardado ---- */
   const guardar = async (cliente: ClienteDto | null, crearNuevo = false) => {
-    const faltaRci = rciObligatoria();
-    if (faltaRci) {
-      setError(faltaRci);
-      return;
-    }
+    // Lo que falta no impide guardar: se guarda y la pantalla de edición señala los campos con un resplandor
+    const faltan: string[] = [];
+    if (rciObligatoria()) faltan.push("fRci");
+    if (!nombre.trim() && (dni.trim() !== "" || fechaNacimiento.trim() !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0)) faltan.push("nombre");
     setCargando(true);
     setError(null);
     try {
@@ -246,11 +254,17 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
             fecha_entrega: fEntrega || null,
             matricula: matricula || null,
             vin: vin || null,
+            comentarios: comentarios.trim() || null,
           },
         }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar el expediente."));
-      const creado = ((await res.json().catch(() => ({}))) as { data?: { id_expediente?: number; id_cliente?: number | null } }).data;
+      const respuesta = (await res.json().catch(() => ({}))) as { data?: { id_expediente?: number; id_cliente?: number | null }; avisos?: { campo: string }[] };
+      const creado = respuesta.data;
+      for (const a of respuesta.avisos ?? []) {
+        const campo = a.campo === "fecha_rci" ? "fRci" : a.campo;
+        if (!faltan.includes(campo)) faltan.push(campo);
+      }
       if (creado?.id_expediente && pendientes.length > 0) {
         try {
           await vincularAdjuntos(pendientes, { idExpediente: creado.id_expediente, idCliente: creado.id_cliente ?? null });
@@ -258,8 +272,11 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
           mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos adjuntos.", "error");
         }
       }
+      borrarBorrador("expediente-nuevo");
+      setFaltanAlGuardar(faltan);
       setGuardado(true);
-      setTimeout(() => router.push("/dashboard/expedientes"), 2000);
+      // Si falta algo se abre la edición del expediente creado, con el campo señalado; si no, la lista
+      setTimeout(() => router.push(faltan.length > 0 && creado?.id_expediente ? direccionDeEdicion(creado.id_expediente, faltan) : "/dashboard/expedientes"), faltan.length > 0 ? 2500 : 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar.");
     } finally {
@@ -271,11 +288,6 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
     ev.preventDefault();
     setError(null);
 
-    const tieneDatosCliente = dni.trim() !== "" || fechaNacimiento.trim() !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0;
-    if (tieneDatosCliente && !nombre.trim()) {
-      setError("El Nombre Completo del cliente es obligatorio si deseas registrar o asociar un cliente.");
-      return;
-    }
 
     if (nombre.trim() && !asignado) {
       setCargando(true);
@@ -308,7 +320,17 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
           <polyline points="22 4 12 14.01 9 11.01" />
         </svg>
         <h2 style={{ fontSize: "1.5rem", marginBottom: "8px" }}>¡Expediente Creado!</h2>
-        <p style={{ color: "var(--text-secondary)" }}>El expediente y los datos del cliente se han guardado con éxito. Redirigiendo...</p>
+        {faltanAlGuardar.length > 0 ? (
+          <div style={{ color: "var(--warning)", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <strong>⚠️ Se ha guardado, pero falta algo:</strong>
+            {faltanAlGuardar.map((c) => (
+              <span key={c}>{MENSAJE_CAMPO_FALTANTE[c] ?? c}</span>
+            ))}
+            <span style={{ color: "var(--text-secondary)" }}>Abriendo el expediente para que lo completes…</span>
+          </div>
+        ) : (
+          <p style={{ color: "var(--text-secondary)" }}>El expediente y los datos del cliente se han guardado con éxito. Redirigiendo...</p>
+        )}
       </div>
     );
   }
@@ -328,7 +350,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
     "Número de Bastidor (VIN)": { cols: 4, etiqueta: "Bastidor (VIN)" },
     "Fecha Expediente": { cols: 2, etiqueta: "F. expediente" },
     "Fecha Afectación": { cols: 2, etiqueta: "F. afectación" },
-    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference es obligatoria antes de poder matricular o facturar." },
+    "Fecha RCI (Financiación)": { cols: 2, etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference hace falta antes de poder matricular o facturar." },
     "Fecha Matriculación": { cols: 2, etiqueta: "F. matriculación" },
     "Fecha Facturación": { cols: 2, etiqueta: "F. facturación", ayuda: "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI." },
     "Fecha Entrega": { cols: 2, etiqueta: "F. entrega" },
@@ -357,7 +379,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
   };
   const rciObligatoria = (): string | null => {
     const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
-    if (!fRci && t?.requiereRci && (fMat || fFact)) return `Los pagos «${t.nombre}» exigen la fecha RCI (contratación de la financiera) para poder ${fMat ? "matricular" : "facturar"}. Indica primero la Fecha RCI.`;
+    if (!fRci && t?.requiereRci && (fMat || fFact)) return `Falta la fecha RCI (contratación de la financiera): los pagos «${t.nombre}» la piden para poder ${fMat ? "matricular" : "facturar"}. Puedes guardar igualmente, pero faltará ese dato.`;
     return null;
   };
   const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
@@ -370,8 +392,47 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
     </h2>
   );
 
+  // DNI y pedido se reconocen solos: se pueden soltar en cualquiera de las dos casillas
+  const alLeerDniSuelto = (r: ResultadoDni) => {
+              setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
+              setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(r.adjuntos.map((a) => [a.id, a.nombre])) }));
+              mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
+            };
+  const alLeerPedidoSuelto = (r: ResultadoPedido) => {
+              const d = r.datos;
+              if (d.vin) setVin(d.vin);
+              if (d.matricula) setMatricula(d.matricula);
+              if (d.fechaExpediente) setFExp(d.fechaExpediente);
+              if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
+              if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
+              if (d.idModelo) {
+                const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
+                if (marcaDe) {
+                  setMarca(Number(marcaDe[0]));
+                  setModelo(d.idModelo);
+                }
+              }
+              if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
+              if (d.dni && !dni) setDni(d.dni);
+              if (d.cliente && !nombre) setNombre(d.cliente);
+              if (d.telefono && rellenos(telefonos).length === 0) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
+              if (d.email && rellenos(emails).length === 0) setEmails([{ valor: d.email, tipo: "Principal" }]);
+              setPendientes((prev) => [...prev, r.adjunto.id]);
+              setNombresPend((prev) => ({ ...prev, [r.adjunto.id]: r.adjunto.nombre }));
+              setAvisoLectura(d.avisos[0] ?? null);
+              mostrar("Pedido leído: revisa los datos antes de guardar.");
+            };
+
   return (
     <>
+      {borrador && (
+        <div role="status" style={{ padding: "10px 14px", borderLeft: "4px solid var(--info)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          ♻️ Se han recuperado los datos que habías escrito (la página se recargó). Revísalos y guarda.
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => { borrarBorrador("expediente-nuevo"); window.location.reload(); }}>
+            Descartarlos y empezar de cero
+          </button>
+        </div>
+      )}
       <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {error && (
           <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
@@ -393,19 +454,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerDni
-                compacta
-                disabled={cargando}
-                alLeer={(r) => {
-                  if (r.datos.dni) setDni(r.datos.dni);
-                  if (r.datos.nombreCompleto) setNombre(r.datos.nombreCompleto);
-                  if (r.datos.fechaNacimiento) setFechaNacimiento(r.datos.fechaNacimiento);
-                  setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
-                  setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(r.adjuntos.map((a) => [a.id, a.nombre])) }));
-                  setAvisoLectura(r.datos.avisos[0] ?? null);
-                  mostrar("DNI leído: revisa los datos antes de guardar.");
-                }}
-              />
+              <BotonLeerDni compacta disabled={cargando} alLeer={alLeerDniSuelto} alLeerPedido={alLeerPedidoSuelto} />
               <ZonaDocumentosVarios
                 disabled={cargando}
                 alSubir={(docs) => {
@@ -422,7 +471,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
                   }}
                 />
                 <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {pendientes.length > 0 ? `${pendientes.length} documento(s) adjuntos se guardarán con el expediente.` : "Arrastra el DNI (rellena los datos y guarda la foto del cliente), el pedido o documentos varios."}
+                {pendientes.length > 0 ? `${pendientes.length} documento(s) adjuntos se guardarán con el expediente.` : "Arrastra el DNI y el pedido (se reconocen solos, en cualquier casilla; el DNI guarda la foto del cliente) o documentos varios."}
                 </span>
               </div>
             </div>
@@ -518,34 +567,7 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerPedido
-                compacta
-                disabled={cargando}
-                alLeer={(r) => {
-                  const d = r.datos;
-                  if (d.vin) setVin(d.vin);
-                  if (d.matricula) setMatricula(d.matricula);
-                  if (d.fechaExpediente) setFExp(d.fechaExpediente);
-                  if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
-                  if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
-                  if (d.idModelo) {
-                    const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
-                    if (marcaDe) {
-                      setMarca(Number(marcaDe[0]));
-                      setModelo(d.idModelo);
-                    }
-                  }
-                  if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
-                  if (d.dni && !dni) setDni(d.dni);
-                  if (d.cliente && !nombre) setNombre(d.cliente);
-                  if (d.telefono && rellenos(telefonos).length === 0) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
-                  if (d.email && rellenos(emails).length === 0) setEmails([{ valor: d.email, tipo: "Principal" }]);
-                  setPendientes((prev) => [...prev, r.adjunto.id]);
-                  setNombresPend((prev) => ({ ...prev, [r.adjunto.id]: r.adjunto.nombre }));
-                  setAvisoLectura(d.avisos[0] ?? null);
-                  mostrar("Pedido leído: revisa los datos antes de guardar.");
-                }}
-              />
+              <BotonLeerPedido compacta disabled={cargando} alLeer={alLeerPedidoSuelto} alLeerDni={alLeerDniSuelto} />
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido (PDF o foto) y se rellenan bastidor, matrícula, modelo, forma de pago y fechas.</span>
             </div>
 
@@ -603,6 +625,10 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
               )}
               {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
               {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
+              <div style={{ gridColumn: "1 / -1" }} className="form-group">
+                <label className="form-label">Comentarios del expediente</label>
+                <textarea className="form-input" rows={3} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre este expediente…" style={{ resize: "vertical", minHeight: "80px" }} />
+              </div>
             </div>
           </div>
 
@@ -701,4 +727,15 @@ export default function NuevoExpedienteForm({ marcas, modelosPorMarca, tiposVent
       )}
     </>
   );
+}
+
+/** El formulario se pinta ya en el navegador para poder recuperar lo que se estaba escribiendo si se recarga la página (F5). */
+export default function NuevoExpedienteForm(props: Props) {
+  const enNavegador = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
+  if (!enNavegador) return <p style={{ color: "var(--text-secondary)" }}>Cargando…</p>;
+  return <FormularioNuevoExpediente {...props} />;
 }

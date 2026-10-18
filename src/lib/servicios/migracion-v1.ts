@@ -622,7 +622,8 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
       fechaMatriculacion: fecha(e.fecha_matriculacion),
       fechaEntrega: fecha(e.fecha_entrega),
       fechaRci: fecha(e.fecha_rci),
-      fechaFacturacion: fecha(e.fecha_facturacion),
+      // Un usado de la app antigua contaba por su fecha de cobro: ahora cuenta por la de facturación
+      fechaFacturacion: e._clase === "VO" ? ((e.fecha_cobrado_nuevo as string | null) ?? fecha(e.fecha_facturacion)) : fecha(e.fecha_facturacion),
       matricula: str(e.matricula),
       idTipoDeVenta: numNull(e.id_tipo_de_venta),
       idEstadoVehiculo: numNull(e.id_estado_vehiculo),
@@ -840,7 +841,8 @@ async function anadirCopiaV1(ej: Ejecutor, idAdmin: number, copia: CopiaV1, sel:
             fechaMatriculacion: fecha(e.fecha_matriculacion),
             fechaEntrega: fecha(e.fecha_entrega),
             fechaRci: fecha(e.fecha_rci),
-            fechaFacturacion: fecha(e.fecha_facturacion),
+            // Un usado de la app antigua contaba por su fecha de cobro: ahora cuenta por la de facturación
+      fechaFacturacion: e._clase === "VO" ? ((e.fecha_cobrado_nuevo as string | null) ?? fecha(e.fecha_facturacion)) : fecha(e.fecha_facturacion),
             matricula: str(e.matricula),
             idTipoDeVenta: mTipo.get(num(e.id_tipo_de_venta)) ?? null,
             idEstadoVehiculo: mEstado.get(num(e.id_estado_vehiculo)) ?? null,

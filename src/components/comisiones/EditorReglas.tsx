@@ -1,7 +1,9 @@
 "use client";
 
+import FechaConAtajos from "./FechaConAtajos";
+import SelectorVehiculo from "./SelectorVehiculo";
 import { BotonMini, InputCentesimas } from "./campos";
-import type { CatalogosComisiones, Regla } from "./tipos";
+import { nuevaClave, type CatalogosComisiones, type Regla } from "./tipos";
 
 const EVENTOS: { v: Regla["evento"]; t: string }[] = [
   { v: "pedido", t: "Pedido" },
@@ -10,6 +12,7 @@ const EVENTOS: { v: Regla["evento"]; t: string }[] = [
   { v: "cobro", t: "Cobro" },
   { v: "credito", t: "Crédito / financiación" },
   { v: "preference", t: "Preference" },
+  { v: "manual", t: "Manual (se elige en cada expediente)" },
 ];
 
 interface Props {
@@ -20,10 +23,12 @@ interface Props {
   visibles: (r: Regla) => boolean;
   nueva: () => Regla;
   etiquetaNueva: string;
+  /** Inicio y fin del plan: los botones «Plan» de las fechas los ponen. */
+  fechasPlan: { inicio: string; fin: string };
 }
 
 /** Lista editable de reglas / bonus / penalizaciones con evento, filtros y efecto (1.7): una fila por regla, con cada campo bajo su cabecera. */
-export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, etiquetaNueva }: Props) {
+export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, etiquetaNueva, fechasPlan }: Props) {
   const set = (i: number, c: Partial<Regla>) => onChange(reglas.map((r, j) => (j === i ? { ...r, ...c } : r)));
   const hay = reglas.some((r) => visibles(r));
   const esPenalizacion = nueva().esPenalizacion;
@@ -33,18 +38,18 @@ export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, e
         <table className="table-premium table-compact">
           <thead>
             <tr>
-              <th>Nombre</th>
-              <th>Evento</th>
-              <th>Vehículo</th>
-              <th>Tasa intervención</th>
-              <th>Válida desde</th>
-              <th>Válida hasta</th>
-              <th>Marca</th>
-              <th>Modelo</th>
-              <th>{esPenalizacion ? "Importe que resta (€)" : "Importe que suma (€)"}</th>
-              <th>Puntos al objetivo</th>
-              <th>Ligar a crédito</th>
-              <th>Activa</th>
+              <th title="Nombre de la regla; sale así en el desglose de comisiones y en la lista de bonus manuales de los expedientes">Nombre</th>
+              <th title="Cuándo se genera: en el mes de su evento (pedido, afectación, matriculación, cobro, crédito o Preference). «Manual»: solo en los expedientes en los que lo elijas a mano, en el mes en que cuenta el coche">Evento</th>
+              <th title="A qué coches afecta: nuevos, usados o un subtipo de usado">Vehículo</th>
+              <th title="Solo se aplica si la tasa de intervención financiera de la marca del coche está cumplida o no (indiferente = siempre)">Tasa intervención</th>
+              <th title="La regla solo vale si la fecha de su evento es posterior a esta (vacío = sin límite)">Válida desde</th>
+              <th title="La regla solo vale si la fecha de su evento es anterior a esta (vacío = sin límite)">Válida hasta</th>
+              <th title="Solo para coches de esta marca (todas = sin filtro)">Marca</th>
+              <th title="Solo para este modelo (todos = sin filtro)">Modelo</th>
+              <th title={esPenalizacion ? "Importe que se resta de la comisión del mes por cada coche que cumpla la regla" : "Importe que se suma a la comisión del mes por cada coche que cumpla la regla"}>{esPenalizacion ? "Importe que resta (€)" : "Importe que suma (€)"}</th>
+              <th title="Puntos que se suman al objetivo del mes por cada coche que cumpla la regla (pueden ser 0)">Puntos al objetivo</th>
+              <th title="Solo para el evento «Preference»: la regla solo cuenta si el expediente tiene también financiación a crédito (con Preference sola no se cobra)">Ligar a crédito</th>
+              <th title="Si la desmarcas, la regla se ignora al calcular comisiones">Activa</th>
               <th />
             </tr>
           </thead>
@@ -65,11 +70,7 @@ export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, e
                     </select>
                   </td>
                   <td>
-                    <select className="form-input" style={{ minWidth: "105px" }} value={r.tipoVehiculo} onChange={(e) => set(i, { tipoVehiculo: e.target.value as Regla["tipoVehiculo"] })}>
-                      <option value="cualquiera">Cualquiera</option>
-                      <option value="nuevo">Nuevo (VN)</option>
-                      <option value="usado">Usado (VO)</option>
-                    </select>
+                    <SelectorVehiculo estilo="regla" ancho="150px" valor={r.tipoVehiculo} alCambiar={(v) => set(i, { tipoVehiculo: v })} />
                   </td>
                   <td>
                     <select className="form-input" style={{ minWidth: "115px" }} value={r.tasaIntervencion} onChange={(e) => set(i, { tasaIntervencion: e.target.value as Regla["tasaIntervencion"] })}>
@@ -79,10 +80,10 @@ export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, e
                     </select>
                   </td>
                   <td>
-                    <input className="form-input" type="date" style={{ minWidth: "140px" }} value={r.fechaInicio ?? ""} onChange={(e) => set(i, { fechaInicio: e.target.value || null })} />
+                    <FechaConAtajos valor={r.fechaInicio} alCambiar={(v) => set(i, { fechaInicio: v })} fechaPlan={fechasPlan.inicio} cualDelPlan="inicio" />
                   </td>
                   <td>
-                    <input className="form-input" type="date" style={{ minWidth: "140px" }} value={r.fechaFin ?? ""} onChange={(e) => set(i, { fechaFin: e.target.value || null })} />
+                    <FechaConAtajos valor={r.fechaFin} alCambiar={(v) => set(i, { fechaFin: v })} fechaPlan={fechasPlan.fin} cualDelPlan="fin" />
                   </td>
                   <td>
                     <select className="form-input" style={{ minWidth: "105px" }} value={r.idMarca ?? ""} onChange={(e) => set(i, { idMarca: e.target.value ? Number(e.target.value) : null, idModelo: null })}>
@@ -120,7 +121,7 @@ export default function EditorReglas({ reglas, onChange, cat, visibles, nueva, e
                   </td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     <div style={{ display: "flex", gap: "6px" }}>
-                      <BotonMini titulo="Crea una copia de esta línea justo debajo, para cambiar solo lo que haga falta" onClick={() => onChange([...reglas.slice(0, i + 1), { ...r, nombre: r.nombre ? `${r.nombre} (copia)` : r.nombre }, ...reglas.slice(i + 1)])}>
+                      <BotonMini titulo="Crea una copia de esta línea justo debajo, para cambiar solo lo que haga falta" onClick={() => onChange([...reglas.slice(0, i + 1), { ...r, clave: nuevaClave(), nombre: r.nombre ? `${r.nombre} (copia)` : r.nombre }, ...reglas.slice(i + 1)])}>
                         Duplicar
                       </BotonMini>
                       <BotonMini peligro onClick={() => onChange(reglas.filter((_, j) => j !== i))}>

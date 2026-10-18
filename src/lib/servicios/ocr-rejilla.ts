@@ -162,12 +162,12 @@ export function celdasMatricula(g: Gris): Celda[] {
 }
 
 /** Recorte binarizado de la celda (tinta negra sobre blanco), sin los bordes de la tabla. */
-async function celdaBinaria(img: Buffer, c: Celda): Promise<{ datos: Buffer; ancho: number; alto: number }> {
+async function celdaBinaria(img: Buffer, c: Celda, umbral = 140): Promise<{ datos: Buffer; ancho: number; alto: number }> {
   const { data, info } = await sharp(img, { failOn: "none" })
     .extract({ left: c.x, top: c.y, width: c.ancho, height: c.alto })
     .grayscale()
     .normalise()
-    .threshold(140)
+    .threshold(umbral)
     .raw()
     .toBuffer({ resolveWithObject: true });
   return { datos: data, ancho: info.width, alto: info.height };
@@ -193,10 +193,10 @@ function segmentos(b: { datos: Buffer; ancho: number; alto: number }): { x0: num
 }
 
 /** Recorta un carácter suelto, con margen blanco y un tamaño cómodo para el OCR. */
-async function recorteCaracter(b: { datos: Buffer; ancho: number; alto: number }, s: { x0: number; x1: number }): Promise<Buffer> {
+async function recorteCaracter(b: { datos: Buffer; ancho: number; alto: number }, s: { x0: number; x1: number }, altura = 70): Promise<Buffer> {
   return sharp(b.datos, { raw: { width: b.ancho, height: b.alto, channels: 1 } })
     .extract({ left: s.x0, top: 0, width: s.x1 - s.x0 + 1, height: b.alto })
-    .resize({ height: 70, fit: "contain", background: "#ffffff" })
+    .resize({ height: altura, fit: "contain", background: "#ffffff" })
     .extend({ top: 16, bottom: 16, left: 16, right: 16, background: "#ffffff" })
     .png()
     .toBuffer();
@@ -231,6 +231,13 @@ async function recorteLinea(img: Buffer, c: Celda): Promise<Buffer> {
     .toBuffer();
 }
 
+/** Carácter más repetido (en empate, el primero que apareció). */
+function mayoria(chars: string[]): string {
+  const cuenta = new Map<string, number>();
+  for (const c of chars) cuenta.set(c, (cuenta.get(c) ?? 0) + 1);
+  return [...cuenta].sort((x, y) => y[1] - x[1])[0][0];
+}
+
 /** Lee las matrículas de una imagen de la rejilla (PNG/JPG). Prueba los giros habituales de un escáner. */
 export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoja> {
   for (const giro of [270, 90, 0, 180]) {
@@ -241,30 +248,43 @@ export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoj
     // Lectura 1: la celda entera como una línea. Lectura 2: carácter a carácter (cifras en las cuatro primeras
     // posiciones y consonantes en las tres últimas), que evita confusiones como 5/S o 0/O.
     const lineas = await ocrCeldas(await Promise.all(celdas.map((c) => recorteLinea(girada, c))), CARACTERES);
-    const porCaracter: string[] = [];
+    // Lecturas carácter a carácter con distinto umbral y tamaño: si una letra se confunde (P/D, 1/4…) las otras la corrigen por voto
+    const VARIANTES: { umbral: number; altura: number }[] = [
+      { umbral: 140, altura: 70 },
+      { umbral: 175, altura: 96 },
+      { umbral: 110, altura: 96 },
+      { umbral: 125, altura: 130 },
+      { umbral: 160, altura: 130 },
+      { umbral: 190, altura: 70 },
+    ];
+    const porCaracter: string[][] = [];
     for (const c of celdas) {
-      const bin = await celdaBinaria(girada, c);
-      const trozos = segmentos(bin);
-      if (trozos.length !== 7) {
-        porCaracter.push("");
-        continue;
+      const lecturas: string[] = [];
+      for (const v of VARIANTES) {
+        const bin = await celdaBinaria(girada, c, v.umbral);
+        const trozos = segmentos(bin);
+        if (trozos.length !== 7) continue;
+        const imgs = await Promise.all(trozos.map((t) => recorteCaracter(bin, t, v.altura)));
+        const cifras = await ocrCeldas(imgs.slice(0, 4), "0123456789", "caracter");
+        const letras = await ocrCeldas(imgs.slice(4), "BCDFGHJKLMNPRSTVWXYZ", "caracter");
+        lecturas.push([...cifras, ...letras].map((l) => l.texto.replace(/\s/g, "")).join(""));
       }
-      const imgs = await Promise.all(trozos.map((t) => recorteCaracter(bin, t)));
-      const cifras = await ocrCeldas(imgs.slice(0, 4), "0123456789", "caracter");
-      const letras = await ocrCeldas(imgs.slice(4), "BCDFGHJKLMNPRSTVWXYZ", "caracter");
-      porCaracter.push([...cifras, ...letras].map((l) => l.texto.replace(/\s/g, "")).join(""));
+      porCaracter.push(lecturas);
     }
     const matriculas: MatriculaLeida[] = [];
     const vistas = new Set<string>();
     for (let i = 0; i < celdas.length; i++) {
       const a = lineas[i].texto.replace(/\s/g, "").toUpperCase();
-      const b = porCaracter[i];
-      const validaA = MATRICULA.test(a);
-      const validaB = MATRICULA.test(b);
-      const reparada = validaA || validaB ? null : repararMatricula(a) ?? repararMatricula(b);
-      const elegida = validaA && validaB ? (a === b ? a : b) : validaB ? b : validaA ? a : reparada ?? (a || b);
+      const validas = [...(MATRICULA.test(a) ? [a] : []), ...porCaracter[i].filter((x) => MATRICULA.test(x))];
+      const b = porCaracter[i][0] ?? "";
+      // Voto por posición entre todas las lecturas válidas (la línea entera cuenta como una más)
+      const votada = validas.length > 0 ? [...validas[0]].map((_, k) => mayoria(validas.map((x) => x[k]))).join("") : "";
+      const unanimes = validas.length >= 2 && validas.every((x) => x === validas[0]);
+      const reparada = validas.length > 0 ? null : repararMatricula(a) ?? repararMatricula(b);
+      const elegida = validas.length > 0 ? (MATRICULA.test(votada) ? votada : validas[0]) : reparada ?? (a || b);
       const valida = MATRICULA.test(elegida);
-      const confianza = !valida ? 0 : reparada ? 40 : validaA && validaB && a === b ? 95 : validaA && validaB ? 55 : 70;
+      const acuerdo = validas.filter((x) => x === elegida).length;
+      const confianza = !valida ? 0 : reparada ? 40 : unanimes && validas.length >= 3 ? 98 : unanimes ? 95 : acuerdo >= 2 && acuerdo * 2 > validas.length ? 85 : validas.length === 1 ? 70 : 55;
       if (valida && vistas.has(elegida)) continue;
       if (valida) vistas.add(elegida);
       if (elegida.length >= 5) matriculas.push({ matricula: elegida, confianza, valida });

@@ -120,6 +120,15 @@ describe("actualizar y borrar expedientes", () => {
     expect(err.message).toBe("No se seleccionaron datos para modificar");
   });
 
+  it("la edición en lote establece la fecha de facturación de todos los seleccionados", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const a = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));
+    const b = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));
+    await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "lote", ids: [a.id_expediente, b.id_expediente], expediente: { fecha_facturacion: "2026-10-15" } }));
+    expect((await obtenerExpediente(db, a.id_expediente))?.fecha_facturacion).toBe("2026-10-15");
+    expect((await obtenerExpediente(db, b.id_expediente))?.fecha_facturacion).toBe("2026-10-15");
+  });
+
   it("la edición en lote cambia el tipo de venta solo de los ids indicados", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const a = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));
@@ -228,5 +237,17 @@ describe("integridad de datos de prueba", () => {
     expect(await db.select().from(marcas)).toHaveLength(0);
     expect(await db.select().from(modelos)).toHaveLength(0);
     expect(await db.select().from(expedientes)).toHaveLength(0);
+  });
+});
+
+describe("bonus manuales del expediente", () => {
+  it("guarda las claves de los bonus manuales elegidos y las devuelve", async () => {
+    const vendedor = await crearUsuarioPrueba("vendedor");
+    const exp = await crearExpediente(db, vendedor, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana Gil" }, expediente: { matricula: "5555XYZ" } }));
+    expect(exp.bonus_manuales).toEqual([]);
+    await actualizarExpedientes(db, vendedor, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: exp.id_expediente, expediente: { bonus_manuales: ["k-uno", "k-dos"] } }));
+    const [fila] = await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.id_expediente));
+    expect(fila.bonusManuales).toEqual(["k-uno", "k-dos"]);
+    expect((await obtenerExpediente(db, exp.id_expediente))?.bonus_manuales).toEqual(["k-uno", "k-dos"]);
   });
 });

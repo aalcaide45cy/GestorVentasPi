@@ -3,8 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
+import { datosVehiculoDeExpediente } from "@/components/expedientes/comun";
 import { useToast } from "@/components/Toast";
 import { mensajeDeError } from "@/components/expedientes/comun";
+import ModalCompletarDatos, { hayBorradorCompletar } from "@/components/expedientes/ModalCompletarDatos";
 import type { BloqueImportacionDto } from "@/lib/servicios/importaciones";
 
 interface Opcion {
@@ -52,6 +56,32 @@ function Cambios({ json }: { json: string | null }) {
   );
 }
 
+const columnasBaseRegistros: ColumnaTabla<Registro>[] = [
+  { clave: "cliente", etiqueta: "Cliente", valor: (r) => r.cliente_nombre, celda: (r) => <b>{r.cliente_nombre}</b> },
+  { clave: "dni", etiqueta: "DNI/NIF", valor: (r) => r.expediente?.cliente?.dni ?? "", celda: (r) => r.expediente?.cliente?.dni || r.bastidor || "N/D" },
+  { clave: "matricula", etiqueta: "Matrícula", valor: (r) => r.matricula || r.expediente?.matricula || "", celda: (r) => r.matricula || r.expediente?.matricula || "N/D" },
+  { clave: "bastidor", etiqueta: "Bastidor (VIN)", valor: (r) => r.bastidor || r.expediente?.vin || "", celda: (r) => <code style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.bastidor || r.expediente?.vin || "N/D"}</code> },
+  ...columnasVehiculo<Registro>((r) => datosVehiculoDeExpediente(r.expediente ?? null), { sin: ["tipoPago"], punto: true }),
+  {
+    clave: "accion",
+    etiqueta: "Acción",
+    valor: (r) => r.tipo_accion,
+    celda: (r) => (
+      <span
+        className={`badge ${r.tipo_accion === "creado" ? "badge-tienda" : r.tipo_accion === "modificado" ? "badge-vendedor" : ""}`}
+        style={{
+          fontSize: "0.75rem",
+          backgroundColor: r.tipo_accion === "creado" ? "rgba(59, 130, 246, 0.15)" : r.tipo_accion === "modificado" ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
+          color: r.tipo_accion === "creado" ? "var(--info)" : r.tipo_accion === "modificado" ? "var(--success)" : "var(--text-muted)",
+        }}
+      >
+        {r.tipo_accion.toUpperCase()}
+      </span>
+    ),
+  },
+  { clave: "cambios", etiqueta: "Cambios / Detalles", valor: (r) => r.cambios ?? "", celda: (r) => <div style={{ maxWidth: "350px", whiteSpace: "normal" }}><Cambios json={r.cambios} /></div> },
+];
+
 /** «Log de Importaciones»: historial de cargas CSV/Excel con corrección rápida de cada expediente. */
 export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
   const router = useRouter();
@@ -77,6 +107,12 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
   const [fAfect, setFAfect] = useState("");
   const [fMat, setFMat] = useState("");
   const [fEntrega, setFEntrega] = useState("");
+  // Importación de «Completar datos» que se dejó a medias en este navegador
+  const [pendiente, setPendiente] = useState(false);
+  const [retomando, setRetomando] = useState(false);
+  useEffect(() => {
+    void Promise.resolve().then(() => setPendiente(hayBorradorCompletar()));
+  }, [retomando]);
 
   const recargar = async () => {
     try {
@@ -105,7 +141,7 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
   }, []);
 
   const eliminarBloque = async (id: number) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este bloque de importación de los registros? Esto no deshará las importaciones de la base de datos, solo eliminará el historial del log.")) return;
+    if (!window.confirm("¿Quitar esta línea del historial? Los datos importados se quedan como están (para quitarlos usa «Deshacer importación»).")) return;
     try {
       const res = await fetch(`/api/importaciones?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al eliminar bloque"));
@@ -116,6 +152,44 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
       mostrar(e instanceof Error ? e.message : "Error de conexión al eliminar", "error");
     }
   };
+
+  /** Deshace de verdad una importación: elimina lo que creó y devuelve lo que cambió a su valor anterior. */
+  const deshacerBloque = async (b: BloqueImportacionDto) => {
+    if (!window.confirm(`¿Deshacer la importación «${b.nombre_archivo}»?
+
+• ${b.creados} expediente(s) creado(s) pasarán a eliminados.
+• ${b.modificados} expediente(s) modificado(s) volverán a los datos que tenían antes (si no se han vuelto a cambiar).
+
+Los clientes que se crearan con ella no se borran. Las comisiones se recalculan solas.`)) return;
+    try {
+      const res = await fetch("/api/importaciones/deshacer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: b.id }) });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se ha podido deshacer la importación"));
+      const { data } = (await res.json()) as { data: { eliminados: number; revertidos: number; conservados: string[] } };
+      setBloques((prev) => prev.filter((x) => x.id !== b.id));
+      if (abierto === b.id) setAbierto(null);
+      mostrar(`Importación deshecha: ${data.eliminados} expediente(s) eliminado(s), ${data.revertidos} dato(s) devuelto(s) a su valor anterior.${data.conservados.length > 0 ? ` ${data.conservados.length} no se tocaron porque se habían cambiado después.` : ""}`);
+      router.refresh();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "Error al deshacer la importación", "error");
+    }
+  };
+
+  const columnasRegistros: ColumnaTabla<Registro>[] = [
+    ...columnasBaseRegistros,
+    {
+      clave: "corregir",
+      etiqueta: "",
+      valor: () => "",
+      celda: (r) =>
+        r.id_expediente ? (
+          <button type="button" className="btn btn-secondary" onClick={() => abrirCorreccion(r)} style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+            ✏️ Corregir
+          </button>
+        ) : (
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>No editable</span>
+        ),
+    },
+  ];
 
   const abrirCorreccion = (r: Registro) => {
     const e = r.expediente;
@@ -241,6 +315,16 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
         </div>
       </div>
 
+      {pendiente && (
+        <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", borderLeft: "4px solid var(--warning)" }}>
+          <span>📥 Tienes una importación de «Completar datos» a medias: puedes retomarla donde la dejaste y cambiar lo que quieras antes de aplicarla.</span>
+          <button type="button" className="btn btn-primary" onClick={() => setRetomando(true)}>
+            Retomar importación
+          </button>
+        </div>
+      )}
+      {retomando && <ModalCompletarDatos alCerrar={() => setRetomando(false)} alAplicar={() => void recargar()} />}
+
       {cargando ? (
         <div className="glass-panel" style={{ padding: "40px", textAlign: "center" }}>
           <p style={{ color: "var(--text-secondary)" }}>Cargando historial de importaciones...</p>
@@ -281,6 +365,20 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
                       <span className="badge" style={{ backgroundColor: "rgba(255,255,255,0.05)", color: "var(--text-muted)" }}>{b.omitidos} Omitidos</span>
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
+                      {(b.creados > 0 || b.modificados > 0) && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            void deshacerBloque(b);
+                          }}
+                          style={{ padding: "6px 10px", fontSize: "0.8rem", color: "var(--warning)", border: "1px solid rgba(234, 179, 8, 0.35)" }}
+                          title="Elimina los expedientes que creó esta importación y devuelve los datos que cambió a su valor anterior"
+                        >
+                          ↩️ Deshacer importación
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -289,9 +387,9 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
                           void eliminarBloque(b.id);
                         }}
                         style={{ padding: "6px 10px", fontSize: "0.8rem", color: "var(--danger)", background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.1)" }}
-                        title="Eliminar registro"
+                        title="Quita solo esta línea del historial; no deshace nada en los datos"
                       >
-                        🗑️ Eliminar
+                        🗑️ Borrar del historial
                       </button>
                       <span style={{ transform: expandido ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
                     </div>
@@ -303,53 +401,15 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
                     {b.coincidentes.length === 0 ? (
                       <p style={{ color: "var(--text-muted)", fontStyle: "italic", textAlign: "center" }}>No hay registros coincidentes con los filtros aplicados en este bloque.</p>
                     ) : (
-                      <div style={{ overflowX: "auto" }}>
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>Cliente</th>
-                              <th>DNI/NIF</th>
-                              <th>Matrícula</th>
-                              <th>Bastidor (VIN)</th>
-                              <th>Acción</th>
-                              <th>Cambios / Detalles</th>
-                              <th style={{ width: "100px" }}>Acción</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {b.coincidentes.map((r) => (
-                              <tr key={r.id}>
-                                <td><div style={{ fontWeight: 600 }}>{r.cliente_nombre}</div></td>
-                                <td>{r.expediente?.cliente?.dni || r.bastidor || "N/D"}</td>
-                                <td>{r.matricula || r.expediente?.matricula || "N/D"}</td>
-                                <td><code style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.bastidor || r.expediente?.vin || "N/D"}</code></td>
-                                <td>
-                                  <span
-                                    className={`badge ${r.tipo_accion === "creado" ? "badge-tienda" : r.tipo_accion === "modificado" ? "badge-vendedor" : ""}`}
-                                    style={{
-                                      fontSize: "0.75rem",
-                                      backgroundColor: r.tipo_accion === "creado" ? "rgba(59, 130, 246, 0.15)" : r.tipo_accion === "modificado" ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                                      color: r.tipo_accion === "creado" ? "var(--info)" : r.tipo_accion === "modificado" ? "var(--success)" : "var(--text-muted)",
-                                    }}
-                                  >
-                                    {r.tipo_accion.toUpperCase()}
-                                  </span>
-                                </td>
-                                <td style={{ maxWidth: "350px" }}><Cambios json={r.cambios} /></td>
-                                <td>
-                                  {r.id_expediente ? (
-                                    <button type="button" className="btn btn-secondary" onClick={() => abrirCorreccion(r)} style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-                                      ✏️ Corregir
-                                    </button>
-                                  ) : (
-                                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>No editable</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <TablaDatos<Registro>
+                        id="log-importacion"
+                        columnas={columnasRegistros}
+                        filas={b.coincidentes}
+                        clave={(r) => r.id}
+                        placeholder="Buscar por cliente, matrícula, bastidor, acción…"
+                        textoExtra={(r) => r.cambios ?? ""}
+                        pie={(fs) => ({ cliente: `${fs.length} registro${fs.length === 1 ? "" : "s"}` })}
+                      />
                     )}
                   </div>
                 )}

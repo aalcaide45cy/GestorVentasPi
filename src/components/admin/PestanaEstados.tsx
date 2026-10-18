@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { EtiquetaClase, EtiquetaMarca, PuntoMarca } from "@/components/etiquetas";
+import SelectorColor from "@/components/SelectorColor";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import type { EstadoVehiculoDto } from "@/lib/dto";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
 
@@ -9,8 +12,41 @@ interface Props {
   setEstados: (fn: (prev: EstadoVehiculoDto[]) => EstadoVehiculoDto[]) => void;
 }
 
+const NUEVO_SUBTIPO = "__nuevo__";
+
+/**
+ * Subtipo de un estado usado: agrupa estados que comparten tarifa en la pestaña «Usados / VO» del plan (por ejemplo KM0, DEMO o
+ * BUYBACK). Se elige de la lista de los que ya existen o se escribe uno nuevo.
+ */
+function SelectorSubtipo({ valor, alCambiar, opciones, pequeno }: { valor: string; alCambiar: (v: string) => void; opciones: string[]; pequeno?: boolean }) {
+  const [escribiendo, setEscribiendo] = useState(false);
+  const estilo = { padding: "4px 8px", fontSize: pequeno ? "0.8rem" : "0.9rem" } as const;
+  if (escribiendo) {
+    return (
+      <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
+        <input className="form-input" autoFocus value={valor} onChange={(e) => alCambiar(e.target.value.toUpperCase())} placeholder="NUEVO SUBTIPO" style={{ ...estilo, width: "130px" }} title="Nombre del subtipo nuevo (se usará para sus tarifas en el plan)" />
+        <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => setEscribiendo(false)} title="Volver a la lista de subtipos">
+          ✕
+        </button>
+      </span>
+    );
+  }
+  const lista = valor && !opciones.includes(valor) ? [...opciones, valor] : opciones;
+  return (
+    <select className="form-input" value={valor} onChange={(e) => (e.target.value === NUEVO_SUBTIPO ? (alCambiar(""), setEscribiendo(true)) : alCambiar(e.target.value))} style={estilo} title="Subtipo de usado: estados con el mismo subtipo comparten tarifa en la pestaña «Usados / VO» del plan">
+      {lista.map((x) => (
+        <option key={x} value={x}>
+          {x}
+        </option>
+      ))}
+      <option value={NUEVO_SUBTIPO}>➕ Crear subtipo nuevo…</option>
+    </select>
+  );
+}
+
 /** Pestaña «Estados» del vehículo. Solo uno puede ser el predeterminado. */
 export default function PestanaEstados({ estados, setEstados }: Props) {
+  const router = useRouter();
   const { cargando, llamar, ejecutar } = usePeticion();
   const orden = useOrden("id");
   const [nombre, setNombre] = useState("");
@@ -18,7 +54,41 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState("");
   const [predeterminadoEdicion, setPredeterminadoEdicion] = useState(false);
+  const [color, setColor] = useState("");
+  const [clase, setClase] = useState<"VN" | "VO">("VN");
+  const [subtipo, setSubtipo] = useState("USADO");
+  const [claseEdicion, setClaseEdicion] = useState<"VN" | "VO">("VN");
+  const [subtipoEdicion, setSubtipoEdicion] = useState("USADO");
+  const [colorEdicion, setColorEdicion] = useState("");
+  /** Símbolos del punto que se están escribiendo en la tabla (se guardan al salir del campo). */
+  const [puntosEscritos, setPuntosEscritos] = useState<Record<number, string>>({});
 
+  // Subtipos que ya existen (los de los estados creados y los habituales): se eligen en una lista, o se crea uno nuevo
+  const [lista, setLista] = useState<{ nombre: string; estados: number; tarifas: number }[]>([]);
+  const [nuevoSubtipo, setNuevoSubtipo] = useState("");
+  const [renombrando, setRenombrando] = useState<{ de: string; a: string } | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/admin/subtipos-vo");
+        if (r.ok && vigente) setLista(((await r.json()) as { data: { nombre: string; estados: number; tarifas: number }[] }).data);
+      } catch {
+        /* se usan los de los estados */
+      }
+    })();
+    return () => {
+      vigente = false;
+    };
+  }, [estados]);
+  const subtipos = [...new Set([...lista.map((s) => s.nombre), ...estados.map((e) => e.subtipo_vo).filter((x): x is string => !!x)])];
+  const gestionar = async (metodo: "POST" | "PUT" | "DELETE", cuerpo: object, exito: string) => {
+    const ok = await ejecutar(async () => {
+      setLista(await llamar<typeof lista>("/api/admin/subtipos-vo", metodo, cuerpo, "No se ha podido guardar el subtipo"));
+    }, exito);
+    if (ok && metodo === "PUT") router.refresh();
+    return ok;
+  };
   const valor = (e: EstadoVehiculoDto): string | number => (orden.campo === "nombre" ? e.nombre_estado_vehiculo : e.id_estado_vehiculo);
   const ordenados = [...estados].sort((a, b) => comparar(valor(a), valor(b), orden.asc));
 
@@ -29,12 +99,13 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
   const crear = async (ev: FormEvent) => {
     ev.preventDefault();
     const ok = await ejecutar(async () => {
-      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "POST", { tipo: "estado_vehiculo", nombre_estado_vehiculo: nombre, predeterminado }, "Error al crear el estado");
+      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "POST", { tipo: "estado_vehiculo", nombre_estado_vehiculo: nombre, predeterminado, color: color || null, clase, subtipo_vo: clase === "VO" ? subtipo.trim().toUpperCase() || "USADO" : null }, "Error al crear el estado");
       setEstados((prev) => [...(n.predeterminado ? prev.map((e) => ({ ...e, predeterminado: false })) : prev), n]);
     }, "Estado de vehículo creado con éxito");
     if (ok) {
       setNombre("");
       setPredeterminado(false);
+      setColor("");
     }
   };
 
@@ -45,7 +116,7 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
       const n = await llamar<EstadoVehiculoDto>(
         "/api/admin/catalogos",
         "PUT",
-        { tipo: "estado_vehiculo", id: editando, nombre_estado_vehiculo: nombreEdicion, predeterminado: predeterminadoEdicion },
+        { tipo: "estado_vehiculo", id: editando, nombre_estado_vehiculo: nombreEdicion, predeterminado: predeterminadoEdicion, color: colorEdicion || null, clase: claseEdicion, subtipo_vo: claseEdicion === "VO" ? subtipoEdicion.trim().toUpperCase() || "USADO" : null },
         "Error al actualizar el estado",
       );
       aplicar(n);
@@ -53,12 +124,26 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
     if (ok) setEditando(null);
   };
 
+  /** Cambia el aspecto del estado (cápsula, punto y quién prevalece) al momento; los demás datos no se tocan. */
+  const cambiarAspecto = (e: EstadoVehiculoDto, cambios: { capsula_color?: string | null; punto?: string | null; punto_color?: string | null; prevalece?: "marca" | "estado" }) =>
+    ejecutar(async () => {
+      const n = await llamar<EstadoVehiculoDto>("/api/admin/catalogos", "PUT", { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: e.nombre_estado_vehiculo, predeterminado: !!e.predeterminado, clase: e.clase === "VO" ? "VO" : "VN", subtipo_vo: e.subtipo_vo, ...cambios }, "Error al guardar el aspecto del estado");
+      aplicar(n);
+    }, `Aspecto de «${e.nombre_estado_vehiculo}» actualizado`);
+
+  const guardarPuntoEscrito = (e: EstadoVehiculoDto) => {
+    const escrito = puntosEscritos[e.id_estado_vehiculo];
+    if (escrito === undefined) return;
+    setPuntosEscritos((p) => Object.fromEntries(Object.entries(p).filter(([k]) => Number(k) !== e.id_estado_vehiculo)));
+    if ((escrito.trim() || null) !== (e.punto ?? null)) void cambiarAspecto(e, { punto: escrito.trim() || null });
+  };
+
   const alternarPredeterminado = (e: EstadoVehiculoDto) =>
     ejecutar(async () => {
       const n = await llamar<EstadoVehiculoDto>(
         "/api/admin/catalogos",
         "PUT",
-        { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: e.nombre_estado_vehiculo, predeterminado: !e.predeterminado },
+        { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: e.nombre_estado_vehiculo, predeterminado: !e.predeterminado, clase: e.clase === "VO" ? "VO" : "VN", subtipo_vo: e.subtipo_vo },
         "Error al actualizar el estado",
       );
       aplicar(n);
@@ -82,6 +167,28 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
           <input type="checkbox" id="chkNuevoEstadoPredeterminado" checked={predeterminado} onChange={(e) => setPredeterminado(e.target.checked)} style={estiloCheck} />
           <label htmlFor="chkNuevoEstadoPredeterminado" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }}>Predeterminado</label>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Nuevo (VN) o Usado (VO). Usado, KM0, Demo y Buyback son coches usados: el sistema usa esto para distinguir nuevos de usados en comisiones y puntos">
+          Tipo
+          <select className="form-input" value={clase} onChange={(e) => setClase(e.target.value as "VN" | "VO")} style={{ padding: "4px 8px" }}>
+            <option value="VN">Nuevo (VN)</option>
+            <option value="VO">Usado (VO)</option>
+          </select>
+        </label>
+        {clase === "VO" && (
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Subtipo para las tarifas de usados del plan (USADO, KM0, DEMO, BUYBACK…)">
+            Subtipo
+            <SelectorSubtipo valor={subtipo} alCambiar={setSubtipo} opciones={subtipos} />
+          </label>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", fontWeight: 600 }} title="Color de la etiqueta de este estado en las listas. Si no eliges ninguno se usa el de siempre">
+          Color
+          <input type="color" value={color || "#3b82f6"} onChange={(e) => setColor(e.target.value)} style={{ width: "36px", height: "28px", padding: 0, border: "none", background: "none", cursor: "pointer" }} />
+          {color && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => setColor("")} title="Quitar el color elegido">
+              ✕
+            </button>
+          )}
+        </label>
         <button type="submit" className="btn btn-primary" disabled={cargando}>
           + Crear Estado
         </button>
@@ -92,6 +199,11 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
           <thead>
             <tr>
               <Cabecera etiqueta="Nombre Estado" campo="nombre" orden={orden} />
+              <th>Tipo</th>
+              <th>Color</th>
+              <th title="Borde de la cápsula que rodea la marca y el modelo de los coches con este estado">Cápsula</th>
+              <th title="Símbolo y color del punto de los coches con este estado">Punto</th>
+              <th title="Si la marca y el estado tienen color, cuál manda: el de la marca o el de este estado. El que no manda rellena lo que falte">Prevalece</th>
               <th>Predeterminado</th>
               <th>Acciones</th>
             </tr>
@@ -115,6 +227,59 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                   )}
                 </td>
                 <td>
+                  {editando === e.id_estado_vehiculo ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <select className="form-input" value={claseEdicion} onChange={(ev) => setClaseEdicion(ev.target.value as "VN" | "VO")} style={{ padding: "4px 8px", fontSize: "0.8rem" }}>
+                        <option value="VN">Nuevo (VN)</option>
+                        <option value="VO">Usado (VO)</option>
+                      </select>
+                      {claseEdicion === "VO" && <SelectorSubtipo valor={subtipoEdicion} alCambiar={setSubtipoEdicion} opciones={subtipos} pequeno />}
+                    </span>
+                  ) : (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <EtiquetaClase clase={e.clase === "VO" ? "VO" : "VN"} />
+                      {e.clase === "VO" && e.subtipo_vo && <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{e.subtipo_vo}</span>}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {editando === e.id_estado_vehiculo ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <input type="color" value={colorEdicion || "#3b82f6"} onChange={(ev) => setColorEdicion(ev.target.value)} style={{ width: "36px", height: "28px", padding: 0, border: "none", background: "none", cursor: "pointer" }} title="Color de la etiqueta de este estado" />
+                      {colorEdicion && (
+                        <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => setColorEdicion("")} title="Quitar el color y usar el de siempre">
+                          ✕
+                        </button>
+                      )}
+                    </span>
+                  ) : e.color ? (
+                    <span className="badge" style={{ background: e.color, color: "#fff", padding: "3px 10px", fontSize: "0.72rem" }}>
+                      {e.nombre_estado_vehiculo}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>por defecto</span>
+                  )}
+                </td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    <SelectorColor valor={e.capsula_color} alCambiar={(v) => void cambiarAspecto(e, { capsula_color: v })} disabled={cargando} titulo={`Borde de la cápsula de los coches «${e.nombre_estado_vehiculo}»`} />
+                    {e.capsula_color && <EtiquetaMarca texto="Marca Modelo" color={e.capsula_color} />}
+                  </div>
+                </td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    <input type="text" className="form-input" maxLength={8} placeholder="●" value={puntosEscritos[e.id_estado_vehiculo] ?? e.punto ?? ""} onChange={(ev) => setPuntosEscritos((p) => ({ ...p, [e.id_estado_vehiculo]: ev.target.value }))} onBlur={() => guardarPuntoEscrito(e)} disabled={cargando} style={{ width: "60px", textAlign: "center", padding: "4px" }} title="Símbolo del punto: un punto, una coma, un emoticono… Vacío = un punto" />
+                    <SelectorColor valor={e.punto_color} alCambiar={(v) => void cambiarAspecto(e, { punto_color: v })} disabled={cargando} titulo={`Color del punto de los coches «${e.nombre_estado_vehiculo}»`} textoVacio={<span style={{ color: "var(--text-muted)" }}>sin color</span>} />
+                    {(e.punto_color || e.punto) && <PuntoMarca punto={e.punto} color={e.punto_color} />}
+                  </div>
+                </td>
+                <td>
+                  <select className="form-input" value={e.prevalece} onChange={(ev) => void cambiarAspecto(e, { prevalece: ev.target.value === "estado" ? "estado" : "marca" })} disabled={cargando} style={{ padding: "4px 8px", fontSize: "0.8rem" }} title="Si la marca y el estado tienen color, cuál manda">
+                    <option value="marca">El de la marca</option>
+                    <option value="estado">El de este estado</option>
+                  </select>
+                </td>
+                <td>
                   <div onClick={() => void alternarPredeterminado(e)} style={{ cursor: "pointer", display: "inline-block" }}>
                     {e.predeterminado ? (
                       <span className="badge" style={{ background: "rgba(16, 185, 129, 0.2)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "4px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold" }}>
@@ -136,6 +301,9 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
                         setEditando(e.id_estado_vehiculo);
                         setNombreEdicion(e.nombre_estado_vehiculo);
                         setPredeterminadoEdicion(!!e.predeterminado);
+                        setColorEdicion(e.color ?? "");
+                        setClaseEdicion(e.clase === "VO" ? "VO" : "VN");
+                        setSubtipoEdicion(e.subtipo_vo ?? "USADO");
                       }}
                       style={{ padding: "6px 12px", fontSize: "0.8rem" }}
                     >
@@ -150,6 +318,62 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ ...estiloPanel, display: "flex", flexDirection: "column", gap: "12px" }}>
+        <h3 style={{ fontSize: "1.05rem" }}>Subtipos de usados</h3>
+        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+          Un subtipo agrupa estados de coche usado que cobran con la misma tarifa en el plan (por ejemplo KM0, DEMO o BUYBACK). Aquí los creas, les cambias el nombre (se cambia también en los estados y en las tarifas de los planes) o los borras si no se usan.
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {lista.map((s) => (
+            <span key={s.nombre} style={{ display: "inline-flex", alignItems: "center", gap: "6px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 10px", fontSize: "0.85rem" }}>
+              {renombrando?.de === s.nombre ? (
+                <>
+                  <input className="form-input" autoFocus value={renombrando.a} onChange={(e) => setRenombrando({ de: s.nombre, a: e.target.value.toUpperCase() })} style={{ width: "120px", padding: "2px 6px" }} />
+                  <button type="button" className="btn btn-primary" style={{ padding: "2px 8px", fontSize: "0.75rem" }} disabled={cargando || !renombrando.a.trim()} onClick={() => void gestionar("PUT", { de: s.nombre, a: renombrando.a }, "Subtipo renombrado")}>
+                    Guardar
+                  </button>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.75rem" }} onClick={() => setRenombrando(null)}>
+                    ✕
+                  </button>
+                </>
+              ) : (
+                <>
+                  <b>{s.nombre}</b>
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }} title="Estados del vehículo y tarifas de planes que lo usan">
+                    {s.estados} estado(s) · {s.tarifas} tarifa(s)
+                  </span>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.75rem" }} onClick={() => setRenombrando({ de: s.nombre, a: s.nombre })} title="Cambiar el nombre">
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ ...estiloBotonPeligro, padding: "2px 8px", fontSize: "0.75rem" }}
+                    disabled={cargando || s.estados > 0 || s.tarifas > 0}
+                    onClick={() => void gestionar("DELETE", { nombre: s.nombre }, "Subtipo eliminado")}
+                    title={s.estados > 0 || s.tarifas > 0 ? "No se puede borrar mientras lo use un estado o una tarifa" : "Borrar el subtipo"}
+                  >
+                    🗑️
+                  </button>
+                </>
+              )}
+            </span>
+          ))}
+        </div>
+        <form
+          style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}
+          onSubmit={async (ev) => {
+            ev.preventDefault();
+            if (await gestionar("POST", { nombre: nuevoSubtipo }, "Subtipo creado")) setNuevoSubtipo("");
+          }}
+        >
+          <input className="form-input" placeholder="Nuevo subtipo (ej. RENTING)" value={nuevoSubtipo} onChange={(e) => setNuevoSubtipo(e.target.value.toUpperCase())} style={{ minWidth: "220px" }} maxLength={30} />
+          <button type="submit" className="btn btn-primary" disabled={cargando || !nuevoSubtipo.trim()}>
+            + Añadir subtipo
+          </button>
+        </form>
       </div>
     </div>
   );

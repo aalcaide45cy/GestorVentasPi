@@ -1,5 +1,7 @@
 "use client";
 
+import { useCarga } from "@/components/comisiones/useCarga";
+import type { BonusManual } from "@/lib/servicios/planes";
 import { useEffect, useState } from "react";
 import { InputCentesimas } from "@/components/comisiones/campos";
 import { llamar } from "@/components/comisiones/api";
@@ -9,7 +11,7 @@ export interface ConceptoForm {
   titulo: string;
   importe_centimos: number;
   descripcion: string;
-  evento: "afectacion" | "matriculacion" | "cobro";
+  evento: "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro";
   cobrado: boolean;
 }
 
@@ -19,6 +21,8 @@ export interface ComisionForm {
   comision_coche_manual: number | null;
   comision_financiacion_manual: number | null;
   conceptos: ConceptoForm[];
+  /** Claves de los bonus «manuales» del plan elegidos para este expediente. */
+  bonus_manuales: string[];
 }
 
 /** Datos del formulario que necesita el simulador (tal como están en pantalla, aunque no estén guardados). */
@@ -34,6 +38,7 @@ export interface ContextoSimulacion {
   fecha_matriculacion: string | null;
   /** En un VN cuenta la facturación (por defecto igual a la matriculación). */
   fecha_facturacion: string | null;
+  fecha_entrega?: string | null;
   fecha_cobrado: string | null;
   cobrado_otra_fecha: boolean;
 }
@@ -47,11 +52,66 @@ interface Desglose {
   mes: string | null;
   aviso: string | null;
   hayPlan: boolean;
+  idPlan?: number | null;
+  nombrePlan?: string | null;
   tramo: number | null;
   puntosMes: number | null;
   objetivoX: number | null;
   linea: { importe: number; puntos: number; conceptos: { concepto: string; descripcion: string; importe: number; puntos: number; aviso?: string }[] } | null;
   avisos: string[];
+}
+
+/** Pestaña del plan donde se define cada tipo de línea del desglose. */
+const PESTANA_DE_CONCEPTO: Record<string, string> = {
+  coche_vn: "modelos",
+  vo: "usados",
+  financiacion: "reglas",
+  preference: "reglas",
+  regla: "bonus",
+  puntos_coche: "modelos",
+  puntos_pedido: "objetivo",
+  puntos_regla: "bonus",
+};
+
+/**
+ * Bonus del plan con evento «Manual»: se marcan los que se aplican a este expediente (el bonus suma, o resta si es una penalización,
+ * en el mes en que cuenta el coche). Los bonus con otros eventos se aplican solos y no salen aquí.
+ */
+function BonusManuales({ elegidos, alCambiar }: { elegidos: string[]; alCambiar: (b: string[]) => void }) {
+  const { datos: lista } = useCarga<BonusManual[]>("/api/comisiones/bonus-manuales", []);
+  const claves = new Set(lista.map((b) => b.clave));
+  const huerfanos = elegidos.filter((c) => !claves.has(c));
+  const alternar = (clave: string, marcado: boolean) => alCambiar(marcado ? [...elegidos.filter((c) => c !== clave), clave] : elegidos.filter((c) => c !== clave));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <h3 style={{ fontSize: "1rem" }} title="Bonus del plan de comisionamiento cuyo evento es «Manual»: solo se aplican a los expedientes en los que los marcas aquí">
+        Bonus del plan (manuales)
+      </h3>
+      {lista.length === 0 && elegidos.length === 0 ? (
+        <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-muted)" }}>No hay bonus manuales en los planes. Crea uno en Comisiones › Bonus con el evento «Manual» y aparecerá aquí.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {lista.map((b) => (
+            <label key={b.clave} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }} title={`Bonus «${b.nombre}» del plan «${b.plan}»: se aplica a este expediente si lo marcas`}>
+              <input type="checkbox" checked={elegidos.includes(b.clave)} onChange={(e) => alternar(b.clave, e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+              <span style={{ fontWeight: 600 }}>{b.nombre}</span>
+              <span style={{ fontSize: "0.82rem", color: b.esPenalizacion ? "var(--danger)" : "var(--text-secondary)" }}>
+                {b.esPenalizacion ? "−" : "+"}
+                {euros(b.importe)}
+                {b.puntos !== 0 ? ` · ${puntos(b.puntos)} pts` : ""} · plan «{b.plan}»
+              </span>
+            </label>
+          ))}
+          {huerfanos.map((c) => (
+            <label key={c} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", color: "var(--warning)" }} title="Este bonus elegido ya no existe en ningún plan abierto (se borró, está inactivo o su plan está cerrado)">
+              <input type="checkbox" checked onChange={() => alternar(c, false)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+              <span>Bonus que ya no está en el plan (desmárcalo para quitarlo)</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export const comisionInicial = (e: {
@@ -60,12 +120,14 @@ export const comisionInicial = (e: {
   comision_coche_manual: number | null;
   comision_financiacion_manual: number | null;
   conceptos_especiales: ConceptoForm[];
+  bonus_manuales?: string[];
 }): ComisionForm => ({
   puntos: e.puntos,
   id_promocion: e.id_promocion,
   comision_coche_manual: e.comision_coche_manual,
   comision_financiacion_manual: e.comision_financiacion_manual,
   conceptos: e.conceptos_especiales,
+  bonus_manuales: e.bonus_manuales ?? [],
 });
 
 /** Bloque «Comisionamiento» del expediente + «Desglose Estimado de Comisión» (mismo motor que la liquidación). */
@@ -107,12 +169,14 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           fecha_rci: contexto.fecha_rci,
           fecha_matriculacion: contexto.fecha_matriculacion,
           fecha_facturacion: contexto.fecha_facturacion,
+          fecha_entrega: contexto.fecha_entrega ?? null,
           fecha_cobrado: contexto.fecha_cobrado,
           cobrado_otra_fecha: contexto.cobrado_otra_fecha,
           puntos: valor.puntos,
           id_promocion: valor.id_promocion,
           comision_coche_manual: valor.comision_coche_manual,
           comision_financiacion_manual: valor.comision_financiacion_manual,
+          bonus_manuales: valor.bonus_manuales,
           conceptos_especiales: valor.conceptos.map((c) => ({ titulo: c.titulo, importe_centimos: c.importe_centimos, evento: c.evento })),
         },
       })
@@ -165,6 +229,8 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
         </div>
       </div>
 
+      <BonusManuales elegidos={valor.bonus_manuales} alCambiar={(b) => set({ bonus_manuales: b })} />
+
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 style={{ fontSize: "1rem" }}>Conceptos especiales</h3>
@@ -179,9 +245,14 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
               <input className="form-input" style={{ flex: "1 1 200px" }} placeholder="Título (p. ej. Bonus Rappel)" value={c.titulo} onChange={(e) => cambiar({ titulo: e.target.value })} />
               <InputCentesimas valor={c.importe_centimos} sufijo="€" onChange={(v) => cambiar({ importe_centimos: v ?? 0 })} />
               <select className="form-input" style={{ width: "auto" }} value={c.evento} onChange={(e) => cambiar({ evento: e.target.value as ConceptoForm["evento"] })}>
-                <option value="matriculacion">Evento principal (matriculación / cobro)</option>
-                <option value="afectacion">Afectación</option>
-                <option value="cobro">Cobro</option>
+                <option value="matriculacion">Evento principal (el mes en que cuenta el coche)</option>
+                <option value="pedido">Fecha de pedido (expediente)</option>
+                <option value="afectacion">Fecha de afectación</option>
+                <option value="rci">Fecha RCI</option>
+                <option value="fecha_matriculacion">Fecha de matriculación</option>
+                <option value="facturacion">Fecha de facturación</option>
+                <option value="entrega">Fecha de entrega</option>
+                <option value="cobro">Fecha de cobro</option>
               </select>
               <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => set({ conceptos: valor.conceptos.filter((_, j) => j !== i) })}>
                 Quitar
@@ -207,6 +278,17 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
                   <tr key={i}>
                     <td>
                       {c.descripcion}
+                      {desglose.idPlan && PESTANA_DE_CONCEPTO[c.concepto] && (
+                        <a
+                          href={`/dashboard/comisiones?plan=${desglose.idPlan}&tab=${PESTANA_DE_CONCEPTO[c.concepto]}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ marginLeft: "8px", fontSize: "0.78rem", color: "var(--primary)" }}
+                          title={`Abre el plan «${desglose.nombrePlan ?? ""}» en la pestaña donde se define esta regla (en otra pestaña, sin perder lo que estás editando)`}
+                        >
+                          Ver regla ↗
+                        </a>
+                      )}
                       {c.aviso && <div style={{ color: "var(--warning)", fontSize: "0.8rem" }}>⚠️ {c.aviso}</div>}
                     </td>
                     <td style={{ textAlign: "right" }}>{c.puntos ? `${puntos(c.puntos)} pts` : ""}</td>

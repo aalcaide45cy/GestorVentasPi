@@ -32,6 +32,8 @@ interface Props {
   /** Vendedor elegido en el filtro de la lista (nombre); vacío = todos. Las cifras y las comisiones son las suyas. */
   vendedor: string;
   esAdministrador: boolean;
+  /** Oculta el panel de cartera (pedidos del mes), por ejemplo en Cotejo de pagos. */
+  sinCartera?: boolean;
 }
 
 const enMes = (fecha: string | null, anio: number, mes: number) => {
@@ -56,7 +58,7 @@ function mesGuardado(guardado: string | null, hoy: Date): { anio: number; mes: n
  * «Detalle y Resumen Estadístico»: recuentos del mes elegido.
  * Puntos, tramo y comisión estimada salen del motor de comisiones (el mismo que la liquidación).
  */
-export default function ResumenMensual({ expedientes: todos, anios, vendedor, esAdministrador }: Props) {
+export default function ResumenMensual({ expedientes: todos, anios, vendedor, esAdministrador, sinCartera }: Props) {
   const hoy = new Date();
   // El mes elegido se recuerda en este navegador: al volver de otra pantalla sigue el último que se puso
   const [guardado, guardarMes] = usePreferencia("exp-resumen-mes");
@@ -101,7 +103,8 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
       const esPref = categoria === "PREFERENCE";
       const esCredito = categoria === "CREDITO" || categoria === "RENTING";
       const estado = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() ?? "";
-      const esVn = estado === "nuevo" || estado === "demo";
+      // Nuevo o usado lo decide la clase del estado (Configuración › Estados): demo, KM0, buyback… son usados
+      const esVn = e.estadoVehiculo ? e.estadoVehiculo.clase === "VN" : estado === "nuevo";
       const fechaMat = e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion;
 
       if (enMes(fechaMat, anio, mes)) {
@@ -245,16 +248,44 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
         <div className="glass-panel-interactive" {...tarjeta("financiados")}>
           <span style={estiloEtiqueta}>TASA INT. FINANCIERA</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>
-            {r.vn > 0 ? `${((r.vnFinanciados / r.vn) * 100).toFixed(1)}%` : "0.0%"}
+          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: m && m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)", fontWeight: "bold" }}>
+            {m ? (m.tasaGlobal.porcentaje !== null ? `${m.tasaGlobal.porcentaje.toFixed(1)}%` : "—") : r.vn > 0 ? `${((r.vnFinanciados / r.vn) * 100).toFixed(1)}%` : "0.0%"}
           </h3>
           <div style={estiloPie}>
-            <span>VN Finan/Total:</span>
+            <span>{m ? "Global (todos los nuevos):" : "VN Finan/Total:"}</span>
             <strong>
-              {r.vnFinanciados}/{r.vn}
+              {m ? `${m.tasaGlobal.numerador}/${m.tasaGlobal.denominador}${m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? " ✔" : " ✘") : ""}` : `${r.vnFinanciados}/${r.vn}`}
             </strong>
           </div>
+          {m && m.tasaIntervencion.length > 0 && (
+            <div style={{ ...estiloPie, flexDirection: "column", alignItems: "stretch", gap: "2px", marginTop: "4px" }}>
+              {m.tasaIntervencion.map((t) => (
+                <span key={t.idMarca} style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                  <span>{expedientes.find((e) => e.modelo?.marca?.id_marca === t.idMarca)?.modelo?.marca?.nombre ?? `Marca ${t.idMarca}`}:</span>
+                  <strong>
+                    {t.numerador}/{t.denominador}
+                    {t.porcentaje !== null ? ` (${t.porcentaje.toFixed(1)}%)` : ""} {t.cumplida ? "✔" : "✘"}
+                  </strong>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+        {m && (
+          <div className="glass-panel-interactive" style={estiloTarjeta}>
+            <span style={estiloEtiqueta}>TASA INT. FINANCIERA USADOS</span>
+            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)", fontWeight: "bold" }}>
+              {m.tasaVo.porcentaje !== null ? `${m.tasaVo.porcentaje.toFixed(1)}%` : "—"}
+            </h3>
+            <div style={estiloPie}>
+              <span>VO Finan/Total:</span>
+              <strong>
+                {m.tasaVo.numerador}/{m.tasaVo.denominador}
+                {m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? " ✔" : " ✘") : ""}
+              </strong>
+            </div>
+          </div>
+        )}
         <div className="glass-panel-interactive" {...tarjeta("pedidos")}>
           <span style={estiloEtiqueta}>PEDIDOS EN EL MES</span>
           <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--warning)", fontWeight: "bold" }}>{r.pedidos}</h3>
@@ -347,7 +378,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
       )}
     </div>
     <PanelComisiones anio={anio} mes={mes} expedientes={expedientes} usuario={vendedor && idVendedor ? idVendedor : undefined} />
-    <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />
+    {!sinCartera && <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />}
     </>
   );
 }

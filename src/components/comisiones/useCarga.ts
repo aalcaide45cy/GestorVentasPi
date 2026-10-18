@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
+import { useVersionDatos } from "@/lib/datos-version";
 import { llamar, textoError } from "./api";
 
 /**
@@ -12,6 +13,7 @@ export function useCarga<T>(url: string | null, inicial: T): { datos: T; recarga
   const { mostrar } = useToast();
   const [datos, setDatos] = useState<T>(inicial);
   const [version, setVersion] = useState(0);
+  const versionDatos = useVersionDatos();
 
   useEffect(() => {
     if (url === null) return;
@@ -26,7 +28,7 @@ export function useCarga<T>(url: string | null, inicial: T): { datos: T; recarga
     return () => {
       vivo = false;
     };
-  }, [url, version, mostrar]);
+  }, [url, version, versionDatos, mostrar]);
 
   return { datos, recargar: () => setVersion((v) => v + 1) };
 }

@@ -14,8 +14,13 @@ export type Fecha = string;
 
 export type Clase = "VN" | "VO";
 export type CategoriaVenta = "CONTADO" | "CREDITO" | "PREFERENCE" | "RENTING";
-export type EventoRegla = "pedido" | "afectacion" | "matriculacion" | "cobro" | "credito" | "preference";
-export type EventoConcepto = "afectacion" | "matriculacion" | "cobro";
+/** «manual»: la regla solo se aplica a los expedientes en los que se ha elegido a mano. */
+export type EventoRegla = "pedido" | "afectacion" | "matriculacion" | "cobro" | "credito" | "preference" | "manual";
+/**
+ * Fecha del expediente que decide en qué mes cuenta un concepto especial: pedido (fecha de expediente), afectación, RCI,
+ * matriculación (la real), facturación, entrega o cobro. «matriculacion» es el evento principal: el mes en que cuenta el coche.
+ */
+export type EventoConcepto = "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro";
 
 export interface ConceptoEspecialMotor {
   titulo: string;
@@ -33,6 +38,8 @@ export interface ExpedienteMotor {
   idMarca: number | null;
   idModelo: number | null;
   categoriaVenta: CategoriaVenta | null;
+  /** El tipo de pago del expediente suma a la tasa de intervención. Sin valor, cuentan Crédito, Preference y Renting. */
+  cuentaParaTasa?: boolean;
   fechaExpediente: Fecha | null;
   fechaAfectacion: Fecha | null;
   fechaRci: Fecha | null;
@@ -42,6 +49,8 @@ export interface ExpedienteMotor {
    * la de matriculación, pero se puede cambiar a mano). Sin facturación, cuenta la matriculación.
    */
   fechaFacturacion?: Fecha | null;
+  /** Fecha de entrega del coche al cliente (solo para los conceptos especiales). */
+  fechaEntrega?: Fecha | null;
   /** `fecha_cobrado` del expediente. */
   fechaCobro: Fecha | null;
   cobradoOtraFecha: boolean;
@@ -51,6 +60,8 @@ export interface ExpedienteMotor {
   comisionCocheManual: Centimos | null;
   comisionFinanciacionManual: Centimos | null;
   conceptosEspeciales: ConceptoEspecialMotor[];
+  /** Claves de los bonus «manuales» del plan elegidos para este expediente. */
+  bonusManuales?: string[];
 }
 
 export interface VendedorMotor {
@@ -88,6 +99,8 @@ export interface TarifaUsadoMotor {
 export interface PatronVoMotor {
   nombre: string;
   aplicaAVn: boolean;
+  /** Rotativo: tras el último escalón se vuelve al primero. Si no, se repite el último. */
+  rotativo?: boolean;
   activo?: boolean;
   tiers: { unidad: number; importe: Centimos }[];
 }
@@ -95,8 +108,23 @@ export interface PatronVoMotor {
 export interface FinanciacionMotor {
   idMarca: number;
   tipo: CategoriaVenta;
+  /** A qué coches se aplica (por defecto, los nuevos). */
+  aplicaA?: string;
   importe: Centimos;
+  /** Solo se cobra si la tasa de intervención está cumplida / no cumplida (por defecto, siempre). */
+  tasaIntervencion?: CondicionTasa;
+  /** Qué tasa se mira (por defecto, la de la marca del coche). */
+  tasaAmbito?: AmbitoTasa;
+  /** Columna de comisiones a la que va el importe («financiacion», «preference» o «extra:Nombre»); vacío = la habitual. */
+  concepto?: string;
+  /** Si tiene valor, la condición de la tasa compara la tasa real (%) con este valor en vez de con el objetivo del plan. */
+  tasaUmbral?: number | null;
 }
+
+/** Condición sobre la tasa de intervención financiera. */
+export type CondicionTasa = "cumplida" | "no_cumplida" | "indiferente";
+/** Qué tasa de intervención se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
+export type AmbitoTasa = "marca" | "global" | "vo";
 
 export interface ReglaPreferenceMotor {
   id: number;
@@ -104,15 +132,24 @@ export interface ReglaPreferenceMotor {
   idMarca: number | null;
   idModelo: number | null;
   tipo: CategoriaVenta | null;
+  /** A qué coches se aplica (por defecto, los nuevos). */
+  aplicaA?: string;
   importe: Centimos;
   activa?: boolean;
+  tasaIntervencion?: CondicionTasa;
+  tasaAmbito?: AmbitoTasa;
+  concepto?: string;
+  tasaUmbral?: number | null;
 }
 
 export interface ReglaBonusMotor {
   id: number;
+  /** Identificador estable de la regla (los expedientes eligen los bonus manuales por esta clave). */
+  clave?: string;
   nombre: string;
   evento: EventoRegla;
-  tipoVehiculo: "nuevo" | "usado" | "cualquiera";
+  /** cualquiera | nuevo | usado | usado:SUBTIPO */
+  tipoVehiculo: string;
   fechaInicio: Fecha | null;
   fechaFin: Fecha | null;
   idMarca: number | null;
@@ -126,6 +163,12 @@ export interface ReglaBonusMotor {
   /** Solo reglas del evento `preference`. */
   ligarACredito: boolean;
   activa?: boolean;
+}
+
+/** Objetivo de una tasa que no es de marca (la global de nuevos o la de usados). Sin objetivo, siempre se considera cumplida. */
+export interface TasaConfigMotor {
+  tipoTasa: "porcentaje" | "unidades";
+  objetivo: number | null;
 }
 
 export interface TasaMarcaMotor {
@@ -150,6 +193,10 @@ export interface PlanMotor {
   tramoMax: number;
   puntosPorPedido: Centesimas;
   penalizacionImporte: Centimos;
+  /** «cuentan» (por defecto): un usado suma puntos como cualquier coche; «no»: no suma puntos. */
+  voPuntosModo?: "cuentan" | "no";
+  /** Puntos que suma cada usado (centésimas); sin valor, los del modelo, la marca o el predeterminado. */
+  voPuntos?: Centesimas | null;
   /** Objetivo X por vendedor (clave = id del vendedor). */
   objetivos: Record<number, ObjetivoVendedorMotor>;
   puntosPorDefectoModelo: Record<number, Centesimas>;
@@ -162,6 +209,11 @@ export interface PlanMotor {
   reglasPreference: ReglaPreferenceMotor[];
   reglasYBonus: ReglaBonusMotor[];
   tasaIntervencionPorMarca: TasaMarcaMotor[];
+  /** Objetivo de la tasa global (todos los coches nuevos) y de la de usados. */
+  tasaGlobal?: TasaConfigMotor;
+  tasaVo?: TasaConfigMotor;
+  /** Los usados financiados cuentan también en la tasa global y en la de su marca (por defecto, sí). */
+  tasaIncluyeVo?: boolean;
   /** Solo para los textos de aviso. */
   nombresModelo?: Record<number, string>;
   nombresMarca?: Record<number, string>;
@@ -176,7 +228,9 @@ export type ConceptoId =
   | "especial"
   | "puntos_coche"
   | "puntos_pedido"
-  | "puntos_regla";
+  | "puntos_regla"
+  /** Concepto propio creado en el plan: «extra:Nombre». */
+  | `extra:${string}`;
 
 export interface ConceptoLinea {
   concepto: ConceptoId;
@@ -210,6 +264,45 @@ export interface TasaMarcaResultado {
   porcentaje: number | null;
   unidades: number;
   cumplida: boolean;
+  /** Objetivo fijado en el plan para esta marca y cómo se mide. */
+  objetivo: number;
+  tipoTasa: "porcentaje" | "unidades";
+}
+
+/** Tasa de intervención financiera de un conjunto de coches (todos los nuevos, o los usados). */
+export interface TasaAmbitoResultado {
+  numerador: number;
+  denominador: number;
+  porcentaje: number | null;
+  unidades: number;
+  cumplida: boolean;
+  /** Hay objetivo fijado en el plan (si no, se da por cumplida). */
+  conObjetivo: boolean;
+  objetivo: number | null;
+  tipoTasa: "porcentaje" | "unidades";
+}
+
+/** Un coche de la tasa de intervención: si cuenta en el mes (denominador) y si se financió en el mes (numerador). */
+export interface TasaCocheDetalle {
+  idExpediente: number;
+  clase: "VN" | "VO";
+  idMarca: number | null;
+  cuenta: boolean;
+  financiado: boolean;
+}
+
+/**
+ * Coche cuya financiación (fecha RCI) cae en un mes distinto al que cuenta el coche:
+ * - `anterior`: el coche cuenta en este mes, pero se financió en un mes anterior (ya sumó a la tasa de aquel mes).
+ * - `adelantada`: la financiación es de este mes, pero el coche cuenta en otro (suma a la tasa de este mes, no su comisión).
+ */
+export interface FinanciacionFueraDeMes {
+  idExpediente: number;
+  clase: Clase;
+  tipo: "anterior" | "adelantada";
+  mesRci: Mes;
+  /** Mes en el que cuenta el coche (null si aún no cuenta en ninguno). */
+  mesComputo: Mes | null;
 }
 
 export type EventoLibro = "PEDIDO" | "MATRICULACION" | "COBRO" | "REGLA" | "AJUSTE";
@@ -234,6 +327,18 @@ export interface ResultadoMes {
   /** Tramo final, ya limitado al rango del plan. */
   tramo: number;
   tasaIntervencion: TasaMarcaResultado[];
+  /** Tasa de todos los coches nuevos (suma de marcas) y tasa de los usados. */
+  tasaGlobal: TasaAmbitoResultado;
+  tasaVo: TasaAmbitoResultado;
+  /** Si los usados cuentan en la tasa global y en la de marca. */
+  tasaIncluyeVo: boolean;
+  /** Los coches que entran en las tasas, para ver el detalle. */
+  tasaCoches: TasaCocheDetalle[];
+  /** Coches financiados en un mes distinto al que cuentan (para marcarlos en las tablas). */
+  financiacionesFueraDeMes: FinanciacionFueraDeMes[];
+  /** Objetivo X del vendedor = base + arrastre. */
+  objetivoBase: Centesimas;
+  objetivoArrastre: Centesimas;
   lineas: LineaExpediente[];
   bruto: Centimos;
   penalizacion: Centimos;

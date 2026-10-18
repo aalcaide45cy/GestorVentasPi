@@ -1,5 +1,6 @@
 import { and, between, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
+import { categoriaTipoVenta } from "./comun";
 import {
   commissionBonusRules,
   commissionBrandInterventionRates,
@@ -43,8 +44,23 @@ import {
 /** Desplazamiento para que los ids de `commission_bonus_rules` no choquen con los de `commission_rules`. */
 const DESPLAZAMIENTO_BONUS = 1_000_000;
 
+const aplicaDe = (v: string): string => v || "VN";
+const condicionTasa = (v: string): "indiferente" | "cumplida" | "no_cumplida" => (v === "cumplida" || v === "no_cumplida" ? v : "indiferente");
+const ambitoTasa = (v: string): "marca" | "global" | "vo" => (v === "global" || v === "vo" ? v : "marca");
 const CATEGORIAS: CategoriaVenta[] = ["CONTADO", "CREDITO", "PREFERENCE", "RENTING"];
 const categoria = (v: string | null | undefined): CategoriaVenta | null => (CATEGORIAS.includes(v as CategoriaVenta) ? (v as CategoriaVenta) : null);
+
+/**
+ * Categoría con la que cuenta un tipo de pago. Si el nombre dice claramente Preference o Renting pero la categoría guardada es otra
+ * (un tipo creado por una importación o a mano con la categoría mal), manda el nombre: así un «Preference» nunca cobra como crédito.
+ */
+export function categoriaEfectiva(guardada: string | null | undefined, nombre: string | null | undefined): CategoriaVenta | null {
+  const g = categoria(guardada);
+  if (!nombre) return g;
+  const porNombre = categoriaTipoVenta(nombre);
+  if ((porNombre === "PREFERENCE" || porNombre === "RENTING") && g !== porNombre) return porNombre;
+  return g;
+}
 
 /** Carga un plan completo (con sus tarifas, reglas y objetivos) en el formato del motor. */
 export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMotor | null> {
@@ -70,7 +86,7 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     id,
     nombre: r.nombre,
     evento: r.evento as ReglaBonusMotor["evento"],
-    tipoVehiculo: r.tipoVehiculo as ReglaBonusMotor["tipoVehiculo"],
+    tipoVehiculo: r.tipoVehiculo,
     fechaInicio: r.fechaInicio,
     fechaFin: r.fechaFin,
     idMarca: r.idMarca,
@@ -81,6 +97,7 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     esPenalizacion: r.esPenalizacion,
     ligarACredito: r.ligarACredito,
     activa: r.activa,
+    clave: r.clave,
   });
 
   return {
@@ -93,18 +110,23 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     tramoMax: p.tramoMax,
     puntosPorPedido: p.puntosPorPedido,
     penalizacionImporte: p.penalizacionImporte,
+    voPuntosModo: p.voPuntosModo === "no" ? "no" : "cuentan",
+    voPuntos: p.voPuntos,
+    tasaGlobal: { tipoTasa: p.tasaGlobalTipo === "unidades" ? "unidades" : "porcentaje", objetivo: p.tasaGlobalObjetivo },
+    tasaIncluyeVo: p.tasaIncluyeVo,
+    tasaVo: { tipoTasa: p.tasaVoTipo === "unidades" ? "unidades" : "porcentaje", objetivo: p.tasaVoObjetivo },
     objetivos: Object.fromEntries(vend.map((v) => [v.idUsuario, { base: v.objetivoBase, arrastre: v.arrastre }])),
     puntosPorDefectoModelo: Object.fromEntries(puntosModelo.map((x) => [x.idModelo, x.puntos])),
     puntosPorDefectoMarca: Object.fromEntries(tasas.map((x) => [x.idMarca, x.puntosDefecto])),
     promociones: promos.map((x) => ({ id: x.id, nombre: x.nombre, puntosEspeciales: x.puntosEspeciales, minimoUnidades: x.minimoUnidades, puntosSiNoCumple: x.puntosSiNoCumple })),
     tarifasVN: tarifas.map((t) => ({ idModelo: t.idModelo, tasaCumplida: t.tasaCumplida, importes: t.importes, activo: t.activo })),
     tarifasUsadosPorSubtipo: usados.map((u) => ({ subtipo: u.subtipo, importePrimera: u.importePrimera, importeResto: u.importeResto, minAplicar: u.minAplicar, activo: u.activo })),
-    patronesVO: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, activo: x.activo, tiers: x.tiers })),
+    patronesVO: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
     financiacionPorMarcaTipo: fin.flatMap((f) => {
       const tipo = categoria(f.tipoFinanciacion);
-      return tipo ? [{ idMarca: f.idMarca, tipo, importe: f.importe }] : [];
+      return tipo ? [{ idMarca: f.idMarca, tipo, aplicaA: aplicaDe(f.aplicaA), importe: f.importe, tasaIntervencion: condicionTasa(f.tasaIntervencion), tasaAmbito: ambitoTasa(f.tasaAmbito), concepto: f.concepto, tasaUmbral: f.tasaUmbral }] : [];
     }),
-    reglasPreference: pref.map((r) => ({ id: r.idPrefRule, nombre: r.nombre ?? undefined, idMarca: r.idMarca, idModelo: r.idModelo, tipo: categoria(r.tipoFinanciacion), importe: r.importe, activa: r.activa })),
+    reglasPreference: pref.map((r) => ({ id: r.idPrefRule, nombre: r.nombre ?? undefined, idMarca: r.idMarca, idModelo: r.idModelo, tipo: categoria(r.tipoFinanciacion), aplicaA: aplicaDe(r.aplicaA), importe: r.importe, activa: r.activa, tasaIntervencion: condicionTasa(r.tasaIntervencion), tasaAmbito: ambitoTasa(r.tasaAmbito), concepto: r.concepto, tasaUmbral: r.tasaUmbral })),
     reglasYBonus: [...reglas.map((r) => mapearRegla(r, r.idRule)), ...bonus.map((r) => mapearRegla(r, r.idBonusRule + DESPLAZAMIENTO_BONUS))],
     tasaIntervencionPorMarca: tasas.map((t) => ({ idMarca: t.idMarca, tipoTasa: t.tipoTasa === "unidades" ? "unidades" : "porcentaje", objetivo: t.objetivo })),
     nombresMarca: Object.fromEntries(nMarcas.map((m) => [m.id, m.nombre])),
@@ -158,31 +180,35 @@ export async function cargarExpedientesMotorPorIds(ej: Ejecutor, ids: number[]):
 
 async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined): Promise<ExpedienteMotor[]> {
   const filas = await ej
-    .select({ e: expedientes, clase: estadoVehiculo.clase, subtipo: estadoVehiculo.subtipoVo, cat: tipoDeVenta.categoria, marca: modelos.marcaId })
+    .select({ e: expedientes, clase: estadoVehiculo.clase, subtipo: estadoVehiculo.subtipoVo, cat: tipoDeVenta.categoria, nombreTipo: tipoDeVenta.nombreTipoVenta, cuentaTasa: tipoDeVenta.cuentaParaTasa, marca: modelos.marcaId })
     .from(expedientes)
     .leftJoin(estadoVehiculo, eq(expedientes.idEstadoVehiculo, estadoVehiculo.idEstadoVehiculo))
     .leftJoin(tipoDeVenta, eq(expedientes.idTipoDeVenta, tipoDeVenta.idTipoDeVenta))
     .leftJoin(modelos, eq(expedientes.idModelo, modelos.idModelo))
-    .where(condicion ? and(condicion, isNull(expedientes.eliminadoEn)) : isNull(expedientes.eliminadoEn));
-  return filas.flatMap(({ e, clase, subtipo, cat, marca }) => e.idUsuario === null ? [] : [{
+    // Los deshabilitados no cuentan para nada: ni comisiones, ni tasa, ni liquidación
+    .where(condicion ? and(condicion, isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false)) : and(isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false)));
+  return filas.flatMap(({ e, clase, subtipo, cat, nombreTipo, cuentaTasa, marca }) => e.idUsuario === null ? [] : [{
     id: e.idExpediente,
     idVendedor: e.idUsuario,
     clase: (clase === "VO" ? "VO" : "VN") as Clase,
     subtipoVO: subtipo ?? null,
     idMarca: marca ?? null,
     idModelo: e.idModelo,
-    categoriaVenta: categoria(cat),
+    categoriaVenta: categoriaEfectiva(cat, nombreTipo),
+    cuentaParaTasa: cuentaTasa ?? undefined,
     fechaExpediente: e.fechaExpediente,
     fechaAfectacion: e.fechaAfectacion,
     fechaRci: e.fechaRci,
     fechaMatriculacion: e.fechaMatriculacion,
     fechaFacturacion: e.fechaFacturacion,
+    fechaEntrega: e.fechaEntrega,
     fechaCobro: e.fechaCobrado,
     cobradoOtraFecha: e.cobradoOtraFecha,
     puntos: e.puntos,
     idPromocion: e.idPromocion,
     comisionCocheManual: e.comisionCocheManual,
     comisionFinanciacionManual: e.comisionFinanciacionManual,
+    bonusManuales: e.bonusManuales ?? [],
     conceptosEspeciales: (e.conceptosEspeciales ?? []).map((c) => ({
       titulo: c.titulo,
       importe: c.importe_centimos,

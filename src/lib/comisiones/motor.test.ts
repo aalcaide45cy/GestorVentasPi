@@ -280,9 +280,14 @@ describe("tasa de intervención y comisión del coche (T17–T18)", () => {
     expect(r.tasaIntervencion[0].cumplida).toBe(false);
     expect(calcularMes(p({ tasaIntervencionPorMarca: [{ idMarca: 1, tipoTasa: "unidades", objetivo: 7 }] }), V, "2026-06", conFinanciados(7)).tasaIntervencion[0].cumplida).toBe(true);
   });
-  it("los VO no cuentan para la tasa", () => {
-    const e = [...conFinanciados(7), exp(50, { clase: "VO", subtipoVO: "USADO", fechaCobro: "2026-06-10" })];
-    expect(calcularMes(p(), V, "2026-06", e).tasaIntervencion[0].denominador).toBe(10);
+  it("los VO financiados cuentan para la tasa (decisión del propietario), salvo que el plan lo desactive", () => {
+    const e = [...conFinanciados(7), exp(50, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: "2026-06-10", categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];
+    const con = calcularMes(p(), V, "2026-06", e).tasaIntervencion[0];
+    expect(con.denominador).toBe(11);
+    expect(con.numerador).toBe(8);
+    const sin = calcularMes(p({ tasaIncluyeVo: false }), V, "2026-06", e).tasaIntervencion[0];
+    expect(sin.denominador).toBe(10);
+    expect(sin.numerador).toBe(7);
   });
   it("T18 sin VN de la marca en el mes → cumplida", () => {
     const e = [exp(1, { idMarca: 2, categoriaVenta: "CREDITO", fechaRci: "2026-06-10", fechaMatriculacion: "2026-07-10" })];
@@ -294,7 +299,7 @@ describe("tasa de intervención y comisión del coche (T17–T18)", () => {
 
 describe("comisión VO (T19–T20)", () => {
   const km0 = { subtipo: "KM0", importePrimera: 12000, importeResto: 6000, minAplicar: 0 };
-  const vo = (id: number, subtipo: string, dia: number) => exp(id, { clase: "VO", subtipoVO: subtipo, fechaCobro: `2026-06-${String(dia).padStart(2, "0")}` });
+  const vo = (id: number, subtipo: string, dia: number) => exp(id, { clase: "VO", subtipoVO: subtipo, fechaFacturacion: `2026-06-${String(dia).padStart(2, "0")}` });
 
   it("T19 KM0 primera 120 / resto 60 con 3 unidades → 240 €", () => {
     const r = calcularMes(plan({ tarifasUsadosPorSubtipo: [km0] }), V, "2026-06", [vo(1, "KM0", 5), vo(2, "KM0", 6), vo(3, "KM0", 7)]);
@@ -337,6 +342,22 @@ describe("comisión VO (T19–T20)", () => {
   });
 });
 
+describe("opciones de los usados en el plan (puntos)", () => {
+  const usado = (id: number, extra: Partial<ExpedienteMotor> = {}) => exp(id, { clase: "VO", subtipoVO: "KM0", fechaFacturacion: "2026-07-05", ...extra });
+
+  it("un usado cuenta por su fecha de facturación y suma 1 punto; su fecha de cobro no cuenta", () => {
+    const u = usado(1, { fechaFacturacion: "2026-06-20", fechaCobro: "2026-07-05", cobradoOtraFecha: true });
+    expect(calcularMes(plan(), V, "2026-06", [u]).puntosMes).toBe(100);
+    expect(calcularMes(plan(), V, "2026-07", [u]).puntosMes).toBe(0);
+  });
+  it("puntos por usado configurables o sin puntos", () => {
+    expect(calcularMes(plan({ voPuntos: 250 }), V, "2026-07", [usado(1), usado(2)]).puntosMes).toBe(500);
+    const sin = calcularMes(plan({ voPuntosModo: "no" }), V, "2026-07", [usado(1), exp(2, { fechaMatriculacion: "2026-07-10", puntos: 100 })]);
+    expect(sin.puntosMes).toBe(100); // solo suma el nuevo
+    expect(sin.lineas.find((l) => l.idExpediente === 1)?.cuenta).toBe(true); // el usado sigue contando para su comisión
+  });
+});
+
 describe("totales (T21–T22)", () => {
   it("T21 bruto 1.795,00 · penalización 150,00 · neto 1.645,00", () => {
     const p = plan({
@@ -348,7 +369,7 @@ describe("totales (T21–T22)", () => {
     });
     const e = [
       exp(1, { fechaMatriculacion: "2026-06-10", fechaExpediente: "2026-06-01", comisionCocheManual: 89000, conceptosEspeciales: [{ titulo: "Rappel", importe: 7500 }] }),
-      exp(2, { clase: "VO", subtipoVO: "KM0", fechaCobro: "2026-06-11" }),
+      exp(2, { clase: "VO", subtipoVO: "KM0", fechaFacturacion: "2026-06-11" }),
       exp(3, { categoriaVenta: "CREDITO", fechaRci: "2026-06-12", fechaMatriculacion: "2026-07-12", comisionFinanciacionManual: 36000 }),
       exp(4, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-13", fechaMatriculacion: "2026-07-13" }),
     ];
@@ -370,7 +391,7 @@ describe("totales (T21–T22)", () => {
   });
   it("las penalizaciones dinámicas restan del bruto", () => {
     const p = plan({ reglasYBonus: [regla({ id: 1, evento: "cobro", importe: 5000, esPenalizacion: true })] });
-    const r = calcularMes(p, V, "2026-06", [exp(1, { clase: "VO", subtipoVO: "USADO", fechaCobro: "2026-06-05", comisionCocheManual: 20000 })]);
+    const r = calcularMes(p, V, "2026-06", [exp(1, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: "2026-06-05", fechaCobro: "2026-06-05", comisionCocheManual: 20000 })]);
     expect(r.bruto).toBe(15000);
   });
 });
@@ -534,5 +555,66 @@ describe("VN: el mes de comisionado es el de la facturación", () => {
     const agosto = calcularMes(plan(), vendedor, "2026-08", [mat, fac]);
     expect(septiembre.lineas.filter((l) => l.cuenta).map((l) => l.idExpediente)).toEqual([1]);
     expect(agosto.lineas.filter((l) => l.cuenta).map((l) => l.idExpediente)).toEqual([2]);
+  });
+});
+
+describe("financiación según nuevos o usados", () => {
+  const fin = (aplicaA: "VN" | "VO" | "TODOS") => plan({ financiacionPorMarcaTipo: [{ idMarca: 1, tipo: "CREDITO", aplicaA, importe: 5000 }] });
+  const credito = (clase: "VN" | "VO") =>
+    exp(1, { clase, categoriaVenta: "CREDITO", fechaRci: "2026-06-10", fechaMatriculacion: "2026-06-10", fechaFacturacion: "2026-06-10", fechaCobro: "2026-06-10" });
+  const importeFin = (p: PlanMotor, clase: "VN" | "VO") =>
+    calcularMes(p, V, "2026-06", [credito(clase)]).lineas[0].conceptos.filter((c) => c.concepto === "financiacion").reduce((s, c) => s + c.importe, 0);
+
+  it("una regla para nuevos no paga a un usado", () => {
+    expect(importeFin(fin("VN"), "VN")).toBe(5000);
+    expect(importeFin(fin("VN"), "VO")).toBe(0);
+  });
+  it("una regla para usados no paga a un nuevo, y «todos» paga a los dos", () => {
+    expect(importeFin(fin("VO"), "VO")).toBe(5000);
+    expect(importeFin(fin("VO"), "VN")).toBe(0);
+    expect(importeFin(fin("TODOS"), "VN")).toBe(5000);
+    expect(importeFin(fin("TODOS"), "VO")).toBe(5000);
+  });
+});
+
+describe("patrones de usados: rotativo o no", () => {
+  const VO: VendedorMotor = { id: 1, tipo: "VO", patronVo: "Estándar" };
+  const escala = [
+    { unidad: 1, importe: 15000 },
+    { unidad: 2, importe: 20000 },
+    { unidad: 3, importe: 25000 },
+  ];
+  const cobros = (rotativo: boolean) => {
+    const usados = [1, 2, 3, 4, 5].map((id) => exp(id, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: `2026-06-0${id}` }));
+    const r = calcularMes(plan({ patronesVO: [{ nombre: "Estándar", aplicaAVn: false, rotativo, tiers: escala }] }), VO, "2026-06", usados);
+    return r.lineas.map((l) => l.conceptos.find((c) => c.concepto === "vo")?.importe);
+  };
+  it("sin rotativo, desde el cuarto se repite el último escalón", () => {
+    expect(cobros(false)).toEqual([15000, 20000, 25000, 25000, 25000]);
+  });
+  it("con rotativo, el cuarto vuelve a cobrar como el primero", () => {
+    expect(cobros(true)).toEqual([15000, 20000, 25000, 15000, 20000]);
+  });
+});
+
+describe("reglas por subtipo de usado", () => {
+  const bonus = (tipoVehiculo: string) =>
+    plan({ reglasYBonus: [regla({ id: 1, evento: "matriculacion", tipoVehiculo, importe: 1000 })] });
+  const importe = (tipoVehiculo: string, subtipo: string | null, clase: "VN" | "VO" = "VO") =>
+    calcularMes(bonus(tipoVehiculo), V, "2026-06", [exp(1, { clase, subtipoVO: subtipo, fechaFacturacion: "2026-06-10" })]).bruto;
+  it("una regla de un subtipo solo vale para ese subtipo", () => {
+    expect(importe("usado:KM0", "KM0")).toBeGreaterThanOrEqual(1000);
+    expect(importe("usado:KM0", "DEMO")).toBeLessThan(1000);
+    expect(importe("usado", "DEMO")).toBeGreaterThanOrEqual(1000);
+    expect(importe("nuevo", "KM0")).toBeLessThan(1000);
+  });
+});
+
+describe("columna Preference", () => {
+  it("el incentivo de una venta Preference sale como «preference», no como «financiacion»", () => {
+    const p = plan({ financiacionPorMarcaTipo: [{ idMarca: 1, tipo: "PREFERENCE", aplicaA: "VN", importe: 7500 }] });
+    const l = calcularMes(p, V, "2026-06", [exp(1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10", fechaMatriculacion: "2026-06-10" })]).lineas[0];
+    expect(l.conceptos.find((c) => c.concepto === "preference")?.importe).toBe(7500);
+    expect(l.conceptos.some((c) => c.concepto === "financiacion")).toBe(false);
   });
 });

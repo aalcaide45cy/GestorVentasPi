@@ -1,10 +1,12 @@
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import {
   commissionBonusRules,
   commissionBrandInterventionRates,
   commissionFinanceRates,
+  commissionLiquidationVersions,
   commissionLiquidations,
   commissionModelPoints,
   commissionPlanModelRates,
@@ -15,6 +17,7 @@ import {
   commissionRules,
   commissionUsedRates,
   commissionVoPatterns,
+  expedientes,
   promocionesPuntos,
 } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
@@ -27,13 +30,19 @@ import { recalcularAfectados } from "./liquidaciones";
 const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida");
 const fechaNull = z.union([fecha, z.literal("").transform(() => null), z.null()]).default(null);
 const entero = z.number().int();
+/** Columna de comisiones a la que va el importe de una línea: «financiacion», «preference», «extra:Nombre» o vacío (la habitual). */
+const conceptoDestino = z.string().trim().max(80).default("");
+/** % propio de tasa de intervención con el que se compara la tasa real (vacío = el objetivo del plan). */
+const umbralTasa = entero.min(0).max(100).nullable().default(null);
 const idNull = z.number().int().positive().nullable().default(null);
+const SUBTIPO = "[A-Za-z0-9 _-]{1,30}";
+const aplicaA = z.string().regex(new RegExp(`^(VN|VO|TODOS|VO:${SUBTIPO})$`), "Ámbito no válido");
 const tipoFin = z.enum(["CONTADO", "CREDITO", "PREFERENCE", "RENTING"]);
 
 export const esquemaRegla = z.object({
   nombre: z.string().trim().min(1, "Falta el nombre de la regla").max(200),
-  evento: z.enum(["pedido", "afectacion", "matriculacion", "cobro", "credito", "preference"]),
-  tipoVehiculo: z.enum(["nuevo", "usado", "cualquiera"]).default("cualquiera"),
+  evento: z.enum(["pedido", "afectacion", "matriculacion", "cobro", "credito", "preference", "manual"]),
+  tipoVehiculo: z.string().regex(new RegExp(`^(nuevo|usado|cualquiera|usado:${SUBTIPO})$`), "Tipo de vehículo no válido").default("cualquiera"),
   fechaInicio: fechaNull,
   fechaFin: fechaNull,
   idMarca: idNull,
@@ -44,6 +53,8 @@ export const esquemaRegla = z.object({
   esPenalizacion: z.boolean().default(false),
   ligarACredito: z.boolean().default(false),
   activa: z.boolean().default(true),
+  /** Identificador estable de la regla; si falta (planes y plantillas antiguos) se crea uno. */
+  clave: z.string().trim().min(1).max(60).default(() => randomUUID()),
 });
 
 export const esquemaPlanBase = z.object({
@@ -54,6 +65,14 @@ export const esquemaPlanBase = z.object({
     tramoMin: z.number().int().min(-20).max(0).default(-4),
     tramoMax: z.number().int().min(0).max(20).default(3),
     puntosPorPedido: entero.min(0).default(0),
+    voPuntosModo: z.enum(["cuentan", "no"]).default("cuentan"),
+    voPuntos: entero.min(0).nullable().default(null),
+    /** Objetivo de la tasa de intervención financiera global (todos los nuevos) y de usados; sin objetivo = siempre cumplida. */
+    tasaGlobalTipo: z.enum(["porcentaje", "unidades"]).default("porcentaje"),
+    tasaGlobalObjetivo: entero.min(0).nullable().default(null),
+    tasaVoTipo: z.enum(["porcentaje", "unidades"]).default("porcentaje"),
+    tasaVoObjetivo: entero.min(0).nullable().default(null),
+    tasaIncluyeVo: z.boolean().default(true),
     penalizacionImporte: entero.min(0).default(0),
     penalizacionTitulo: z.string().max(200).nullable().default(null),
     penalizacionDescripcion: z.string().max(1000).nullable().default(null),
@@ -87,11 +106,11 @@ export const esquemaPlanBase = z.object({
       .default([]),
     usados: z.array(z.object({ subtipo: z.string().trim().min(1).max(30), importePrimera: entero.min(0), importeResto: entero.min(0), minAplicar: entero.min(0).default(0), activo: z.boolean().default(true) })).default([]),
     patrones: z
-      .array(z.object({ nombre: z.string().trim().min(1).max(200), aplicaAVn: z.boolean().default(false), activo: z.boolean().default(true), tiers: z.array(z.object({ unidad: z.number().int().positive(), importe: entero.min(0) })).default([]) }))
+      .array(z.object({ nombre: z.string().trim().min(1).max(200), aplicaAVn: z.boolean().default(false), rotativo: z.boolean().default(false), activo: z.boolean().default(true), tiers: z.array(z.object({ unidad: z.number().int().positive(), importe: entero.min(0) })).default([]) }))
       .default([]),
-    financiacion: z.array(z.object({ idMarca: z.number().int().positive(), tipoFinanciacion: tipoFin, importe: entero })).default([]),
+    financiacion: z.array(z.object({ idMarca: z.number().int().positive(), tipoFinanciacion: tipoFin, aplicaA: aplicaA.default("VN"), importe: entero, tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca"), concepto: conceptoDestino, tasaUmbral: umbralTasa })).default([]),
     preference: z
-      .array(z.object({ nombre: z.string().max(200).nullable().default(null), idMarca: idNull, idModelo: idNull, tipoFinanciacion: tipoFin.nullable().default(null), importe: entero, activa: z.boolean().default(true) }))
+      .array(z.object({ nombre: z.string().max(200).nullable().default(null), idMarca: idNull, idModelo: idNull, tipoFinanciacion: tipoFin.nullable().default(null), aplicaA: aplicaA.default("VN"), importe: entero, activa: z.boolean().default(true), tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca"), concepto: conceptoDestino, tasaUmbral: umbralTasa }))
       .default([]),
     reglas: z.array(esquemaRegla).default([]),
     bonus: z.array(esquemaRegla).default([]),
@@ -137,6 +156,9 @@ export async function listarPlanes(ej: Ejecutor): Promise<ResumenPlan[]> {
   }));
 }
 
+const condTasa = (v: string): "indiferente" | "cumplida" | "no_cumplida" => (v === "cumplida" || v === "no_cumplida" ? v : "indiferente");
+const ambTasa = (v: string): "marca" | "global" | "vo" => (v === "global" || v === "vo" ? v : "marca");
+
 export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditable | null> {
   const [p] = await ej.select().from(commissionPlans).where(eq(commissionPlans.idPlan, idPlan));
   if (!p) return null;
@@ -157,7 +179,7 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
   const regla = (r: (typeof reglas)[number] | (typeof bonus)[number]) => ({
     nombre: r.nombre,
     evento: r.evento as "pedido",
-    tipoVehiculo: r.tipoVehiculo as "cualquiera",
+    tipoVehiculo: r.tipoVehiculo,
     fechaInicio: r.fechaInicio,
     fechaFin: r.fechaFin,
     idMarca: r.idMarca,
@@ -168,6 +190,7 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     esPenalizacion: r.esPenalizacion,
     ligarACredito: r.ligarACredito,
     activa: r.activa,
+    clave: r.clave,
   });
   return {
     idPlan: p.idPlan,
@@ -178,6 +201,13 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     tramoMin: p.tramoMin,
     tramoMax: p.tramoMax,
     puntosPorPedido: p.puntosPorPedido,
+    voPuntosModo: p.voPuntosModo === "no" ? "no" : "cuentan",
+    voPuntos: p.voPuntos,
+    tasaGlobalTipo: p.tasaGlobalTipo === "unidades" ? "unidades" : "porcentaje",
+    tasaGlobalObjetivo: p.tasaGlobalObjetivo,
+    tasaVoTipo: p.tasaVoTipo === "unidades" ? "unidades" : "porcentaje",
+    tasaVoObjetivo: p.tasaVoObjetivo,
+    tasaIncluyeVo: p.tasaIncluyeVo,
     penalizacionImporte: p.penalizacionImporte,
     penalizacionTitulo: p.penalizacionTitulo,
     penalizacionDescripcion: p.penalizacionDescripcion,
@@ -188,9 +218,9 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     tasas: tasas.map((x) => ({ idMarca: x.idMarca, tipoTasa: x.tipoTasa as "porcentaje", objetivo: x.objetivo, puntosDefecto: x.puntosDefecto })),
     tarifasVN: tarifas.map((x) => ({ idModelo: x.idModelo, tasaCumplida: x.tasaCumplida, importes: x.importes, activo: x.activo, orden: x.orden })),
     usados: usados.map((x) => ({ subtipo: x.subtipo, importePrimera: x.importePrimera, importeResto: x.importeResto, minAplicar: x.minAplicar, activo: x.activo })),
-    patrones: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, activo: x.activo, tiers: x.tiers })),
-    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", importe: x.importe })),
-    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, importe: x.importe, activa: x.activa })),
+    patrones: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
+    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", aplicaA: x.aplicaA || "VN", importe: x.importe, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito), concepto: x.concepto, tasaUmbral: x.tasaUmbral })),
+    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, aplicaA: x.aplicaA || "VN", importe: x.importe, activa: x.activa, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito), concepto: x.concepto, tasaUmbral: x.tasaUmbral })),
     reglas: reglas.map(regla),
     bonus: bonus.map(regla),
     pendientes: pend.map((x) => ({ concepto: x.concepto, importe: x.importe, mesOrigen: x.mesOrigen })),
@@ -274,6 +304,13 @@ export async function guardarPlan(ej: Ejecutor, idPlan: number | null, entrada: 
       tramoMin: p.tramoMin,
       tramoMax: p.tramoMax,
       puntosPorPedido: p.puntosPorPedido,
+      voPuntosModo: p.voPuntosModo,
+      voPuntos: p.voPuntos,
+      tasaGlobalTipo: p.tasaGlobalTipo,
+      tasaGlobalObjetivo: p.tasaGlobalObjetivo,
+      tasaVoTipo: p.tasaVoTipo,
+      tasaVoObjetivo: p.tasaVoObjetivo,
+      tasaIncluyeVo: p.tasaIncluyeVo,
       penalizacionImporte: p.penalizacionImporte,
       penalizacionTitulo: p.penalizacionTitulo,
       penalizacionDescripcion: p.penalizacionDescripcion,
@@ -313,15 +350,53 @@ export async function guardarPlan(ej: Ejecutor, idPlan: number | null, entrada: 
   };
 }
 
-export async function eliminarPlan(ej: Ejecutor, idPlan: number): Promise<void> {
+/**
+ * Elimina un plan. Con `conLiquidaciones` se llevan por delante las liquidaciones calculadas con él (se pueden volver a generar
+ * con otro plan) y se desasignan las promociones de puntos de sus expedientes; sin él, el plan con liquidaciones no se borra.
+ */
+export async function eliminarPlan(ej: Ejecutor, idPlan: number, conLiquidaciones = false): Promise<void> {
   const [{ n }] = await ej.select({ n: sql<number>`count(*)::int` }).from(commissionLiquidations).where(eq(commissionLiquidations.idPlan, idPlan));
-  if (n > 0) throw new HttpError(409, "No se puede eliminar un plan con liquidaciones");
+  if (n > 0 && !conLiquidaciones) throw new HttpError(409, `Este plan tiene ${n} liquidación(es) calculada(s). Si lo eliminas se borran con él (se pueden volver a generar con otro plan). Confirma el borrado para continuar.`);
   try {
-    const filas = await ej.delete(commissionPlans).where(eq(commissionPlans.idPlan, idPlan)).returning({ id: commissionPlans.idPlan });
-    if (filas.length === 0) throw new HttpError(404, "Plan no encontrado");
+    await ej.transaction(async (tx) => {
+      if (conLiquidaciones) {
+        await tx.execute(sql`select set_config('app.borrado_autorizado', 'on', true)`);
+        const liqs = (await tx.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idPlan, idPlan))).map((l) => l.id);
+        if (liqs.length > 0) {
+          await tx.delete(commissionLiquidationVersions).where(inArray(commissionLiquidationVersions.idLiquidation, liqs));
+          await tx.delete(commissionLiquidations).where(inArray(commissionLiquidations.idLiquidation, liqs));
+        }
+        const promos = (await tx.select({ id: promocionesPuntos.id }).from(promocionesPuntos).where(eq(promocionesPuntos.idPlan, idPlan))).map((p) => p.id);
+        if (promos.length > 0) await tx.update(expedientes).set({ idPromocion: null }).where(inArray(expedientes.idPromocion, promos));
+      }
+      const filas = await tx.delete(commissionPlans).where(eq(commissionPlans.idPlan, idPlan)).returning({ id: commissionPlans.idPlan });
+      if (filas.length === 0) throw new HttpError(404, "Plan no encontrado");
+    });
   } catch (e) {
     if (e instanceof HttpError) throw e;
     throw new HttpError(409, "No se puede eliminar el plan: tiene expedientes con promociones asignadas");
   }
 }
 
+
+/** Un bonus del plan con evento «Manual»: se puede elegir expediente por expediente. */
+export interface BonusManual {
+  clave: string;
+  nombre: string;
+  plan: string;
+  idPlan: number;
+  importe: number;
+  puntos: number;
+  esPenalizacion: boolean;
+}
+
+/** Bonus y penalizaciones «manuales» activos de los planes que no están cerrados, del plan más reciente al más antiguo. */
+export async function listarBonusManuales(ej: Ejecutor): Promise<BonusManual[]> {
+  const filas = await ej
+    .select({ clave: commissionBonusRules.clave, nombre: commissionBonusRules.nombre, plan: commissionPlans.nombre, idPlan: commissionPlans.idPlan, importe: commissionBonusRules.importe, puntos: commissionBonusRules.puntos, esPenalizacion: commissionBonusRules.esPenalizacion })
+    .from(commissionBonusRules)
+    .innerJoin(commissionPlans, eq(commissionBonusRules.idPlan, commissionPlans.idPlan))
+    .where(and(eq(commissionBonusRules.evento, "manual"), eq(commissionBonusRules.activa, true), ne(commissionPlans.estado, "cerrado")))
+    .orderBy(desc(commissionPlans.fechaInicio), commissionBonusRules.nombre);
+  return filas.filter((f) => f.clave !== "");
+}

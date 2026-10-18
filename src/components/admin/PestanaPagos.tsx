@@ -17,6 +17,7 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
   const [color, setColor] = useState("#3b82f6");
   const [ordenNuevo, setOrdenNuevo] = useState(0);
   const [requiereNuevo, setRequiereNuevo] = useState(false);
+  const [tasaNuevo, setTasaNuevo] = useState(true);
   const [ordenes, setOrdenes] = useState<Record<number, number>>({});
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState("");
@@ -29,7 +30,7 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
   const crear = async (ev: FormEvent) => {
     ev.preventDefault();
     const ok = await ejecutar(async () => {
-      const n = await llamar<TipoVentaDto>("/api/admin/catalogos", "POST", { tipo: "tipo_venta", nombre_tipo_venta: nombre, color, orden: ordenNuevo, requiere_rci_al_matricular: requiereNuevo }, "Error al crear el tipo de venta");
+      const n = await llamar<TipoVentaDto>("/api/admin/catalogos", "POST", { tipo: "tipo_venta", nombre_tipo_venta: nombre, color, orden: ordenNuevo, requiere_rci_al_matricular: requiereNuevo, cuenta_para_tasa: tasaNuevo }, "Error al crear el tipo de venta");
       setTipos((prev) => [...prev, n]);
     }, "Tipo de venta creado con éxito");
     if (ok) {
@@ -37,6 +38,7 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
       setColor("#3b82f6");
       setOrdenNuevo(0);
       setRequiereNuevo(false);
+      setTasaNuevo(true);
     }
   };
 
@@ -67,6 +69,19 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
       );
       setTipos((prev) => prev.map((x) => (x.id_tipo_de_venta === t.id_tipo_de_venta ? n : x)));
     }, requiere ? `«${t.nombre_tipo_venta}»: ahora exige fecha RCI para matricular` : `«${t.nombre_tipo_venta}»: ya no exige fecha RCI para matricular`);
+  };
+
+  /** Cambia «Cuenta para la tasa» al momento (los demás datos del tipo no se tocan). */
+  const cambiarTasa = async (t: TipoVentaDto, cuenta: boolean) => {
+    await ejecutar(async () => {
+      const n = await llamar<TipoVentaDto>(
+        "/api/admin/catalogos",
+        "PUT",
+        { tipo: "tipo_venta", id: t.id_tipo_de_venta, nombre_tipo_venta: t.nombre_tipo_venta, color: t.color ?? "#3b82f6", orden: t.orden, categoria: t.categoria, cuenta_para_tasa: cuenta },
+        "Error al guardar el ajuste",
+      );
+      setTipos((prev) => prev.map((x) => (x.id_tipo_de_venta === t.id_tipo_de_venta ? n : x)));
+    }, cuenta ? `«${t.nombre_tipo_venta}»: ahora suma a la tasa de intervención financiera` : `«${t.nombre_tipo_venta}»: ya no suma a la tasa de intervención financiera`);
   };
 
   const guardarOrdenes = async () => {
@@ -116,6 +131,12 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
             Requerido al matricular
           </label>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input type="checkbox" id="chkTasaNuevo" checked={tasaNuevo} onChange={(e) => setTasaNuevo(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+          <label htmlFor="chkTasaNuevo" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }} title="Si lo marcas, los expedientes con este pago suman a la tasa de intervención financiera del mes">
+            Cuenta para la tasa
+          </label>
+        </div>
         <button type="submit" className="btn btn-primary" disabled={cargando}>
           + Crear Tipo Pago
         </button>
@@ -128,6 +149,7 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
               <Cabecera etiqueta="Nombre Tipo Venta" campo="nombre" orden={orden} />
               <th>Color Asignado</th>
               <th title="Si es Sí, un expediente con este tipo de pago no se puede matricular sin fecha RCI (fecha de contratación de la financiera), que se tiene en cuenta en las comisiones">Requerido al Matricular</th>
+              <th title="Si es Sí, los expedientes con este tipo de pago suman a la tasa de intervención financiera (se cuentan en el mes de su fecha RCI)">Cuenta para la tasa</th>
               <Cabecera etiqueta="Orden Dashboard" campo="orden" orden={orden} ancho="180px" />
               <th>Acciones</th>
             </tr>
@@ -155,6 +177,12 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
                 </td>
                 <td>
                   <select className="form-select" value={t.requiere_rci_al_matricular ? "si" : "no"} onChange={(e) => void cambiarRequiere(t, e.target.value === "si")} disabled={cargando} style={{ width: "90px", padding: "4px 8px", fontSize: "0.85rem", fontWeight: 700, color: t.requiere_rci_al_matricular ? "var(--warning)" : "var(--text-secondary)" }} title="¿Exige fecha RCI para poder matricular?">
+                    <option value="si">Sí</option>
+                    <option value="no">No</option>
+                  </select>
+                </td>
+                <td>
+                  <select className="form-select" value={t.cuenta_para_tasa ? "si" : "no"} onChange={(e) => void cambiarTasa(t, e.target.value === "si")} disabled={cargando} style={{ width: "90px", padding: "4px 8px", fontSize: "0.85rem", fontWeight: 700, color: t.cuenta_para_tasa ? "var(--success)" : "var(--text-secondary)" }} title="¿Suma a la tasa de intervención financiera?">
                     <option value="si">Sí</option>
                     <option value="no">No</option>
                   </select>

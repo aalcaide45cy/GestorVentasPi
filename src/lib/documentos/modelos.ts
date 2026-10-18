@@ -172,3 +172,40 @@ export function proponerMarcaModelo(texto: string, catalogo: CatalogoParaPropone
   const modelo = utiles.slice(0, cuantas).map(bonito).join(" ");
   return { marca, modelo, idMarca: marcaCat?.id ?? null, idModelo: null };
 }
+
+const palabrasModelo = (s: string): string[] =>
+  sinAcentos(s)
+    .replace(/[^A-Z0-9 -]/g, " ")
+    .split(" ")
+    .filter((w) => w && !PALABRAS_VACIAS.has(w));
+
+/**
+ * Elige, entre los modelos que ya existen, el que corresponde al nombre de un listado ignorando acabados y variantes:
+ * «Nuevo Espace» → «Espace», «Clio CL6» y «CLIO GENERATION» → «Clio», «Sandero Stepway» → «Sandero». Si existe un modelo con el
+ * nombre completo («Twingo E-Tech eléctrico») gana el más largo que coincida palabra a palabra con el principio. Nunca inventa
+ * un modelo: devuelve null si ninguno encaja.
+ */
+export function elegirModeloExistente<T extends { nombre: string }>(texto: string, candidatos: T[]): T | null {
+  const t = palabrasModelo(texto);
+  if (t.length === 0) return null;
+  let mejor: T | null = null;
+  let mejorLongitud = 0;
+  for (const c of candidatos) {
+    const p = palabrasModelo(c.nombre);
+    if (p.length === 0 || p.length > t.length) continue;
+    if (p.every((w, i) => w === t[i]) && p.length > mejorLongitud) {
+      mejor = c;
+      mejorLongitud = p.length;
+    }
+  }
+  return mejor;
+}
+
+/** ¿Es el mismo modelo escrito de dos formas («Nuevo Espace» / «Espace», «CLIO (CL6)» / «Clio»)? Basta con que uno empiece por el otro. */
+export function mismoModeloBase(a: string, b: string): boolean {
+  const x = palabrasModelo(a);
+  const y = palabrasModelo(b);
+  if (x.length === 0 || y.length === 0) return false;
+  const [corto, largo] = x.length <= y.length ? [x, y] : [y, x];
+  return corto.every((w, i) => w === largo[i]);
+}

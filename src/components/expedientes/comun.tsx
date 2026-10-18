@@ -1,9 +1,11 @@
 "use client";
 
+import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { useToast } from "../Toast";
+import { EtiquetaEstado, EtiquetaPago, type DatosVehiculo } from "../etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
 
 export type CampoFecha = "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion";
@@ -13,30 +15,27 @@ export const FONDO_FECHA_A = "rgba(128, 128, 128, 0.03)";
 export const FONDO_FECHA_B = "rgba(128, 128, 128, 0.09)";
 
 export function BadgeTipoVenta({ exp }: { exp: ExpedienteDto }) {
-  if (!exp.tipoDeVenta) return <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>;
-  return (
-    <span
-      className="badge"
-      style={{
-        fontSize: "0.7rem",
-        padding: "3px 8px",
-        backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
-        color: "#fff",
-      }}
-    >
-      {exp.tipoDeVenta.nombre_tipo_venta}
-    </span>
-  );
+  return <EtiquetaPago nombre={exp.tipoDeVenta?.nombre_tipo_venta} color={exp.tipoDeVenta?.color} />;
 }
 
 export function BadgeEstado({ exp }: { exp: ExpedienteDto }) {
-  if (!exp.estadoVehiculo) return <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>;
-  const esNuevo = exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === "nuevo";
-  return (
-    <span className={`badge badge-${esNuevo ? "tienda" : "vendedor"}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
-      {exp.estadoVehiculo.nombre_estado_vehiculo}
-    </span>
-  );
+  return <EtiquetaEstado nombre={exp.estadoVehiculo?.nombre_estado_vehiculo} clase={exp.estadoVehiculo?.clase} color={exp.estadoVehiculo?.color} />;
+}
+
+/** Los datos de vehículo de un expediente en el formato de las columnas estándar (VN/VO, marca, modelo, estado y pago). */
+export function datosVehiculoDeExpediente(exp: ExpedienteDto | null | undefined): DatosVehiculo {
+  return {
+    clase: exp?.estadoVehiculo?.clase ?? null,
+    marca: exp?.modelo?.marca?.nombre ?? null,
+    marcaColor: aspectoVehiculo(exp?.modelo?.marca, exp?.estadoVehiculo).capsula,
+    marcaPunto: aspectoVehiculo(exp?.modelo?.marca, exp?.estadoVehiculo).punto,
+    marcaPuntoColor: aspectoVehiculo(exp?.modelo?.marca, exp?.estadoVehiculo).puntoColor,
+    modelo: exp?.modelo?.nombre_modelo ?? null,
+    estado: exp?.estadoVehiculo?.nombre_estado_vehiculo ?? null,
+    estadoColor: exp?.estadoVehiculo?.color ?? null,
+    tipoPago: exp?.tipoDeVenta?.nombre_tipo_venta ?? null,
+    tipoPagoColor: exp?.tipoDeVenta?.color ?? null,
+  };
 }
 
 export function EnlaceEditar({ id }: { id: number }) {
@@ -122,7 +121,7 @@ export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
     );
   }
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    <div className="celda-cliente" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
       <button
         type="button"

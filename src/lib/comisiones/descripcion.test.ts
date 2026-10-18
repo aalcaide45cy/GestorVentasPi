@@ -93,8 +93,8 @@ describe("2. Cuándo cuenta un coche", () => {
     const sinFactura = exp(2, { fechaMatriculacion: "2026-06-10" });
     expect(calcularMes(plan(), V, "2026-06", [sinFactura]).lineas[0].cuenta).toBe(true);
   });
-  it("VO y «cobrado en otra fecha»: cuentan por la fecha de cobro", () => {
-    const vo = exp(1, { clase: "VO", fechaCobro: "2026-06-20", fechaMatriculacion: "2026-05-01" });
+  it("un usado cuenta por su fecha de facturación; un nuevo «cobrado en otra fecha», por la de cobro", () => {
+    const vo = exp(1, { clase: "VO", fechaFacturacion: "2026-06-20", fechaMatriculacion: "2026-05-01" });
     const vnCobro = exp(2, { fechaCobro: "2026-06-21", fechaMatriculacion: "2026-05-02", cobradoOtraFecha: true });
     const r = calcularMes(plan(), V, MES, [vo, vnCobro]);
     expect(r.lineas.filter((l) => l.cuenta).length).toBe(2);
@@ -164,16 +164,19 @@ describe("4. Tasa de intervención", () => {
     expect(calcularMes(plan({ tasaIntervencionPorMarca: [{ idMarca: 1, tipoTasa: "unidades", objetivo: 4 }] }), V, MES, e).tasaIntervencion[0].cumplida).toBe(false);
     expect(calcularMes(plan({ tasaIntervencionPorMarca: [{ idMarca: 1, tipoTasa: "porcentaje", objetivo: 30 }] }), V, MES, e).tasaIntervencion[0].cumplida).toBe(true);
   });
-  it("contado no suma al numerador; Preference y Renting sí; los VO no cuentan", () => {
+  it("contado no suma al numerador; Preference y Renting sí; los VO financiados también cuentan", () => {
     const e = [
       ...vn(1, 1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-02" }),
       ...vn(2, 1, { categoriaVenta: "RENTING", fechaRci: "2026-06-03" }),
       ...vn(3, 1, { categoriaVenta: "CONTADO", fechaRci: "2026-06-04" }),
-      exp(4, { clase: "VO", fechaCobro: "2026-06-05", categoriaVenta: "CREDITO", fechaRci: "2026-06-05" }),
+      exp(4, { clase: "VO", fechaFacturacion: "2026-06-05", categoriaVenta: "CREDITO", fechaRci: "2026-06-05" }),
     ];
     const t = calcularMes(plan(), V, MES, e).tasaIntervencion[0];
-    expect(t.numerador).toBe(2);
-    expect(t.denominador).toBe(3);
+    expect(t.numerador).toBe(3);
+    expect(t.denominador).toBe(4);
+    const sinVo = calcularMes(plan({ tasaIncluyeVo: false }), V, MES, e).tasaIntervencion[0];
+    expect(sinVo.numerador).toBe(2);
+    expect(sinVo.denominador).toBe(3);
   });
   it("sin VN de esa marca en el mes se considera cumplida", () => {
     const soloRci = [exp(1, { fechaMatriculacion: "2026-05-10", categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];
@@ -216,16 +219,16 @@ describe("5. Qué cobra cada concepto", () => {
   });
   it("VO por subtipo: 1ª unidad y resto, con mínimo para aplicar", () => {
     const p = plan({ tarifasUsadosPorSubtipo: [{ subtipo: "DEMO", importePrimera: 20000, importeResto: 10000, minAplicar: 2 }] });
-    const vo = (id: number) => exp(id, { clase: "VO", subtipoVO: "demo", fechaCobro: `2026-06-${10 + id}`, fechaMatriculacion: "2026-01-01" });
+    const vo = (id: number) => exp(id, { clase: "VO", subtipoVO: "demo", fechaFacturacion: `2026-06-${10 + id}`, fechaMatriculacion: "2026-01-01" });
     expect(importe(calcularMes(p, V, MES, [vo(1), vo(2), vo(3)]), "vo")).toBe(20000 + 10000 + 10000);
     expect(importe(calcularMes(p, V, MES, [vo(1)]), "vo")).toBe(0); // mínimo no alcanzado
   });
   it("VO sin tarifa de subtipo = 0 con aviso; con escalones, por unidad; sin escalones fijos, 150 €", () => {
-    const sinTarifa = calcularMes(plan(), V, MES, [exp(1, { clase: "VO", subtipoVO: "KM0", fechaCobro: "2026-06-10" })]);
+    const sinTarifa = calcularMes(plan(), V, MES, [exp(1, { clase: "VO", subtipoVO: "KM0", fechaFacturacion: "2026-06-10" })]);
     expect(importe(sinTarifa, "vo")).toBe(0);
     expect(sinTarifa.avisos.some((a) => a.includes("Sin tarifa de VO"))).toBe(true);
     const vendedorVO: VendedorMotor = { id: 1, tipo: "VO", patronVo: "P" };
-    const vo = (id: number) => exp(id, { clase: "VO", fechaCobro: `2026-06-${10 + id}` });
+    const vo = (id: number) => exp(id, { clase: "VO", fechaFacturacion: `2026-06-${10 + id}` });
     const conEscalones = plan({ patronesVO: [{ nombre: "P", aplicaAVn: false, tiers: [{ unidad: 1, importe: 5000 }, { unidad: 2, importe: 8000 }] }] });
     expect(importe(calcularMes(conEscalones, vendedorVO, MES, [vo(1), vo(2), vo(3)]), "vo")).toBe(5000 + 8000 + 8000);
     expect(importe(calcularMes(plan(), { id: 1, tipo: "VO" }, MES, [vo(1), vo(2)]), "vo")).toBe(30000);

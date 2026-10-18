@@ -1,0 +1,1 @@
+ALTER TABLE "expedientes" ADD COLUMN "deshabilitado" boolean DEFAULT false NOT NULL;

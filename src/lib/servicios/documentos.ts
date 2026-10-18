@@ -11,7 +11,8 @@ import { HttpError } from "@/lib/auth/sesion";
 import { guardarAdjunto, MAX_BYTES_ADJUNTO, detectarMime, type AdjuntoDto } from "./adjuntos";
 import { leerCatalogos } from "./catalogos";
 import { leerTarjetasDeImagen, type TarjetaLeida } from "./dni-lectura";
-import { enCola, imagenesDePdf, textoDeDocumento } from "./ocr";
+import { detectarTarjetas } from "@/lib/documentos/tarjetas";
+import { enCola, imagenesDePdf, mirarDocumento, textoDeDocumento } from "./ocr";
 
 /**
  * Lectura automática de documentos para rellenar fichas: el DNI (cliente y foto) y el pedido (expediente).
@@ -37,6 +38,16 @@ export interface ExpedienteSimilar {
   fecha: string | null;
 }
 
+/** Mensaje con que se avisa de un documento que no es un pedido; la cola lo cuenta aparte de los errores. */
+export const NO_ES_PEDIDO = "No parece un pedido, así que se ha ignorado (no se ha guardado ni adjuntado a nada).";
+
+/** Documento que no es un pedido; lleva el principio de lo que se leyó para poder ver por qué en el registro. */
+export class NoEsPedidoError extends HttpError {
+  constructor(public readonly cabecera: string) {
+    super(422, NO_ES_PEDIDO);
+  }
+}
+
 export interface ResultadoPedido {
   datos: DatosPedido;
   /** Expedientes ya existentes que parecen ser este mismo pedido (solo aviso: no bloquea nada). */
@@ -46,20 +57,26 @@ export interface ResultadoPedido {
 }
 
 /**
- * Recorta la fotografía del titular del anverso. Con la región localizada se usa tal cual (con la proporción de una
- * foto de carnet, anclada a la izquierda); sin ella no hay recorte. Devuelve JPEG de 300×380.
+ * Recorta la fotografía del titular del anverso. Con la región localizada se recorta con margen alrededor de la cara (con la
+ * proporción de una foto de carnet); sin ella no hay recorte. Devuelve JPEG de 300×380.
  */
 export async function recortarFotoDni(anverso: Buffer, foto: RegionFoto | null): Promise<Buffer | null> {
   if (!foto) return null;
   try {
     const { width: W, height: H } = await sharp(anverso, { failOn: "none" }).metadata();
     if (!W || !H) return null;
-    const alto = Math.round(foto.alto * H);
-    const ancho = Math.min(Math.round(foto.ancho * W), Math.round(alto * 0.82));
-    const left = Math.max(0, Math.round(foto.x * W));
-    const top = Math.max(0, Math.round(foto.y * H));
+    // La región detectada es la parte densa de la foto: en el DNI la frente y el pelo salen lavados y quedan fuera de ella, así que el
+    // recorte se amplía un 25 % y se sube un 15 % de su alto para que la cabeza entre entera; el ancho lo pide la proporción de carnet
+    const altoCara = foto.alto * H;
+    const anchoCara = Math.min(foto.ancho * W, altoCara * 0.82);
+    const alto = Math.min(H, altoCara * 1.25);
+    const ancho = Math.min(W, Math.max(anchoCara * 1.25, alto * 0.79));
+    const cx = foto.x * W + anchoCara / 2;
+    const cy = foto.y * H + altoCara / 2 - altoCara * 0.15;
+    const left = Math.max(0, Math.min(W - ancho, Math.round(cx - ancho / 2)));
+    const top = Math.max(0, Math.min(H - alto, Math.round(cy - alto / 2)));
     return await sharp(anverso, { failOn: "none" })
-      .extract({ left, top, width: Math.min(ancho, W - left), height: Math.min(alto, H - top) })
+      .extract({ left, top, width: Math.max(1, Math.min(Math.round(ancho), W - left)), height: Math.max(1, Math.min(Math.round(alto), H - top)) })
       .resize(300, 380, { fit: "cover" })
       .jpeg({ quality: 85 })
       .toBuffer();
@@ -130,9 +147,46 @@ export async function leerDni(ej: Ejecutor, idUsuario: number, nombreFichero: st
   return { datos: { ...combinado, avisos, nombreCompleto: nombreCompleto(combinado) }, adjuntos, fotoId, lado, tarjetas: tarjetas.length };
 }
 
+export type TipoDocumento = "pedido" | "dni" | "otro";
+
+const SENAL_PEDIDO = /PEDIDO|RENAULT|DACIA|VEHICULO|ESTABLECIMIENTO|CLIENTE|RENEW|MATRICULA|BASTIDOR/;
+const SENAL_DNI = /IDENTIDAD|IDESP|NACIONAL|ESPANA|DNI|NIE/;
+const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
+/**
+ * Decide si un fichero es un pedido o un DNI sin leerlo entero: el texto de un PDF con texto, o la cabecera de la primera hoja y,
+ * si no basta, si hay una tarjeta con la forma de un DNI. Así se puede soltar cualquiera de los dos en cualquier casilla.
+ */
+export async function clasificarDocumento(datos: Buffer): Promise<TipoDocumento> {
+  const m = await mirarDocumento(datos);
+  if (m.texto !== null) {
+    if (parsearPedido(m.texto, { modelos: [], tiposVenta: [], aliasModelos: [], marcas: [] }).esPedido) return "pedido";
+    return SENAL_DNI.test(sinAcentos(m.texto)) ? "dni" : "otro";
+  }
+  const cab = sinAcentos(m.cabecera);
+  if (SENAL_PEDIDO.test(cab)) return "pedido";
+  if (SENAL_DNI.test(cab)) return "dni";
+  if (m.primera && (await detectarTarjetas(m.primera).catch(() => [])).length > 0) return "dni";
+  // Sin señales claras: si la cabecera no se pudo juzgar se prueba como pedido (que lo descartará si no lo es)
+  return m.ajeno ? "otro" : "pedido";
+}
+
+export type ResultadoAutomatico = { tipo: "dni"; resultado: ResultadoDni } | { tipo: "pedido"; resultado: ResultadoPedido };
+
+/** Lee un fichero que puede ser un pedido o un DNI: lo reconoce y lo lee como corresponda. `aceptar` limita lo que se admite. */
+export async function leerDocumentoAutomatico(ej: Ejecutor, idUsuario: number, nombre: string, datos: Buffer, opciones: { permitirDuplicados?: boolean; aceptar?: TipoDocumento[] } = {}): Promise<ResultadoAutomatico> {
+  const tipo = await clasificarDocumento(datos);
+  if (tipo === "otro") throw new HttpError(422, "No he reconocido este documento como un pedido ni como un DNI, así que no lo he guardado.");
+  const aceptar = opciones.aceptar ?? ["pedido", "dni"];
+  if (!aceptar.includes(tipo)) throw new HttpError(422, tipo === "dni" ? "Esto es un DNI, y aquí no se puede usar un DNI. No lo he guardado." : "Esto es un pedido, y aquí no se puede usar un pedido. No lo he guardado.");
+  if (tipo === "dni") return { tipo, resultado: await leerDni(ej, idUsuario, nombre, datos) };
+  return { tipo, resultado: await leerPedido(ej, idUsuario, nombre, datos, opciones.permitirDuplicados ?? false) };
+}
+
 /** Lee un pedido (PDF o imagen) y propone los datos del expediente comparando con los catálogos. */
-export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false): Promise<ResultadoPedido> {
-  const { texto, metodo } = await textoDeDocumento(datos);
+export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false, opciones: { paralelo?: boolean } = {}): Promise<ResultadoPedido> {
+  const { texto, metodo, descartado, cabecera } = await textoDeDocumento(datos, { cribar: true, paralelo: opciones.paralelo });
+  if (descartado) throw new NoEsPedidoError(cabecera ?? "");
   const catalogos = await leerCatalogos(ej);
   const marcas = new Map(catalogos.marcas.map((m) => [m.id_marca, m.nombre]));
   const parsed = parsearPedido(texto, {
@@ -141,6 +195,8 @@ export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero:
     aliasModelos: (await ej.select({ alias: aliasModelos.alias, id: aliasModelos.idModelo }).from(aliasModelos)).map((a) => ({ alias: a.alias, id: a.id })),
     marcas: catalogos.marcas.map((m) => m.nombre),
   });
+  // Un PDF que no es un pedido (otros papeles con datos de un cliente) se ignora: ni se propone nada ni se guarda en ningún sitio
+  if (!parsed.esPedido) throw new NoEsPedidoError(texto.replace(/\s+/g, " ").trim().slice(0, 160));
   const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
   // Con «Permitir expedientes duplicados» no se busca ni se avisa de pedidos parecidos
   const similares = permitirDuplicados ? [] : await buscarExpedientesSimilares(ej, parsed);
@@ -218,6 +274,10 @@ export async function buscarExpedientesSimilares(ej: Ejecutor, d: DatosPedido): 
   if (d.matricula) condiciones.push(sql`upper(replace(replace(${expedientes.matricula}, ' ', ''), '-', '')) = ${normalizar(d.matricula)}`);
   if (d.dni && d.fechaExpediente && d.idModelo) {
     condiciones.push(and(sql`upper(replace(replace(${clientes.dni}, ' ', ''), '-', '')) = ${normalizar(d.dni)}`, eq(expedientes.fechaExpediente, d.fechaExpediente), eq(expedientes.idModelo, d.idModelo)));
+  }
+  // Mismo cliente (por nombre) y misma fecha de pedido: los pedidos de coche nuevo no traen bastidor ni matrícula
+  if (d.cliente && d.fechaExpediente) {
+    condiciones.push(and(sql`lower(${clientes.nombre}) = lower(${d.cliente.trim()})`, eq(expedientes.fechaExpediente, d.fechaExpediente), d.idModelo ? eq(expedientes.idModelo, d.idModelo) : undefined));
   }
   if (condiciones.length === 0) return [];
   const filas = await ej

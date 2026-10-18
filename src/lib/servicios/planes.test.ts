@@ -19,9 +19,9 @@ import {
 import { esquemaActualizarExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./expedientes-escritura";
 import { esquemaCrearExpediente } from "./expedientes";
-import { eliminarPlan, guardarPlan, leerPlan, listarPlanes } from "./planes";
+import { eliminarPlan, guardarPlan, leerPlan, listarBonusManuales, listarPlanes } from "./planes";
 import { generarInforme } from "./informes";
-import { eliminarUsuario } from "./usuarios";
+import { eliminarUsuario, eliminarUsuarioConTodo, obtenerUsuario } from "./usuarios";
 
 beforeEach(reiniciarBd);
 
@@ -47,6 +47,29 @@ async function base() {
 }
 
 describe("planes", () => {
+  it("guarda y devuelve la tasa de intervención global y de usados, y la condición de las reglas financieras", async () => {
+    const { modelo } = await base();
+    const [marca] = await db.select().from(marcas).limit(1);
+    const guardado = await guardarPlan(db, null, {
+      nombre: "Agosto 2026",
+      fechaInicio: "2026-08-01",
+      fechaFin: "2026-08-31",
+      tasaGlobalObjetivo: 70,
+      tasaVoTipo: "unidades",
+      tasaVoObjetivo: 3,
+      financiacion: [
+        { idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 5000, tasaIntervencion: "cumplida", tasaAmbito: "global" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 2000, tasaIntervencion: "no_cumplida", tasaAmbito: "global" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 1000 },
+      ],
+      preference: [{ nombre: "BOX3", idMarca: null, idModelo: modelo.idModelo, tipoFinanciacion: null, importe: 7500, tasaIntervencion: "cumplida", tasaAmbito: "vo" }],
+    });
+    const leido = await leerPlan(db, guardado.plan.idPlan);
+    expect(leido).toMatchObject({ tasaGlobalTipo: "porcentaje", tasaGlobalObjetivo: 70, tasaVoTipo: "unidades", tasaVoObjetivo: 3 });
+    expect(leido?.financiacion.map((f) => [f.importe, f.tasaIntervencion, f.tasaAmbito]).sort()).toEqual([[1000, "indiferente", "marca"], [2000, "no_cumplida", "global"], [5000, "cumplida", "global"]]);
+    expect(leido?.preference[0]).toMatchObject({ tasaIntervencion: "cumplida", tasaAmbito: "vo" });
+  });
+
   it("guarda y lee un plan completo, avisa de solapes y valida", async () => {
     const { plan } = await base();
     const leido = await leerPlan(db, plan.idPlan);
@@ -60,14 +83,29 @@ describe("planes", () => {
     await expect(guardarPlan(db, null, { nombre: "X", fechaInicio: "2026-08-01", fechaFin: "2026-07-31" })).rejects.toThrow();
   });
 
-  it("un plan sin liquidaciones se puede borrar; con liquidaciones, no", async () => {
+  it("un plan sin liquidaciones se borra; con liquidaciones, solo si se confirma", async () => {
     const { plan, vend, modelo, vn } = await base();
     await db.insert(expedientes).values({ idUsuario: vend.idUsuario, idModelo: modelo.idModelo, idEstadoVehiculo: vn.idEstadoVehiculo, fechaMatriculacion: "2026-07-10" });
     await liquidar(db, { idPlan: plan.idPlan, mes: "2026-07" });
     await expect(eliminarPlan(db, plan.idPlan)).rejects.toMatchObject({ status: 409 });
+    // Confirmando, el plan se va con sus liquidaciones
+    await eliminarPlan(db, plan.idPlan, true);
+    expect((await listarPlanes(db)).some((p) => p.idPlan === plan.idPlan)).toBe(false);
     const otro = await guardarPlan(db, null, { nombre: "Otro", fechaInicio: "2026-09-01", fechaFin: "2026-09-30" });
     await eliminarPlan(db, otro.plan.idPlan);
     expect((await listarPlanes(db)).some((p) => p.idPlan === otro.plan.idPlan)).toBe(false);
+  });
+});
+
+describe("borrar un usuario con liquidaciones e historial", () => {
+  it("con confirmación se va con todo lo suyo, aunque las versiones y el libro de puntos sean de solo inserción", async () => {
+    const { plan, vend, modelo, vn } = await base();
+    await db.insert(expedientes).values({ idUsuario: vend.idUsuario, idModelo: modelo.idModelo, idEstadoVehiculo: vn.idEstadoVehiculo, fechaMatriculacion: "2026-07-10" });
+    await liquidar(db, { idPlan: plan.idPlan, mes: "2026-07" });
+    const admin = await crearUsuarioPrueba("administrador");
+    await expect(eliminarUsuario(db, admin, vend.idUsuario)).rejects.toMatchObject({ status: 409 });
+    await eliminarUsuarioConTodo(db, admin, vend.idUsuario);
+    expect(await obtenerUsuario(db, vend.idUsuario)).toBeNull();
   });
 });
 
@@ -162,5 +200,39 @@ describe("auditoría: casos límite", () => {
     void admin;
     await Promise.all([1, 2, 3].map(() => liquidar(db, { idPlan: plan.idPlan, mes: "2026-07" })));
     expect(await listarLiquidaciones(db, { idPlan: plan.idPlan })).toHaveLength(1);
+  });
+
+  it("guarda varias líneas del mismo disparador con distinta columna de destino y un % de tasa propio", async () => {
+    await base();
+    const [marca] = await db.select().from(marcas).limit(1);
+    const guardado = await guardarPlan(db, null, {
+      nombre: "Septiembre 2026",
+      fechaInicio: "2026-09-01",
+      fechaFin: "2026-09-30",
+      financiacion: [
+        { idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 5000, concepto: "financiacion" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 7500, concepto: "preference" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 1000, concepto: "extra:Seguro", tasaIntervencion: "cumplida", tasaAmbito: "global", tasaUmbral: 75 },
+      ],
+    });
+    const leido = await leerPlan(db, guardado.plan.idPlan);
+    expect(leido?.financiacion.map((f) => [f.concepto, f.importe, f.tasaUmbral]).sort()).toEqual([["extra:Seguro", 1000, 75], ["financiacion", 5000, null], ["preference", 7500, null]]);
+  });
+
+  it("los bonus tienen una clave estable y los «manuales» se pueden listar para elegirlos en los expedientes", async () => {
+    await base();
+    const datos = { nombre: "Noviembre 2026", fechaInicio: "2026-11-01", fechaFin: "2026-11-30" };
+    const bonus = { nombre: "Bonus manual", evento: "manual" as const, importe: 30000, puntos: 0 };
+    const g = await guardarPlan(db, null, { ...datos, bonus: [bonus, { ...bonus, nombre: "Bonus de matriculación", evento: "matriculacion" as const }] });
+    const leido = await leerPlan(db, g.plan.idPlan);
+    const claves = leido?.bonus.map((b) => b.clave) ?? [];
+    expect(claves).toHaveLength(2);
+    expect(claves.every((c) => c.length > 10)).toBe(true);
+    expect(new Set(claves).size).toBe(2);
+    // Guardar otra vez con las mismas claves las conserva (los expedientes las usan para elegir el bonus)
+    await guardarPlan(db, g.plan.idPlan, { ...datos, bonus: leido?.bonus });
+    expect((await leerPlan(db, g.plan.idPlan))?.bonus.map((b) => b.clave)).toEqual(claves);
+    const manuales = await listarBonusManuales(db);
+    expect(manuales.map((m) => [m.nombre, m.clave])).toEqual([["Bonus manual", claves[0]]]);
   });
 });

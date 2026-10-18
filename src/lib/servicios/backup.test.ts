@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { clientes, expedientes, tiendas, usuarios } from "@/db/schema";
+import { adjuntos, clientes, expedientes, tiendas, usuarios } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCopia, exportarCopia, restaurarCopia, VERSION_COPIA } from "./backup";
@@ -85,5 +85,51 @@ describe("mantenimiento de la base de datos", () => {
     expect(analisis.stats.totalAnomalies).toBe(0);
     expect(await limpiarBbdd(db, esquemaLimpieza.parse({}))).toBe(0);
     expect(await listarExpedientes(db)).toHaveLength(1);
+  });
+
+  it("avisa de lo que hay que revisar a mano (sin tocarlo) y limpia los adjuntos sueltos de cualquier antigüedad", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana", dni: "12345678Z" }, expediente: { vin: "VF1ABC", matricula: "1234BCD" } }));
+    await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana Dos" }, expediente: { vin: "vf1 abc", matricula: "9999ZZZ" } }));
+    await db.insert(clientes).values([{ clienteId: "solo", nombre: "Sin Compras" }, { clienteId: "d1", nombre: "Dup Uno", dni: "11111111H" }, { clienteId: "d2", nombre: "Dup Dos", dni: "11111111h" }]);
+    const viejo = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+    const [suelto] = await db.insert(adjuntos).values({ ambito: "pendiente", tipo: "pedido", nombre: "viejo.pdf", mime: "application/pdf", tamano: 1, creadoEn: viejo }).returning();
+    const [reciente] = await db.insert(adjuntos).values({ ambito: "pendiente", tipo: "pedido", nombre: "reciente.pdf", mime: "application/pdf", tamano: 1 }).returning();
+
+    const a = await analizarBbdd(db);
+    const cat = (id: string) => a.categorias.find((c) => c.id === id)!;
+    expect(cat("exp_bastidor_repetido").cantidad).toBe(2);
+    expect(cat("cli_dni_repetido").cantidad).toBe(2);
+    expect(cat("cli_sin_expedientes").filas.map((f) => f.texto).join()).toMatch(/Sin Compras/);
+    expect(cat("exp_sin_modelo").cantidad).toBe(2);
+    // Lo limpiable son los dos adjuntos sin vincular (el viejo y el reciente); lo «a revisar» no cuenta como limpieza
+    expect(a.stats.totalAnomalies).toBe(2);
+    expect(a.stats.totalARevisar).toBeGreaterThan(0);
+
+    expect(await limpiarBbdd(db, esquemaLimpieza.parse({ cleanAdjuntos: [suelto.id, reciente.id] }))).toBe(2);
+    expect(await db.select().from(adjuntos)).toHaveLength(0);
+    expect(await listarExpedientes(db)).toHaveLength(2);
+  });
+
+  it("los clientes eliminados no cuentan como «sin expediente», y los documentos de lo eliminado se pueden limpiar sin tocar los vigentes", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const vigente = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Vigente", dni: "12345678Z" }, expediente: {} }));
+    const borrado = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Borrada", dni: "12345678Z" }, expediente: {} }));
+    const ahora = new Date();
+    await db.update(expedientes).set({ eliminadoEn: ahora }).where(eq(expedientes.idExpediente, borrado.id_expediente));
+    await db.update(clientes).set({ eliminadoEn: ahora }).where(eq(clientes.id, borrado.id_cliente as number));
+    const [docVigente] = await db.insert(adjuntos).values({ ambito: "expediente", idExpediente: vigente.id_expediente, tipo: "pedido", nombre: "vigente.pdf", mime: "application/pdf", tamano: 10 }).returning();
+    const [docBorrado] = await db.insert(adjuntos).values({ ambito: "expediente", idExpediente: borrado.id_expediente, tipo: "pedido", nombre: "borrado.pdf", mime: "application/pdf", tamano: 10 }).returning();
+
+    const a = await analizarBbdd(db);
+    // El cliente eliminado ya no sale como «sin ningún expediente» ni como DNI repetido; sí se informa de que sigue guardado
+    expect(a.categorias.find((c) => c.id === "cli_sin_expedientes")?.cantidad).toBe(0);
+    expect(a.categorias.find((c) => c.id === "cli_dni_repetido")?.cantidad).toBe(0);
+    expect(a.categorias.find((c) => c.id === "info_clientes_eliminados")?.cantidad).toBe(1);
+    // Solo el documento del expediente eliminado es limpiable
+    expect(a.details.orphanAdjuntosEliminados).toEqual([{ id: docBorrado.id }]);
+    // Aunque se pida borrar los dos, el del expediente vigente se respeta
+    expect(await limpiarBbdd(db, esquemaLimpieza.parse({ cleanAdjuntosEliminados: [docBorrado.id, docVigente.id] }))).toBe(1);
+    expect((await db.select().from(adjuntos)).map((x) => x.nombre)).toEqual(["vigente.pdf"]);
   });
 });

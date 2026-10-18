@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import ResumenLiquidacion from "@/components/cotejo/ResumenLiquidacion";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { codigoExpediente } from "@/lib/date-utils";
 import { euros, nombreMes, sumarMeses, mesActual } from "@/lib/formato";
 import { filasDeMatriz, matrizDeCsv, proponerMapeo, type FilaRejilla, type MapeoColumnas } from "@/lib/rejilla/analizar";
-import type { EstadoComprobacion, EstadoValidacion, ResultadoRejilla } from "@/lib/servicios/rejillas";
+import type { EstadoComprobacion, EstadoValidacion, FilaComprobacion, ResultadoRejilla } from "@/lib/servicios/rejillas";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { columnasVehiculo } from "@/components/etiquetas";
 import { llamar, textoError } from "./api";
 import { InputCentesimas, Seccion } from "./campos";
 import { useCarga } from "./useCarga";
@@ -130,7 +133,63 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
   };
 
   const r = datos;
-  const filas = (r?.filas ?? []).filter((f) => filtro === "todos" || f.estado !== "ok");
+  const esDuplicada = (f: { duplicadaEn: string[]; repetidaEnHoja: boolean }) => f.duplicadaEn.length > 0 || f.repetidaEnHoja;
+  const columnasFilas: ColumnaTabla<FilaComprobacion>[] = [
+    {
+      clave: "matricula",
+      etiqueta: "Matrícula",
+      valor: (f) => f.matricula,
+      celda: (f) => (
+        <>
+          {f.idExpediente ? (
+            <Link href={`/dashboard/expedientes/editar/${f.idExpediente}`} style={{ color: "var(--primary)" }} title={codigoExpediente(f.idExpediente)}>
+              {f.matricula}
+            </Link>
+          ) : (
+            f.matricula
+          )}
+          {esDuplicada(f) && (
+            <span title={[f.duplicadaEn.length > 0 ? `También sale en la hoja de ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "", f.repetidaEnHoja ? "Está repetida con el mismo concepto e importe en esta hoja" : ""].filter(Boolean).join(". ")} style={{ marginLeft: "6px", color: "var(--danger, #ef4444)", fontSize: "0.75rem", fontWeight: 700 }}>
+              🔁 {f.duplicadaEn.length > 0 ? `también en ${f.duplicadaEn.map((m) => nombreMes(m)).join(", ")}` : "repetida"}
+            </span>
+          )}
+        </>
+      ),
+    },
+    { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente ?? "", celda: (f) => f.cliente ?? "—" },
+    ...columnasVehiculo<FilaComprobacion>((f) => ({ clase: f.clase, marca: f.marca, modelo: f.modelo, estado: f.estadoVehiculo })),
+    { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion ?? "", celda: (f) => f.financiacion ?? "—" },
+    {
+      clave: "resultado",
+      etiqueta: "Resultado",
+      valor: (f) => ETIQUETA[f.estado].texto,
+      celda: (f) => (
+        <div style={{ whiteSpace: "normal" }}>
+          <span style={{ color: ETIQUETA[f.estado].color, fontWeight: 600 }}>{ETIQUETA[f.estado].texto}</span>
+          {f.nota && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", maxWidth: "260px" }}>{f.nota}</div>}
+        </div>
+      ),
+    },
+    { clave: "app", etiqueta: "App", valor: (f) => f.importeApp, celda: (f) => euros(f.importeApp), alinear: "right" },
+    { clave: "hoja", etiqueta: "Hoja", valor: (f) => f.importeHoja ?? -1, celda: (f) => (f.importeHoja === null ? "—" : euros(f.importeHoja)), alinear: "right" },
+    { clave: "diferencia", etiqueta: "Diferencia", valor: (f) => f.diferencia, celda: (f) => <span style={{ color: f.diferencia !== 0 ? "var(--warning)" : undefined }}>{f.diferencia === 0 ? "—" : euros(f.diferencia)}</span>, alinear: "right" },
+    {
+      clave: "cobro",
+      etiqueta: "Estado del cobro",
+      valor: (f) => f.validacion,
+      celda: (f) =>
+        f.idExpediente ? (
+          <select className="form-input" style={{ padding: "4px 8px" }} value={f.validacion} onChange={(e) => void validar(f.idExpediente as number, e.target.value as EstadoValidacion, f.notaValidacion)}>
+            <option value="pagado">Pagado</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="reclamado">Reclamado</option>
+          </select>
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>—</span>
+        ),
+    },
+  ];
+  const filas = (r?.filas ?? []).filter((f) => filtro === "todos" || f.estado !== "ok" || esDuplicada(f));
   const cabeceras = borrador?.matriz?.[borrador.mapeo?.filaCabecera ?? 0] ?? [];
   const selectorColumna = (valor: number | null, onChange: (v: number | null) => void) => (
     <select className="form-input" value={valor ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}>
@@ -194,6 +253,10 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
             </p>
           ) : null}
           {borrador.aviso && <p style={{ margin: 0, color: "var(--warning)", fontSize: "0.9rem" }}>{borrador.aviso}</p>}
+          <details>
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>🧮 Ver mi liquidación de {nombreMes(mes)} para ir cotejando mientras revisas</summary>
+            <ResumenLiquidacion usuario={usuario} mes={mes} />
+          </details>
           {borrador.matriz && borrador.mapeo && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
               <div>
@@ -298,6 +361,7 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
               { t: "Faltan en la hoja", v: r.resumen.faltan, c: "var(--danger, #ef4444)" },
               { t: "No están en la app", v: r.resumen.sobran + r.resumen.otroMes, c: "var(--warning)" },
               { t: "Sin importe", v: r.resumen.sinImporte, c: "var(--warning)" },
+              { t: "Posibles duplicados", v: r.resumen.duplicados, c: "var(--danger, #ef4444)" },
             ].map((x) => (
               <div key={x.t} className="glass-panel" style={{ padding: "12px 14px" }}>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{x.t}</div>
@@ -319,71 +383,39 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
               ❌ <b>{r.resumen.faltan} coche(s) tienen comisión en la app pero no aparecen en la hoja de la empresa.</b> Revisa si se han quedado sin comisionar y márcalos como «reclamado» cuando lo comuniques.
             </div>
           )}
+          <ResumenLiquidacion usuario={usuario} mes={mes} />
+          {r.sinMatricula.length > 0 && (
+            <div role="status" style={{ padding: "12px 16px", borderLeft: "4px solid var(--warning, #eab308)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)" }}>
+              🔎 <b>{r.sinMatricula.length} usado(s) de este mes no tienen matrícula</b>: {r.sinMatricula.map((u) => `${u.cliente ?? "Sin cliente"} (exp. ${u.idExpediente})`).join(", ")}. No es obligatoria al crear el expediente, pero sin ella no se puede cruzar con la hoja de la empresa: añádela cuando la tengas.
+            </div>
+          )}
+          {r.resumen.duplicados > 0 && (
+            <div role="alert" style={{ padding: "12px 16px", borderLeft: "4px solid var(--danger, #ef4444)", background: "rgba(239, 68, 68, 0.08)", borderRadius: "var(--radius-sm)" }}>
+              🔁 <b>{r.resumen.duplicados} coche(s) parecen duplicados.</b> Su matrícula aparece también en la hoja de otro mes que tienes guardada, o está repetida con el mismo concepto e importe en esta hoja. Si la empresa te ha pagado dos veces el mismo coche, o lo ha movido de un mes a otro, aquí lo verás marcado con 🔁.
+            </div>
+          )}
           <div style={{ display: "flex", gap: "6px" }}>
             {(["incidencias", "todos"] as const).map((f) => (
               <button key={f} type="button" className={`btn ${filtro === f ? "btn-primary" : "btn-secondary"}`} style={{ padding: "6px 12px" }} onClick={() => setFiltro(f)}>
-                {f === "incidencias" ? `Incidencias (${r.filas.filter((x) => x.estado !== "ok").length})` : `Todos (${r.filas.length})`}
+                {f === "incidencias" ? `Incidencias (${r.filas.filter((x) => x.estado !== "ok" || esDuplicada(x)).length})` : `Todos (${r.filas.length})`}
               </button>
             ))}
           </div>
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Matrícula</th>
-                  <th>Cliente</th>
-                  <th>Financiación</th>
-                  <th>Resultado</th>
-                  <th style={{ textAlign: "right" }}>App</th>
-                  <th style={{ textAlign: "right" }}>Hoja</th>
-                  <th style={{ textAlign: "right" }}>Diferencia</th>
-                  <th>Estado del cobro</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => (
-                  <tr key={f.clave + (f.idExpediente ?? "")}>
-                    <td>
-                      {f.idExpediente ? (
-                        <Link href={`/dashboard/expedientes/editar/${f.idExpediente}`} style={{ color: "var(--primary)" }} title={codigoExpediente(f.idExpediente)}>
-                          {f.matricula}
-                        </Link>
-                      ) : (
-                        f.matricula
-                      )}
-                    </td>
-                    <td>{f.cliente ?? "—"}</td>
-                    <td>{f.financiacion ?? "—"}</td>
-                    <td>
-                      <span style={{ color: ETIQUETA[f.estado].color, fontWeight: 600 }}>{ETIQUETA[f.estado].texto}</span>
-                      {f.nota && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", maxWidth: "260px" }}>{f.nota}</div>}
-                    </td>
-                    <td style={{ textAlign: "right" }}>{euros(f.importeApp)}</td>
-                    <td style={{ textAlign: "right" }}>{f.importeHoja === null ? "—" : euros(f.importeHoja)}</td>
-                    <td style={{ textAlign: "right", color: f.diferencia !== 0 ? "var(--warning)" : undefined }}>{f.diferencia === 0 ? "—" : euros(f.diferencia)}</td>
-                    <td>
-                      {f.idExpediente ? (
-                        <select className="form-input" style={{ padding: "4px 8px" }} value={f.validacion} onChange={(e) => void validar(f.idExpediente as number, e.target.value as EstadoValidacion, f.notaValidacion)}>
-                          <option value="pagado">Pagado</option>
-                          <option value="pendiente">Pendiente</option>
-                          <option value="reclamado">Reclamado</option>
-                        </select>
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {filas.length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ color: "var(--text-muted)" }}>
-                      {filtro === "incidencias" ? "🎉 Sin incidencias: todos los coches cuadran con la hoja." : "No hay filas."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos<FilaComprobacion>
+            id="validacion-rejilla"
+            columnas={columnasFilas}
+            filas={filas}
+            clave={(f) => f.clave + (f.idExpediente ?? "")}
+            placeholder="Buscar por matrícula, cliente, marca, modelo, resultado…"
+            vacio={filtro === "incidencias" ? "🎉 Sin incidencias: todos los coches cuadran con la hoja." : "No hay filas."}
+            textoExtra={(f) => `${f.nota ?? ""} ${ETIQUETA[f.estado].texto}`}
+            pie={(fs) => ({
+              matricula: `${fs.length} fila${fs.length === 1 ? "" : "s"}`,
+              app: euros(fs.reduce((t, f) => t + f.importeApp, 0)),
+              hoja: euros(fs.reduce((t, f) => t + (f.importeHoja ?? 0), 0)),
+              diferencia: euros(fs.reduce((t, f) => t + f.diferencia, 0)),
+            })}
+          />
         </>
       )}
     </Seccion>

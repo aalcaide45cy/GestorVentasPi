@@ -5,6 +5,7 @@ import { estadoVehiculo, modelos, tipoDeVenta, usuarios } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { simularExpediente, type Clase, type CategoriaVenta, type ExpedienteMotor } from "@/lib/comisiones";
 import { cargarExpedientesMotor, planDelMes } from "./liquidaciones";
+import { fechaQueCuenta } from "@/lib/comisiones/util";
 
 const fecha = z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal(""), z.null()]).optional();
 const entero = z.number().int().nullable().optional();
@@ -20,13 +21,15 @@ export const esquemaSimulacion = z.object({
   fecha_rci: fecha,
   fecha_matriculacion: fecha,
   fecha_facturacion: fecha,
+  fecha_entrega: fecha,
   fecha_cobrado: fecha,
   cobrado_otra_fecha: z.boolean().optional(),
   puntos: entero,
   id_promocion: entero,
   comision_coche_manual: entero,
   comision_financiacion_manual: entero,
-  conceptos_especiales: z.array(z.object({ titulo: z.string(), importe_centimos: z.number().int(), evento: z.enum(["afectacion", "matriculacion", "cobro"]).optional() })).max(100).optional(),
+  conceptos_especiales: z.array(z.object({ titulo: z.string(), importe_centimos: z.number().int(), evento: z.enum(["pedido", "afectacion", "rci", "matriculacion", "fecha_matriculacion", "facturacion", "entrega", "cobro"]).optional() })).max(100).optional(),
+  bonus_manuales: z.array(z.string()).max(100).optional(),
 });
 export type EntradaSimulacion = z.infer<typeof esquemaSimulacion>;
 
@@ -53,16 +56,18 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
     fechaRci: f(entrada.fecha_rci),
     fechaMatriculacion: f(entrada.fecha_matriculacion),
     fechaFacturacion: f(entrada.fecha_facturacion),
+    fechaEntrega: f(entrada.fecha_entrega),
     fechaCobro: f(entrada.fecha_cobrado),
     cobradoOtraFecha: entrada.cobrado_otra_fecha ?? false,
     puntos: entrada.puntos ?? null,
     idPromocion: entrada.id_promocion ?? null,
     comisionCocheManual: entrada.comision_coche_manual ?? null,
     comisionFinanciacionManual: entrada.comision_financiacion_manual ?? null,
+    bonusManuales: entrada.bonus_manuales ?? [],
     conceptosEspeciales: (entrada.conceptos_especiales ?? []).map((c) => ({ titulo: c.titulo, importe: c.importe_centimos, evento: c.evento })),
   };
   const vendedor = { id: entrada.id_usuario, tipo: (u.tipo === "VO" ? "VO" : "VN") as Clase, patronVo: u.patron };
-  const clave = (motor.clase === "VO" || motor.cobradoOtraFecha ? motor.fechaCobro : motor.fechaMatriculacion)?.slice(0, 7) ?? null;
+  const clave = fechaQueCuenta(motor).fecha?.slice(0, 7) ?? null;
   const plan = clave ? await planDelMes(ej, clave) : null;
   const resto = clave ? await cargarExpedientesMotor(ej, entrada.id_usuario, { desde: clave, hasta: clave }) : [];
   const sim = simularExpediente(plan, vendedor, motor, resto);
@@ -70,6 +75,8 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
     mes: sim.mes,
     aviso: sim.aviso,
     hayPlan: plan !== null,
+    idPlan: plan?.idPlan ?? null,
+    nombrePlan: plan?.nombre ?? null,
     tramo: sim.resultado?.tramo ?? null,
     puntosMes: sim.resultado?.puntosMes ?? null,
     objetivoX: sim.resultado?.objetivoX ?? null,

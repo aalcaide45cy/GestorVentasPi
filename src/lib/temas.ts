@@ -74,37 +74,57 @@ export function muestraTema(t: TemaColor): { fondo: string; tarjeta: string; pri
   };
 }
 
-/**
- * Script que se ejecuta antes de pintar la página: aplica el tema guardado (sin parpadeo) y deja `window.__gvTema(id)`
- * para cambiarlo desde la interfaz. La fórmula de colores vive solo aquí; la lista de temas se incrusta como datos.
- */
-export function scriptTema(): string {
-  const datos = JSON.stringify(TEMAS.map((t) => [t.id, t.modo === "dark" ? 0 : 1, t.p, t.s, t.a, t.f, t.g, t.n]));
-  return `(function(){
-var T=${datos},R=document.documentElement,V=[];
-function rgb(h,s,l){s/=100;l/=100;var k=function(n){return(n+h/30)%12},a=s*Math.min(l,1-l),f=function(n){var x=k(n);return Math.round(255*(l-a*Math.max(-1,Math.min(x-3,9-x,1))))};return f(0)+', '+f(8)+', '+f(4)}
-function limpiar(){for(var i=0;i<V.length;i++)R.style.removeProperty(V[i]);V=[]}
-function poner(n,v){R.style.setProperty(n,v);V.push(n)}
-function ap(id){
- limpiar();
- var t=null;for(var i=0;i<T.length;i++)if(T[i][0]===id)t=T[i];
- var claro=t?t[1]===1:id==='claro';
- R.setAttribute('data-theme',claro?'light':'dark');
- try{localStorage.setItem('theme',claro?'light':'dark');localStorage.setItem('colorTheme',id)}catch(e){}
- if(!t)return;
- var p=t[2],s=t[3],a=t[4],f=t[5],g=t[6],n=t[7];
- poner('--primary-hue',p);poner('--secondary-hue',s);poner('--accent-hue',a);
- poner('--accent-rgb',rgb(p,85,62));poner('--secondary-rgb',rgb(s,90,55));
- if(claro){
-  var gs=Math.round(g*0.8),gt=Math.round(g*0.5);
-  poner('--bg-app','hsl('+f+', '+gs+'%, '+n+'%)');poner('--bg-surface-hover','hsl('+f+', '+gs+'%, '+(n-3)+'%)');
-  if(n<96){var sf='hsl('+f+', '+gt+'%, '+Math.min(99,n+7)+'%)';poner('--bg-surface',sf);poner('--bg-card',sf);poner('--bg-surface-glass','hsla('+f+', '+gt+'%, '+Math.min(99,n+8)+'%, 0.85)')}
- }else{
-  poner('--bg-app','hsl('+f+', '+g+'%, '+n+'%)');poner('--bg-surface','hsl('+f+', '+g+'%, '+(n+4)+'%)');poner('--bg-card','hsl('+f+', '+g+'%, '+(n+4)+'%)');
-  poner('--bg-surface-hover','hsl('+f+', '+g+'%, '+(n+8)+'%)');poner('--bg-surface-glass','hsla('+f+', '+g+'%, '+(n+1)+'%, 0.65)');
- }
+/** Nombres de todas las variables CSS que puede fijar un tema (para limpiarlas al cambiar de tema). */
+export const VARIABLES_TEMA = ["--primary-hue", "--secondary-hue", "--accent-hue", "--accent-rgb", "--secondary-rgb", "--bg-app", "--bg-surface", "--bg-card", "--bg-surface-hover", "--bg-surface-glass"] as const;
+
+/** Nombre de la cookie con el tema elegido: así el servidor pinta la primera vista ya con sus colores, sin parpadeo ni scripts. */
+export const COOKIE_TEMA = "gv_tema";
+
+function rgb(h: number, s: number, l: number): string {
+  const sat = s / 100;
+  const lum = l / 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = sat * Math.min(lum, 1 - lum);
+  const f = (n: number) => Math.round(255 * (lum - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+  return `${f(0)}, ${f(8)}, ${f(4)}`;
 }
-window.__gvTema=ap;
-try{var c=localStorage.getItem('colorTheme'),m=localStorage.getItem('theme')||'dark';ap(c||(m==='light'?'claro':'oscuro'))}catch(e){ap('oscuro')}
-})()`;
+
+/** ¿Es un identificador de tema conocido (los dos originales o uno de los 150)? */
+export const esTemaValido = (id: string | null | undefined): id is string => !!id && (id === TEMA_OSCURO || id === TEMA_CLARO || TEMAS.some((t) => t.id === id));
+
+/**
+ * Modo y variables CSS de un tema. Los originales («oscuro» y «claro») no fijan ninguna variable: se ve el diseño de siempre.
+ * La fórmula de colores vive solo aquí.
+ */
+export function variablesTema(id: string): { claro: boolean; vars: Record<string, string> } {
+  const t = TEMAS.find((x) => x.id === id);
+  if (!t) return { claro: id === TEMA_CLARO, vars: {} };
+  const claro = t.modo === "light";
+  const { p, s, a, f, g, n } = t;
+  const vars: Record<string, string> = {
+    "--primary-hue": String(p),
+    "--secondary-hue": String(s),
+    "--accent-hue": String(a),
+    "--accent-rgb": rgb(p, 85, 62),
+    "--secondary-rgb": rgb(s, 90, 55),
+  };
+  if (claro) {
+    const gs = Math.round(g * 0.8);
+    const gt = Math.round(g * 0.5);
+    vars["--bg-app"] = `hsl(${f}, ${gs}%, ${n}%)`;
+    vars["--bg-surface-hover"] = `hsl(${f}, ${gs}%, ${n - 3}%)`;
+    if (n < 96) {
+      const sf = `hsl(${f}, ${gt}%, ${Math.min(99, n + 7)}%)`;
+      vars["--bg-surface"] = sf;
+      vars["--bg-card"] = sf;
+      vars["--bg-surface-glass"] = `hsla(${f}, ${gt}%, ${Math.min(99, n + 8)}%, 0.85)`;
+    }
+  } else {
+    vars["--bg-app"] = `hsl(${f}, ${g}%, ${n}%)`;
+    vars["--bg-surface"] = `hsl(${f}, ${g}%, ${n + 4}%)`;
+    vars["--bg-card"] = `hsl(${f}, ${g}%, ${n + 4}%)`;
+    vars["--bg-surface-hover"] = `hsl(${f}, ${g}%, ${n + 8}%)`;
+    vars["--bg-surface-glass"] = `hsla(${f}, ${g}%, ${n + 1}%, 0.65)`;
+  }
+  return { claro, vars };
 }

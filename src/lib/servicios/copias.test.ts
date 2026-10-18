@@ -5,10 +5,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { copiasSeguridad, marcas, sesiones, usuarios } from "@/db/schema";
-import { cifrar } from "@/lib/auth/cifrado";
-import { hashPassword } from "@/lib/auth/password";
-import { codigoTotp, generarSecreto } from "@/lib/auth/totp";
+import { copiasSeguridad, marcas, plantillasPlan, plantillasTarifasVn, sesiones } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { copiaAutomaticaSiToca } from "./planificador";
 import {
@@ -152,40 +149,41 @@ describe.skipIf(!hayPg)("copias completas con PostgreSQL", () => {
   });
 
   it("restaura una copia: recupera los datos, crea copia previa, vacía sesiones y sale de mantenimiento", async () => {
-    const secreto = generarSecreto();
     const admin = await crearUsuarioPrueba("administrador", "Admin copias");
-    await db.update(usuarios).set({ passwordHash: await hashPassword("ClaveDePrueba-2026!"), totpSecretoCifrado: cifrar(secreto, "totp"), totpActivo: true }).where(eq(usuarios.idUsuario, admin.idUsuario));
     await db.insert(marcas).values({ nombre: "Marca original" });
     const copia = await crearCopia(db, "manual", admin.idUsuario);
 
     await db.insert(marcas).values({ nombre: "Marca posterior" });
+    // Una plantilla creada después de la copia no debe perderse al restaurarla
+    await db.insert(plantillasPlan).values({ ambito: "global", nombre: "Mi plantilla", datos: {} });
     await db.insert(sesiones).values({ idUsuario: admin.idUsuario, tokenHash: "x".repeat(10), caducaEn: new Date(Date.now() + 1e6), mfaVerificado: true });
 
-    // Contraseña, código o confirmación incorrectos no tocan nada
-    const mal = { id: copia.id, password: "otra", codigo: codigoTotp(secreto), confirmacion: "RESTAURAR" };
-    await expect(restaurarCopiaCompleta(db, admin.idUsuario, mal, null)).rejects.toMatchObject({ status: 403 });
-    await expect(restaurarCopiaCompleta(db, admin.idUsuario, { ...mal, password: "ClaveDePrueba-2026!", confirmacion: "no" }, null)).rejects.toMatchObject({ status: 400 });
+    // Una copia que no existe no toca nada
+    await expect(restaurarCopiaCompleta(db, admin.idUsuario, { id: copia.id + 9999 })).rejects.toBeTruthy();
     expect((await db.select().from(marcas)).length).toBe(2);
 
-    const r = await restaurarCopiaCompleta(db, admin.idUsuario, { id: copia.id, password: "ClaveDePrueba-2026!", codigo: codigoTotp(secreto), confirmacion: "RESTAURAR" }, null);
+    const r = await restaurarCopiaCompleta(db, admin.idUsuario, { id: copia.id });
     expect(r.previa).toMatch(/_previa\.dump$/);
+    // La copia previa explica en sus notas por qué se hizo
+    const previa = (await listarCopias(db)).find((c) => c.nombre === r.previa);
+    expect(previa?.notas).toMatch(/Antes de restaurar la copia/);
     expect(existsSync(path.join(dir, r.previa))).toBe(true);
     expect((await db.select().from(marcas)).map((m) => m.nombre)).toEqual(["Marca original"]);
     expect(await db.select().from(sesiones)).toHaveLength(0);
+    expect((await db.select().from(plantillasPlan)).map((p) => p.nombre)).toContain("Mi plantilla");
+    expect((await db.select().from(plantillasTarifasVn)).some((p) => p.sistema)).toBe(true);
     expect(enMantenimiento()).toBe(false);
     // La copia previa queda listada tras la restauración
     expect((await listarCopias(db)).some((c) => c.tipo === "previa")).toBe(true);
   });
 
   it("rechaza restaurar un fichero que no es un dump", async () => {
-    const secreto = generarSecreto();
     const admin = await crearUsuarioPrueba("administrador");
-    await db.update(usuarios).set({ passwordHash: await hashPassword("ClaveDePrueba-2026!"), totpSecretoCifrado: cifrar(secreto, "totp"), totpActivo: true }).where(eq(usuarios.idUsuario, admin.idUsuario));
     const falso = path.join(dir, "gv_20260101_000000_manual.dump");
     writeFileSync(falso, "esto no es un volcado");
     const lista = await listarCopias(db);
     const id = lista.find((c) => c.nombre.endsWith("20260101_000000_manual.dump"))!.id;
-    await expect(restaurarCopiaCompleta(db, admin.idUsuario, { id, password: "ClaveDePrueba-2026!", codigo: codigoTotp(secreto), confirmacion: "RESTAURAR" }, null)).rejects.toMatchObject({ status: 400 });
+    await expect(restaurarCopiaCompleta(db, admin.idUsuario, { id })).rejects.toMatchObject({ status: 400 });
     expect(enMantenimiento()).toBe(false);
   });
 

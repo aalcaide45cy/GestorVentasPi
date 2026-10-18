@@ -2,6 +2,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { HttpError } from "@/lib/auth/sesion";
+import { cabeceraDeOtroDocumento } from "@/lib/documentos/pedido";
 import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
 
 /**
@@ -15,7 +16,7 @@ import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
 export const MAX_BYTES_OCR = 15 * 1024 * 1024;
 const MAX_PAGINAS = 15;
 /** Un pedido lleva los datos en las primeras hojas; leer más por OCR solo alarga la espera (en la Raspberry, minutos). */
-const MAX_PAGINAS_PEDIDO = 3;
+const MAX_PAGINAS_PEDIDO = 2;
 /** Tiempo máximo de una lectura de pedido: pasado este tiempo se libera la cola para que las demás sigan. */
 const MAX_MS_PEDIDO = 270_000;
 const ESCALA_RASTER = 2.5;
@@ -272,20 +273,93 @@ export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean 
 }
 
 /** Texto de un PDF (capa de texto si la hay; si no, OCR) o de una imagen. Sirve para pedidos y otros documentos. */
-export function textoDeDocumento(datos: Buffer): Promise<{ texto: string; metodo: "texto-pdf" | "ocr" }> {
+/**
+ * Criba rápida para cargas masivas: lee solo el tercio de arriba de la primera página (donde va «PEDIDO DE VEHÍCULO», el logotipo
+ * y el bloque de cliente). Si hay texto legible y no aparece ninguna señal de pedido, el documento se descarta sin leerlo entero.
+ * Si no se puede juzgar (poco texto, página girada…) devuelve false y se hace la lectura completa.
+ */
+async function pareceAjenoAlPedido(primeraPagina: Buffer): Promise<{ ajeno: boolean; cabecera: string }> {
+  const meta = await sharp(primeraPagina, { failOn: "none" }).metadata();
+  if (!meta.width || !meta.height) return { ajeno: false, cabecera: "" };
+  const arriba = await sharp(primeraPagina, { failOn: "none" }).extract({ left: 0, top: 0, width: meta.width, height: Math.max(1, Math.round(meta.height * 0.34)) }).png().toBuffer();
+  const texto = (await ocrOrientado([arriba], { columnas: true })).map((l) => l.texto).join(" ");
+  const limpio = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  const cabecera = limpio.replace(/\s+/g, " ").trim().slice(0, 160);
+  // Hoja de prueba, Anexo VO, oferta…: se descarta sin leer más
+  if (cabeceraDeOtroDocumento(limpio)) return { ajeno: true, cabecera };
+  if ((limpio.match(/[A-Z]/g) ?? []).length < 25) return { ajeno: false, cabecera };
+  return { ajeno: !/PEDIDO|RENAULT|DACIA|VEHICULO|ESTABLECIMIENTO|CLIENTE|RENEW|MATRICULA|BASTIDOR/.test(limpio), cabecera };
+}
+
+/** Lectura sin esperar turno (los pedidos en lote, que se leen varios a la vez); conserva su tiempo máximo. */
+function enParalelo<T>(tarea: () => Promise<T>, maxMs: number): Promise<T> {
+  let temporizador: NodeJS.Timeout | undefined;
+  const limite = new Promise<never>((_, rechazar) => {
+    temporizador = setTimeout(() => rechazar(new HttpError(504, "La lectura ha tardado demasiado y se ha cancelado. Prueba con otra copia del documento o rellena los datos a mano.")), maxMs);
+  });
+  return Promise.race([tarea(), limite]).finally(() => clearTimeout(temporizador));
+}
+
+type TextoLeido = { texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean; cabecera?: string };
+
+export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<TextoLeido> {
+  if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  const tipo = tipoDeFichero(datos);
+  if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
+  const ejecutar = (t: () => Promise<TextoLeido>) => (opciones.paralelo ? enParalelo(t, MAX_MS_PEDIDO) : enCola(t, MAX_MS_PEDIDO));
+  return ejecutar(async () => {
+    try {
+      if (tipo === "imagen") {
+        if (opciones.cribar) {
+          const c = await pareceAjenoAlPedido(datos);
+          if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
+        }
+        return { texto: (await ocrOrientado([datos], { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      }
+      const doc = await abrirPdf(datos);
+      try {
+        // Un pedido lleva sus datos en las dos primeras hojas: no se lee más
+        const paginas = Math.min(doc.numPages, MAX_PAGINAS_PEDIDO);
+        const texto = await textoDePaginas(doc, paginas);
+        if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
+        // Escaneado: primero solo la primera hoja; si no parece de un pedido se descarta sin leer más
+        const primera = await paginasComoImagenes(doc, 1);
+        if (opciones.cribar) {
+          const c = await pareceAjenoAlPedido(primera[0]);
+          if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
+        }
+        const imagenes = paginas > 1 ? [...primera, ...(await paginasComoImagenes(doc, paginas)).slice(1)] : primera;
+        return { texto: (await ocrOrientado(imagenes, { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      } finally {
+        await doc.cleanup?.();
+      }
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      console.error("Error de OCR:", e instanceof Error ? e.message : e);
+      throw new HttpError(500, "No se ha podido leer el documento. Prueba con otra imagen.");
+    }
+  });
+}
+
+/**
+ * Primera mirada a un documento para saber qué es sin leerlo entero: el texto de un PDF con texto, o la parte de arriba de la primera
+ * hoja (OCR). `ajeno` vale true si, leyendo la cabecera, no aparece ninguna señal de pedido.
+ */
+export function mirarDocumento(datos: Buffer): Promise<{ texto: string | null; primera: Buffer | null; ajeno: boolean; cabecera: string }> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
   if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {
     try {
-      if (tipo === "imagen") return { texto: (await ocrOrientado([datos], { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+      if (tipo === "imagen") return { texto: null, primera: datos, ...(await pareceAjenoAlPedido(datos)) };
       const doc = await abrirPdf(datos);
       try {
-        const paginas = Math.min(doc.numPages, MAX_PAGINAS);
-        const texto = await textoDePaginas(doc, paginas);
-        if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
-        return { texto: (await ocrOrientado(await paginasComoImagenes(doc, Math.min(paginas, MAX_PAGINAS_PEDIDO)), { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        const texto = await textoDePaginas(doc, Math.min(doc.numPages, MAX_PAGINAS_PEDIDO));
+        if (texto.replace(/\s/g, "").length >= 40) return { texto, primera: null, ajeno: false, cabecera: texto.replace(/\s+/g, " ").trim().slice(0, 160) };
+        const primera = (await paginasComoImagenes(doc, 1))[0];
+        return { texto: null, primera, ...(await pareceAjenoAlPedido(primera)) };
       } finally {
         await doc.cleanup?.();
       }

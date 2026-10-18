@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import { useToast } from "@/components/Toast";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 import { llamar, textoError } from "./api";
@@ -29,6 +30,28 @@ const PESTANAS = [
 
 type IdPestana = (typeof PESTANAS)[number]["id"];
 
+/** Qué hace cada pestaña y cómo se aplica, en lenguaje llano (se enseña encima de su contenido). */
+const INTRO: Record<IdPestana, string> = {
+  resumen:
+    "Datos generales del plan: nombre, fechas y vendedores. Un plan vale para los meses entre «F. inicio» y «F. fin». Cada coche cuenta en el mes de su fecha de facturación (en un VN, por defecto igual a la de matriculación; sin facturación, la de matriculación). La fecha de entrega es solo un apunte y no afecta a nada.",
+  objetivo:
+    "Los puntos que debe sumar cada vendedor en el mes (Objetivo X = base + arrastre). Con los puntos reales (nuevos y usados) se calcula el tramo del mes, de −4 a +3, y el tramo decide cuánto se cobra por cada coche nuevo en la pestaña VN. Aquí también se fijan los puntos por defecto de cada marca y modelo, la tasa de intervención y las promociones de puntos.",
+  modelos:
+    "Lo que cobra el vendedor por cada coche NUEVO (VN), según el modelo, el tramo del mes y si se cumple la tasa de intervención de la marca. Esta pestaña no afecta a los usados: para ellos mira «Usados / VO».",
+  usados:
+    "Todo lo de los coches de ocasión (VO): si suman puntos, cuánto se paga por cada uno y en qué orden se decide. Usado, KM0, Demo y Buyback son lo mismo; los subtipos y qué estados son usados se gestionan en Configuración › Estados.",
+  reglas:
+    "Dinero por financiar. «Incentivo de financiación»: importe por marca y tipo (Crédito, Preference, Renting) en el mes de la fecha RCI. «Reglas Preference / BOX3»: extra por modelo o marca. En cada línea eliges «Se aplica a»: nuevos, usados o un subtipo de usado, porque los usados tienen su propio sistema. «Reglas especiales»: sumas de importe o puntos con condiciones.",
+  bonus:
+    "Premios de campaña: importe o puntos extra cuando un coche cumple las condiciones de la regla (evento, marca, modelo, fechas, tipo de vehículo o subtipo de usado, tasa de intervención). Cada bonus se genera en el mes de su propio evento.",
+  penalizaciones:
+    "Lo que se resta. La penalización única global se descuenta del total del mes (la comisión neta nunca baja de 0). Las reglas dinámicas restan su importe en el mes de su evento cuando el coche cumple los filtros, incluido el tipo de vehículo o subtipo de usado.",
+  liquidacion:
+    "El resultado del plan mes a mes y vendedor por vendedor. Lo generado en el mes M se cobra en la nómina de fin del mes M+1. Aquí generas, revisas y cierras las liquidaciones; si cambias un expediente de un mes cerrado, se recalcula y se guarda la versión anterior.",
+  notas:
+    "Notas libres del plan y control de dinero pendiente: lo que la empresa te debe de meses anteriores y lo que todavía no has cobrado. Se suma a la previsión de nómina y no cambia el cálculo de comisiones.",
+};
+
 /** Ámbito de plantillas de cada pestaña (VN tiene sus propias plantillas de tarifas y Liquidación no se edita). */
 const AMBITO_PESTANA: Partial<Record<IdPestana, Ambito>> = { resumen: "resumen", objetivo: "objetivo", usados: "usados", reglas: "reglas", bonus: "bonus", penalizaciones: "penalizaciones", notas: "notas" };
 
@@ -38,6 +61,8 @@ interface Props {
   solapados: string[];
   onGuardado: (idPlan: number) => void;
   onVolver: () => void;
+  /** Pestaña con la que se abre (por ejemplo desde un enlace del desglose de un expediente). */
+  pestanaInicial?: string;
 }
 
 const PLAN_VACIO = (): Plan => {
@@ -53,6 +78,13 @@ const PLAN_VACIO = (): Plan => {
     tramoMin: -4,
     tramoMax: 3,
     puntosPorPedido: 0,
+    voPuntosModo: "cuentan",
+    voPuntos: 100,
+    tasaGlobalTipo: "porcentaje",
+    tasaGlobalObjetivo: null,
+    tasaVoTipo: "porcentaje",
+    tasaVoObjetivo: null,
+    tasaIncluyeVo: true,
     penalizacionImporte: 0,
     penalizacionTitulo: null,
     penalizacionDescripcion: null,
@@ -73,11 +105,14 @@ const PLAN_VACIO = (): Plan => {
 };
 
 /** Editor de un plan con las 9 pestañas del original. */
-export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolver }: Props) {
+export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolver, pestanaInicial }: Props) {
   const { mostrar } = useToast();
-  const [plan, setPlanEstado] = useState<Plan>(inicial ?? PLAN_VACIO());
+  // Si se recarga la página (F5) con el plan a medias, se recupera lo que había sin guardar y la pestaña en la que estabas
+  const claveBorrador = `plan-${inicial?.idPlan ?? 0}`;
+  const [borrador] = useState(() => leerBorrador<{ plan: Plan; pestana: IdPestana }>(claveBorrador));
+  const [plan, setPlanEstado] = useState<Plan>(borrador?.plan ?? inicial ?? PLAN_VACIO());
   const [guardado, setGuardado] = useState(JSON.stringify(inicial && inicial.idPlan !== 0 ? inicial : null));
-  const [pestana, setPestana] = useState<IdPestana>("resumen");
+  const [pestana, setPestana] = useState<IdPestana>(borrador?.pestana && PESTANAS.some((p) => p.id === borrador.pestana) ? borrador.pestana : PESTANAS.some((p) => p.id === pestanaInicial) ? (pestanaInicial as IdPestana) : "resumen");
   const [guardando, setGuardando] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
   // Fechas bloqueadas por defecto: con el candado cerrado solo se cambian con las flechas
@@ -87,6 +122,17 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
 
   const hayCambios = useMemo(() => JSON.stringify(plan) !== guardado, [plan, guardado]);
   const setPlan = (cambio: (p: Plan) => Plan) => setPlanEstado((p) => cambio(p));
+  useGuardarBorrador(claveBorrador, () => ({ plan, pestana }), hayCambios);
+  // La dirección recuerda qué plan y qué pestaña hay abiertos: al recargar con F5 se vuelve justo ahí
+  useEffect(() => {
+    window.history.replaceState(null, "", `${window.location.pathname}?plan=${plan.idPlan === 0 ? "nuevo" : plan.idPlan}&tab=${pestana}`);
+  }, [plan.idPlan, pestana]);
+  useEffect(
+    () => () => {
+      window.history.replaceState(null, "", window.location.pathname);
+    },
+    [],
+  );
 
   /** Nombre automático: «Julio 2026», «Copia de Julio 2026» (plan copiado) o el antiguo «Plan AAAA-MM». Un nombre propio («Plan especial») no lo es. */
   const esNombreAutomatico = (n: string) => {
@@ -148,6 +194,14 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
   const etiquetaCabecera = { color: "var(--text-secondary)", fontSize: "0.95rem", minWidth: "72px" } as const;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {borrador && (
+        <div role="status" style={{ padding: "10px 14px", borderLeft: "4px solid var(--info)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          ♻️ Se han recuperado los cambios del plan que tenías sin guardar (la página se recargó). Revísalos y guarda.
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => { borrarBorrador(claveBorrador); window.location.reload(); }}>
+            Descartarlos y volver a lo guardado
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <div>
@@ -222,6 +276,8 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
         <PlantillasPlan ambito="global" plan={plan} setPlan={setPlan} cat={cat} />
       </div>
 
+      <div style={{ padding: "10px 14px", borderLeft: "3px solid var(--primary)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.85rem", lineHeight: 1.55, color: "var(--text-secondary)" }}>{INTRO[pestana]}</div>
+
       {pestana === "resumen" && <TabResumen {...props} solapados={solapados} />}
       {pestana === "objetivo" && <TabObjetivo {...props} />}
       {pestana === "modelos" && <TabModelos {...props} />}
@@ -241,7 +297,7 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
               <button type="button" className="btn btn-secondary" onClick={() => setSaliendo(false)}>
                 Seguir editando
               </button>
-              <button type="button" className="btn btn-primary" onClick={onVolver}>
+              <button type="button" className="btn btn-primary" onClick={() => { borrarBorrador(claveBorrador); onVolver(); }}>
                 Descartar y salir
               </button>
             </div>

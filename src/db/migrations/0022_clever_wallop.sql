@@ -1,0 +1,1 @@
+ALTER TABLE "copias_seguridad" ADD COLUMN "notas" text;

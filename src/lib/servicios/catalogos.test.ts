@@ -117,3 +117,70 @@ describe("marcas, modelos y tiendas", () => {
     await eliminarTienda(db, vacia.id_tienda);
   });
 });
+
+describe("eliminar un modelo con expedientes", () => {
+  async function preparar() {
+    const admin = await crearUsuarioPrueba("administrador");
+    const marca = (await crearCatalogo(db, { tipo: "marca", nombre: "Dacia" })) as { id_marca: number };
+    const sandero = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Sandero" })) as { id_modelo: number };
+    const stepway = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Sandero Stepway" })) as { id_modelo: number };
+    const { expedientes } = await import("@/db/schema");
+    await db.insert(expedientes).values([{ idUsuario: admin.idUsuario, idModelo: stepway.id_modelo }, { idUsuario: admin.idUsuario, idModelo: stepway.id_modelo }]);
+    return { marca, sandero, stepway, expedientes };
+  }
+
+  it("exige elegir adónde pasan los expedientes", async () => {
+    const { stepway } = await preparar();
+    await expect(eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("los pasa a un modelo existente y borra el modelo", async () => {
+    const { sandero, stepway, expedientes } = await preparar();
+    const msg = await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, reasignar_a: sandero.id_modelo });
+    expect(msg).toMatch(/2 expedientes/);
+    const filas = await db.select().from(expedientes);
+    expect(filas.every((f) => f.idModelo === sandero.id_modelo)).toBe(true);
+    expect((await leerCatalogos(db)).modelos.some((m) => m.id_modelo === stepway.id_modelo)).toBe(false);
+  });
+
+  it("los pasa a un modelo nuevo", async () => {
+    const { marca, stepway, expedientes } = await preparar();
+    await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, crear_modelo: { marca_id: marca.id_marca, nombre: "Sandero 2" } });
+    const nuevo = (await leerCatalogos(db)).modelos.find((m) => m.nombre_modelo === "Sandero 2");
+    expect(nuevo).toBeDefined();
+    expect((await db.select().from(expedientes)).every((f) => f.idModelo === nuevo!.id_modelo)).toBe(true);
+  });
+
+  it("o los deja sin modelo", async () => {
+    const { stepway, expedientes } = await preparar();
+    await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, sin_modelo: true });
+    expect((await db.select().from(expedientes)).every((f) => f.idModelo === null)).toBe(true);
+  });
+});
+
+describe("marcas: color de la cápsula y punto", () => {
+  it("guarda el color, el símbolo y el color del punto, y no los pierde al editar otros datos", async () => {
+    const m = (await crearCatalogo(db, { tipo: "marca", nombre: "Dacia", color: "#22c55e", punto: "●", punto_color: "#facc15" })) as { id_marca: number; color: string | null; punto: string | null; punto_color: string | null };
+    expect(m).toMatchObject({ color: "#22c55e", punto: "●", punto_color: "#facc15" });
+    // Editar solo el nombre no toca el aspecto
+    const igual = (await actualizarCatalogo(db, { tipo: "marca", id: m.id_marca, nombre: "Dacia SA" })) as { color: string | null; punto: string | null; punto_color: string | null };
+    expect(igual).toMatchObject({ color: "#22c55e", punto: "●", punto_color: "#facc15" });
+    // Cambiar el símbolo y quitar el color de la cápsula
+    const otro = (await actualizarCatalogo(db, { tipo: "marca", id: m.id_marca, nombre: "Dacia SA", color: null, punto: ",", punto_color: "#ef4444" })) as { color: string | null; punto: string | null; punto_color: string | null };
+    expect(otro).toMatchObject({ color: null, punto: ",", punto_color: "#ef4444" });
+    // Quitar el punto
+    const sin = (await actualizarCatalogo(db, { tipo: "marca", id: m.id_marca, nombre: "Dacia SA", punto: null, punto_color: null })) as { punto: string | null; punto_color: string | null };
+    expect(sin).toMatchObject({ punto: null, punto_color: null });
+  });
+});
+
+describe("estados de vehículo: cápsula, punto y quién prevalece", () => {
+  it("guarda el aspecto del estado y no lo pierde al editar otros datos", async () => {
+    const e = (await crearCatalogo(db, { tipo: "estado_vehiculo", nombre_estado_vehiculo: "KM0", clase: "VO", subtipo_vo: "KM0" })) as { id_estado_vehiculo: number; prevalece: string };
+    expect(e.prevalece).toBe("marca");
+    const a = (await actualizarCatalogo(db, { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: "KM0", clase: "VO", subtipo_vo: "KM0", capsula_color: "#ef444480", punto: "★", punto_color: "#facc15", prevalece: "estado" })) as { capsula_color: string | null; punto: string | null; punto_color: string | null; prevalece: string };
+    expect(a).toMatchObject({ capsula_color: "#ef444480", punto: "★", punto_color: "#facc15", prevalece: "estado" });
+    const igual = (await actualizarCatalogo(db, { tipo: "estado_vehiculo", id: e.id_estado_vehiculo, nombre_estado_vehiculo: "KM0 nuevo", clase: "VO", subtipo_vo: "KM0" })) as { capsula_color: string | null; punto: string | null; prevalece: string };
+    expect(igual).toMatchObject({ capsula_color: "#ef444480", punto: "★", prevalece: "estado" });
+  });
+});

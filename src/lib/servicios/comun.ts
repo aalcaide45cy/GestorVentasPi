@@ -68,6 +68,8 @@ export function claseEstado(nombre: string): { clase: "VN" | "VO"; subtipo: stri
   if (n.includes("km0") || n.includes("km 0")) return { clase: "VO", subtipo: "KM0" };
   if (n.includes("demo")) return { clase: "VO", subtipo: "DEMO" };
   if (n.includes("buyback")) return { clase: "VO", subtipo: "BUYBACK" };
-  return { clase: "VO", subtipo: "USADO" };
+  // Solo se da por usado lo que lo dice; un nombre desconocido («Matriculación», «Entrega»…) no cambia nada y se queda como nuevo
+  if (/(usado|usados|ocasion|ocasión|segunda mano|vo)/.test(n)) return { clase: "VO", subtipo: "USADO" };
+  return { clase: "VN", subtipo: null };
 }
 

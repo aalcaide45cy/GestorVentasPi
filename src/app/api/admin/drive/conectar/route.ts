@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/sesion";
 import { errorJson, manejar } from "@/lib/http";
-import { crearState, driveConfigurado, urlAutorizacion } from "@/lib/servicios/drive";
+import { db } from "@/db";
+import { crearState, leerCredenciales, origenDe, urlAutorizacion } from "@/lib/servicios/drive";
 
 export const dynamic = "force-dynamic";
 
 /** Devuelve la URL de autorización de Google (el navegador redirige a ella). */
-export const GET = manejar(async () => {
+export const GET = manejar(async (req: Request) => {
   const admin = await requireSession("administrador");
-  if (!driveConfigurado()) return errorJson(409, "Faltan GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET o PUBLIC_URL en el fichero .env (ver la guía de instalación).");
-  return NextResponse.json({ success: true, data: { url: urlAutorizacion(crearState(admin.idUsuario)) } });
+  const cred = await leerCredenciales(db);
+  if (!cred) return errorJson(409, "Primero escribe las credenciales de Google (paso a paso en Configuración › Copias de seguridad › Google Drive).");
+  return NextResponse.json({ success: true, data: { url: urlAutorizacion(crearState(admin.idUsuario), cred, origenDe(req)) } });
 });

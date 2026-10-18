@@ -31,6 +31,7 @@ const camposComunes = {
   id_estado_vehiculo: idOpcional.optional(),
   matricula: textoOpcional(50).optional(),
   vin: textoOpcional(100).optional(),
+  comentarios: textoOpcional(5000).optional(),
   cobrado_otra_fecha: booleano,
   ...camposFecha,
 };
@@ -39,7 +40,7 @@ const esquemaConcepto = z.object({
   titulo: z.string().trim().min(1).max(200),
   importe_centimos: z.number().int(),
   descripcion: z.string().trim().max(1000).default(""),
-  evento: z.enum(["afectacion", "matriculacion", "cobro"]),
+  evento: z.enum(["pedido", "afectacion", "rci", "matriculacion", "fecha_matriculacion", "facturacion", "entrega", "cobro"]),
   cobrado: z.boolean().default(false),
 });
 
@@ -65,11 +66,14 @@ const camposEdicion = {
   comision_coche_manual: z.number().int().nullable().optional(),
   comision_financiacion_manual: z.number().int().nullable().optional(),
   conceptos_especiales: z.array(esquemaConcepto).max(100).optional(),
+  /** Claves de los bonus «manuales» del plan que se aplican a este expediente. */
+  bonus_manuales: z.array(z.string().trim().min(1).max(60)).max(100).optional(),
+  deshabilitado: booleano,
 };
 
 /** Duplicado de uno o varios expedientes (para probar): `copias` por cada uno. */
 export const MAX_COPIAS_POR_EXPEDIENTE = 50;
-export const MAX_COPIAS_TOTAL = 5000;
+export const MAX_COPIAS_TOTAL = 50000;
 /** A partir de cuántos expedientes nuevos en una sola operación se exige una copia de seguridad reciente y válida. */
 export const UMBRAL_COPIA_PREVIA = 10;
 export const esquemaDuplicarExpedientes = z.object({
@@ -98,6 +102,7 @@ export const esquemaActualizarExpediente = z.discriminatedUnion("modo", [
       id_modelo: idOpcional.optional(),
       id_tipo_de_venta: idOpcional.optional(),
       id_usuario: idOpcional.optional(),
+      deshabilitado: booleano,
       ...camposFecha,
     }),
   }),
@@ -141,6 +146,7 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     fecha_facturacion: e.fechaFacturacion,
     matricula: e.matricula,
     vin: e.vin,
+    comentarios: e.comentarios,
     cobrado_otra_fecha: e.cobradoOtraFecha,
     fecha_cobrado: e.fechaCobrado,
     comision_cobrada: e.comisionCobrada,
@@ -156,6 +162,8 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     comision_coche_manual: e.comisionCocheManual,
     comision_financiacion_manual: e.comisionFinanciacionManual,
     conceptos_especiales: e.conceptosEspeciales ?? [],
+    bonus_manuales: e.bonusManuales ?? [],
+    deshabilitado: e.deshabilitado,
     cliente: e.cliente ? clienteDto(e.cliente) : null,
     modelo: e.modelo ? modeloDto(e.modelo) : null,
     tipoDeVenta: e.tipoDeVenta ? tipoVentaDto(e.tipoDeVenta) : null,

@@ -21,7 +21,7 @@ export const POST = manejar(async (req: Request) => {
   const copia = await leerJson(req, esquemaCopia);
   // Restaurar sustituye todos los datos: antes siempre se guarda una copia nueva del estado actual
   try {
-    await asegurarCopiaReciente(db, admin.idUsuario, 0);
+    await asegurarCopiaReciente(db, admin.idUsuario, 0, "Antes de restaurar un archivo de copia exportado desde el navegador.");
   } catch (err) {
     throw new HttpError(409, `No se ha restaurado nada porque no se pudo hacer la copia de seguridad previa. ${err instanceof Error ? err.message : ""}`.trim());
   }

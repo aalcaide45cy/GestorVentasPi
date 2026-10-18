@@ -212,3 +212,77 @@ describe("modelos abreviados", () => {
     expect(parsearPedido(["CLIENTE", linea].join("\n"), cat).idModelo).toBe(id);
   });
 });
+
+describe("pedido de vehículo usado con retoma", () => {
+  const texto = [
+    "PEDIDO DE VEHÍCULO USADO",
+    "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+    "Sr. D. Francisco Javier Remedios Garcia  AUTOCARPE CONCESIONARIO, S.L.",
+    "DATOS DEL VEHÍCULO",
+    "Matrícula  1504JPN  Bastidor  VF12RA11A55506090",
+    "Valoración VO:  RENAULT Mégane 1.6 Confort Dynamique - Matrícula 9835DNC  -0,00 €",
+    "Pendiente de tasación definitiva del vehículo por parte del concesionario.",
+  ].join("\n");
+  it("la matrícula es la del coche vendido, aunque comparta línea con el bastidor, y la retoma se guarda aparte", () => {
+    const d = parsearPedido(texto, catalogo);
+    expect(d.tipoPedido).toBe("usado");
+    expect(d.matricula).toBe("1504JPN");
+    expect(d.retoma?.matricula).toBe("9835DNC");
+  });
+  it("un pedido escaneado sin el rótulo «USADO» se reconoce por «Renew» o por el régimen R.E.B.U.", () => {
+    expect(parsearPedido("PEDIDO DE VEHÍCULO  renew\nCLIENTE\nSr. D. Jesus Jara Rodriguez\nMatrícula  3881LYM", catalogo).tipoPedido).toBe("usado");
+    expect(parsearPedido("PEDIDO DE VEHÍCULO\nUso Anterior  Particular\nMatrícula  3881LYM", catalogo).tipoPedido).toBe("usado");
+  });
+});
+
+describe("pedidos escaneados con ruido de OCR", () => {
+  const texto = [
+    "PEDIDO DE VEHÍCULO NUEVO",
+    "Emitido: Sábado, 05 Sep 2026 11:31 hs.",
+    "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+    "rr roo iovmicicco o rP|f[f[táTZZzZzT7rnvYÁcioóo>e?oe>r£..£xY  —",
+    "Sra. Doña Maria Jose Acuña Abadia  AUTOCARPE CONCESIONARIO, S.L.",
+    "00687749A  B83747626",
+    "Avenida Moratalaz, 135, 5, A  CLAVO, 22-26",
+    "Madrid, Madrid (28030)  Rivas - Vaciamadrid, Madrid (28522)",
+    "600345731  Tel.: 916665058",
+    "mjacunEhotmail.com  LaV:09:30a 13:30",
+    "Alfonso Alcaide Cornejo",
+    "alfonso.alcaideQautocarpe.es / 655455421",
+    "RESUMEN",
+  ].join("\n");
+  it("salta la línea de basura de encima del nombre y recompone el correo", () => {
+    const d = parsearPedido(texto, catalogo);
+    expect(d.cliente).toBe("Maria Jose Acuña Abadia");
+    expect(d.email).toBe("mjacun@hotmail.com");
+  });
+  it("recompone correos con «G» en vez de «@» y dominios deformados", () => {
+    const t = texto.replace("mjacunEhotmail.com", "f.mayor.casadoGhoimail.com");
+    expect(parsearPedido(t, catalogo).email).toBe("f.mayor.casado@hotmail.com");
+  });
+  it("sin rótulo de tipo, la hoja de «Modelo / Tapicería» es de un coche nuevo", () => {
+    const t = ["Número Pedido 14216411", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Sra. Doña Luisa Rodriguez", "RESUMEN", "Modelo:  DACIA NUEVO SANDERO Expression  16.138,02 €", "Color:  Blanco  0,00 €", "Tapicería:  Tela  0,00 €"].join("\n");
+    expect(parsearPedido(t, catalogo).tipoPedido).toBe("nuevo");
+  });
+});
+
+describe("documentos que no son pedidos", () => {
+  it("un PDF con datos de un cliente pero sin pinta de pedido no es un pedido", () => {
+    const ficha = ["FICHA DE CLIENTE", "Nombre: JUAN PEREZ GARCIA", "NIF: 12345678Z", "Teléfono: 600123123", "Matrícula 1234 BCD"].join("\n");
+    expect(parsearPedido(ficha, catalogo).esPedido).toBe(false);
+  });
+  it("un pedido sí lo es", () => {
+    expect(parsearPedido("RENAULT RETAIL GROUP - PEDIDO DE VEHÍCULO\nCliente: JUAN PEREZ", catalogo).esPedido).toBe(true);
+  });
+  it("la hoja de prueba de un vehículo de demostración, el Anexo VO y las ofertas no son pedidos", () => {
+    const hoja = "HOJA DE PRUEBA VEHÍCULO DE DEMOSTRACIÓN Viernes, 12 Abril 2024 CLIENTE ESTABLECIMIENTO Sr. D. Juan Perez Número Pedido 12345678";
+    const anexo = "ANEXO A LAS CONDICIONES DE COMERCIALIZACIÓN DE LOS VEHÍCULOS DE OCASIÓN Y Toda señal recibida en la venta";
+    const oferta = "INFORMACIÓN DE VEHÍCULO NUEVO Viernes, 07 Marzo 2025 / 17:30 hs - 6951-00 CLIENTE ESTABLECIMIENTO";
+    for (const t of [hoja, anexo, oferta]) expect(parsearPedido(t, catalogo).esPedido).toBe(false);
+  });
+  it("un pedido de Renault o Dacia lo es aunque el reconocimiento ensucie la cabecera", () => {
+    for (const t of ["PEDIDO DE VEH�CULO NUEVO Número Pedido 14275199 - 7508-00", "e? NETA PEDIDO DE VEHÍCULO NUEVO Número Pedido 12192475", "PEDIDO DE VEHÍCULO renew NÚMERO PEDIDO 19125", "Número Pedido 11556134 - 6653-00 - dnt Emitido: Jueves"]) {
+      expect(parsearPedido(t, catalogo).esPedido).toBe(true);
+    }
+  });
+});

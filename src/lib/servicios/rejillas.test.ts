@@ -74,6 +74,19 @@ describe("validación de comisiones con la rejilla", () => {
     expect(r.filas.find((f) => f.matricula === "1234BCD")).toMatchObject({ estado: "ok", conceptosHoja: ["Coche", "Financiación"] });
   });
 
+  it("marca como posible duplicado un coche que sale en la hoja de otro mes o repetido en la misma hoja", async () => {
+    const e = await escenario();
+    await guardarRejilla(db, e.v1.idUsuario, e.v1.idUsuario, esquemaGuardarRejilla.parse({ mes: "2026-06", origen: "excel", filas: [fila("1234BCD", 10000, { concepto: "Coche" })] }));
+    await guardarRejilla(db, e.v1.idUsuario, e.v1.idUsuario, esquemaGuardarRejilla.parse({ mes: "2026-07", origen: "excel", filas: [fila("1234 BCD", 10000, { concepto: "Coche" }), fila("9999ZZZ", 500, { concepto: "Bono" }), fila("9999 ZZZ", 500, { concepto: "Bono" })] }));
+    const r = await comprobarRejilla(db, e.v1.idUsuario, "2026-07");
+    expect(r.filas.find((f) => f.matricula === "1234BCD")).toMatchObject({ duplicadaEn: ["2026-06"], repetidaEnHoja: false });
+    expect(r.filas.find((f) => f.matricula.replace(/\s/g, "") === "9999ZZZ")).toMatchObject({ duplicadaEn: [], repetidaEnHoja: true });
+    expect(r.resumen.duplicados).toBe(2);
+    // Sin la hoja de junio no hay duplicado entre meses
+    await eliminarRejilla(db, e.v1.idUsuario, "2026-06");
+    expect((await comprobarRejilla(db, e.v1.idUsuario, "2026-07")).resumen.duplicados).toBe(1);
+  });
+
   it("una fila sin importe legible queda como «sin importe»", async () => {
     const e = await escenario();
     await guardarRejilla(db, e.v1.idUsuario, e.v1.idUsuario, esquemaGuardarRejilla.parse({ mes: "2026-07", origen: "pdf", filas: [fila("1234BCD", null)] }));

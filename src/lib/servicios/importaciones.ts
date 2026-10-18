@@ -19,7 +19,8 @@ import {
 import type { UsuarioActual } from "@/lib/auth/sesion";
 import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
 import { aDto, relacionesExpediente } from "./expedientes";
-import { categoriaTipoVenta, claseEstado, escaparLike, hoyIso } from "./comun";
+import { elegirModeloExistente } from "@/lib/documentos/modelos";
+import { escaparLike, hoyIso } from "./comun";
 
 /* ------------------------------------------------------------------ */
 /* Esquemas                                                            */
@@ -171,86 +172,47 @@ async function resolverCliente(ej: Ejecutor, item: EntradaImportacionCsv["items"
   return idCliente;
 }
 
+/**
+ * Enlaza con la marca y el modelo que YA existen (sin distinguir mayúsculas). Nunca crea ni modifica marcas ni modelos: lo que no
+ * se reconoce deja el expediente sin modelo, para que se elija a mano.
+ */
 async function resolverModelo(ej: Ejecutor, item: EntradaImportacionCsv["items"][number]): Promise<number | null> {
   const nombreModelo = limpio(item.modelo_nombre);
   if (!nombreModelo) return null;
   const nombreMarca = limpio(item.marca_nombre);
-
   let idMarca: number | null = null;
   if (nombreMarca) {
-    const activa = limpio(item.marca_activo) === "" ? true : limpio(item.marca_activo) === "true";
-    const accesoRapido = limpio(item.marca_acceso_rapido) === "true";
-    const sistemaComisiones = limpio(item.marca_sistema_comisiones) === "true";
-    const [m] = await ej.select().from(marcas).where(ilike(marcas.nombre, escaparLike(nombreMarca))).limit(1);
-    if (m) {
-      idMarca = m.idMarca;
-      await ej.update(marcas).set({ activo: activa, accesoRapido, sistemaComisiones }).where(eq(marcas.idMarca, idMarca));
-    } else {
-      const [nueva] = await ej.insert(marcas).values({ nombre: nombreMarca, activo: activa, accesoRapido, sistemaComisiones }).returning();
-      idMarca = nueva.idMarca;
-    }
+    const [m] = await ej.select().from(marcas).where(and(ilike(marcas.nombre, escaparLike(nombreMarca)), isNull(marcas.eliminadoEn))).limit(1);
+    if (!m) return null;
+    idMarca = m.idMarca;
   }
-
-  const [existente] = await ej
-    .select()
+  const existentes = await ej
+    .select({ idModelo: modelos.idModelo, nombre: modelos.nombreModelo })
     .from(modelos)
-    .where(
-      idMarca
-        ? and(ilike(modelos.nombreModelo, escaparLike(nombreModelo)), eq(modelos.marcaId, idMarca))
-        : ilike(modelos.nombreModelo, escaparLike(nombreModelo)),
-    )
-    .limit(1);
-  const accesoRapido = limpio(item.modelo_acceso_rapido) === "true";
-  const orden = Number.parseInt(limpio(item.modelo_orden_acceso_rapido), 10);
-  const ordenAccesoRapido = Number.isNaN(orden) ? 0 : orden;
-
-  if (existente) {
-    await ej
-      .update(modelos)
-      .set({ accesoRapido, ordenAccesoRapido, ...(idMarca ? { marcaId: idMarca } : {}) })
-      .where(eq(modelos.idModelo, existente.idModelo));
-    return existente.idModelo;
-  }
-  if (!idMarca) return null;
-  const [nuevo] = await ej.insert(modelos).values({ marcaId: idMarca, nombreModelo, accesoRapido, ordenAccesoRapido }).returning();
-  return nuevo.idModelo;
+    .where(and(isNull(modelos.eliminadoEn), idMarca ? eq(modelos.marcaId, idMarca) : undefined));
+  // «Nuevo Espace» es Espace, «Clio CL6» es Clio…: solo cuenta el modelo base, y nunca se crea uno nuevo
+  const exacto = existentes.find((m) => m.nombre.trim().toLowerCase() === nombreModelo.toLowerCase());
+  return (exacto ?? elegirModeloExistente(nombreModelo, existentes))?.idModelo ?? null;
 }
 
+/** Enlaza con el tipo de venta que ya existe; no crea ni cambia ninguno. */
 async function resolverTipoVenta(ej: Ejecutor, item: EntradaImportacionCsv["items"][number]): Promise<number | null> {
   const nombre = limpio(item.tipo_venta_nombre);
   if (!nombre) return null;
-  const color = limpio(item.tipo_venta_color) || "#3b82f6";
-  const [existente] = await ej.select().from(tipoDeVenta).where(ilike(tipoDeVenta.nombreTipoVenta, escaparLike(nombre))).limit(1);
-  if (existente) {
-    await ej.update(tipoDeVenta).set({ color }).where(eq(tipoDeVenta.idTipoDeVenta, existente.idTipoDeVenta));
-    return existente.idTipoDeVenta;
-  }
-  const [nuevo] = await ej
-    .insert(tipoDeVenta)
-    .values({ nombreTipoVenta: nombre, color, categoria: categoriaTipoVenta(nombre) })
-    .returning();
-  return nuevo.idTipoDeVenta;
+  const [existente] = await ej.select().from(tipoDeVenta).where(and(ilike(tipoDeVenta.nombreTipoVenta, escaparLike(nombre)), isNull(tipoDeVenta.eliminadoEn))).limit(1);
+  return existente?.idTipoDeVenta ?? null;
 }
 
+/** Enlaza con el estado de vehículo que ya existe; no crea ni cambia ninguno. */
 async function resolverEstado(ej: Ejecutor, item: EntradaImportacionCsv["items"][number]): Promise<number | null> {
   const nombre = limpio(item.estado_vehiculo_nombre);
   if (!nombre) return null;
-  const predeterminado = limpio(item.estado_vehiculo_predeterminado) === "true";
   const [existente] = await ej
     .select()
     .from(estadoVehiculo)
-    .where(ilike(estadoVehiculo.nombreEstadoVehiculo, escaparLike(nombre)))
+    .where(and(ilike(estadoVehiculo.nombreEstadoVehiculo, escaparLike(nombre)), isNull(estadoVehiculo.eliminadoEn)))
     .limit(1);
-  if (existente) {
-    await ej.update(estadoVehiculo).set({ predeterminado }).where(eq(estadoVehiculo.idEstadoVehiculo, existente.idEstadoVehiculo));
-    return existente.idEstadoVehiculo;
-  }
-  const { clase, subtipo } = claseEstado(nombre);
-  const [nuevo] = await ej
-    .insert(estadoVehiculo)
-    .values({ nombreEstadoVehiculo: nombre, predeterminado, clase, subtipoVo: subtipo })
-    .returning();
-  return nuevo.idEstadoVehiculo;
+  return existente?.idEstadoVehiculo ?? null;
 }
 
 export interface ResultadoImportacion {

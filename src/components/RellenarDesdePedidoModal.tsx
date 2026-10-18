@@ -9,6 +9,7 @@ import type { ExpedienteDto } from "@/lib/dto";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import type { ResultadoPedido } from "@/lib/servicios/documentos";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import VisorPedido from "./documentos/VisorPedido";
 
 type CampoRelleno = "vin" | "matricula" | "fecha_expediente" | "fecha_entrega";
 
@@ -36,6 +37,7 @@ const ETIQUETAS: Record<CampoRelleno, string> = { vin: "Bastidor", matricula: "M
  */
 export default function RellenarDesdePedidoModal({ expediente, pedido, posicion = 1, total = 1, alIr, alCerrar, alTerminar }: Props) {
   const { mostrar } = useToast();
+  const [verPdf, setVerPdf] = useState(false);
   const d = pedido.datos;
   const nuevos: Record<CampoRelleno, string | null> = { vin: d.vin, matricula: d.matricula, fecha_expediente: d.fechaExpediente, fecha_entrega: d.fechaEntrega };
   const actuales: Record<CampoRelleno, string | null> = { vin: expediente.vin, matricula: expediente.matricula, fecha_expediente: expediente.fecha_expediente, fecha_entrega: expediente.fecha_entrega };
@@ -142,9 +144,12 @@ export default function RellenarDesdePedidoModal({ expediente, pedido, posicion 
           )}
         </span>
       }
-      ancho="680px"
+      ancho={verPdf ? "1500px" : "680px"}
       pie={
         <>
+          <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
+            {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
+          </button>
           <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>
             Cerrar (queda en la cola)
           </button>
@@ -154,7 +159,8 @@ export default function RellenarDesdePedidoModal({ expediente, pedido, posicion 
         </>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", flex: "1 1 0", minWidth: 0 }}>
         {d.retoma && (
           <div style={{ padding: "10px 12px", borderLeft: "4px solid var(--info)", background: "var(--bg-surface-tint)", fontSize: "0.88rem" }}>
             🔁 <strong>Lleva vehículo de retoma</strong>
@@ -208,6 +214,8 @@ export default function RellenarDesdePedidoModal({ expediente, pedido, posicion 
             </>
           )}
         </div>
+      </div>
+      {verPdf && <VisorPedido idAdjunto={pedido.adjunto.id} nombre={pedido.adjunto.nombre} />}
       </div>
     </Modal>
   );
