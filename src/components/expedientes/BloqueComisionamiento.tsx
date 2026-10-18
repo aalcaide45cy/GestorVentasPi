@@ -1,5 +1,7 @@
 "use client";
 
+import { useCarga } from "@/components/comisiones/useCarga";
+import type { BonusManual } from "@/lib/servicios/planes";
 import { useEffect, useState } from "react";
 import { InputCentesimas } from "@/components/comisiones/campos";
 import { llamar } from "@/components/comisiones/api";
@@ -19,6 +21,8 @@ export interface ComisionForm {
   comision_coche_manual: number | null;
   comision_financiacion_manual: number | null;
   conceptos: ConceptoForm[];
+  /** Claves de los bonus «manuales» del plan elegidos para este expediente. */
+  bonus_manuales: string[];
 }
 
 /** Datos del formulario que necesita el simulador (tal como están en pantalla, aunque no estén guardados). */
@@ -69,18 +73,61 @@ const PESTANA_DE_CONCEPTO: Record<string, string> = {
   puntos_regla: "bonus",
 };
 
+/**
+ * Bonus del plan con evento «Manual»: se marcan los que se aplican a este expediente (el bonus suma, o resta si es una penalización,
+ * en el mes en que cuenta el coche). Los bonus con otros eventos se aplican solos y no salen aquí.
+ */
+function BonusManuales({ elegidos, alCambiar }: { elegidos: string[]; alCambiar: (b: string[]) => void }) {
+  const { datos: lista } = useCarga<BonusManual[]>("/api/comisiones/bonus-manuales", []);
+  const claves = new Set(lista.map((b) => b.clave));
+  const huerfanos = elegidos.filter((c) => !claves.has(c));
+  const alternar = (clave: string, marcado: boolean) => alCambiar(marcado ? [...elegidos.filter((c) => c !== clave), clave] : elegidos.filter((c) => c !== clave));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <h3 style={{ fontSize: "1rem" }} title="Bonus del plan de comisionamiento cuyo evento es «Manual»: solo se aplican a los expedientes en los que los marcas aquí">
+        Bonus del plan (manuales)
+      </h3>
+      {lista.length === 0 && elegidos.length === 0 ? (
+        <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-muted)" }}>No hay bonus manuales en los planes. Crea uno en Comisiones › Bonus con el evento «Manual» y aparecerá aquí.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {lista.map((b) => (
+            <label key={b.clave} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }} title={`Bonus «${b.nombre}» del plan «${b.plan}»: se aplica a este expediente si lo marcas`}>
+              <input type="checkbox" checked={elegidos.includes(b.clave)} onChange={(e) => alternar(b.clave, e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+              <span style={{ fontWeight: 600 }}>{b.nombre}</span>
+              <span style={{ fontSize: "0.82rem", color: b.esPenalizacion ? "var(--danger)" : "var(--text-secondary)" }}>
+                {b.esPenalizacion ? "−" : "+"}
+                {euros(b.importe)}
+                {b.puntos !== 0 ? ` · ${puntos(b.puntos)} pts` : ""} · plan «{b.plan}»
+              </span>
+            </label>
+          ))}
+          {huerfanos.map((c) => (
+            <label key={c} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", color: "var(--warning)" }} title="Este bonus elegido ya no existe en ningún plan abierto (se borró, está inactivo o su plan está cerrado)">
+              <input type="checkbox" checked onChange={() => alternar(c, false)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+              <span>Bonus que ya no está en el plan (desmárcalo para quitarlo)</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const comisionInicial = (e: {
   puntos: number | null;
   id_promocion: number | null;
   comision_coche_manual: number | null;
   comision_financiacion_manual: number | null;
   conceptos_especiales: ConceptoForm[];
+  bonus_manuales?: string[];
 }): ComisionForm => ({
   puntos: e.puntos,
   id_promocion: e.id_promocion,
   comision_coche_manual: e.comision_coche_manual,
   comision_financiacion_manual: e.comision_financiacion_manual,
   conceptos: e.conceptos_especiales,
+  bonus_manuales: e.bonus_manuales ?? [],
 });
 
 /** Bloque «Comisionamiento» del expediente + «Desglose Estimado de Comisión» (mismo motor que la liquidación). */
@@ -129,6 +176,7 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           id_promocion: valor.id_promocion,
           comision_coche_manual: valor.comision_coche_manual,
           comision_financiacion_manual: valor.comision_financiacion_manual,
+          bonus_manuales: valor.bonus_manuales,
           conceptos_especiales: valor.conceptos.map((c) => ({ titulo: c.titulo, importe_centimos: c.importe_centimos, evento: c.evento })),
         },
       })
@@ -180,6 +228,8 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           <InputCentesimas valor={valor.comision_financiacion_manual} vacioEsNulo placeholder="automática" onChange={(v) => set({ comision_financiacion_manual: v })} sufijo="€" />
         </div>
       </div>
+
+      <BonusManuales elegidos={valor.bonus_manuales} alCambiar={(b) => set({ bonus_manuales: b })} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

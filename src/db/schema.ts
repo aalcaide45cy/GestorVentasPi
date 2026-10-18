@@ -274,6 +274,8 @@ export const expedientes = pgTable(
     comisionCocheManual: integer("comision_coche_manual"),
     comisionFinanciacionManual: integer("comision_financiacion_manual"),
     conceptosEspeciales: jsonb("conceptos_especiales").$type<ConceptoEspecial[]>().notNull().default([]),
+    /** Bonus del plan con evento «Manual» que se aplican a este expediente (claves de las reglas). */
+    bonusManuales: jsonb("bonus_manuales").$type<string[]>().notNull().default([]),
 
     /* Columnas heredadas (solo lectura, para importar copias antiguas) */
     valorObjetivo: doublePrecision("valor_objetivo"),
@@ -602,6 +604,8 @@ const columnasRegla = () => ({
   esPenalizacion: boolean("es_penalizacion").notNull().default(false),
   ligarACredito: boolean("ligar_a_credito").notNull().default(false),
   activa: boolean("activa").notNull().default(true),
+  /** Identificador estable de la regla dentro del plan: los expedientes lo guardan para elegir un bonus «manual» (los ids cambian al guardar el plan). */
+  clave: varchar("clave", { length: 60 }).notNull().default(""),
 });
 
 export const commissionRules = pgTable("commission_rules", { idRule: serial("id_rule").primaryKey(), ...columnasRegla() });

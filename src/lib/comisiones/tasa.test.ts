@@ -273,4 +273,19 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
       expect(r.tasaGlobal).toMatchObject({ numerador: 9, denominador: 7, porcentaje: 128.57, cumplida: true });
     });
   });
+
+  it("un bonus con evento «Manual» solo se aplica a los expedientes en los que se ha elegido", () => {
+    const bonus = { id: 1, clave: "k-manual", nombre: "Bonus Manual", evento: "manual" as const, tipoVehiculo: "cualquiera", fechaInicio: null, fechaFin: null, idMarca: null, idModelo: null, tasaIntervencion: "indiferente" as const, puntos: 100, importe: 30000, esPenalizacion: false, ligarACredito: false, activa: true };
+    const elegido = coche(1, { bonusManuales: ["k-manual"] });
+    const otro = coche(2);
+    const r = calcularMes(plan({ reglasYBonus: [bonus] }), V, "2026-06", [elegido, otro]);
+    expect(importeDe(r, "regla")).toBe(30000);
+    expect(r.lineas.find((l) => l.idExpediente === 1)?.conceptos.some((c) => c.concepto === "regla")).toBe(true);
+    expect(r.lineas.find((l) => l.idExpediente === 2)?.conceptos.some((c) => c.concepto === "regla")).toBe(false);
+    // Sin la clave elegida, o de otro mes, no se aplica
+    expect(importeDe(calcularMes(plan({ reglasYBonus: [bonus] }), V, "2026-06", [otro]), "regla")).toBe(0);
+    expect(importeDe(calcularMes(plan({ reglasYBonus: [bonus] }), V, "2026-07", [elegido]), "regla")).toBe(0);
+    // Una clave de otro bonus tampoco
+    expect(importeDe(calcularMes(plan({ reglasYBonus: [bonus] }), V, "2026-06", [coche(3, { bonusManuales: ["otra"] })]), "regla")).toBe(0);
+  });
 });

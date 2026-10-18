@@ -348,6 +348,7 @@ function FormularioEditarExpediente({
         comision_coche_manual: com.comision_coche_manual,
         comision_financiacion_manual: com.comision_financiacion_manual,
         conceptos_especiales: com.conceptos.filter((c) => c.titulo.trim() !== ""),
+        bonus_manuales: com.bonus_manuales,
       };
       // El vendedor solo se envía si ha cambiado: el servidor decide quién puede reasignarlo
       if (vendedor !== cadena(expediente.id_usuario)) cuerpo.id_usuario = vendedor ? Number(vendedor) : null;

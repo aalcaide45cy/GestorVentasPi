@@ -48,7 +48,7 @@ const catA: CatalogoNombres = { marcas: [{ id: 1, nombre: "Dacia" }, { id: 2, no
 // Otra instalación: ids distintos y sin Renault ni Clio
 const catB: CatalogoNombres = { marcas: [{ id: 7, nombre: "DACIA" }], modelos: [{ id: 70, nombre: "sandero", marcaId: 7 }], vendedores: [{ id: 9, nombre: "ana perez" }] };
 
-const regla = { nombre: "Bonus Clio", evento: "matriculacion" as const, tipoVehiculo: "nuevo" as const, fechaInicio: null, fechaFin: null, idMarca: 2, idModelo: 20, tasaIntervencion: "indiferente" as const, puntos: 0, importe: 5000, esPenalizacion: false, ligarACredito: false, activa: true };
+const regla = { nombre: "Bonus Clio", evento: "matriculacion" as const, tipoVehiculo: "nuevo" as const, fechaInicio: null, fechaFin: null, idMarca: 2, idModelo: 20, tasaIntervencion: "indiferente" as const, puntos: 0, importe: 5000, esPenalizacion: false, ligarACredito: false, activa: true, clave: "k-bonus" };
 
 describe("plantillas de plan: fragmentos", () => {
   it("extraer + aplicar en otro catálogo traduce los nombres a los ids de allí y omite lo que no existe", () => {

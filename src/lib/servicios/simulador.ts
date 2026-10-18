@@ -29,6 +29,7 @@ export const esquemaSimulacion = z.object({
   comision_coche_manual: entero,
   comision_financiacion_manual: entero,
   conceptos_especiales: z.array(z.object({ titulo: z.string(), importe_centimos: z.number().int(), evento: z.enum(["pedido", "afectacion", "rci", "matriculacion", "fecha_matriculacion", "facturacion", "entrega", "cobro"]).optional() })).max(100).optional(),
+  bonus_manuales: z.array(z.string()).max(100).optional(),
 });
 export type EntradaSimulacion = z.infer<typeof esquemaSimulacion>;
 
@@ -62,6 +63,7 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
     idPromocion: entrada.id_promocion ?? null,
     comisionCocheManual: entrada.comision_coche_manual ?? null,
     comisionFinanciacionManual: entrada.comision_financiacion_manual ?? null,
+    bonusManuales: entrada.bonus_manuales ?? [],
     conceptosEspeciales: (entrada.conceptos_especiales ?? []).map((c) => ({ titulo: c.titulo, importe: c.importe_centimos, evento: c.evento })),
   };
   const vendedor = { id: entrada.id_usuario, tipo: (u.tipo === "VO" ? "VO" : "VN") as Clase, patronVo: u.patron };

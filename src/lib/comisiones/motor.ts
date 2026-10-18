@@ -428,6 +428,10 @@ function aplicaRegla(
     case "preference":
       fecha = e.categoriaVenta === "PREFERENCE" && mesDe(e.fechaRci) === mes ? e.fechaRci : null;
       break;
+    case "manual":
+      // Solo en los expedientes donde se ha elegido este bonus, en el mes en que cuenta el coche
+      fecha = r.clave && (e.bonusManuales ?? []).includes(r.clave) && i.mesComputo === mes ? i.fechaComputo : null;
+      break;
   }
   if (fecha === null) return null;
   if (!ambitoCoincide(r.tipoVehiculo, e.clase, e.subtipoVO)) return null;

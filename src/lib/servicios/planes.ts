@@ -1,4 +1,5 @@
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import {
@@ -40,7 +41,7 @@ const tipoFin = z.enum(["CONTADO", "CREDITO", "PREFERENCE", "RENTING"]);
 
 export const esquemaRegla = z.object({
   nombre: z.string().trim().min(1, "Falta el nombre de la regla").max(200),
-  evento: z.enum(["pedido", "afectacion", "matriculacion", "cobro", "credito", "preference"]),
+  evento: z.enum(["pedido", "afectacion", "matriculacion", "cobro", "credito", "preference", "manual"]),
   tipoVehiculo: z.string().regex(new RegExp(`^(nuevo|usado|cualquiera|usado:${SUBTIPO})$`), "Tipo de vehículo no válido").default("cualquiera"),
   fechaInicio: fechaNull,
   fechaFin: fechaNull,
@@ -52,6 +53,8 @@ export const esquemaRegla = z.object({
   esPenalizacion: z.boolean().default(false),
   ligarACredito: z.boolean().default(false),
   activa: z.boolean().default(true),
+  /** Identificador estable de la regla; si falta (planes y plantillas antiguos) se crea uno. */
+  clave: z.string().trim().min(1).max(60).default(() => randomUUID()),
 });
 
 export const esquemaPlanBase = z.object({
@@ -187,6 +190,7 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     esPenalizacion: r.esPenalizacion,
     ligarACredito: r.ligarACredito,
     activa: r.activa,
+    clave: r.clave,
   });
   return {
     idPlan: p.idPlan,
@@ -374,3 +378,25 @@ export async function eliminarPlan(ej: Ejecutor, idPlan: number, conLiquidacione
   }
 }
 
+
+/** Un bonus del plan con evento «Manual»: se puede elegir expediente por expediente. */
+export interface BonusManual {
+  clave: string;
+  nombre: string;
+  plan: string;
+  idPlan: number;
+  importe: number;
+  puntos: number;
+  esPenalizacion: boolean;
+}
+
+/** Bonus y penalizaciones «manuales» activos de los planes que no están cerrados, del plan más reciente al más antiguo. */
+export async function listarBonusManuales(ej: Ejecutor): Promise<BonusManual[]> {
+  const filas = await ej
+    .select({ clave: commissionBonusRules.clave, nombre: commissionBonusRules.nombre, plan: commissionPlans.nombre, idPlan: commissionPlans.idPlan, importe: commissionBonusRules.importe, puntos: commissionBonusRules.puntos, esPenalizacion: commissionBonusRules.esPenalizacion })
+    .from(commissionBonusRules)
+    .innerJoin(commissionPlans, eq(commissionBonusRules.idPlan, commissionPlans.idPlan))
+    .where(and(eq(commissionBonusRules.evento, "manual"), eq(commissionBonusRules.activa, true), ne(commissionPlans.estado, "cerrado")))
+    .orderBy(desc(commissionPlans.fechaInicio), commissionBonusRules.nombre);
+  return filas.filter((f) => f.clave !== "");
+}

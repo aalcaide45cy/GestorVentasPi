@@ -19,7 +19,7 @@ import {
 import { esquemaActualizarExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./expedientes-escritura";
 import { esquemaCrearExpediente } from "./expedientes";
-import { eliminarPlan, guardarPlan, leerPlan, listarPlanes } from "./planes";
+import { eliminarPlan, guardarPlan, leerPlan, listarBonusManuales, listarPlanes } from "./planes";
 import { generarInforme } from "./informes";
 import { eliminarUsuario, eliminarUsuarioConTodo, obtenerUsuario } from "./usuarios";
 
@@ -217,5 +217,22 @@ describe("auditoría: casos límite", () => {
     });
     const leido = await leerPlan(db, guardado.plan.idPlan);
     expect(leido?.financiacion.map((f) => [f.concepto, f.importe, f.tasaUmbral]).sort()).toEqual([["extra:Seguro", 1000, 75], ["financiacion", 5000, null], ["preference", 7500, null]]);
+  });
+
+  it("los bonus tienen una clave estable y los «manuales» se pueden listar para elegirlos en los expedientes", async () => {
+    await base();
+    const datos = { nombre: "Noviembre 2026", fechaInicio: "2026-11-01", fechaFin: "2026-11-30" };
+    const bonus = { nombre: "Bonus manual", evento: "manual" as const, importe: 30000, puntos: 0 };
+    const g = await guardarPlan(db, null, { ...datos, bonus: [bonus, { ...bonus, nombre: "Bonus de matriculación", evento: "matriculacion" as const }] });
+    const leido = await leerPlan(db, g.plan.idPlan);
+    const claves = leido?.bonus.map((b) => b.clave) ?? [];
+    expect(claves).toHaveLength(2);
+    expect(claves.every((c) => c.length > 10)).toBe(true);
+    expect(new Set(claves).size).toBe(2);
+    // Guardar otra vez con las mismas claves las conserva (los expedientes las usan para elegir el bonus)
+    await guardarPlan(db, g.plan.idPlan, { ...datos, bonus: leido?.bonus });
+    expect((await leerPlan(db, g.plan.idPlan))?.bonus.map((b) => b.clave)).toEqual(claves);
+    const manuales = await listarBonusManuales(db);
+    expect(manuales.map((m) => [m.nombre, m.clave])).toEqual([["Bonus manual", claves[0]]]);
   });
 });

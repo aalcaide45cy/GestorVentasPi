@@ -33,6 +33,7 @@ function expediente(parcial: Partial<ExpedienteDto> = {}): ExpedienteDto {
     comision_coche_manual: null,
     comision_financiacion_manual: null,
     conceptos_especiales: [],
+    bonus_manuales: [],
     cliente: {
       id: 1,
       cliente_id: "c1",

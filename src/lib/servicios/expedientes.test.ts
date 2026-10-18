@@ -239,3 +239,15 @@ describe("integridad de datos de prueba", () => {
     expect(await db.select().from(expedientes)).toHaveLength(0);
   });
 });
+
+describe("bonus manuales del expediente", () => {
+  it("guarda las claves de los bonus manuales elegidos y las devuelve", async () => {
+    const vendedor = await crearUsuarioPrueba("vendedor");
+    const exp = await crearExpediente(db, vendedor, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana Gil" }, expediente: { matricula: "5555XYZ" } }));
+    expect(exp.bonus_manuales).toEqual([]);
+    await actualizarExpedientes(db, vendedor, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: exp.id_expediente, expediente: { bonus_manuales: ["k-uno", "k-dos"] } }));
+    const [fila] = await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.id_expediente));
+    expect(fila.bonusManuales).toEqual(["k-uno", "k-dos"]);
+    expect((await obtenerExpediente(db, exp.id_expediente))?.bonus_manuales).toEqual(["k-uno", "k-dos"]);
+  });
+});

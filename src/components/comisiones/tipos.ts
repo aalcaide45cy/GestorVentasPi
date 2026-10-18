@@ -16,6 +16,9 @@ export interface PropsPestana {
 
 export type Regla = Plan["bonus"][number];
 
+/** Clave nueva para una regla (en conexiones sin contexto seguro no existe `crypto.randomUUID`, así que hay un plan B). */
+export const nuevaClave = (): string => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
+
 export const reglaNueva = (esPenalizacion: boolean): Regla => ({
   nombre: "",
   evento: "matriculacion",
@@ -29,6 +32,7 @@ export const reglaNueva = (esPenalizacion: boolean): Regla => ({
   importe: 0,
   esPenalizacion,
   ligarACredito: false,
+  clave: nuevaClave(),
   activa: true,
 });
 

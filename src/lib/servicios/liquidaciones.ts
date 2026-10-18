@@ -97,6 +97,7 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     esPenalizacion: r.esPenalizacion,
     ligarACredito: r.ligarACredito,
     activa: r.activa,
+    clave: r.clave,
   });
 
   return {
@@ -206,6 +207,7 @@ async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined):
     idPromocion: e.idPromocion,
     comisionCocheManual: e.comisionCocheManual,
     comisionFinanciacionManual: e.comisionFinanciacionManual,
+    bonusManuales: e.bonusManuales ?? [],
     conceptosEspeciales: (e.conceptosEspeciales ?? []).map((c) => ({
       titulo: c.titulo,
       importe: c.importe_centimos,

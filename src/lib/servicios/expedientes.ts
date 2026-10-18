@@ -66,6 +66,8 @@ const camposEdicion = {
   comision_coche_manual: z.number().int().nullable().optional(),
   comision_financiacion_manual: z.number().int().nullable().optional(),
   conceptos_especiales: z.array(esquemaConcepto).max(100).optional(),
+  /** Claves de los bonus «manuales» del plan que se aplican a este expediente. */
+  bonus_manuales: z.array(z.string().trim().min(1).max(60)).max(100).optional(),
 };
 
 /** Duplicado de uno o varios expedientes (para probar): `copias` por cada uno. */
@@ -158,6 +160,7 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     comision_coche_manual: e.comisionCocheManual,
     comision_financiacion_manual: e.comisionFinanciacionManual,
     conceptos_especiales: e.conceptosEspeciales ?? [],
+    bonus_manuales: e.bonusManuales ?? [],
     cliente: e.cliente ? clienteDto(e.cliente) : null,
     modelo: e.modelo ? modeloDto(e.modelo) : null,
     tipoDeVenta: e.tipoDeVenta ? tipoVentaDto(e.tipoDeVenta) : null,

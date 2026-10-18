@@ -253,6 +253,13 @@
       "when": 1792342522473,
       "tag": "0035_melted_sabra",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792343213010,
+      "tag": "0036_salty_zarda",
+      "breakpoints": true
     }
   ]
 }

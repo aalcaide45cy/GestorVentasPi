@@ -127,6 +127,8 @@ export interface ExpedienteDto {
   comision_coche_manual: number | null;
   comision_financiacion_manual: number | null;
   conceptos_especiales: { titulo: string; importe_centimos: number; descripcion: string; evento: "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro"; cobrado: boolean }[];
+  /** Claves de los bonus «manuales» del plan elegidos para este expediente. */
+  bonus_manuales: string[];
   cliente: ClienteDto | null;
   modelo: ModeloDto | null;
   tipoDeVenta: TipoVentaDto | null;

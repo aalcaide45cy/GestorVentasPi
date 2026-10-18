@@ -14,7 +14,8 @@ export type Fecha = string;
 
 export type Clase = "VN" | "VO";
 export type CategoriaVenta = "CONTADO" | "CREDITO" | "PREFERENCE" | "RENTING";
-export type EventoRegla = "pedido" | "afectacion" | "matriculacion" | "cobro" | "credito" | "preference";
+/** «manual»: la regla solo se aplica a los expedientes en los que se ha elegido a mano. */
+export type EventoRegla = "pedido" | "afectacion" | "matriculacion" | "cobro" | "credito" | "preference" | "manual";
 /**
  * Fecha del expediente que decide en qué mes cuenta un concepto especial: pedido (fecha de expediente), afectación, RCI,
  * matriculación (la real), facturación, entrega o cobro. «matriculacion» es el evento principal: el mes en que cuenta el coche.
@@ -59,6 +60,8 @@ export interface ExpedienteMotor {
   comisionCocheManual: Centimos | null;
   comisionFinanciacionManual: Centimos | null;
   conceptosEspeciales: ConceptoEspecialMotor[];
+  /** Claves de los bonus «manuales» del plan elegidos para este expediente. */
+  bonusManuales?: string[];
 }
 
 export interface VendedorMotor {
@@ -141,6 +144,8 @@ export interface ReglaPreferenceMotor {
 
 export interface ReglaBonusMotor {
   id: number;
+  /** Identificador estable de la regla (los expedientes eligen los bonus manuales por esta clave). */
+  clave?: string;
   nombre: string;
   evento: EventoRegla;
   /** cualquiera | nuevo | usado | usado:SUBTIPO */
