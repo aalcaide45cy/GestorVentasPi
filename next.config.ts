@@ -72,8 +72,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
     return [
-      { source: "/((?!api/adjuntos).*)", headers: cabeceras },
+      { source: "/((?!api/adjuntos|api/admin/papelera/documento).*)", headers: cabeceras },
       { source: "/api/adjuntos", headers: cabecerasAdjuntos(cabeceras) },
+      // La vista previa de la Papelera (solo administrador) también se enseña en un iframe del mismo origen
+      { source: "/api/admin/papelera/documento", headers: cabecerasAdjuntos(cabeceras) },
     ];
   },
 };
