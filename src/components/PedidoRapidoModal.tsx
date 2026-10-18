@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -7,6 +8,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
 import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
+import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
 import type { EleccionRapida, ItemCola } from "@/lib/pedidos-cola";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
@@ -38,6 +40,8 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
  */
 export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
   const { mostrar } = useToast();
+  const router = useRouter();
+  const [masivo, setMasivo] = useState<{ hechos: number; total: number } | null>(null);
   const pedido = item.pedido;
   const eleccion = item.eleccion;
   const d = pedido.datos;
@@ -115,6 +119,23 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const puedeCrear = cliente !== null && !falta && !trabajando && (!usaNuevo || datosNuevoOk);
   // Pedido de un vehículo de ocasión vendido: el expediente es de usados
   const estadoNombre = eleccion?.estadoNombre ?? (d.tipoPedido === "usado" ? "usado" : undefined);
+
+  // Crea de una vez todos los pedidos de la cola que no ofrecen duda ni están duplicados (aunque «permitir duplicados» esté apagado)
+  const crearTodos = async () => {
+    if (!window.confirm(`Se van a crear de una vez los expedientes de los ${total} pedidos de la cola que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar). Los demás se quedan en la cola. ¿Continuar?`)) return;
+    setMasivo({ hechos: 0, total });
+    try {
+      const r = await crearTodosLosPedidos(vendedorId, (hechos, tot) => setMasivo({ hechos, total: tot }));
+      const resumen = `${r.creados} expediente${r.creados === 1 ? "" : "s"} creado${r.creados === 1 ? "" : "s"}${r.omitidos.length > 0 ? ` y ${r.omitidos.length} sin crear (se quedan en la cola): ${r.omitidos.slice(0, 3).map((o) => `${o.nombre} (${o.motivo})`).join("; ")}${r.omitidos.length > 3 ? "…" : ""}` : ""}.`;
+      mostrar(resumen, r.creados === 0 ? "error" : undefined);
+      router.refresh();
+      alCerrar();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setMasivo(null);
+    }
+  };
 
   const crear = async () => {
     if (cliente === null || tipoFinal === null) return;
@@ -321,7 +342,12 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
             Cerrar (queda en la cola)
           </button>
-          <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear}>
+          {total > 1 && (
+            <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
+              {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
             {trabajando ? "Creando…" : "Crear expediente"}
           </button>
         </>
