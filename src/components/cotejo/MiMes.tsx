@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useCarga } from "@/components/comisiones/useCarga";
+import { BadgeEstado } from "@/components/expedientes/comun";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import ResumenLiquidacion from "./ResumenLiquidacion";
 import type { ResultadoMes } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { euros, mesActual, nombreMes, sumarMeses } from "@/lib/formato";
@@ -24,6 +27,10 @@ interface Fila {
   vehiculo: string;
   tipoPago: string;
   usado: boolean;
+  exp: ExpedienteDto | undefined;
+  marca: string;
+  modelo: string;
+  estado: string;
   coche: number;
   financiacion: number;
   preference: number;
@@ -67,6 +74,10 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
           vehiculo: [e?.modelo?.marca?.nombre, e?.modelo?.nombre_modelo].filter(Boolean).join(" ") || info?.vehiculo || "—",
           tipoPago: e?.tipoDeVenta?.nombre_tipo_venta ?? "—",
           usado: l.clase === "VO",
+          exp: e,
+          marca: e?.modelo?.marca?.nombre ?? (info?.vehiculo ?? "").split(" ")[0] ?? "",
+          modelo: e?.modelo?.nombre_modelo ?? (info?.vehiculo ?? "").split(" ").slice(1).join(" "),
+          estado: e?.estadoVehiculo?.nombre_estado_vehiculo ?? (l.clase === "VO" ? "Usado" : "Nuevo"),
           coche: suma("coche_vn", "vo"),
           financiacion: suma("financiacion"),
           preference: suma("preference"),
@@ -87,6 +98,23 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
   const mostradas = soloPendientes ? filas.filter((f) => !visto.has(f.id)) : filas;
   const totalEsperado = filas.reduce((t, f) => t + f.total, 0);
   const sinMatricula = filas.filter((f) => f.usado && !(f.matricula ?? "").trim()).length;
+
+  const celdaDinero = (n: number) => (n ? euros(n) : <span style={{ color: "var(--text-muted)" }}>—</span>);
+  const columnas: ColumnaTabla<Fila>[] = [
+    { clave: "visto", etiqueta: "✔", valor: (f) => (visto.has(f.id) ? 1 : 0), celda: (f) => <input type="checkbox" checked={visto.has(f.id)} onChange={() => alternar(f.id)} style={{ width: "18px", height: "18px", accentColor: "var(--success)" }} />, ayuda: "Marca el coche cuando lo veas en la rejilla" },
+    { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula ?? "", celda: (f) => (!(f.matricula ?? "").trim() ? <span style={{ color: f.usado ? "var(--warning)" : "var(--text-muted)" }}>{f.usado ? "⚠️ falta" : "—"}</span> : <b>{f.matricula}</b>) },
+    { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente },
+    { clave: "tipo", etiqueta: "VN / VO", valor: (f) => (f.usado ? "VO" : "VN"), celda: (f) => <b style={{ color: f.usado ? "var(--warning)" : "var(--success)" }}>{f.usado ? "VO" : "VN"}</b>, alinear: "center", ayuda: "Nuevo (VN) o usado (VO)" },
+    { clave: "marca", etiqueta: "Marca", valor: (f) => f.marca },
+    { clave: "modelo", etiqueta: "Modelo", valor: (f) => f.modelo },
+    { clave: "estado", etiqueta: "Estado", valor: (f) => f.estado, celda: (f) => (f.exp?.estadoVehiculo ? <BadgeEstado exp={f.exp} /> : f.estado), alinear: "center", ayuda: "Estado del vehículo, con el mismo color que en la lista de expedientes" },
+    { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.tipoPago },
+    { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => celdaDinero(f.coche), alinear: "right", ayuda: "Solo la comisión del coche, sin financiación" },
+    { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion, celda: (f) => celdaDinero(f.financiacion), alinear: "right" },
+    { clave: "preference", etiqueta: "Preference", valor: (f) => f.preference, celda: (f) => celdaDinero(f.preference), alinear: "right" },
+    { clave: "bonus", etiqueta: "Bonus", valor: (f) => f.bonus, celda: (f) => celdaDinero(f.bonus), alinear: "right" },
+    { clave: "total", etiqueta: "Total", valor: (f) => f.total, celda: (f) => <b>{euros(f.total)}</b>, alinear: "right" },
+  ];
 
   return (
     <section className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -150,55 +178,23 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
               ⚠️ {sinMatricula} usado(s) sin matrícula: no es obligatoria, pero sin ella no se pueden buscar en la hoja.
             </div>
           )}
-          <div className="table-container">
-            <table className="table-premium table-compact">
-              <thead>
-                <tr>
-                  <th style={{ width: "36px" }} title="Marca el coche cuando lo veas en la rejilla">✔</th>
-                  <th>Matrícula</th>
-                  <th>Cliente</th>
-                  <th>Vehículo</th>
-                  <th>Tipo de pago</th>
-                  <th style={{ textAlign: "right" }}>Coche</th>
-                  <th style={{ textAlign: "right" }}>Financiación</th>
-                  <th style={{ textAlign: "right" }}>Preference</th>
-                  <th style={{ textAlign: "right" }}>Bonus</th>
-                  <th style={{ textAlign: "right" }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mostradas.length === 0 && (
-                  <tr>
-                    <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)" }}>
-                      {filas.length === 0 ? "Este mes no hay coches que generen comisión." : "¡Has marcado todos!"}
-                    </td>
-                  </tr>
-                )}
-                {mostradas.map((f) => {
-                  const ok = visto.has(f.id);
-                  const sinMat = !(f.matricula ?? "").trim();
-                  return (
-                    <tr key={f.id} style={{ opacity: ok ? 0.55 : 1, background: ok ? "rgba(34, 197, 94, 0.08)" : undefined }}>
-                      <td>
-                        <input type="checkbox" checked={ok} onChange={() => alternar(f.id)} style={{ width: "18px", height: "18px", accentColor: "var(--success)" }} />
-                      </td>
-                      <td style={{ fontWeight: 700 }}>{sinMat ? <span style={{ color: f.usado ? "var(--warning)" : "var(--text-muted)" }}>{f.usado ? "⚠️ falta" : "—"}</span> : f.matricula}</td>
-                      <td>{f.cliente}</td>
-                      <td>
-                        {f.vehiculo} {f.usado && <span style={{ color: "var(--warning)", fontSize: "0.72rem", fontWeight: 700 }}>VO</span>}
-                      </td>
-                      <td>{f.tipoPago}</td>
-                      <td style={{ textAlign: "right" }}>{f.coche ? euros(f.coche) : "—"}</td>
-                      <td style={{ textAlign: "right" }}>{f.financiacion ? euros(f.financiacion) : "—"}</td>
-                      <td style={{ textAlign: "right" }}>{f.preference ? euros(f.preference) : "—"}</td>
-                      <td style={{ textAlign: "right" }}>{f.bonus ? euros(f.bonus) : "—"}</td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(f.total)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos<Fila>
+            id="cotejo-mi-mes"
+            columnas={columnas}
+            filas={mostradas}
+            clave={(f) => f.id}
+            placeholder="Buscar por matrícula, cliente, marca, modelo, tipo de pago…"
+            vacio={filas.length === 0 ? "Este mes no hay coches que generen comisión." : "¡Has marcado todos!"}
+            pie={(fs) => ({
+              marca: `${fs.length} coche${fs.length === 1 ? "" : "s"}`,
+              coche: euros(fs.reduce((t, f) => t + f.coche, 0)),
+              financiacion: euros(fs.reduce((t, f) => t + f.financiacion, 0)),
+              preference: euros(fs.reduce((t, f) => t + f.preference, 0)),
+              bonus: euros(fs.reduce((t, f) => t + f.bonus, 0)),
+              total: euros(fs.reduce((t, f) => t + f.total, 0)),
+            })}
+          />
+          <ResumenLiquidacion usuario={idVendedor} mes={mes} sinCoches />
         </>
       )}
     </section>

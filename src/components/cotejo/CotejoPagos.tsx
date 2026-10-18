@@ -7,7 +7,8 @@ import { useCarga } from "@/components/comisiones/useCarga";
 import { ajustarLecturas, cotejarPagos, sugerirMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo } from "@/lib/cotejo-pagos";
 import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
 import { formatDate } from "@/lib/date-utils";
-import { nombreMes } from "@/lib/formato";
+import { euros, nombreMes } from "@/lib/formato";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { DatosCotejo } from "@/lib/servicios/cotejo";
 import type { MatriculaLeida } from "@/lib/servicios/ocr-rejilla";
 
@@ -165,20 +166,55 @@ export default function CotejoPagos() {
   const filas = resultado.filas.filter((f) => (filtro === "todos" ? f.estado !== "sin_rejilla" : f.estado === filtro));
   const r = resultado.resumen;
 
-  const celdaCoche = (f: FilaCotejo) => {
-    const c = f.coche;
-    const fechaClave = c?.usado ? c.f_afectacion : c?.f_matriculacion;
-    return (
-      <>
-        <td>{c?.cliente || <span style={{ color: "var(--text-muted)" }}>(sin coche)</span>}</td>
-        <td>{c?.tipo_pago || <span style={{ color: "var(--text-muted)" }}>-</span>}</td>
-        <td>{c ? `${c.marca} ${c.modelo}`.trim() || "-" : "-"}</td>
-        <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{f.matricula}</td>
-        <td style={{ whiteSpace: "nowrap" }}>{c ? fecha(fechaClave ?? null) : "-"}</td>
-        <td style={{ whiteSpace: "nowrap" }}>{c ? fecha(c.f_entrega) : "-"}</td>
-      </>
-    );
-  };
+  const sinCoche = <span style={{ color: "var(--text-muted)" }}>—</span>;
+  const columnasResultado: ColumnaTabla<FilaCotejo>[] = [
+    {
+      clave: "resultado",
+      etiqueta: "Resultado",
+      valor: (f) => COLORES[f.estado].texto,
+      celda: (f) => (
+        <div style={{ minWidth: "190px", whiteSpace: "normal" }}>
+          <div style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+            {COLORES[f.estado].icono} {COLORES[f.estado].texto}
+          </div>
+          <div style={{ color: "var(--text-secondary)", fontSize: "0.78rem", marginTop: "2px" }}>{f.motivo}</div>
+          {f.estado === "dudoso" && f.matriculaHoja && f.mesRejilla && (
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
+              {f.coche && (
+                <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem" }} disabled={trabajando} onClick={() => void resolver(f, "corregir")} title={`Cambia ${f.matriculaHoja} por ${f.matricula} en la rejilla guardada: era una mala lectura`}>
+                  ✏️ Es este coche ({f.matricula})
+                </button>
+              )}
+              <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem" }} disabled={trabajando} onClick={() => void resolver(f, "confirmar")} title="La hoja trae exactamente esa matrícula: la lectura no se corrige y se deja de preguntar">
+                ✔ La lectura es correcta
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula, celda: (f) => <b>{f.matricula}</b> },
+    { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.coche?.cliente ?? "", celda: (f) => f.coche?.cliente || <span style={{ color: "var(--text-muted)" }}>(sin coche)</span> },
+    { clave: "tipo", etiqueta: "VN / VO", valor: (f) => (f.coche ? (f.coche.usado ? "VO" : "VN") : ""), celda: (f) => (f.coche ? <b style={{ color: f.coche.usado ? "var(--warning)" : "var(--success)" }}>{f.coche.usado ? "VO" : "VN"}</b> : sinCoche), alinear: "center" },
+    { clave: "marca", etiqueta: "Marca", valor: (f) => f.coche?.marca ?? "", celda: (f) => f.coche?.marca || sinCoche },
+    { clave: "modelo", etiqueta: "Modelo", valor: (f) => f.coche?.modelo ?? "", celda: (f) => f.coche?.modelo || sinCoche },
+    { clave: "estadoVehiculo", etiqueta: "Estado", valor: (f) => f.coche?.estado ?? "", celda: (f) => f.coche?.estado || sinCoche, ayuda: "Estado del vehículo en el expediente" },
+    { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => f.coche?.tipo_pago ?? "", celda: (f) => f.coche?.tipo_pago || sinCoche },
+    { clave: "fechaClave", etiqueta: "F. matric. / afect.", valor: (f) => (f.coche?.usado ? f.coche.f_afectacion : f.coche?.f_matriculacion) ?? "", celda: (f) => (f.coche ? fecha((f.coche.usado ? f.coche.f_afectacion : f.coche.f_matriculacion) ?? null) : "-"), ayuda: "Fecha de afectación en los usados y de matriculación en los nuevos" },
+    { clave: "entrega", etiqueta: "F. entrega", valor: (f) => f.coche?.f_entrega ?? "", celda: (f) => (f.coche ? fecha(f.coche.f_entrega) : "-") },
+    { clave: "mes", etiqueta: "Rejilla de", valor: (f) => f.mesRejilla ?? "", celda: (f) => (f.mesRejilla ? nombreMes(f.mesRejilla) : "-"), oculta: true },
+    { clave: "importe", etiqueta: "Importe en la hoja", valor: (f) => f.importe ?? -1, celda: (f) => (f.importe === null ? "-" : euros(f.importe)), alinear: "right", oculta: true },
+  ];
+  const columnasSinMatricula: ColumnaTabla<CocheCotejo>[] = [
+    { clave: "origen", etiqueta: "Origen", valor: (c) => (c.origen === "app" ? `Expediente #${c.id_expediente}` : "Listado") },
+    { clave: "cliente", etiqueta: "Cliente", valor: (c) => c.cliente },
+    { clave: "tipo", etiqueta: "VN / VO", valor: (c) => (c.usado ? "VO" : "VN"), alinear: "center" },
+    { clave: "marca", etiqueta: "Marca", valor: (c) => c.marca },
+    { clave: "modelo", etiqueta: "Modelo", valor: (c) => c.modelo },
+    { clave: "estado", etiqueta: "Estado", valor: (c) => c.estado || "Sin matricular" },
+    { clave: "fExp", etiqueta: "F. expediente", valor: (c) => c.f_expediente ?? "", celda: (c) => fecha(c.f_expediente) },
+    { clave: "fEntrega", etiqueta: "F. entrega", valor: (c) => c.f_entrega ?? "", celda: (c) => fecha(c.f_entrega) },
+  ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -283,41 +319,17 @@ export default function CotejoPagos() {
                 );
               })}
             </div>
-            <div className="table-container" style={{ overflowX: "auto" }}>
-              <table className="table-premium" style={{ fontSize: "0.85rem", width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th>Estado</th><th>Cliente</th><th>Tipo de pago</th><th>Marca / modelo</th><th>Matrícula</th><th>F. matric. / afect.</th><th>F. entrega</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filas.map((f) => (
-                    <tr key={`${f.matricula}-${f.estado}`} style={{ background: COLORES[f.estado].fondo, boxShadow: `inset 4px 0 0 ${COLORES[f.estado].borde}` }}>
-                      <td style={{ minWidth: "190px" }}>
-                        <div style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{COLORES[f.estado].icono} {COLORES[f.estado].texto}</div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "0.78rem", marginTop: "2px" }}>{f.motivo}</div>
-                        {f.estado === "dudoso" && f.matriculaHoja && f.mesRejilla && (
-                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
-                            {f.coche && (
-                              <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem" }} disabled={trabajando} onClick={() => void resolver(f, "corregir")} title={`Cambia ${f.matriculaHoja} por ${f.matricula} en la rejilla guardada: era una mala lectura`}>
-                            ✏️ Es este coche ({f.matricula})
-                              </button>
-                            )}
-                            <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem" }} disabled={trabajando} onClick={() => void resolver(f, "confirmar")} title="La hoja trae exactamente esa matrícula: la lectura no se corrige y se deja de preguntar">
-                              ✔ La lectura es correcta
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      {celdaCoche(f)}
-                    </tr>
-                  ))}
-                  {filas.length === 0 && (
-                    <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--text-secondary)", padding: "16px" }}>No hay nada en esta categoría.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <TablaDatos<FilaCotejo>
+              id="cotejo-resultado"
+              columnas={columnasResultado}
+              filas={filas}
+              clave={(f) => `${f.matricula}-${f.estado}-${f.mesRejilla ?? ""}`}
+              placeholder="Buscar por matrícula, cliente, marca, modelo, resultado…"
+              vacio="No hay nada en esta categoría."
+              estiloFila={(f) => ({ background: COLORES[f.estado].fondo, boxShadow: `inset 4px 0 0 ${COLORES[f.estado].borde}` })}
+              textoExtra={(f) => f.motivo}
+              pie={(fs) => ({ resultado: `${fs.length} fila${fs.length === 1 ? "" : "s"}`, importe: euros(fs.reduce((t, f) => t + (f.importe ?? 0), 0)) })}
+            />
           </>
         )}
 
@@ -327,24 +339,8 @@ export default function CotejoPagos() {
               {verSinMatricula ? "▾" : "▸"} Sin matrícula, no se pueden cotejar ({resultado.sinMatricula.length})
             </button>
             {verSinMatricula && (
-              <div className="table-container" style={{ overflowX: "auto", marginTop: "8px" }}>
-                <table className="table-premium" style={{ fontSize: "0.85rem", width: "100%" }}>
-                  <thead>
-                    <tr><th>Origen</th><th>Cliente</th><th>Marca / modelo</th><th>Estado</th><th>F. expediente</th><th>F. entrega</th></tr>
-                  </thead>
-                  <tbody>
-                    {resultado.sinMatricula.map((c, i) => (
-                      <tr key={i}>
-                        <td>{c.origen === "app" ? `Expediente #${c.id_expediente}` : "Listado"}</td>
-                        <td>{c.cliente || "-"}</td>
-                        <td>{`${c.marca} ${c.modelo}`.trim() || "-"}</td>
-                        <td>{c.estado || "Sin matricular"}</td>
-                        <td>{fecha(c.f_expediente)}</td>
-                        <td>{fecha(c.f_entrega)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={{ marginTop: "8px" }}>
+                <TablaDatos<CocheCotejo> id="cotejo-sin-matricula" columnas={columnasSinMatricula} filas={resultado.sinMatricula} clave={(c) => `${c.origen}-${c.id_expediente}-${c.cliente}-${c.f_expediente}`} placeholder="Buscar por cliente, modelo, estado…" />
               </div>
             )}
           </div>

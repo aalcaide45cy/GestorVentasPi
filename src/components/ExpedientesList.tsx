@@ -32,7 +32,6 @@ import ModalContrasteListado from "./expedientes/ModalContrasteListado";
 import { leerListadoVentas, type ResultadoContraste } from "@/lib/contraste-listado";
 import ModalConflictoExcel, { type ConflictoExcel } from "./expedientes/ModalConflictoExcel";
 import ModalEdicionMasiva, { type CambiosMasivos } from "./expedientes/ModalEdicionMasiva";
-import PanelInferior from "./expedientes/PanelInferior";
 import ResumenMensual, { MESES } from "./expedientes/ResumenMensual";
 import { useEdicionFechas } from "./expedientes/useEdicionFechas";
 
@@ -1540,9 +1539,7 @@ export default function ExpedientesList({
         />
       </div>
 
-      <PanelInferior>
-        <ResumenMensual expedientes={expedientes} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
-      </PanelInferior>
+      <ResumenMensual expedientes={expedientes} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
 
       {modales}
 

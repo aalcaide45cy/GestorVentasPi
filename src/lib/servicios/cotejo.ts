@@ -78,7 +78,7 @@ export async function datosCotejo(ej: Ejecutor, idUsuario: number): Promise<Dato
     f_afectacion: e.fecha_afectacion,
     f_matriculacion: e.fecha_matriculacion,
     f_entrega: e.fecha_entrega,
-    estado: "",
+    estado: e.estadoVehiculo?.nombre_estado_vehiculo ?? "",
     usado: e.estadoVehiculo?.clase === "VO",
   }));
 

@@ -40,7 +40,7 @@ function Cifra({ etiqueta, children, ayuda }: { etiqueta: string; children: Reac
  * Lo que dice TU liquidación de un mes, con las cifras que hay que cotejar con la rejilla de la empresa: créditos, Preference,
  * tramo, objetivo, puntos, coches, bonus con su motivo y la comisión de cada coche (sin financiación).
  */
-export default function ResumenLiquidacion({ usuario, mes }: { usuario: number; mes: string }) {
+export default function ResumenLiquidacion({ usuario, mes, sinCoches }: { usuario: number; mes: string; sinCoches?: boolean }) {
   const { datos: r } = useCarga<ResumenLiquidacionMes | null>(`/api/comisiones/rejillas/resumen?usuario=${usuario}&mes=${mes}`, null);
   if (r === null) return <p style={{ color: "var(--text-secondary)" }}>Calculando tu liquidación de {nombreMes(mes)}…</p>;
   if (!r.hayPlan) {
@@ -74,6 +74,7 @@ export default function ResumenLiquidacion({ usuario, mes }: { usuario: number; 
         <Cifra etiqueta="Neto a cobrar">{euros(r.totales.neto)}</Cifra>
       </div>
 
+      {!sinCoches && (
       <div>
         <h5 style={{ margin: "0 0 6px 0" }}>🚗 Comisión de cada coche (solo el coche, sin financiación)</h5>
         <TablaDatos<Coche>
@@ -86,6 +87,7 @@ export default function ResumenLiquidacion({ usuario, mes }: { usuario: number; 
           pie={(fs) => ({ matricula: `${fs.length} coche${fs.length === 1 ? "" : "s"}`, importe: euros(fs.reduce((t, c) => t + c.importeCoche, 0)) })}
         />
       </div>
+      )}
 
       <div>
         <h5 style={{ margin: "0 0 6px 0" }}>🎁 Bonus y por qué se aplican</h5>
