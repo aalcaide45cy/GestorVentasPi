@@ -92,6 +92,20 @@ interface FilaDesglose {
   bonus: number;
   /** Su financiación (RCI) cae en un mes distinto al que cuenta el coche. */
   fuera?: FinanciacionFueraDeMes;
+  /** Importes de los conceptos propios del plan («extra:Nombre»), por nombre. */
+  extras: Record<string, number>;
+}
+
+/** Importes de los conceptos propios de un expediente, por nombre. */
+function extrasDe(linea: ResultadoMes["lineas"][number]): Record<string, number> {
+  const r: Record<string, number> = {};
+  for (const c of linea.conceptos) if (c.concepto.startsWith("extra:")) r[c.concepto.slice(6)] = (r[c.concepto.slice(6)] ?? 0) + c.importe;
+  return r;
+}
+
+/** Nombres de los conceptos propios que aparecen en las filas, en orden alfabético. */
+function nombresExtras(filas: FilaDesglose[]): string[] {
+  return [...new Set(filas.flatMap((f) => Object.keys(f.extras)))].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 const nombreMesIso = (m: string | null) => (m ? `${MESES[Number(m.slice(5, 7)) - 1].toLowerCase()} ${m.slice(0, 4)}` : "");
@@ -111,7 +125,7 @@ const marcaDe = (f: FilaDesglose) => f.e?.modelo?.marca?.nombre ?? "";
 const centimos = (n: number) => (n === 0 ? <span style={{ color: "var(--text-muted)" }}>—</span> : euros(n));
 
 /** Columnas del desglose: cada expediente con lo que aporta el coche, la financiación, Preference y los bonus o reglas. */
-const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
+const columnasBase: ColumnaTabla<FilaDesglose>[] = [
   {
     clave: "cliente",
     etiqueta: "Cliente",
@@ -193,10 +207,11 @@ type ResultadoConInfo = ResultadoMes & { expedientes?: Record<string, { cliente:
 /** Modal con el detalle de un indicador del panel de comisiones: una tabla con ordenación, buscador y columnas a elegir. */
 function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar }: { tipo: TipoDetalle; resultado: ResultadoConInfo; filas: FilaDesglose[]; porId: Map<number, ExpedienteDto>; nombreMarca: (id: number) => string; alCerrar: () => void }) {
   const cuentan = filas.filter((f) => f.linea.cuenta);
-  const columnasModal = columnasDesglose.map((c) => (c.clave === "matriculacion" ? { ...c, oculta: true } : c));
+  const extrasModal = nombresExtras(filas);
+  const columnasModal = columnasDesgloseDe(extrasModal, true);
   const titulos: Record<TipoDetalle, string> = { puntos: "Puntos del mes", tramo: "Tramo del mes", tasa: "Tasa de intervención financiera", tasaVo: "Tasa de intervención de usados", bruto: "Bruto del mes", penalizacion: "Penalización", objetivo: "Objetivo X", coches: "Coches que cuentan en el mes", neto: "Neto a cobrar" };
   const filaDe = (idExpediente: number): FilaDesglose =>
-    filas.find((f) => f.linea.idExpediente === idExpediente) ?? { linea: { idExpediente, clase: "VN", mesComputo: null, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e: porId.get(idExpediente), info: resultado.expedientes?.[String(idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0, fuera: resultado.financiacionesFueraDeMes.find((f) => f.idExpediente === idExpediente) };
+    filas.find((f) => f.linea.idExpediente === idExpediente) ?? { linea: { idExpediente, clase: "VN", mesComputo: null, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e: porId.get(idExpediente), info: resultado.expedientes?.[String(idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0, extras: {}, fuera: resultado.financiacionesFueraDeMes.find((f) => f.idExpediente === idExpediente) };
   let contenido: ReactNode;
   if (tipo === "tasa" || tipo === "tasaVo") {
     const esVo = tipo === "tasaVo";
@@ -244,7 +259,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
           textoExtra={(f) => f.linea.conceptos.map((c) => c.descripcion).join(" ")}
           placeholder="Buscar por cliente, modelo, marca, matrícula…"
           vacio="Todavía no hay coches que cuenten en este mes."
-          pie={(fs) => ({ cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`, puntos: puntos(fs.reduce((t, f) => t + f.linea.puntos, 0)), coche: euros(fs.reduce((t, f) => t + f.coche, 0)), financiacion: euros(fs.reduce((t, f) => t + f.financiacion, 0)), preference: euros(fs.reduce((t, f) => t + f.preference, 0)), bonus: euros(fs.reduce((t, f) => t + f.bonus, 0)), total: euros(fs.reduce((t, f) => t + f.linea.importe, 0)) })}
+          pie={(fs) => ({ ...pieExtras(extrasModal, fs), cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`, puntos: puntos(fs.reduce((t, f) => t + f.linea.puntos, 0)), coche: euros(fs.reduce((t, f) => t + f.coche, 0)), financiacion: euros(fs.reduce((t, f) => t + f.financiacion, 0)), preference: euros(fs.reduce((t, f) => t + f.preference, 0)), bonus: euros(fs.reduce((t, f) => t + f.bonus, 0)), total: euros(fs.reduce((t, f) => t + f.linea.importe, 0)) })}
         />
       </>
     );
@@ -264,6 +279,28 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
   );
 }
 
+/** Columnas del desglose con una columna más por cada concepto propio del plan, antes de «Bonus / reglas». */
+const cacheColumnas = new Map<string, ColumnaTabla<FilaDesglose>[]>();
+function columnasDesgloseDe(extras: string[], modal = false): ColumnaTabla<FilaDesglose>[] {
+  // Mismo arreglo mientras no cambien los conceptos propios: la tabla no recalcula sus columnas en cada pintado
+  const clave = `${modal ? "m" : "t"}|${extras.join("|")}`;
+  const guardado = cacheColumnas.get(clave);
+  if (guardado) return guardado;
+  const columnas = construirColumnas(extras).map((c) => (modal && c.clave === "matriculacion" ? { ...c, oculta: true } : c));
+  cacheColumnas.set(clave, columnas);
+  return columnas;
+}
+
+function construirColumnas(extras: string[]): ColumnaTabla<FilaDesglose>[] {
+  if (extras.length === 0) return columnasBase;
+  const i = columnasBase.findIndex((c) => c.clave === "bonus");
+  const propias: ColumnaTabla<FilaDesglose>[] = extras.map((n) => ({ clave: `extra:${n}`, etiqueta: n, valor: (f) => f.extras[n] ?? 0, celda: (f) => centimos(f.extras[n] ?? 0), alinear: "right", ayuda: `Concepto propio del plan: ${n}` }));
+  return [...columnasBase.slice(0, i), ...propias, ...columnasBase.slice(i)];
+}
+
+/** Totales de las columnas de conceptos propios para la fila del pie. */
+const pieExtras = (extras: string[], fs: FilaDesglose[]): Record<string, string> => Object.fromEntries(extras.map((n) => [`extra:${n}`, euros(fs.reduce((t, f) => t + (f.extras[n] ?? 0), 0))]));
+
 function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, fueraDeMes }: TarjetaProps) {
   const [desgloseGuardado, guardarDesglose] = usePreferencia(`desglose-${clave}`);
   const abierta = desgloseGuardado === "abierto";
@@ -274,7 +311,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   const finFuera = new Map((hayPlan ? resultado.financiacionesFueraDeMes : []).map((f) => [f.idExpediente, f]));
   const filasDesglose: FilaDesglose[] = lineas.map((linea) => {
     const suma = (...ids: string[]) => linea.conceptos.filter((c) => ids.includes(c.concepto)).reduce((t, c) => t + c.importe, 0);
-    return { linea, e: porId.get(linea.idExpediente), info: resultado?.expedientes?.[String(linea.idExpediente)], coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial"), fuera: finFuera.get(linea.idExpediente) };
+    return { linea, e: porId.get(linea.idExpediente), info: resultado?.expedientes?.[String(linea.idExpediente)], coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial"), extras: extrasDe(linea), fuera: finFuera.get(linea.idExpediente) };
   });
   const fueraLista = [...finFuera.values()];
   const entraG = (f: FinanciacionFueraDeMes) => f.clase === "VN" || (hayPlan && resultado.tasaIncluyeVo);
@@ -286,7 +323,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   for (const f of finFuera.values()) {
     if (f.tipo !== "adelantada" || filasDesglose.some((x) => x.linea.idExpediente === f.idExpediente)) continue;
     const e = porId.get(f.idExpediente);
-    filasDesglose.push({ linea: { idExpediente: f.idExpediente, clase: e?.estadoVehiculo?.clase === "VO" ? "VO" : "VN", mesComputo: f.mesComputo, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e, info: resultado?.expedientes?.[String(f.idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0, fuera: f });
+    filasDesglose.push({ linea: { idExpediente: f.idExpediente, clase: e?.estadoVehiculo?.clase === "VO" ? "VO" : "VN", mesComputo: f.mesComputo, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e, info: resultado?.expedientes?.[String(f.idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0, extras: {}, fuera: f });
   }
   // Tasa de intervención financiera del mes: global (todos los coches nuevos), por marca y de usados
   const tasas = hayPlan ? resultado.tasaIntervencion : [];
@@ -300,6 +337,8 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   const tasaDen = tasaG?.denominador ?? 0;
   const tasaNum = tasaG?.numerador ?? 0;
   const efP = efectoPuntos(hayPlan ? resultado.puntosMes : null, hayPlan ? resultado.objetivoX : null);
+  const extrasTarjeta = nombresExtras(filasDesglose);
+  const columnasTarjeta = columnasDesgloseDe(extrasTarjeta);
   const efT = efectoTramo(hayPlan ? resultado.tramo : null);
   return (
     <div className="glass-panel" style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "8px", border: destacada ? "1px solid var(--primary)" : undefined, ...(fueraDeMes ? { outline: "2px dashed var(--warning)", outlineOffset: "-3px" } : {}) }}>
@@ -357,7 +396,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--border-light)", paddingTop: "10px" }}>
               <TablaDatos<FilaDesglose>
                 id="desglose-comisiones"
-                columnas={columnasDesglose}
+                columnas={columnasTarjeta}
                 claseFila={claseFinanciacionFuera}
                 filas={filasDesglose}
                 clave={(f) => f.linea.idExpediente}
@@ -365,6 +404,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
                 placeholder="Buscar por cliente, modelo, marca, matrícula, concepto…"
                 vacio="Todavía no hay coches que cuenten en este mes."
                 pie={(fs) => ({
+                  ...pieExtras(extrasTarjeta, fs),
                   cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`,
                   coche: euros(fs.reduce((t, f) => t + f.coche, 0)),
                   financiacion: euros(fs.reduce((t, f) => t + f.financiacion, 0)),

@@ -158,4 +158,31 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
     const julio = calcularMes(plan65(), V, "2026-07", [adelantada, coche(201, { categoriaVenta: "CONTADO", fechaMatriculacion: "2026-07-10" })]);
     expect(julio.financiacionesFueraDeMes).toEqual([{ idExpediente: 200, clase: "VN", tipo: "anterior", mesRci: "2026-06", mesComputo: "2026-07" }]);
   });
+
+  it("un importe se puede repartir entre conceptos: 125 € de Preference = 50 € a financiación y 75 € a Preference", () => {
+    const e = [coche(1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10" })];
+    const fila = { idMarca: 1, tipo: "PREFERENCE" as const, aplicaA: "VN", importe: 12500, reparto: [{ concepto: "financiacion", importe: 5000 }] };
+    const r = calcularMes(plan({ financiacionPorMarcaTipo: [fila] }), V, "2026-06", e);
+    expect(importeDe(r, "financiacion")).toBe(5000);
+    expect(importeDe(r, "preference")).toBe(7500);
+    expect(r.bruto).toBe(12500);
+  });
+
+  it("los conceptos propios del reparto crean su propio concepto y nunca superan el importe", () => {
+    const e = [coche(1, { categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];
+    const fila = { idMarca: 1, tipo: "CREDITO" as const, aplicaA: "VN", importe: 5000, reparto: [{ concepto: "Seguro", importe: 2000 }, { concepto: "extra:Garantía", importe: 9000 }] };
+    const r = calcularMes(plan({ financiacionPorMarcaTipo: [fila] }), V, "2026-06", e);
+    expect(importeDe(r, "extra:Seguro")).toBe(2000);
+    expect(importeDe(r, "extra:Garantía")).toBe(3000); // solo queda lo que no se ha repartido
+    expect(importeDe(r, "financiacion")).toBe(0);
+    expect(r.bruto).toBe(5000);
+  });
+
+  it("la regla Preference también se reparte y el resto va a Preference", () => {
+    const e = [coche(1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-10" })];
+    const regla = { id: 1, idMarca: null, idModelo: null, tipo: null, importe: 10000, reparto: [{ concepto: "Seguro", importe: 4000 }] };
+    const r = calcularMes(plan({ reglasPreference: [regla] }), V, "2026-06", e);
+    expect(importeDe(r, "extra:Seguro")).toBe(4000);
+    expect(importeDe(r, "preference")).toBe(6000);
+  });
 });

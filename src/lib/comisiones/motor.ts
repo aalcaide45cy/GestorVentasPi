@@ -15,6 +15,8 @@ import type {
   PlanMotor,
   ReglaBonusMotor,
   ReglaPreferenceMotor,
+  ConceptoId,
+  RepartoConcepto,
   ResultadoMes,
   TarifaUsadoMotor,
   TasaAmbitoResultado,
@@ -541,9 +543,37 @@ function especificidad(r: ReglaPreferenceMotor): number {
   return 1;
 }
 
+/** Identificador de concepto de un reparto: los propios del programa se respetan y cualquier otro nombre es un concepto «extra:». */
+export function idConceptoReparto(texto: string): ConceptoId {
+  const limpio = texto.trim();
+  if (limpio === "financiacion" || limpio === "preference") return limpio;
+  return `extra:${limpio.replace(/^extra:/, "")}`;
+}
+
+/**
+ * Reparte un importe entre conceptos: cada parte del reparto va a su concepto (sin pasarse del importe) y lo que sobra, al concepto habitual.
+ * Sin reparto sale una sola línea, igual que antes.
+ */
+function repartir(defecto: ConceptoId, descripcion: string, importe: Centimos, reparto: RepartoConcepto[] | undefined, mk: (concepto: ConceptoId, descripcion: string, importe: Centimos) => ConceptoLinea): ConceptoLinea[] {
+  const partes = (reparto ?? []).filter((r) => r.importe > 0 && r.concepto.replace(/^extra:/, "").trim() !== "");
+  if (partes.length === 0) return [mk(defecto, descripcion, importe)];
+  const porConcepto = new Map<ConceptoId, Centimos>();
+  let resto = importe;
+  for (const p of partes) {
+    const parte = Math.min(p.importe, resto);
+    if (parte <= 0) continue;
+    const id = idConceptoReparto(p.concepto);
+    porConcepto.set(id, (porConcepto.get(id) ?? 0) + parte);
+    resto -= parte;
+  }
+  if (resto > 0) porConcepto.set(defecto, (porConcepto.get(defecto) ?? 0) + resto);
+  if (porConcepto.size === 0) return [mk(defecto, descripcion, importe)];
+  return [...porConcepto.entries()].map(([id, v]) => mk(id, porConcepto.size === 1 ? descripcion : `${descripcion} · parte a ${id.startsWith("extra:") ? id.slice(6) : id === "financiacion" ? "financiación" : "Preference"}`, v));
+}
+
 function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, tasaCumplidaDe: (ambito: AmbitoTasa, idMarca: number | null) => boolean): ConceptoLinea[] {
   const res: ConceptoLinea[] = [];
-  const mk = (concepto: "financiacion" | "preference", descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
+  const mk = (concepto: ConceptoId, descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
     concepto,
     descripcion,
     importe,
@@ -579,7 +609,8 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, 
     res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
   } else {
     const v = enteroValido(tarifa.importe);
-    res.push(v === null ? mk(conceptoFin, `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0") : mk(conceptoFin, `Financiación ${cat}`, v));
+    if (v === null) res.push(mk(conceptoFin, `Financiación ${cat}`, 0, "Importe de financiación no válido: se usa 0"));
+    else res.push(...repartir(conceptoFin, `Financiación ${cat}`, v, tarifa.reparto, mk));
   }
 
   if (cat === "PREFERENCE") {
@@ -598,7 +629,8 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, 
     if (mejor) {
       const v = enteroValido(mejor.importe);
       const desc = `Preference / BOX3${mejor.nombre ? ` (${mejor.nombre})` : ""}`;
-      res.push(v === null ? mk("preference", desc, 0, "Importe de la regla Preference no válido: se usa 0") : mk("preference", desc, v));
+      if (v === null) res.push(mk("preference", desc, 0, "Importe de la regla Preference no válido: se usa 0"));
+      else res.push(...repartir("preference", desc, v, mejor.reparto, mk));
     }
   }
   return res;

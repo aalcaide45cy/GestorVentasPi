@@ -106,6 +106,14 @@ export interface FinanciacionMotor {
   tasaIntervencion?: CondicionTasa;
   /** Qué tasa se mira (por defecto, la de la marca del coche). */
   tasaAmbito?: AmbitoTasa;
+  /** Partes del importe que van a otros conceptos; el resto va al concepto habitual. */
+  reparto?: RepartoConcepto[];
+}
+
+/** Parte de un importe que se anota en un concepto concreto («financiacion», «preference» o «extra:Nombre»). */
+export interface RepartoConcepto {
+  concepto: string;
+  importe: Centimos;
 }
 
 /** Condición sobre la tasa de intervención financiera. */
@@ -125,6 +133,7 @@ export interface ReglaPreferenceMotor {
   activa?: boolean;
   tasaIntervencion?: CondicionTasa;
   tasaAmbito?: AmbitoTasa;
+  reparto?: RepartoConcepto[];
 }
 
 export interface ReglaBonusMotor {
@@ -211,7 +220,9 @@ export type ConceptoId =
   | "especial"
   | "puntos_coche"
   | "puntos_pedido"
-  | "puntos_regla";
+  | "puntos_regla"
+  /** Concepto propio creado en el plan: «extra:Nombre». */
+  | `extra:${string}`;
 
 export interface ConceptoLinea {
   concepto: ConceptoId;

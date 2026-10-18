@@ -123,9 +123,9 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     patronesVO: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
     financiacionPorMarcaTipo: fin.flatMap((f) => {
       const tipo = categoria(f.tipoFinanciacion);
-      return tipo ? [{ idMarca: f.idMarca, tipo, aplicaA: aplicaDe(f.aplicaA), importe: f.importe, tasaIntervencion: condicionTasa(f.tasaIntervencion), tasaAmbito: ambitoTasa(f.tasaAmbito) }] : [];
+      return tipo ? [{ idMarca: f.idMarca, tipo, aplicaA: aplicaDe(f.aplicaA), importe: f.importe, tasaIntervencion: condicionTasa(f.tasaIntervencion), tasaAmbito: ambitoTasa(f.tasaAmbito), reparto: f.reparto ?? [] }] : [];
     }),
-    reglasPreference: pref.map((r) => ({ id: r.idPrefRule, nombre: r.nombre ?? undefined, idMarca: r.idMarca, idModelo: r.idModelo, tipo: categoria(r.tipoFinanciacion), aplicaA: aplicaDe(r.aplicaA), importe: r.importe, activa: r.activa, tasaIntervencion: condicionTasa(r.tasaIntervencion), tasaAmbito: ambitoTasa(r.tasaAmbito) })),
+    reglasPreference: pref.map((r) => ({ id: r.idPrefRule, nombre: r.nombre ?? undefined, idMarca: r.idMarca, idModelo: r.idModelo, tipo: categoria(r.tipoFinanciacion), aplicaA: aplicaDe(r.aplicaA), importe: r.importe, activa: r.activa, tasaIntervencion: condicionTasa(r.tasaIntervencion), tasaAmbito: ambitoTasa(r.tasaAmbito), reparto: r.reparto ?? [] })),
     reglasYBonus: [...reglas.map((r) => mapearRegla(r, r.idRule)), ...bonus.map((r) => mapearRegla(r, r.idBonusRule + DESPLAZAMIENTO_BONUS))],
     tasaIntervencionPorMarca: tasas.map((t) => ({ idMarca: t.idMarca, tipoTasa: t.tipoTasa === "unidades" ? "unidades" : "porcentaje", objetivo: t.objetivo })),
     nombresMarca: Object.fromEntries(nMarcas.map((m) => [m.id, m.nombre])),

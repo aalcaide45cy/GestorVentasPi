@@ -1,6 +1,7 @@
 "use client";
 
 import EditorTasas from "./EditorTasas";
+import RepartoImporte, { conceptosPropiosDelPlan } from "./RepartoImporte";
 import EditorReglas from "./EditorReglas";
 import SelectorVehiculo from "./SelectorVehiculo";
 import { BotonMini, InputCentesimas, Seccion } from "./campos";
@@ -46,7 +47,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
           <BotonMini
             onClick={() => {
               const marca = cat.marcas[0];
-              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 0, tasaIntervencion: "indiferente", tasaAmbito: "marca" }] }));
+              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 0, tasaIntervencion: "indiferente", tasaAmbito: "marca", reparto: [] }] }));
             }}
           >
             + Añadir incentivo
@@ -94,7 +95,10 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                     <SelectorTasa condicion={f.tasaIntervencion} ambito={f.tasaAmbito} alCambiar={(c) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, ...c } : x)) }))} />
                   </td>
                   <td>
-                    <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
+                      <RepartoImporte importe={f.importe} reparto={f.reparto} defecto={f.tipoFinanciacion === "PREFERENCE" ? "preference" : "financiacion"} sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} alCambiar={(r) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, reparto: r } : x)) }))} />
+                    </div>
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: "6px" }}>
@@ -123,7 +127,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
       <Seccion
         titulo="Reglas Preference / BOX3"
         ayuda="Se aplica solo la regla más específica: marca + modelo, después modelo, después marca y por último la general."
-        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, aplicaA: "VN", importe: 0, activa: true, tasaIntervencion: "indiferente", tasaAmbito: "marca" }] }))}>+ Nueva regla</BotonMini>}
+        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, aplicaA: "VN", importe: 0, activa: true, tasaIntervencion: "indiferente", tasaAmbito: "marca", reparto: [] }] }))}>+ Nueva regla</BotonMini>}
       >
         <div className="table-container">
           <table className="table-premium table-compact">
@@ -176,7 +180,10 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                       <SelectorTasa condicion={r.tasaIntervencion} ambito={r.tasaAmbito} alCambiar={(c) => set(c)} />
                     </td>
                     <td>
-                      <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />
+                        <RepartoImporte importe={r.importe} reparto={r.reparto} defecto="preference" sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} alCambiar={(rep) => set({ reparto: rep })} />
+                      </div>
                     </td>
                     <td>
                       <input type="checkbox" checked={r.activa} onChange={(e) => set({ activa: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />

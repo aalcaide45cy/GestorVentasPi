@@ -84,7 +84,8 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
           coche: suma("coche_vn", "vo"),
           financiacion: suma("financiacion"),
           preference: suma("preference"),
-          bonus: suma("regla", "especial"),
+          // Los conceptos propios del plan («extra:Nombre») se cuentan con los bonus
+          bonus: suma("regla", "especial") + l.conceptos.filter((c) => c.concepto.startsWith("extra:")).reduce((t, c) => t + c.importe, 0),
           total: l.importe,
           cuenta: l.cuenta,
           fuera: datos.financiacionesFueraDeMes.find((x) => x.idExpediente === l.idExpediente),

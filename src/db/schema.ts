@@ -516,6 +516,8 @@ export const commissionFinanceRates = pgTable(
     tasaIntervencion: varchar("tasa_intervencion", { length: 20 }).notNull().default("indiferente"),
     /** Qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
     tasaAmbito: varchar("tasa_ambito", { length: 10 }).notNull().default("marca"),
+    /** Reparto del importe entre conceptos: [{ concepto, importe }]. Lo que no se reparte va al concepto habitual de la línea. */
+    reparto: jsonb("reparto").$type<{ concepto: string; importe: number }[]>().notNull().default([]),
   },
   (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion, t.aplicaA, t.tasaIntervencion, t.tasaAmbito)],
 );
@@ -535,6 +537,8 @@ export const commissionPreferenceRules = pgTable("commission_preference_rules", 
   tasaIntervencion: varchar("tasa_intervencion", { length: 20 }).notNull().default("indiferente"),
   /** Qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
   tasaAmbito: varchar("tasa_ambito", { length: 10 }).notNull().default("marca"),
+  /** Reparto del importe entre conceptos: [{ concepto, importe }]. Lo que no se reparte va al concepto habitual de la línea. */
+  reparto: jsonb("reparto").$type<{ concepto: string; importe: number }[]>().notNull().default([]),
 });
 
 /** Columnas comunes de reglas y bonus (las penalizaciones son bonus con `es_penalizacion`). */
@@ -636,7 +640,7 @@ export const commissionLiquidationLineItems = pgTable(
       .notNull()
       .references(() => commissionLiquidationLines.idLine, { onDelete: "cascade" }),
     orden: integer("orden").notNull().default(0),
-    concepto: varchar("concepto", { length: 30 }).notNull(),
+    concepto: varchar("concepto", { length: 80 }).notNull(),
     descripcion: text("descripcion").notNull(),
     importe: integer("importe").notNull().default(0),
     puntos: integer("puntos").notNull().default(0),

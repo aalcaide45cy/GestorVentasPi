@@ -201,4 +201,14 @@ describe("auditoría: casos límite", () => {
     await Promise.all([1, 2, 3].map(() => liquidar(db, { idPlan: plan.idPlan, mes: "2026-07" })));
     expect(await listarLiquidaciones(db, { idPlan: plan.idPlan })).toHaveLength(1);
   });
+
+  it("guarda y devuelve el reparto de un importe entre conceptos, y rechaza un reparto mayor que el importe", async () => {
+    await base();
+    const [marca] = await db.select().from(marcas).limit(1);
+    const datos = { nombre: "Septiembre 2026", fechaInicio: "2026-09-01", fechaFin: "2026-09-30" };
+    const guardado = await guardarPlan(db, null, { ...datos, financiacion: [{ idMarca: marca.idMarca, tipoFinanciacion: "PREFERENCE", aplicaA: "VN", importe: 12500, reparto: [{ concepto: "financiacion", importe: 5000 }, { concepto: "extra:Seguro", importe: 1000 }] }] });
+    const leido = await leerPlan(db, guardado.plan.idPlan);
+    expect(leido?.financiacion[0].reparto).toEqual([{ concepto: "financiacion", importe: 5000 }, { concepto: "extra:Seguro", importe: 1000 }]);
+    await expect(guardarPlan(db, null, { ...datos, nombre: "Octubre 2026", fechaInicio: "2026-10-01", fechaFin: "2026-10-31", financiacion: [{ idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 1000, reparto: [{ concepto: "preference", importe: 2000 }] }] })).rejects.toThrow();
+  });
 });

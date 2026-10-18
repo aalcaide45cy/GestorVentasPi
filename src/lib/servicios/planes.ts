@@ -29,6 +29,8 @@ import { recalcularAfectados } from "./liquidaciones";
 const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida");
 const fechaNull = z.union([fecha, z.literal("").transform(() => null), z.null()]).default(null);
 const entero = z.number().int();
+/** Reparto de un importe entre conceptos: cada parte con su concepto («financiacion», «preference» o un nombre propio). */
+const repartoConceptos = z.array(z.object({ concepto: z.string().trim().min(1, "Falta el concepto").max(60, "El nombre del concepto es demasiado largo"), importe: entero.min(0) })).max(12).default([]);
 const idNull = z.number().int().positive().nullable().default(null);
 const SUBTIPO = "[A-Za-z0-9 _-]{1,30}";
 const aplicaA = z.string().regex(new RegExp(`^(VN|VO|TODOS|VO:${SUBTIPO})$`), "Ámbito no válido");
@@ -101,9 +103,9 @@ export const esquemaPlanBase = z.object({
     patrones: z
       .array(z.object({ nombre: z.string().trim().min(1).max(200), aplicaAVn: z.boolean().default(false), rotativo: z.boolean().default(false), activo: z.boolean().default(true), tiers: z.array(z.object({ unidad: z.number().int().positive(), importe: entero.min(0) })).default([]) }))
       .default([]),
-    financiacion: z.array(z.object({ idMarca: z.number().int().positive(), tipoFinanciacion: tipoFin, aplicaA: aplicaA.default("VN"), importe: entero, tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca") })).default([]),
+    financiacion: z.array(z.object({ idMarca: z.number().int().positive(), tipoFinanciacion: tipoFin, aplicaA: aplicaA.default("VN"), importe: entero, tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca"), reparto: repartoConceptos })).default([]),
     preference: z
-      .array(z.object({ nombre: z.string().max(200).nullable().default(null), idMarca: idNull, idModelo: idNull, tipoFinanciacion: tipoFin.nullable().default(null), aplicaA: aplicaA.default("VN"), importe: entero, activa: z.boolean().default(true), tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca") }))
+      .array(z.object({ nombre: z.string().max(200).nullable().default(null), idMarca: idNull, idModelo: idNull, tipoFinanciacion: tipoFin.nullable().default(null), aplicaA: aplicaA.default("VN"), importe: entero, activa: z.boolean().default(true), tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca"), reparto: repartoConceptos }))
       .default([]),
     reglas: z.array(esquemaRegla).default([]),
     bonus: z.array(esquemaRegla).default([]),
@@ -112,7 +114,8 @@ export const esquemaPlanBase = z.object({
 
 export const esquemaPlan = esquemaPlanBase
   .refine((p) => p.fechaInicio <= p.fechaFin, { message: "La fecha de inicio no puede ser posterior a la de fin", path: ["fechaFin"] })
-  .refine((p) => new Set(p.vendedores.map((v) => v.idUsuario)).size === p.vendedores.length, { message: "Hay vendedores repetidos en el objetivo", path: ["vendedores"] });
+  .refine((p) => new Set(p.vendedores.map((v) => v.idUsuario)).size === p.vendedores.length, { message: "Hay vendedores repetidos en el objetivo", path: ["vendedores"] })
+  .refine((p) => [...p.financiacion, ...p.preference].every((f) => f.reparto.reduce((t, r) => t + r.importe, 0) <= f.importe), { message: "El reparto de un importe entre conceptos supera el importe total", path: ["financiacion"] });
 
 export type PlanEntrada = z.input<typeof esquemaPlan>;
 export type PlanEditable = z.infer<typeof esquemaPlan> & { idPlan: number };
@@ -211,8 +214,8 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     tarifasVN: tarifas.map((x) => ({ idModelo: x.idModelo, tasaCumplida: x.tasaCumplida, importes: x.importes, activo: x.activo, orden: x.orden })),
     usados: usados.map((x) => ({ subtipo: x.subtipo, importePrimera: x.importePrimera, importeResto: x.importeResto, minAplicar: x.minAplicar, activo: x.activo })),
     patrones: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
-    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", aplicaA: x.aplicaA || "VN", importe: x.importe, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito) })),
-    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, aplicaA: x.aplicaA || "VN", importe: x.importe, activa: x.activa, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito) })),
+    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", aplicaA: x.aplicaA || "VN", importe: x.importe, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito), reparto: x.reparto ?? [] })),
+    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, aplicaA: x.aplicaA || "VN", importe: x.importe, activa: x.activa, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito), reparto: x.reparto ?? [] })),
     reglas: reglas.map(regla),
     bonus: bonus.map(regla),
     pendientes: pend.map((x) => ({ concepto: x.concepto, importe: x.importe, mesOrigen: x.mesOrigen })),
