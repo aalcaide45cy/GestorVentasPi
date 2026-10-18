@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useCarga } from "@/components/comisiones/useCarga";
 import type { FinanciacionFueraDeMes, ResultadoMes, TasaCocheDetalle } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
@@ -23,6 +23,7 @@ function desplazar(anio: number, mes: number, delta: number): { anio: number; me
   return { anio: Math.floor(total / 12), mes: (total % 12) + 1 };
 }
 const etiquetaMes = (anio: number, mes: number) => `${MESES[mes - 1]} ${anio}`;
+const etiquetaMesCorta = (anio: number, mes: number) => `${MESES[mes - 1].slice(0, 3).toLowerCase()} ${anio}`;
 const fechaCorta = (f: string | null) => (f ? f.split("-").reverse().join("/") : "—");
 
 /** Huella de los datos que cambian una comisión: al editar una fecha o un importe se vuelve a calcular. */
@@ -56,10 +57,11 @@ interface TarjetaProps {
   titulo: string;
   mesTexto: string;
   pagoTexto: string;
+  /** Frase completa de cuándo se cobra (la que sale al pasar el ratón por el texto corto). */
+  pagoAyuda: string;
   resultado: (ResultadoMes & { expedientes?: Record<string, { cliente: string; vehiculo: string; matricula: string | null }> }) | null;
   cargado: boolean;
   porId: Map<number, ExpedienteDto>;
-  destacada?: boolean;
   /** El mes que se muestra no es el actual: se rodea con el marco amarillo punteado, como el resumen estadístico. */
   fueraDeMes?: boolean;
 }
@@ -73,10 +75,10 @@ function Indicador({ etiqueta, ayuda, children, alAbrir }: { etiqueta: string; a
       tabIndex={alAbrir ? 0 : undefined}
       onClick={alAbrir}
       onKeyDown={alAbrir ? (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), alAbrir()) : undefined}
-      style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, overflow: "hidden", cursor: alAbrir ? "pointer" : undefined }}
+      style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", justifyContent: "center", gap: "2px", minWidth: 0, minHeight: "58px", overflow: "hidden", cursor: alAbrir ? "pointer" : undefined }}
     >
-      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{etiqueta}{alAbrir ? " 🔎" : ""}</span>
-      <span style={{ fontSize: "clamp(0.95rem, 1.5vw, 1.2rem)", fontWeight: 800, overflowWrap: "anywhere", lineHeight: 1.2 }}>{children}</span>
+      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{etiqueta}{alAbrir ? " 🔎" : ""}</span>
+      <span style={{ fontSize: "1.15rem", fontWeight: 800, overflowWrap: "anywhere", lineHeight: 1.2 }}>{children}</span>
     </div>
   );
 }
@@ -159,12 +161,15 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] = [
   { clave: "total", etiqueta: "Total", valor: (f) => f.linea.importe, celda: (f) => <strong>{euros(f.linea.importe)}</strong>, alinear: "right" },
 ];
 
+/** Cápsula con el borde amarillo punteado, igual que la de las filas con la financiación en otro mes. */
+const capsulaAviso: CSSProperties = { display: "inline-block", border: "2px dashed var(--warning)", borderRadius: "999px", background: "rgba(245, 158, 11, 0.08)" };
+
 /** Línea pequeña bajo la tasa: cuántas financiaciones son de otro mes (ya incluidas en la cifra, o excluidas por ser del mes anterior). */
 function NotaFueraDeMes({ numerador, adelantadas, anteriores }: { numerador: number; adelantadas: number; anteriores: number }) {
   if (adelantadas === 0 && anteriores === 0) return null;
   const partes = [adelantadas > 0 ? `${numerador - adelantadas} + ${adelantadas} adelantada${adelantadas === 1 ? "" : "s"}` : null, anteriores > 0 ? `${anteriores} del mes anterior (no suma)` : null].filter(Boolean);
   return (
-    <span title="Adelantadas: financiación de este mes de coches que cuentan en otro mes (ya están sumadas en la tasa). Del mes anterior: coches de este mes cuya financiación sumó en el mes anterior (no suman aquí)." style={{ display: "block", fontSize: "0.66rem", fontWeight: 600, color: "var(--warning)", lineHeight: 1.2, marginTop: "2px" }}>
+    <span title="Adelantadas: financiación de este mes de coches que cuentan en otro mes. Del mes anterior: coches de este mes cuya financiación sumó en el mes anterior (no suman aquí)." style={{ ...capsulaAviso, alignSelf: "flex-start", fontSize: "0.66rem", fontWeight: 600, color: "var(--warning)", lineHeight: 1.3, padding: "0 8px", marginTop: "2px", maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
       💳 {partes.join(" · ")}
     </span>
   );
@@ -340,12 +345,12 @@ function FichaTasa({ titulo, numerador, denominador, objetivo, tipoTasa, cumplid
         {marcaObjetivo !== null && <div title={`Objetivo ${objetivo} %`} style={{ position: "absolute", left: `${marcaObjetivo}%`, top: "-3px", width: "2px", height: "12px", background: "var(--text-primary)" }} />}
       </div>
       <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{objetivo === null ? "Sin objetivo (se da por cumplida)" : tipoTasa === "porcentaje" ? `Objetivo: ${objetivo} %` : `Objetivo: ${objetivo} ${objetivo === 1 ? "unidad" : "unidades"}`}</span>
-      {nota}
+      {nota ?? <span aria-hidden="true" style={{ minHeight: "1.3em" }} />}
     </div>
   );
 }
 
-function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, fueraDeMes }: TarjetaProps) {
+function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, pagoAyuda, fueraDeMes }: TarjetaProps) {
   const [desgloseGuardado, guardarDesglose] = usePreferencia(`desglose-${clave}`);
   const abierta = desgloseGuardado === "abierto";
   const [detalle, setDetalle] = useState<TipoDetalle | null>(null);
@@ -379,7 +384,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   const columnasTarjeta = columnasDesgloseDe(extrasTarjeta);
   const efT = efectoTramo(hayPlan ? resultado.tramo : null);
   return (
-    <div className="glass-panel" style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "8px", border: destacada ? "1px solid var(--primary)" : undefined, ...(fueraDeMes ? { outline: "2px dashed var(--warning)", outlineOffset: "-3px" } : {}) }}>
+    <div className="glass-panel" style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "8px", ...(fueraDeMes ? { border: "1px solid transparent", outline: "2px dashed var(--warning)", outlineOffset: "-3px" } : {}) }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
         <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>{titulo}</span>
         <span style={{ fontSize: "0.95rem", fontWeight: 700 }}>{mesTexto}</span>
@@ -387,10 +392,10 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
       {hayPlan ? (
         <>
           <div style={{ display: "flex", gap: "18px", alignItems: "stretch", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minWidth: "150px" }}>
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: "0 0 150px", minWidth: 0 }}>
               <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>Neto a cobrar</span>
               <h3 role="button" tabIndex={0} title="Pulsa para ver cómo sale el neto" onClick={() => setDetalle("neto")} style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", overflowWrap: "anywhere", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1, cursor: "pointer" }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
-              <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>💶 {pagoTexto}</span>
+              <span title={pagoAyuda} style={{ fontSize: "0.75rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>💶 {pagoTexto}</span>
             </div>
             <div style={{ flex: 1, minWidth: "260px", display: "flex", flexDirection: "column", gap: "8px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
@@ -455,8 +460,11 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
                 })}
               />
               {finFuera.size > 0 && (
-                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--warning)" }}>
-                  💳 Las filas con marco amarillo punteado tienen la financiación en otro mes: {[...finFuera.values()].filter((f) => f.tipo === "adelantada").length} adelantada(s) y {[...finFuera.values()].filter((f) => f.tipo === "anterior").length} contratada(s) el mes anterior. Pasa el ratón por la columna «Cuenta» para ver el detalle.
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span aria-hidden="true" style={{ ...capsulaAviso, flex: "0 0 auto", width: "44px", height: "16px" }} />
+                  <span>
+                    Fila con la financiación en otro mes: {[...finFuera.values()].filter((f) => f.tipo === "adelantada").length} adelantada(s) y {[...finFuera.values()].filter((f) => f.tipo === "anterior").length} contratada(s) el mes anterior. Pasa el ratón por la columna «Cuenta» para ver el detalle.
+                  </span>
                 </p>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -503,6 +511,9 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
   const pagoAnterior = desplazar(previoReal.anio, previoReal.mes, 1);
 
   const { abierto, alternar } = usePlegable("comisiones");
+  // El cuadro del mes anterior se puede ocultar para dar todo el ancho al mes elegido; queda guardado hasta que se vuelva a mostrar
+  const [anteriorGuardado, guardarAnterior] = usePreferencia("panel-comisiones-anterior");
+  const verAnterior = esMesActual && anteriorGuardado !== "oculto";
   return (
     <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -514,14 +525,22 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
             </p>
           )}
         </div>
-        <BotonPlegar abierto={abierto} alternar={alternar} titulo="Comisiones" />
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          {abierto && esMesActual && (
+            <button type="button" onClick={() => guardarAnterior(verAnterior ? "oculto" : "visible")} className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} title={verAnterior ? "Oculta el cuadro del mes anterior para ver más grande el del mes elegido. Queda guardado hasta que lo vuelvas a mostrar." : "Vuelve a mostrar el cuadro del mes anterior (el que se cobra ahora)"}>
+              {verAnterior ? "Ocultar mes anterior" : "Mostrar mes anterior"}
+            </button>
+          )}
+          <BotonPlegar abierto={abierto} alternar={alternar} titulo="Comisiones" />
+        </div>
       </div>
-      {abierto && <div style={{ display: "grid", gridTemplateColumns: esMesActual ? "repeat(auto-fit, minmax(min(420px, 100%), 1fr))" : "1fr", gap: "16px" }}>
-        {esMesActual && <TarjetaComision
+      {abierto && <div style={{ display: "grid", gridTemplateColumns: verAnterior ? "repeat(auto-fit, minmax(min(420px, 100%), 1fr))" : "1fr", gap: "16px" }}>
+        {verAnterior && <TarjetaComision
           clave="anterior"
           titulo="Mes anterior (se cobra ahora)"
           mesTexto={etiquetaMes(previoReal.anio, previoReal.mes)}
-          pagoTexto={`Nómina de ${etiquetaMes(pagoAnterior.anio, pagoAnterior.mes)}`}
+          pagoTexto={`Nómina ${etiquetaMesCorta(pagoAnterior.anio, pagoAnterior.mes)}`}
+          pagoAyuda={`Se cobra en la nómina de ${etiquetaMes(pagoAnterior.anio, pagoAnterior.mes)}`}
           resultado={anterior ?? null}
           cargado={anterior !== undefined}
           porId={porId}
@@ -530,11 +549,11 @@ export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesP
           clave="elegido"
           titulo={esMesActual ? "Mes elegido (llevas generado)" : "Mes elegido (no es el mes actual)"}
           mesTexto={etiquetaMes(anio, mes)}
-          pagoTexto={`Se cobrará en la nómina de ${etiquetaMes(pago.anio, pago.mes)}`}
+          pagoTexto={`Nómina ${etiquetaMesCorta(pago.anio, pago.mes)}`}
+          pagoAyuda={`Se cobrará en la nómina de ${etiquetaMes(pago.anio, pago.mes)}`}
           resultado={elegido ?? null}
           cargado={elegido !== undefined}
           porId={porId}
-          destacada
           fueraDeMes={!esMesActual}
         />
       </div>}

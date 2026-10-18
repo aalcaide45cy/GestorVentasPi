@@ -273,3 +273,9 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 
 ## Financiación de un coche que no cuenta en ningún mes: suma a su marca, no a la global (v1.0.19) [I]
 - Un coche sin fecha de facturación ni de matriculación no cuenta en ningún mes. Si su RCI cae en el mes, su financiación se anota como «adelantada» (fila con marco amarillo punteado y «6 + 1 adelantada» en la tarjeta) y suma al numerador de la tasa de su marca, pero no al de la global ni al de usados. Así los datos de septiembre dan lo que dice la hoja de la empresa: global 6 de 7 = 85,71 %, Renault 100 % y Dacia 100 %. Es un ajuste hecho para cuadrar con esa hoja; si se ve otra hoja que lo contradiga, revisar.
+
+## Cajas de comisiones: cápsula de aviso, sin línea morada, mes anterior ocultable (v1.0.19)
+- La nota «6 + 1 adelantada» de la tasa y la leyenda bajo el desglose usan la misma cápsula de borde amarillo punteado que las filas (la leyenda lleva una cápsula de muestra y el texto al lado).
+- El marco del mes que no es el actual es solo el amarillo punteado (se quita el borde morado). Los dos cuadros comparten diseño: sin borde propio, cajitas con la misma altura mínima y etiqueta de una línea, y la ficha de tasa reserva siempre la línea de la nota para medir lo mismo con o sin ella.
+- El cuadro del mes anterior se puede ocultar (botón «Ocultar mes anterior»); queda guardado en el navegador (`panel-comisiones-anterior`) hasta que se muestre otra vez, y el mes elegido ocupa todo el ancho.
+- «Se cobrará en la nómina de noviembre de 2026» pasa a «💶 Nómina nov. 2026» (la frase completa sale al pasar el ratón) y la columna del neto tiene ancho fijo.
