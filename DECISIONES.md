@@ -198,3 +198,7 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 ## Conceptos especiales: mes según cualquier fecha del expediente (v1.0.19)
 - El evento de un concepto especial puede ser cualquier fecha del expediente: pedido, afectación, RCI, matriculación (la real), facturación, entrega o cobro. «Evento principal» sigue siendo el mes en que cuenta el coche (en un VN, la facturación; en un VO, la facturación; si no hay, la matriculación), y es el valor de los conceptos ya creados, que no cambian.
 - El motor y el simulador del expediente reciben ahora la fecha de entrega (solo la usan estos conceptos).
+
+## Punto a revisar: financiación adelantada y la tasa (v1.0.19)
+- Hoy la financiación adelantada de un coche que no cuenta ese mes **suma al numerador** de la tasa de ese mes y el coche **no** suma al denominador (7 coches que cuentan, 6 financiados propios + 1 adelantada = 7/7). La tarjeta lo desglosa («6 + 1 adelantada»).
+- El propietario pidió dejar marcado este criterio por si hay que cambiarlo más adelante (por ejemplo, para que el coche adelantado también cuente en el denominador). El cálculo está en `calcularTasaAmbito` y `calcularTasas` (`src/lib/comisiones/motor.ts`).

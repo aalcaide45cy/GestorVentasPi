@@ -354,6 +354,9 @@ tr.fila-aviso > td {
   border-top: 2px dashed var(--warning) !important;
   border-bottom: 2px dashed var(--warning) !important;
   background: rgba(245, 158, 11, 0.08);
+  /* el borde de 2 px se compensa con menos relleno para que la fila mida casi lo mismo que las demás */
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
 }
 tr.fila-aviso > td:first-child {
   border-left: 2px dashed var(--warning);

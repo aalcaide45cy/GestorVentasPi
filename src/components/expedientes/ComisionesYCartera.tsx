@@ -138,7 +138,7 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] = [
     ancho: 130,
   },
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? f.info?.matricula ?? "", oculta: true },
-  { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null) },
+  { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null), oculta: true },
   ...columnasVehiculo<FilaDesglose>((f) => ({ ...datosVehiculoDeExpediente(f.e), clase: f.linea.clase, marca: marcaDe(f) || null, modelo: f.e?.modelo?.nombre_modelo ?? (f.e ? null : f.info?.vehiculo) ?? null, estado: f.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.linea.clase === "VO" ? "Usado" : "Nuevo") })),
   {
     clave: "cuenta",
@@ -147,7 +147,7 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] = [
     celda: (f) => (
       <span title={f.fuera ? textoFinanciacionFuera(f.fuera) : undefined}>
         {f.linea.cuenta ? "Este mes" : "Otros conceptos"}
-        {f.fuera && <span style={{ display: "block", fontSize: "0.7rem", fontWeight: 700, color: "var(--warning)" }}>💳 {f.fuera.tipo === "anterior" ? "Mes anterior" : "Adelantada"}</span>}
+        {f.fuera && <span style={{ marginLeft: "6px", fontSize: "0.72rem", fontWeight: 700, color: "var(--warning)" }}>💳 {f.fuera.tipo === "anterior" ? "Mes anterior" : "Adelantada"}</span>}
       </span>
     ),
     ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes. Con marco amarillo punteado: su financiación es de otro mes.",
@@ -161,9 +161,9 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] = [
 ];
 
 /** Línea pequeña bajo la tasa: cuántas financiaciones son de otro mes (ya incluidas en la cifra, o excluidas por ser del mes anterior). */
-function NotaFueraDeMes({ adelantadas, anteriores }: { adelantadas: number; anteriores: number }) {
+function NotaFueraDeMes({ numerador, adelantadas, anteriores }: { numerador: number; adelantadas: number; anteriores: number }) {
   if (adelantadas === 0 && anteriores === 0) return null;
-  const partes = [adelantadas > 0 ? `${adelantadas} adelantada${adelantadas === 1 ? "" : "s"}` : null, anteriores > 0 ? `${anteriores} del mes anterior` : null].filter(Boolean);
+  const partes = [adelantadas > 0 ? `${numerador - adelantadas} + ${adelantadas} adelantada${adelantadas === 1 ? "" : "s"}` : null, anteriores > 0 ? `${anteriores} del mes anterior (no suma)` : null].filter(Boolean);
   return (
     <span title="Adelantadas: financiación de este mes de coches que cuentan en otro mes (ya están sumadas en la tasa). Del mes anterior: coches de este mes cuya financiación sumó en el mes anterior (no suman aquí)." style={{ display: "block", fontSize: "0.66rem", fontWeight: 600, color: "var(--warning)", lineHeight: 1.2, marginTop: "2px" }}>
       💳 {partes.join(" · ")}
@@ -365,13 +365,13 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
               <Indicador etiqueta="Tasa int. financiera" alAbrir={() => setDetalle("tasa")} ayuda={textoTasa}>
                 {tasaTotal === null ? <span style={{ color: "var(--text-muted)" }}>—</span> : <span style={{ color: colorTasa }}>{`${tasaTotal.toFixed(1).replace(".", ",")} %`}</span>}
                 {tasaDen > 0 && <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaNum}/{tasaDen}</span>}
-                <NotaFueraDeMes adelantadas={adelantadasG} anteriores={anterioresG} />
+                <NotaFueraDeMes numerador={tasaNum} adelantadas={adelantadasG} anteriores={anterioresG} />
               </Indicador>
               {tasaV && tasaV.denominador > 0 && (
                 <Indicador etiqueta="Tasa int. usados" alAbrir={() => setDetalle("tasaVo")} ayuda="Usados (VO) financiados entre los que cuentan este mes">
                   <span style={{ color: tasaV.conObjetivo ? (tasaV.cumplida ? "var(--success)" : "var(--warning)") : undefined }}>{`${((tasaV.numerador / tasaV.denominador) * 100).toFixed(1).replace(".", ",")} %`}</span>
                   <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaV.numerador}/{tasaV.denominador}</span>
-                  <NotaFueraDeMes adelantadas={adelantadasV} anteriores={anterioresV} />
+                  <NotaFueraDeMes numerador={tasaV.numerador} adelantadas={adelantadasV} anteriores={anterioresV} />
                 </Indicador>
               )}
               <Indicador etiqueta="Bruto" alAbrir={() => setDetalle("bruto")} ayuda="Comisión antes de penalizaciones">
@@ -397,6 +397,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
               <TablaDatos<FilaDesglose>
                 id="desglose-comisiones"
                 columnas={columnasTarjeta}
+                compacta
                 claseFila={claseFinanciacionFuera}
                 filas={filasDesglose}
                 clave={(f) => f.linea.idExpediente}

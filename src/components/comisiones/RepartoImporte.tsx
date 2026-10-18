@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Modal from "@/components/Modal";
 import { InputCentesimas } from "./campos";
 import { euros } from "@/lib/formato";
 
@@ -27,61 +28,114 @@ export function conceptosPropiosDelPlan(lineas: { reparto: Reparto }[]): string[
 }
 
 /**
- * Reparto de un importe entre conceptos: «de estos 125 €, 50 van a Financiación y el resto a Preference».
- * Lo que no se reparte va al concepto habitual de la línea; se pueden crear conceptos propios con cualquier nombre.
+ * Reparto de un importe entre conceptos. En la tabla solo se ve un resumen («50 € Financiación + 75 € Preference») y un botón; el reparto
+ * se edita en una ventana con una fila por concepto, el resto calculado solo y el total comprobado.
  */
-export default function RepartoImporte({ importe, reparto, defecto, sugerencias, alCambiar }: { importe: number; reparto: Reparto; defecto: Defecto; sugerencias: string[]; alCambiar: (r: Reparto) => void }) {
+export default function RepartoImporte({ importe, reparto, defecto, sugerencias, titulo, alCambiar }: { importe: number; reparto: Reparto; defecto: Defecto; sugerencias: string[]; titulo: string; alCambiar: (r: Reparto) => void }) {
   const [abierto, setAbierto] = useState(false);
   const suma = reparto.reduce((t, r) => t + r.importe, 0);
   const resto = importe - suma;
   const pasado = resto < 0;
-  const lista = `lista-conceptos-${defecto}`;
+  const otroPropio: Defecto = defecto === "preference" ? "financiacion" : "preference";
   const cambiar = (i: number, c: Partial<{ concepto: string; importe: number }>) => alCambiar(reparto.map((r, j) => (j === i ? { ...r, ...c } : r)));
-  const resumen = reparto.length === 0 ? null : [...reparto.map((r) => `${euros(r.importe)} → ${etiquetaConcepto(r.concepto)}`), ...(resto > 0 ? [`${euros(resto)} → ${etiquetaConcepto(defecto)}`] : [])].join(" · ");
+  const partesResumen = [...reparto.filter((r) => r.importe > 0).map((r) => `${euros(r.importe)} ${etiquetaConcepto(r.concepto)}`), ...(resto > 0 ? [`${euros(resto)} ${etiquetaConcepto(defecto)}`] : [])];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "150px" }}>
-      <button type="button" className="btn btn-secondary" onClick={() => setAbierto(!abierto)} style={{ padding: "2px 8px", fontSize: "0.72rem", alignSelf: "flex-start" }} title="Reparte este importe entre varios conceptos (Financiación, Preference u otros que crees)">
-        {abierto ? "▾ Reparto" : reparto.length === 0 ? "✂ Repartir en conceptos" : "✂ Reparto"}
-      </button>
-      {!abierto && resumen && <span style={{ fontSize: "0.72rem", color: pasado ? "var(--danger)" : "var(--text-secondary)" }}>{resumen}</span>}
+    <>
+      {reparto.length === 0 ? (
+        <button type="button" className="btn btn-secondary" onClick={() => setAbierto(true)} style={{ padding: "2px 8px", fontSize: "0.72rem", alignSelf: "flex-start" }} title="Reparte este importe entre varios conceptos (Financiación, Preference u otros que crees)">
+          ✂ Repartir en conceptos
+        </button>
+      ) : (
+        <button type="button" onClick={() => setAbierto(true)} title="Editar el reparto de este importe" style={{ all: "unset", cursor: "pointer", fontSize: "0.75rem", color: pasado ? "var(--danger)" : "var(--primary)", lineHeight: 1.3, textDecoration: "underline dotted" }}>
+          ✂ {partesResumen.join(" + ")}
+        </button>
+      )}
       {abierto && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "8px", border: "1px dashed var(--border-light)", borderRadius: "var(--radius-sm)" }}>
-          <datalist id={lista}>
+        <Modal
+          titulo={`Repartir ${euros(importe)} · ${titulo}`}
+          ancho="640px"
+          pie={
+            <>
+              {reparto.length > 0 && (
+                <button type="button" className="btn btn-secondary" onClick={() => alCambiar([])}>
+                  Quitar el reparto
+                </button>
+              )}
+              <button type="button" className="btn btn-primary" onClick={() => setAbierto(false)} disabled={pasado}>
+                Hecho
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+            Elige a qué conceptos va cada parte del importe. Lo que no repartas va a <strong>{etiquetaConcepto(defecto)}</strong>. Cada concepto sale como una columna en las tablas de comisiones, y puedes crear los que quieras escribiendo su nombre.
+          </p>
+          <datalist id={`conceptos-${defecto}`}>
             {sugerencias.map((s) => (
               <option key={s} value={s} />
             ))}
           </datalist>
-          {reparto.map((r, i) => {
-            const propio = PROPIOS.some((p) => p.v === r.concepto);
-            return (
-              <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                <select className="form-input" style={{ minWidth: "120px" }} value={propio ? r.concepto : "otro"} onChange={(e) => cambiar(i, { concepto: e.target.value === "otro" ? "extra:" : e.target.value })}>
-                  {PROPIOS.map((p) => (
-                    <option key={p.v} value={p.v}>
-                      {p.t}
-                    </option>
-                  ))}
-                  <option value="otro">Otro concepto…</option>
-                </select>
-                {!propio && <input className="form-input" list={lista} placeholder="Nombre del concepto" maxLength={60} value={r.concepto.replace(/^extra:/, "")} onChange={(e) => cambiar(i, { concepto: `extra:${e.target.value}` })} style={{ width: "150px", borderColor: r.concepto.replace(/^extra:/, "").trim() === "" ? "var(--danger)" : undefined }} />}
-                <InputCentesimas valor={r.importe} ancho="90px" onChange={(v) => cambiar(i, { importe: v ?? 0 })} sufijo="€" />
-                <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => alCambiar(reparto.filter((_, j) => j !== i))}>
-                  Quitar
-                </button>
-              </div>
-            );
-          })}
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => alCambiar([...reparto, { concepto: defecto === "preference" ? "financiacion" : "preference", importe: Math.max(0, resto) }])}>
-              + Añadir parte
+          <table className="table-premium table-compact" style={{ width: "100%" }}>
+            <thead>
+              <tr>
+                <th>Concepto</th>
+                <th style={{ textAlign: "right" }}>Importe (€)</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {reparto.map((r, i) => {
+                const propio = PROPIOS.some((p) => p.v === r.concepto);
+                return (
+                  <tr key={i}>
+                    <td>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <select className="form-input" style={{ minWidth: "130px" }} value={propio ? r.concepto : "otro"} onChange={(e) => cambiar(i, { concepto: e.target.value === "otro" ? "extra:" : e.target.value })}>
+                          {PROPIOS.map((p) => (
+                            <option key={p.v} value={p.v}>
+                              {p.t}
+                            </option>
+                          ))}
+                          <option value="otro">Otro concepto…</option>
+                        </select>
+                        {!propio && <input className="form-input" list={`conceptos-${defecto}`} placeholder="Nombre del concepto" maxLength={60} value={r.concepto.replace(/^extra:/, "")} onChange={(e) => cambiar(i, { concepto: `extra:${e.target.value}` })} style={{ width: "170px", borderColor: r.concepto.replace(/^extra:/, "").trim() === "" ? "var(--danger)" : undefined }} autoFocus />}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <InputCentesimas valor={r.importe} ancho="100px" onChange={(v) => cambiar(i, { importe: v ?? 0 })} />
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.75rem" }} onClick={() => alCambiar(reparto.filter((_, j) => j !== i))}>
+                        Quitar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr style={{ background: "var(--bg-surface-tint)" }}>
+                <td>
+                  <strong>{etiquetaConcepto(defecto)}</strong> <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>(el resto)</span>
+                </td>
+                <td style={{ textAlign: "right", fontWeight: 700, color: pasado ? "var(--danger)" : undefined }}>{euros(Math.max(0, resto))}</td>
+                <td />
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td style={{ fontWeight: 700 }}>Total</td>
+                <td style={{ textAlign: "right", fontWeight: 700, color: pasado ? "var(--danger)" : "var(--success)" }}>{euros(Math.max(suma, 0) + Math.max(0, resto))}</td>
+                <td style={{ fontSize: "0.8rem", color: pasado ? "var(--danger)" : "var(--success)" }}>{pasado ? `Pasa ${euros(-resto)}` : "✓ Cuadra"}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div>
+            <button type="button" className="btn btn-secondary" style={{ padding: "4px 12px", fontSize: "0.85rem" }} onClick={() => alCambiar([...reparto, { concepto: reparto.some((r) => r.concepto === otroPropio) ? "extra:" : otroPropio, importe: 0 }])}>
+              + Añadir concepto
             </button>
-            <span style={{ fontSize: "0.75rem", color: pasado ? "var(--danger)" : "var(--text-secondary)" }}>
-              {pasado ? `Las partes suman ${euros(suma)}, más que el importe (${euros(importe)})` : `Resto: ${euros(resto)} → ${etiquetaConcepto(defecto)}`}
-            </span>
           </div>
-        </div>
+        </Modal>
       )}
-    </div>
+    </>
   );
 }

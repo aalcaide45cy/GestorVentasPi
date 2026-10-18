@@ -97,7 +97,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                   <td>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
-                      <RepartoImporte importe={f.importe} reparto={f.reparto} defecto={f.tipoFinanciacion === "PREFERENCE" ? "preference" : "financiacion"} sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} alCambiar={(r) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, reparto: r } : x)) }))} />
+                      <RepartoImporte importe={f.importe} reparto={f.reparto} defecto={f.tipoFinanciacion === "PREFERENCE" ? "preference" : "financiacion"} sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} titulo={`${cat.marcas.find((m) => m.id === f.idMarca)?.nombre ?? "Marca"} · ${ETIQUETA[f.tipoFinanciacion]}`} alCambiar={(r) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, reparto: r } : x)) }))} />
                     </div>
                   </td>
                   <td>
@@ -182,7 +182,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />
-                        <RepartoImporte importe={r.importe} reparto={r.reparto} defecto="preference" sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} alCambiar={(rep) => set({ reparto: rep })} />
+                        <RepartoImporte importe={r.importe} reparto={r.reparto} defecto="preference" sugerencias={conceptosPropiosDelPlan([...plan.financiacion, ...plan.preference])} titulo={r.nombre || "Regla Preference"} alCambiar={(rep) => set({ reparto: rep })} />
                       </div>
                     </td>
                     <td>
