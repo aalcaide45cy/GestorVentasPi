@@ -37,6 +37,15 @@ function esFinanciadoParaTasa(e: ExpedienteMotor): boolean {
 const PUNTOS_DEFECTO: Centesimas = 100;
 const VO_SIN_ESCALA: Centimos = 15000;
 
+/**
+ * ¿Suma este coche al numerador de la tasa del mes? Su RCI cae en el mes y es una venta financiada, y además el coche cuenta en algún
+ * mes: uno sin fecha de facturación ni de matriculación no cuenta en ninguno, así que su financiación tampoco suma a la tasa (si no, el
+ * numerador tendría un coche que no está en el denominador y la tasa saldría por encima de la de la hoja de la empresa).
+ */
+function financiaEnElMes(i: { e: ExpedienteMotor; mesComputo: Mes | null }, mes: Mes): boolean {
+  return i.mesComputo !== null && mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e);
+}
+
 interface Info {
   e: ExpedienteMotor;
   mesComputo: Mes | null;
@@ -219,12 +228,12 @@ export function calcularMes(
   const tasaVo = calcularTasaAmbito(infos, mes, ["VO"], plan.tasaVo);
   const tasaCoches: TasaCocheDetalle[] = infos
     .filter((i) => i.mesComputo === mes || mesDe(i.e.fechaRci) === mes)
-    .map((i) => ({ idExpediente: i.e.id, clase: i.e.clase, idMarca: i.e.idMarca, cuenta: i.mesComputo === mes, financiado: mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e) }));
+    .map((i) => ({ idExpediente: i.e.id, clase: i.e.clase, idMarca: i.e.idMarca, cuenta: i.mesComputo === mes, financiado: financiaEnElMes(i, mes) }));
   const financiacionesFueraDeMes: FinanciacionFueraDeMes[] = infos.flatMap((i): FinanciacionFueraDeMes[] => {
     const mesRci = mesDe(i.e.fechaRci);
     if (mesRci === null || !esFinanciadoParaTasa(i.e)) return [];
     if (i.mesComputo === mes && mesRci < mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "anterior" as const, mesRci, mesComputo: i.mesComputo }];
-    if (i.mesComputo !== mes && mesRci === mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "adelantada" as const, mesRci, mesComputo: i.mesComputo }];
+    if (i.mesComputo !== null && i.mesComputo !== mes && mesRci === mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "adelantada" as const, mesRci, mesComputo: i.mesComputo }];
     return [];
   });
   const ratioDe = (ambito: AmbitoTasa, idMarca: number | null): { cumplida: boolean; numerador: number; denominador: number } => {
@@ -348,7 +357,7 @@ function tasaVacia(): TasaAmbitoResultado {
 function calcularTasaAmbito(infos: Info[], mes: Mes, clases: ("VN" | "VO")[], cfg: TasaConfigMotor | undefined): TasaAmbitoResultado {
   const coches = infos.filter((i) => clases.includes(i.e.clase));
   const denominador = coches.filter((i) => i.mesComputo === mes).length;
-  const numerador = coches.filter((i) => mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e)).length;
+  const numerador = coches.filter((i) => financiaEnElMes(i, mes)).length;
   const objetivo = cfg?.objetivo ?? null;
   const conObjetivo = objetivo !== null;
   let cumplida = true;
@@ -368,7 +377,7 @@ function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResul
   for (const idMarca of [...marcas].sort((a, b) => a - b)) {
     const vn = infos.filter((i) => (i.e.clase === "VN" || (incluyeVo && i.e.clase === "VO")) && i.e.idMarca === idMarca);
     const denominador = vn.filter((i) => i.mesComputo === mes).length;
-    const numerador = vn.filter((i) => mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e)).length;
+    const numerador = vn.filter((i) => financiaEnElMes(i, mes)).length;
     const cfg = plan.tasaIntervencionPorMarca.find((t) => t.idMarca === idMarca);
     const tipo = cfg?.tipoTasa ?? "porcentaje";
     const objetivo = cfg?.objetivo ?? 70;

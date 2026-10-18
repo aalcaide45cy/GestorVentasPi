@@ -151,6 +151,15 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
     expect(r.tasaGlobal).toMatchObject({ numerador: 2, denominador: 4, porcentaje: 50 });
   });
 
+  it("un coche sin fecha de facturación ni de matriculación no cuenta en ningún mes y su financiación tampoco suma a la tasa", () => {
+    // 7 coches en el mes, 6 financiados (85,71 %); un octavo, sin fechas, tiene la RCI en el mes pero no está en el denominador
+    const sinFechas = coche(300, { categoriaVenta: "CREDITO", fechaRci: "2026-06-20", fechaMatriculacion: null });
+    const r = calcularMes(plan({ tasaGlobal: { tipoTasa: "porcentaje", objetivo: 65 } }), V, "2026-06", [...[1, 2, 3, 4, 5, 6].map((i) => coche(i, { categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })), coche(7), sinFechas]);
+    expect(r.tasaGlobal).toMatchObject({ numerador: 6, denominador: 7, porcentaje: 85.71 });
+    expect(r.financiacionesFueraDeMes).toEqual([]);
+    expect(r.tasaIntervencion[0]).toMatchObject({ numerador: 6, denominador: 7 });
+  });
+
   it("marca los coches con la financiación en un mes distinto al que cuentan (adelantada y del mes anterior)", () => {
     const adelantada = coche(200, { categoriaVenta: "CREDITO", fechaRci: "2026-06-20", fechaMatriculacion: "2026-07-03" });
     const junio = calcularMes(plan65(), V, "2026-06", [...diez(6), adelantada]);
