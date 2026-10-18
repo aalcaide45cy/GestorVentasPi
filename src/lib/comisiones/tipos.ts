@@ -274,6 +274,7 @@ export interface TasaCocheDetalle {
  */
 export interface FinanciacionFueraDeMes {
   idExpediente: number;
+  clase: Clase;
   tipo: "anterior" | "adelantada";
   mesRci: Mes;
   /** Mes en el que cuenta el coche (null si aún no cuenta en ninguno). */

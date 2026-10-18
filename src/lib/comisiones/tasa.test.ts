@@ -154,8 +154,8 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
   it("marca los coches con la financiación en un mes distinto al que cuentan (adelantada y del mes anterior)", () => {
     const adelantada = coche(200, { categoriaVenta: "CREDITO", fechaRci: "2026-06-20", fechaMatriculacion: "2026-07-03" });
     const junio = calcularMes(plan65(), V, "2026-06", [...diez(6), adelantada]);
-    expect(junio.financiacionesFueraDeMes).toEqual([{ idExpediente: 200, tipo: "adelantada", mesRci: "2026-06", mesComputo: "2026-07" }]);
+    expect(junio.financiacionesFueraDeMes).toEqual([{ idExpediente: 200, clase: "VN", tipo: "adelantada", mesRci: "2026-06", mesComputo: "2026-07" }]);
     const julio = calcularMes(plan65(), V, "2026-07", [adelantada, coche(201, { categoriaVenta: "CONTADO", fechaMatriculacion: "2026-07-10" })]);
-    expect(julio.financiacionesFueraDeMes).toEqual([{ idExpediente: 200, tipo: "anterior", mesRci: "2026-06", mesComputo: "2026-07" }]);
+    expect(julio.financiacionesFueraDeMes).toEqual([{ idExpediente: 200, clase: "VN", tipo: "anterior", mesRci: "2026-06", mesComputo: "2026-07" }]);
   });
 });

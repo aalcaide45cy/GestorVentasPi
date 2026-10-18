@@ -348,6 +348,19 @@ select, select option {
   border-bottom: none;
 }
 
+/* Fila con aviso (por ejemplo, financiación de otro mes): marco amarillo punteado solo alrededor de esa fila */
+tr.fila-aviso > td {
+  border-top: 2px dashed var(--warning);
+  border-bottom: 2px dashed var(--warning);
+  background: rgba(245, 158, 11, 0.08);
+}
+tr.fila-aviso > td:first-child {
+  border-left: 2px dashed var(--warning);
+}
+tr.fila-aviso > td:last-child {
+  border-right: 2px dashed var(--warning);
+}
+
 .table-compact th,
 .table-compact td {
   padding: 8px 10px;

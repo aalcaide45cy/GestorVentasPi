@@ -5,7 +5,7 @@ import { useCarga } from "@/components/comisiones/useCarga";
 import { columnasVehiculo } from "@/components/etiquetas";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import ResumenLiquidacion from "./ResumenLiquidacion";
-import { estiloFinanciacionFuera, textoFinanciacionFuera } from "@/components/expedientes/ComisionesYCartera";
+import { claseFinanciacionFuera, textoFinanciacionFuera } from "@/components/expedientes/ComisionesYCartera";
 import type { FinanciacionFueraDeMes, ResultadoMes } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { euros, mesActual, nombreMes, sumarMeses } from "@/lib/formato";
@@ -190,7 +190,7 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
           )}
           <TablaDatos<Fila>
             id="cotejo-mi-mes"
-            estiloFila={estiloFinanciacionFuera}
+            claseFila={claseFinanciacionFuera}
             columnas={columnas}
             filas={mostradas}
             clave={(f) => f.id}

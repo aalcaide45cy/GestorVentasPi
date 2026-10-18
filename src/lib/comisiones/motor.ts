@@ -221,8 +221,8 @@ export function calcularMes(
   const financiacionesFueraDeMes: FinanciacionFueraDeMes[] = infos.flatMap((i): FinanciacionFueraDeMes[] => {
     const mesRci = mesDe(i.e.fechaRci);
     if (mesRci === null || !esFinanciadoParaTasa(i.e)) return [];
-    if (i.mesComputo === mes && mesRci < mes) return [{ idExpediente: i.e.id, tipo: "anterior" as const, mesRci, mesComputo: i.mesComputo }];
-    if (i.mesComputo !== mes && mesRci === mes) return [{ idExpediente: i.e.id, tipo: "adelantada" as const, mesRci, mesComputo: i.mesComputo }];
+    if (i.mesComputo === mes && mesRci < mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "anterior" as const, mesRci, mesComputo: i.mesComputo }];
+    if (i.mesComputo !== mes && mesRci === mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "adelantada" as const, mesRci, mesComputo: i.mesComputo }];
     return [];
   });
   /** ¿Está cumplida la tasa que mira una regla financiera? (la de la marca del coche, la global o la de usados) */

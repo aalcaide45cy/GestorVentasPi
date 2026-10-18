@@ -41,11 +41,16 @@ interface Props<T> {
   pie?: (filas: T[]) => Partial<Record<string, ReactNode>>;
   /** Estilo propio de cada fila (por ejemplo, un color de fondo según su estado). */
   estiloFila?: (fila: T) => CSSProperties;
+  /** Clase CSS de cada fila (por ejemplo, «fila-aviso» para el marco amarillo punteado). */
+  claseFila?: (fila: T) => string;
+  /** Menos relleno entre columnas, para tablas dentro de modales que no deben desplazarse a los lados. */
+  compacta?: boolean;
 }
 
 const sinAcentos = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila }: Props<T>) {
+export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta }: Props<T>) {
+  const relleno = compacta ? "5px 6px" : "6px 8px";
   const defecto = useMemo<Config>(() => ({ orden: columnas.map((c) => c.clave), visibles: Object.fromEntries(columnas.map((c) => [c.clave, !c.oculta])) }), [columnas]);
   const [guardado, fijar] = usePreferencia(`tabla-${id}`);
   const config = useMemo<Config>(() => {
@@ -110,7 +115,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
             <thead>
               <tr style={{ color: "var(--text-secondary)" }}>
                 {activas.map((c) => (
-                  <th key={c.clave} onClick={() => setOrden((o) => (o?.clave === c.clave ? { clave: c.clave, asc: !o.asc } : { clave: c.clave, asc: true }))} title={c.ayuda ?? `Ordenar por «${c.etiqueta}»`} style={{ textAlign: c.alinear ?? "left", padding: "6px 8px", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", minWidth: c.ancho }}>
+                  <th key={c.clave} onClick={() => setOrden((o) => (o?.clave === c.clave ? { clave: c.clave, asc: !o.asc } : { clave: c.clave, asc: true }))} title={c.ayuda ?? `Ordenar por «${c.etiqueta}»`} style={{ textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", minWidth: c.ancho }}>
                     {c.etiqueta}
                     {orden?.clave === c.clave ? (orden.asc ? " ▲" : " ▼") : <span style={{ opacity: 0.35 }}> ↕</span>}
                   </th>
@@ -119,9 +124,9 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
             </thead>
             <tbody>
               {visibles.map((f) => (
-                <tr key={clave(f)} style={{ borderTop: "1px solid var(--border-light)", ...(estiloFila?.(f) ?? {}) }}>
+                <tr key={clave(f)} className={claseFila?.(f) || undefined} style={{ borderTop: "1px solid var(--border-light)", ...(estiloFila?.(f) ?? {}) }}>
                   {activas.map((c) => (
-                    <td key={c.clave} style={{ textAlign: c.alinear ?? "left", padding: "6px 8px", whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
+                    <td key={c.clave} style={{ textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
                       {c.celda ? c.celda(f) : c.valor(f)}
                     </td>
                   ))}
