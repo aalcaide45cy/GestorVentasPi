@@ -13,6 +13,6 @@ export const GET = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
   const r = await calcularVendedorMes(db, usuarioObjetivo(u, req), mesDeQuery(req));
   // Cliente, vehículo y matrícula de los expedientes que aparecen, aunque no estén en la lista cargada en pantalla
-  const expedientes = r ? await describirExpedientes(db, r.lineas.map((l) => l.idExpediente)) : {};
+  const expedientes = r ? await describirExpedientes(db, [...r.lineas.map((l) => l.idExpediente), ...r.financiacionesFueraDeMes.map((f) => f.idExpediente)]) : {};
   return NextResponse.json({ success: true, data: r ? { ...r, expedientes } : r });
 });

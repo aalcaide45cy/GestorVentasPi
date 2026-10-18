@@ -19,6 +19,7 @@ import type {
   TarifaUsadoMotor,
   TasaAmbitoResultado,
   TasaCocheDetalle,
+  FinanciacionFueraDeMes,
   TasaConfigMotor,
   TasaMarcaResultado,
   VendedorMotor,
@@ -77,6 +78,7 @@ function resultadoVacio(mes: Mes, idVendedor: number, idPlan: number | null, avi
     tasaVo: tasaVacia(),
     tasaIncluyeVo: true,
     tasaCoches: [],
+    financiacionesFueraDeMes: [],
     objetivoBase: 0,
     objetivoArrastre: 0,
     lineas: [],
@@ -216,6 +218,13 @@ export function calcularMes(
   const tasaCoches: TasaCocheDetalle[] = infos
     .filter((i) => i.mesComputo === mes || mesDe(i.e.fechaRci) === mes)
     .map((i) => ({ idExpediente: i.e.id, clase: i.e.clase, idMarca: i.e.idMarca, cuenta: i.mesComputo === mes, financiado: mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e) }));
+  const financiacionesFueraDeMes: FinanciacionFueraDeMes[] = infos.flatMap((i): FinanciacionFueraDeMes[] => {
+    const mesRci = mesDe(i.e.fechaRci);
+    if (mesRci === null || !esFinanciadoParaTasa(i.e)) return [];
+    if (i.mesComputo === mes && mesRci < mes) return [{ idExpediente: i.e.id, tipo: "anterior" as const, mesRci, mesComputo: i.mesComputo }];
+    if (i.mesComputo !== mes && mesRci === mes) return [{ idExpediente: i.e.id, tipo: "adelantada" as const, mesRci, mesComputo: i.mesComputo }];
+    return [];
+  });
   /** ¿Está cumplida la tasa que mira una regla financiera? (la de la marca del coche, la global o la de usados) */
   const tasaCumplidaDe = (ambito: AmbitoTasa, idMarca: number | null): boolean => (ambito === "global" ? tasaGlobal.cumplida : ambito === "vo" ? tasaVo.cumplida : tasaDe(idMarca));
 
@@ -306,6 +315,7 @@ export function calcularMes(
     tasaVo,
     tasaIncluyeVo: incluyeVo,
     tasaCoches,
+    financiacionesFueraDeMes,
     objetivoBase: obj ? obj.base : 0,
     objetivoArrastre: obj ? obj.arrastre : 0,
     lineas: lineasOrd,

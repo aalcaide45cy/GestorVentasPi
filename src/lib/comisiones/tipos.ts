@@ -267,6 +267,19 @@ export interface TasaCocheDetalle {
   financiado: boolean;
 }
 
+/**
+ * Coche cuya financiación (fecha RCI) cae en un mes distinto al que cuenta el coche:
+ * - `anterior`: el coche cuenta en este mes, pero se financió en un mes anterior (ya sumó a la tasa de aquel mes).
+ * - `adelantada`: la financiación es de este mes, pero el coche cuenta en otro (suma a la tasa de este mes, no su comisión).
+ */
+export interface FinanciacionFueraDeMes {
+  idExpediente: number;
+  tipo: "anterior" | "adelantada";
+  mesRci: Mes;
+  /** Mes en el que cuenta el coche (null si aún no cuenta en ninguno). */
+  mesComputo: Mes | null;
+}
+
 export type EventoLibro = "PEDIDO" | "MATRICULACION" | "COBRO" | "REGLA" | "AJUSTE";
 
 export interface ApuntePuntos {
@@ -296,6 +309,8 @@ export interface ResultadoMes {
   tasaIncluyeVo: boolean;
   /** Los coches que entran en las tasas, para ver el detalle. */
   tasaCoches: TasaCocheDetalle[];
+  /** Coches financiados en un mes distinto al que cuentan (para marcarlos en las tablas). */
+  financiacionesFueraDeMes: FinanciacionFueraDeMes[];
   /** Objetivo X del vendedor = base + arrastre. */
   objetivoBase: Centesimas;
   objetivoArrastre: Centesimas;

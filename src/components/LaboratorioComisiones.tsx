@@ -8,6 +8,7 @@ import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { CambiosEscenario, ResultadoMes } from "@/lib/comisiones";
 import { contarCambios } from "@/lib/comisiones";
+import { estiloFinanciacionFuera, textoFinanciacionFuera } from "@/components/expedientes/ComisionesYCartera";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import { usePreferencia } from "@/lib/preferencias";
 import type { PlanEditableEscenario, RespuestaEscenario } from "@/lib/servicios/escenario";
@@ -382,9 +383,10 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
                 <tbody>
                   {esc.lineas.map((l) => {
                     const real = base.lineas.find((x) => x.idExpediente === l.idExpediente)?.importe ?? 0;
+                    const fuera = esc.financiacionesFueraDeMes.find((x) => x.idExpediente === l.idExpediente);
                     return (
-                      <tr key={l.idExpediente} style={{ borderTop: "1px solid var(--border-light)" }}>
-                        <td style={celda}><Link href={`/dashboard/expedientes/editar/${l.idExpediente}`} style={{ color: "inherit" }}>{datos?.expedientes[String(l.idExpediente)] ? `${datos.expedientes[String(l.idExpediente)].cliente} · ${datos.expedientes[String(l.idExpediente)].vehiculo}` : `Expediente ${l.idExpediente}`} · {l.clase}{l.cuenta ? "" : " (otros conceptos)"}</Link></td>
+                      <tr key={l.idExpediente} title={fuera ? textoFinanciacionFuera(fuera) : undefined} style={{ borderTop: "1px solid var(--border-light)", ...estiloFinanciacionFuera({ fuera }) }}>
+                        <td style={celda}><Link href={`/dashboard/expedientes/editar/${l.idExpediente}`} style={{ color: "inherit" }}>{datos?.expedientes[String(l.idExpediente)] ? `${datos.expedientes[String(l.idExpediente)].cliente} · ${datos.expedientes[String(l.idExpediente)].vehiculo}` : `Expediente ${l.idExpediente}`} · {l.clase}{l.cuenta ? "" : " (otros conceptos)"}{fuera ? (fuera.tipo === "anterior" ? " · 💳 financiado el mes anterior" : " · 💳 financiación adelantada") : ""}</Link></td>
                         <td style={{ ...celda, textAlign: "right" }}>{puntos(l.puntos)}</td>
                         <td style={{ ...celda, textAlign: "right" }}>{euros(real)}</td>
                         <td style={{ ...celda, textAlign: "right", fontWeight: 700, color: l.importe > real ? "var(--success)" : l.importe < real ? "var(--danger)" : undefined }}>{euros(l.importe)}</td>

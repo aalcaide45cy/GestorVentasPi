@@ -5,7 +5,8 @@ import { useCarga } from "@/components/comisiones/useCarga";
 import { columnasVehiculo } from "@/components/etiquetas";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import ResumenLiquidacion from "./ResumenLiquidacion";
-import type { ResultadoMes } from "@/lib/comisiones";
+import { estiloFinanciacionFuera, textoFinanciacionFuera } from "@/components/expedientes/ComisionesYCartera";
+import type { FinanciacionFueraDeMes, ResultadoMes } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { euros, mesActual, nombreMes, sumarMeses } from "@/lib/formato";
 import { usePreferencia } from "@/lib/preferencias";
@@ -37,6 +38,8 @@ interface Fila {
   bonus: number;
   total: number;
   cuenta: boolean;
+  /** Su financiación cae en un mes distinto al que cuenta el coche. */
+  fuera?: FinanciacionFueraDeMes;
 }
 
 /**
@@ -84,6 +87,7 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
           bonus: suma("regla", "especial"),
           total: l.importe,
           cuenta: l.cuenta,
+          fuera: datos.financiacionesFueraDeMes.find((x) => x.idExpediente === l.idExpediente),
         };
       })
       .sort((a, b) => (a.matricula ?? "~").localeCompare(b.matricula ?? "~"));
@@ -103,7 +107,17 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
   const columnas: ColumnaTabla<Fila>[] = [
     { clave: "visto", etiqueta: "✔", valor: (f) => (visto.has(f.id) ? 1 : 0), celda: (f) => <input type="checkbox" checked={visto.has(f.id)} onChange={() => alternar(f.id)} style={{ width: "18px", height: "18px", accentColor: "var(--success)" }} />, ayuda: "Marca el coche cuando lo veas en la rejilla" },
     { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula ?? "", celda: (f) => (!(f.matricula ?? "").trim() ? <span style={{ color: f.usado ? "var(--warning)" : "var(--text-muted)" }}>{f.usado ? "⚠️ falta" : "—"}</span> : <b>{f.matricula}</b>) },
-    { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente },
+    {
+      clave: "cliente",
+      etiqueta: "Cliente",
+      valor: (f) => f.cliente,
+      celda: (f) => (
+        <span title={f.fuera ? textoFinanciacionFuera(f.fuera) : undefined}>
+          {f.cliente}
+          {f.fuera && <span style={{ display: "block", fontSize: "0.7rem", fontWeight: 700, color: "var(--warning)" }}>💳 {f.fuera.tipo === "anterior" ? "Financiado el mes anterior" : "Financiación adelantada"}</span>}
+        </span>
+      ),
+    },
     ...columnasVehiculo<Fila>((f) => ({ clase: f.usado ? "VO" : "VN", marca: f.marca, modelo: f.modelo, estado: f.estado, estadoColor: f.exp?.estadoVehiculo?.color, tipoPago: f.tipoPago === "—" ? null : f.tipoPago, tipoPagoColor: f.exp?.tipoDeVenta?.color })),
     { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => celdaDinero(f.coche), alinear: "right", ayuda: "Solo la comisión del coche, sin financiación" },
     { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion, celda: (f) => celdaDinero(f.financiacion), alinear: "right" },
@@ -176,6 +190,7 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
           )}
           <TablaDatos<Fila>
             id="cotejo-mi-mes"
+            estiloFila={estiloFinanciacionFuera}
             columnas={columnas}
             filas={mostradas}
             clave={(f) => f.id}

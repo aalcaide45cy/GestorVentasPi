@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useCarga } from "@/components/comisiones/useCarga";
-import type { ResultadoMes, TasaCocheDetalle } from "@/lib/comisiones";
+import type { FinanciacionFueraDeMes, ResultadoMes, TasaCocheDetalle } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
@@ -90,7 +90,21 @@ interface FilaDesglose {
   financiacion: number;
   preference: number;
   bonus: number;
+  /** Su financiación (RCI) cae en un mes distinto al que cuenta el coche. */
+  fuera?: FinanciacionFueraDeMes;
 }
+
+const nombreMesIso = (m: string | null) => (m ? `${MESES[Number(m.slice(5, 7)) - 1].toLowerCase()} ${m.slice(0, 4)}` : "");
+
+/** Texto que explica por qué se marca un coche con financiación de otro mes. */
+export function textoFinanciacionFuera(f: FinanciacionFueraDeMes): string {
+  return f.tipo === "anterior"
+    ? `Financiación contratada el mes anterior (${nombreMesIso(f.mesRci)}): ya sumó a la tasa de aquel mes; este mes cuenta el coche, pero no vuelve a sumar a la tasa.`
+    : `Financiación adelantada: contratada este mes (${nombreMesIso(f.mesRci)}) aunque el coche cuenta ${f.mesComputo ? `en ${nombreMesIso(f.mesComputo)}` : "más adelante (aún no tiene fecha para contar)"}. Suma a la tasa de este mes, pero no su comisión del coche.`;
+}
+
+/** Marco amarillo punteado de las filas con financiación de otro mes. */
+export const estiloFinanciacionFuera = (f: { fuera?: FinanciacionFueraDeMes }): CSSProperties => (f.fuera ? { outline: "2px dashed var(--warning)", outlineOffset: "-2px", background: "rgba(245, 158, 11, 0.07)" } : {});
 
 const nombreCliente = (f: FilaDesglose): string => f.e?.cliente?.nombre ?? f.info?.cliente ?? `Expediente ${f.linea.idExpediente}`;
 const marcaDe = (f: FilaDesglose) => f.e?.modelo?.marca?.nombre ?? "";
@@ -112,7 +126,18 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
   { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.e?.matricula ?? f.info?.matricula ?? "", oculta: true },
   { clave: "matriculacion", etiqueta: "Matriculación", valor: (f) => f.e?.fecha_matriculacion ?? "", celda: (f) => fechaCorta(f.e?.fecha_matriculacion ?? null) },
   ...columnasVehiculo<FilaDesglose>((f) => ({ ...datosVehiculoDeExpediente(f.e), clase: f.linea.clase, marca: marcaDe(f) || null, modelo: f.e?.modelo?.nombre_modelo ?? (f.e ? null : f.info?.vehiculo) ?? null, estado: f.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.linea.clase === "VO" ? "Usado" : "Nuevo") })),
-  { clave: "cuenta", etiqueta: "Cuenta", valor: (f) => (f.linea.cuenta ? "Este mes" : "Otros conceptos"), ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes." },
+  {
+    clave: "cuenta",
+    etiqueta: "Cuenta",
+    valor: (f) => (f.linea.cuenta ? "Este mes" : "Otros conceptos") + (f.fuera ? (f.fuera.tipo === "anterior" ? " · financiado el mes anterior" : " · financiación adelantada") : ""),
+    celda: (f) => (
+      <span title={f.fuera ? textoFinanciacionFuera(f.fuera) : undefined}>
+        {f.linea.cuenta ? "Este mes" : "Otros conceptos"}
+        {f.fuera && <span style={{ display: "block", fontSize: "0.7rem", fontWeight: 700, color: "var(--warning)" }}>💳 {f.fuera.tipo === "anterior" ? "Financiado el mes anterior" : "Financiación adelantada"}</span>}
+      </span>
+    ),
+    ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes. Con marco amarillo punteado: su financiación es de otro mes.",
+  },
   { clave: "puntos", etiqueta: "Puntos", valor: (f) => f.linea.puntos, celda: (f) => puntos(f.linea.puntos), alinear: "right", oculta: true },
   { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => centimos(f.coche), alinear: "right", ayuda: "Comisión del coche (tarifa VN o VO)" },
   { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion, celda: (f) => centimos(f.financiacion), alinear: "right" },
@@ -149,6 +174,7 @@ const columnasTasa: ColumnaTabla<FilaTasa>[] = [
   ...columnasVehiculo<FilaTasa>((f) => ({ ...datosVehiculoDeExpediente(f.fila.e), clase: f.coche.clase, marca: marcaDe(f.fila) || null, modelo: f.fila.e?.modelo?.nombre_modelo ?? (f.fila.e ? null : f.fila.info?.vehiculo) ?? null, estado: f.fila.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.coche.clase === "VO" ? "Usado" : "Nuevo") })),
   { clave: "cuenta", etiqueta: "Cuenta este mes", valor: (f) => (f.coche.cuenta ? "Sí" : "No"), ayuda: "Suma en el denominador de la tasa" },
   { clave: "financiado", etiqueta: "Financiado (RCI este mes)", valor: (f) => (f.coche.financiado ? "Sí" : "No"), ayuda: "Suma en el numerador de la tasa" },
+  { clave: "aviso", etiqueta: "Financiación de otro mes", valor: (f) => (f.fila.fuera ? (f.fila.fuera.tipo === "anterior" ? "Mes anterior" : "Adelantada") : ""), celda: (f) => (f.fila.fuera ? <span title={textoFinanciacionFuera(f.fila.fuera)} style={{ color: "var(--warning)", fontWeight: 700 }}>💳 {f.fila.fuera.tipo === "anterior" ? "Mes anterior" : "Adelantada"}</span> : ""), ayuda: "Coches cuya financiación se contrató en un mes distinto al que cuenta el coche" },
 ];
 
 type ResultadoConInfo = ResultadoMes & { expedientes?: Record<string, { cliente: string; vehiculo: string; matricula: string | null }> };
@@ -158,7 +184,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
   const cuentan = filas.filter((f) => f.linea.cuenta);
   const titulos: Record<TipoDetalle, string> = { puntos: "Puntos del mes", tramo: "Tramo del mes", tasa: "Tasa de intervención financiera", tasaVo: "Tasa de intervención de usados", bruto: "Bruto del mes", penalizacion: "Penalización", objetivo: "Objetivo X", coches: "Coches que cuentan en el mes", neto: "Neto a cobrar" };
   const filaDe = (idExpediente: number): FilaDesglose =>
-    filas.find((f) => f.linea.idExpediente === idExpediente) ?? { linea: { idExpediente, clase: "VN", mesComputo: null, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e: porId.get(idExpediente), info: resultado.expedientes?.[String(idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0 };
+    filas.find((f) => f.linea.idExpediente === idExpediente) ?? { linea: { idExpediente, clase: "VN", mesComputo: null, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e: porId.get(idExpediente), info: resultado.expedientes?.[String(idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0, fuera: resultado.financiacionesFueraDeMes.find((f) => f.idExpediente === idExpediente) };
   let contenido: ReactNode;
   if (tipo === "tasa" || tipo === "tasaVo") {
     const esVo = tipo === "tasaVo";
@@ -174,7 +200,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
         <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
           El denominador son los coches que cuentan este mes y el numerador los financiados (RCI este mes).{esVo || resultado.tasaIncluyeVo ? "" : " Los usados no cuentan porque el plan lo tiene desactivado."}
         </p>
-        <TablaDatos<FilaTasa> id="detalle-tasa-coches" columnas={columnasTasa} filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." />
+        <TablaDatos<FilaTasa> id="detalle-tasa-coches" columnas={columnasTasa} estiloFila={(f) => estiloFinanciacionFuera(f.fila)} filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." />
       </>
     );
   } else if (tipo === "objetivo") {
@@ -199,6 +225,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
         <TablaDatos<FilaDesglose>
           id={`detalle-${tipo}`}
           columnas={columnasDesglose}
+          estiloFila={estiloFinanciacionFuera}
           filas={tipo === "bruto" ? filas : cuentan}
           clave={(f) => f.linea.idExpediente}
           textoExtra={(f) => f.linea.conceptos.map((c) => c.descripcion).join(" ")}
@@ -231,10 +258,17 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
   const setAbierta = (v: boolean) => guardarDesglose(v ? "abierto" : "cerrado");
   const hayPlan = resultado !== null && resultado.idPlan !== null;
   const lineas = hayPlan ? resultado.lineas.filter((l) => l.importe !== 0 || l.cuenta) : [];
+  const finFuera = new Map((hayPlan ? resultado.financiacionesFueraDeMes : []).map((f) => [f.idExpediente, f]));
   const filasDesglose: FilaDesglose[] = lineas.map((linea) => {
     const suma = (...ids: string[]) => linea.conceptos.filter((c) => ids.includes(c.concepto)).reduce((t, c) => t + c.importe, 0);
-    return { linea, e: porId.get(linea.idExpediente), info: resultado?.expedientes?.[String(linea.idExpediente)], coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial") };
+    return { linea, e: porId.get(linea.idExpediente), info: resultado?.expedientes?.[String(linea.idExpediente)], coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial"), fuera: finFuera.get(linea.idExpediente) };
   });
+  // Financiaciones adelantadas sin importe: el coche no cuenta este mes y no tiene línea, pero hay que verlo para validar la tasa
+  for (const f of finFuera.values()) {
+    if (f.tipo !== "adelantada" || filasDesglose.some((x) => x.linea.idExpediente === f.idExpediente)) continue;
+    const e = porId.get(f.idExpediente);
+    filasDesglose.push({ linea: { idExpediente: f.idExpediente, clase: e?.estadoVehiculo?.clase === "VO" ? "VO" : "VN", mesComputo: f.mesComputo, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e, info: resultado?.expedientes?.[String(f.idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0, fuera: f });
+  }
   // Tasa de intervención financiera del mes: global (todos los coches nuevos), por marca y de usados
   const tasas = hayPlan ? resultado.tasaIntervencion : [];
   const tasaG = hayPlan ? resultado.tasaGlobal : null;
@@ -303,6 +337,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
               <TablaDatos<FilaDesglose>
                 id="desglose-comisiones"
                 columnas={columnasDesglose}
+                estiloFila={estiloFinanciacionFuera}
                 filas={filasDesglose}
                 clave={(f) => f.linea.idExpediente}
                 textoExtra={(f) => f.linea.conceptos.map((c) => c.descripcion).join(" ")}
@@ -317,6 +352,11 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
                   total: euros(fs.reduce((t, f) => t + f.linea.importe, 0)),
                 })}
               />
+              {finFuera.size > 0 && (
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--warning)" }}>
+                  💳 Las filas con marco amarillo punteado tienen la financiación en otro mes: {[...finFuera.values()].filter((f) => f.tipo === "adelantada").length} adelantada(s) y {[...finFuera.values()].filter((f) => f.tipo === "anterior").length} contratada(s) el mes anterior. Pasa el ratón por la columna «Cuenta» para ver el detalle.
+                </p>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 {resultado.avisos.map((a) => (
                   <AvisoComision
