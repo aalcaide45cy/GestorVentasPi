@@ -13,6 +13,13 @@ export interface EleccionRapida {
   estadoNombre?: string;
 }
 
+/** DNI que se soltó junto con un pedido: sus documentos (y la foto del cliente) ya están guardados como adjuntos pendientes. */
+export interface DniAsociado {
+  adjuntos: number[];
+  fotoId?: number | null;
+  fechaNacimiento?: string | null;
+}
+
 export interface ItemCola {
   id: string;
   nombre: string;
@@ -22,6 +29,8 @@ export interface ItemCola {
   eleccion: EleccionRapida | null;
   /** Expediente al que se soltó (para completarlo) o null si se creará uno nuevo. */
   idExpediente: number | null;
+  /** DNI soltado junto con el pedido: se une al expediente al crearlo o completarlo. */
+  dni?: DniAsociado | null;
   /** Lectura del servidor de la que viene (para anotar en el registro qué se hizo con el pedido). */
   idLectura?: number;
 }

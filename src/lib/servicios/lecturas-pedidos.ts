@@ -26,6 +26,14 @@ export type EstadoLectura = "subiendo" | "pendiente" | "leyendo" | "pedido" | "d
 export const esquemaDestinoLectura = z.object({
   eleccion: z.unknown().nullish(),
   idExpediente: z.number().int().positive().nullish(),
+  /** DNI soltado junto con este pedido: ya está leído y guardado (adjuntos pendientes) y se une al expediente cuando se cree o se complete. */
+  dni: z
+    .object({
+      adjuntos: z.array(z.number().int().positive()).max(6),
+      fotoId: z.number().int().positive().nullish(),
+      fechaNacimiento: z.string().max(10).nullish(),
+    })
+    .nullish(),
 });
 export type DestinoLectura = z.infer<typeof esquemaDestinoLectura>;
 

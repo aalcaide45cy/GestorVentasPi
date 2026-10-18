@@ -342,6 +342,35 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; pa
   });
 }
 
+/**
+ * Primera mirada a un documento para saber qué es sin leerlo entero: el texto de un PDF con texto, o la parte de arriba de la primera
+ * hoja (OCR). `ajeno` vale true si, leyendo la cabecera, no aparece ninguna señal de pedido.
+ */
+export function mirarDocumento(datos: Buffer): Promise<{ texto: string | null; primera: Buffer | null; ajeno: boolean; cabecera: string }> {
+  if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  const tipo = tipoDeFichero(datos);
+  if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
+  return enCola(async () => {
+    try {
+      if (tipo === "imagen") return { texto: null, primera: datos, ...(await pareceAjenoAlPedido(datos)) };
+      const doc = await abrirPdf(datos);
+      try {
+        const texto = await textoDePaginas(doc, Math.min(doc.numPages, MAX_PAGINAS_PEDIDO));
+        if (texto.replace(/\s/g, "").length >= 40) return { texto, primera: null, ajeno: false, cabecera: texto.replace(/\s+/g, " ").trim().slice(0, 160) };
+        const primera = (await paginasComoImagenes(doc, 1))[0];
+        return { texto: null, primera, ...(await pareceAjenoAlPedido(primera)) };
+      } finally {
+        await doc.cleanup?.();
+      }
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      console.error("Error de OCR:", e instanceof Error ? e.message : e);
+      throw new HttpError(500, "No se ha podido leer el documento. Prueba con otra imagen.");
+    }
+  }, MAX_MS_PEDIDO);
+}
+
 /** OCR de recortes de una sola línea (una celda): devuelve un resultado por imagen, en el mismo orden. */
 export async function ocrCeldas(imagenes: Buffer[], lista: string, modo: "linea" | "caracter" = "linea"): Promise<LineaOcr[]> {
   const { createWorker, PSM } = await import("tesseract.js");

@@ -226,6 +226,18 @@ function FormularioEditarExpediente({
         ? { ...r, datos: { ...r.datos, dni: r.datos.dni ?? previo.datos.dni, nombre: r.datos.nombre ?? previo.datos.nombre, apellidos: r.datos.apellidos ?? previo.datos.apellidos, nombreCompleto: r.datos.nombreCompleto ?? previo.datos.nombreCompleto, fechaNacimiento: r.datos.fechaNacimiento ?? previo.datos.fechaNacimiento }, fotoId: r.fotoId ?? previo.fotoId }
         : r,
     );
+  // DNI suelto en cualquiera de las casillas: se guarda como documento del expediente y de él sale la foto del cliente
+  const alLeerDniSuelto = async (r: ResultadoDni) => {
+    try {
+      await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+      setVersionAdjuntos((v) => v + 1);
+      if (r.fotoId) setFotoNueva(r.fotoId);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
+    }
+    juntarDni(r);
+    mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
+  };
   // «Aplicar» en el modal del pedido guarda el expediente con su cliente: se envía el formulario cuando ya tiene los datos nuevos
   const formularioRef = useRef<HTMLFormElement>(null);
   const etiquetaModelo = (id: number | ""): string => {
@@ -716,22 +728,8 @@ function FormularioEditarExpediente({
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerDni
-                compacta
-                disabled={cargando}
-                alLeer={async (r) => {
-                  try {
-                    await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
-                    setVersionAdjuntos((v) => v + 1);
-                    if (r.fotoId) setFotoNueva(r.fotoId);
-                  } catch (e) {
-                    mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
-                  }
-                  juntarDni(r);
-                  mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
-                }}
-              />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI para guardarlo y tomar la foto del cliente. Se lee a la vez que el pedido y sus datos (nombre, DNI, fecha de nacimiento) se te ofrecen en la ventana del pedido.</span>
+              <BotonLeerDni compacta disabled={cargando} alLeer={alLeerDniSuelto} alLeerPedido={async (r) => setPedidoLeido(r)} />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI o el pedido (o los dos a la vez), da igual en qué casilla: se reconoce solo. El DNI se guarda y de él sale la foto del cliente; del pedido verás una vista previa con sus datos.</span>
             </div>
 
             <div className="rejilla-ficha">
@@ -769,7 +767,7 @@ function FormularioEditarExpediente({
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerPedido compacta disabled={cargando} alLeer={async (r) => setPedidoLeido(r)} />
+              <BotonLeerPedido compacta disabled={cargando} alLeer={async (r) => setPedidoLeido(r)} alLeerDni={alLeerDniSuelto} />
               {pedidoLeido && (
                 <ModalPedidoEnExpediente
                   pedido={pedidoLeido}

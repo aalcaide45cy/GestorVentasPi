@@ -3,7 +3,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
 import { cancelarLecturas, recogerPendientes, registrarAvisos, subirPedidos } from "@/lib/lecturas-pedidos-cliente";
-import { MAXIMO_COLA, huecosEnCola, leerLectura, suscribirLectura, type EleccionRapida } from "@/lib/pedidos-cola";
+import { clasificarFichero, leerDniDeFichero } from "./BotonLeerDocumento";
+import { textoError } from "@/components/comisiones/api";
+import { MAXIMO_COLA, huecosEnCola, leerLectura, suscribirLectura, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
 import { useRef } from "react";
 import OpcionVentanaPedido from "./OpcionVentanaPedido";
 import ZonaSoltar from "./ZonaSoltar";
@@ -36,7 +38,28 @@ export function useLeerPedidos() {
     }
     setSubiendo(true);
     try {
-      await subirPedidos(ficheros, destino);
+      let aSubir = ficheros;
+      let dni: DniAsociado | null = null;
+      // Dos ficheros son un pedido y su DNI: el pedido sigue su camino y el DNI se lee ahora (se guarda y de él sale la foto del cliente)
+      // para unirse al expediente que se cree con ese pedido
+      if (ficheros.length === 2) {
+        const tipos = await Promise.all(ficheros.map((f) => clasificarFichero(f).catch(() => "otro" as const)));
+        if (tipos.includes("pedido") && tipos.includes("dni")) {
+          const iDni = tipos.indexOf("dni");
+          aSubir = [ficheros[1 - iDni]];
+          try {
+            const r = await leerDniDeFichero(ficheros[iDni]);
+            dni = { adjuntos: r.adjuntos.map((a) => a.id), fotoId: r.fotoId, fechaNacimiento: r.datos.fechaNacimiento };
+            mostrar(r.fotoId ? "DNI reconocido: se unirá al expediente del pedido, con la foto del cliente." : "DNI reconocido: se unirá al expediente del pedido (no se ha podido recortar la foto).");
+          } catch (e) {
+            mostrar(`El pedido sigue adelante, pero no he podido leer el DNI: ${textoError(e)}`, "error");
+          }
+        } else if (tipos.every((t) => t === "dni")) {
+          mostrar("Los dos ficheros son un DNI y falta el pedido. Arrastra el pedido junto con el DNI; para guardar solo un DNI, hazlo desde el cliente o desde su expediente.", "error");
+          return;
+        }
+      }
+      await subirPedidos(aSubir, { ...destino, dni });
     } finally {
       setSubiendo(false);
     }
@@ -75,7 +98,7 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
       <ZonaSoltar
         icono="📄"
         titulo={etiqueta}
-        ayuda="Arrastra uno o varios pedidos (PDF o foto), los que quieras. Se guardan al momento y se leen en este equipo varios a la vez; los que no sean pedidos se ignoran, y los demás quedan en la cola de pedidos."
+        ayuda="Arrastra uno o varios pedidos (PDF o foto), los que quieras. Si sueltas dos ficheros, un pedido y su DNI (en el orden que sea), el DNI se une al expediente que se cree con ese pedido y de él se recorta la foto del cliente. Los que no sean pedidos se ignoran, y los demás quedan en la cola de pedidos."
         multiple
         compacta={compacta}
         ocupado={subiendo}

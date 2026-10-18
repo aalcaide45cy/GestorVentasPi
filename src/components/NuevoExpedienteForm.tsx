@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import type { ClienteDto } from "@/lib/dto";
+import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import { hoyIsoCliente } from "@/lib/date-utils";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
 import { BotonLeerDni, BotonLeerPedido, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
@@ -391,6 +392,37 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
     </h2>
   );
 
+  // DNI y pedido se reconocen solos: se pueden soltar en cualquiera de las dos casillas
+  const alLeerDniSuelto = (r: ResultadoDni) => {
+              setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
+              setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(r.adjuntos.map((a) => [a.id, a.nombre])) }));
+              mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
+            };
+  const alLeerPedidoSuelto = (r: ResultadoPedido) => {
+              const d = r.datos;
+              if (d.vin) setVin(d.vin);
+              if (d.matricula) setMatricula(d.matricula);
+              if (d.fechaExpediente) setFExp(d.fechaExpediente);
+              if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
+              if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
+              if (d.idModelo) {
+                const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
+                if (marcaDe) {
+                  setMarca(Number(marcaDe[0]));
+                  setModelo(d.idModelo);
+                }
+              }
+              if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
+              if (d.dni && !dni) setDni(d.dni);
+              if (d.cliente && !nombre) setNombre(d.cliente);
+              if (d.telefono && rellenos(telefonos).length === 0) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
+              if (d.email && rellenos(emails).length === 0) setEmails([{ valor: d.email, tipo: "Principal" }]);
+              setPendientes((prev) => [...prev, r.adjunto.id]);
+              setNombresPend((prev) => ({ ...prev, [r.adjunto.id]: r.adjunto.nombre }));
+              setAvisoLectura(d.avisos[0] ?? null);
+              mostrar("Pedido leído: revisa los datos antes de guardar.");
+            };
+
   return (
     <>
       {borrador && (
@@ -422,15 +454,7 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerDni
-                compacta
-                disabled={cargando}
-                alLeer={(r) => {
-                  setPendientes((prev) => [...prev, ...r.adjuntos.map((a) => a.id)]);
-                  setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(r.adjuntos.map((a) => [a.id, a.nombre])) }));
-                  mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
-                }}
-              />
+              <BotonLeerDni compacta disabled={cargando} alLeer={alLeerDniSuelto} alLeerPedido={alLeerPedidoSuelto} />
               <ZonaDocumentosVarios
                 disabled={cargando}
                 alSubir={(docs) => {
@@ -447,7 +471,7 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
                   }}
                 />
                 <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {pendientes.length > 0 ? `${pendientes.length} documento(s) adjuntos se guardarán con el expediente.` : "Arrastra el DNI (rellena los datos y guarda la foto del cliente), el pedido o documentos varios."}
+                {pendientes.length > 0 ? `${pendientes.length} documento(s) adjuntos se guardarán con el expediente.` : "Arrastra el DNI y el pedido (se reconocen solos, en cualquier casilla; el DNI guarda la foto del cliente) o documentos varios."}
                 </span>
               </div>
             </div>
@@ -543,34 +567,7 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerPedido
-                compacta
-                disabled={cargando}
-                alLeer={(r) => {
-                  const d = r.datos;
-                  if (d.vin) setVin(d.vin);
-                  if (d.matricula) setMatricula(d.matricula);
-                  if (d.fechaExpediente) setFExp(d.fechaExpediente);
-                  if (d.fechaEntrega) setFEntrega(d.fechaEntrega);
-                  if (d.fechaMatriculacion) setFMat(d.fechaMatriculacion);
-                  if (d.idModelo) {
-                    const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === d.idModelo));
-                    if (marcaDe) {
-                      setMarca(Number(marcaDe[0]));
-                      setModelo(d.idModelo);
-                    }
-                  }
-                  if (d.idTipoDeVenta) setTipoVenta(d.idTipoDeVenta);
-                  if (d.dni && !dni) setDni(d.dni);
-                  if (d.cliente && !nombre) setNombre(d.cliente);
-                  if (d.telefono && rellenos(telefonos).length === 0) setTelefonos([{ valor: d.telefono, tipo: "Principal" }]);
-                  if (d.email && rellenos(emails).length === 0) setEmails([{ valor: d.email, tipo: "Principal" }]);
-                  setPendientes((prev) => [...prev, r.adjunto.id]);
-                  setNombresPend((prev) => ({ ...prev, [r.adjunto.id]: r.adjunto.nombre }));
-                  setAvisoLectura(d.avisos[0] ?? null);
-                  mostrar("Pedido leído: revisa los datos antes de guardar.");
-                }}
-              />
+              <BotonLeerPedido compacta disabled={cargando} alLeer={alLeerPedidoSuelto} alLeerDni={alLeerDniSuelto} />
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido (PDF o foto) y se rellenan bastidor, matrícula, modelo, forma de pago y fechas.</span>
             </div>
 

@@ -175,6 +175,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             domicilio: activo("domicilio") ? d.domicilio : null,
             poblacion: activo("poblacion") ? d.poblacion : null,
             codigo_postal: activo("poblacion") ? d.codigoPostal : null,
+            fecha_de_nacimiento: item.dni?.fechaNacimiento ?? undefined,
             emails: activo("email") && d.email ? [{ email: d.email, tipo: "Principal" }] : [],
             telefonos: activo("telefono") && d.telefono ? [{ telefono: d.telefono, tipo: "Principal" }] : [],
           },
@@ -203,7 +204,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       if (!eleccion && !usaNuevo && d.idModelo === null && d.modeloTexto && idModeloFinal) {
         await llamar("/api/documentos/aprender-modelo", { method: "POST", cuerpo: { texto: d.modeloTexto, id_modelo: idModeloFinal } }).catch(() => undefined);
       }
-      await vincularAdjuntos([pedido.adjunto.id], { idExpediente: creado.id_expediente, idCliente });
+      // El DNI soltado junto con el pedido (si lo hay) se une al mismo expediente y cliente; su foto pasa a ser la del cliente
+      await vincularAdjuntos([pedido.adjunto.id, ...(item.dni?.adjuntos ?? [])], { idExpediente: creado.id_expediente, idCliente });
       const modeloTexto = eleccion ? eleccion.nombreModelo : usaNuevo ? `${marcaNueva.trim()} ${modeloNuevo.trim()}` : (modelosPlanos.find((m) => m.id === (idModeloCreado ?? idModeloFinal))?.texto ?? "");
       const tipoTexto = eleccion ? eleccion.tipo.nombre_tipo_venta : (tiposVenta.find((t) => t.id_tipo_de_venta === tipoFinal)?.nombre_tipo_venta ?? "");
       const resumen = [modeloTexto, tipoTexto].filter(Boolean).join(" · ");

@@ -1,5 +1,5 @@
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
-import { abrirDeCola, anadirACola, fijarLectura, huecosEnCola, leerCola, type EleccionRapida } from "@/lib/pedidos-cola";
+import { abrirDeCola, anadirACola, fijarLectura, huecosEnCola, leerCola, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
 import type { LecturaDto, ResumenLecturas } from "@/lib/servicios/lecturas-pedidos";
 
 /**
@@ -11,6 +11,7 @@ import type { LecturaDto, ResumenLecturas } from "@/lib/servicios/lecturas-pedid
 interface Destino {
   eleccion?: EleccionRapida | null;
   idExpediente?: number | null;
+  dni?: DniAsociado | null;
 }
 
 export type Aviso = (mensaje: string, tipo?: "error") => void;
@@ -103,7 +104,7 @@ async function consultar(): Promise<boolean> {
       if (huecosEnCola() === 0) break; // cola llena: se quedan en el servidor hasta que haya sitio
       // Si ya existe un expediente de este pedido, la lectura sirve para completarlo: nunca se crea uno duplicado
       const yaExiste = l.destino?.idExpediente ? null : (pedido.similares[0]?.idExpediente ?? null);
-      const nuevos = anadirACola([{ nombre: l.nombre, pedido, eleccion: yaExiste ? null : ((l.destino?.eleccion as EleccionRapida | null | undefined) ?? null), idExpediente: l.destino?.idExpediente ?? yaExiste, idLectura: l.id }]);
+      const nuevos = anadirACola([{ nombre: l.nombre, pedido, eleccion: yaExiste ? null : ((l.destino?.eleccion as EleccionRapida | null | undefined) ?? null), idExpediente: l.destino?.idExpediente ?? yaExiste, dni: l.destino?.dni ?? null, idLectura: l.id }]);
       recogidosEnTanda++;
       recogidos.push(l.id);
       if (abrirElPrimero && nuevos[0]) {
@@ -163,11 +164,11 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
   let fallosSeguidos = 0;
   let detenida = false;
   fijarSubida({ hechos: 0, total: ficheros.length });
-  const dest = { eleccion: destino.eleccion ?? null, idExpediente: destino.idExpediente ?? null };
+  const dest = { eleccion: destino.eleccion ?? null, idExpediente: destino.idExpediente ?? null, dni: destino.dni ?? null };
   const subirUno = async (f: File, senal: AbortSignal) => {
     const q = new URLSearchParams({ nombre: f.name, lote: "1" });
     if (permitirDuplicadosAhora()) q.set("duplicados", "permitir");
-    if (dest.eleccion || dest.idExpediente) q.set("destino", JSON.stringify(dest));
+    if (dest.eleccion || dest.idExpediente || dest.dni) q.set("destino", JSON.stringify(dest));
     await pedir(`/api/documentos/lecturas?${q.toString()}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, signal: senal });
   };
   const subir = async () => {

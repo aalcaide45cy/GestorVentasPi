@@ -9,6 +9,13 @@ export interface ResultadoCreacionMasiva {
   omitidos: { nombre: string; motivo: string }[];
 }
 
+/** Une el DNI soltado junto con un pedido al expediente que ese pedido ha completado (y a su cliente, de quien pasa a ser la foto). */
+export async function vincularDniAlExpediente(adjuntos: number[], idExpediente: number): Promise<void> {
+  if (adjuntos.length === 0) return;
+  const { data } = await llamar<{ id_cliente: number | null }>(`/api/expedientes?id=${idExpediente}`);
+  await vincularAdjuntos(adjuntos, { idExpediente, idCliente: data.id_cliente });
+}
+
 /** Crea el expediente de un pedido de la cola solo si no hay ninguna duda; devuelve el motivo si lo deja en la cola. */
 async function crearUno(item: ItemCola, vendedorId: number): Promise<string | null> {
   const d = item.pedido.datos;
@@ -39,6 +46,7 @@ async function crearUno(item: ItemCola, vendedorId: number): Promise<string | nu
           domicilio: d.domicilio,
           poblacion: d.poblacion,
           codigo_postal: d.codigoPostal,
+          fecha_de_nacimiento: item.dni?.fechaNacimiento ?? undefined,
           emails: d.email ? [{ email: d.email, tipo: "Principal" }] : [],
           telefonos: d.telefono ? [{ telefono: d.telefono, tipo: "Principal" }] : [],
         },
@@ -67,7 +75,8 @@ async function crearUno(item: ItemCola, vendedorId: number): Promise<string | nu
     },
   });
   if (idCliente) await llamar("/api/expedientes", { method: "PUT", cuerpo: { id_expediente: creado.id_expediente, id_cliente: idCliente, expediente: {} } }).catch(() => undefined);
-  await vincularAdjuntos([item.pedido.adjunto.id], { idExpediente: creado.id_expediente, idCliente });
+  // El DNI soltado junto con el pedido (si lo hay) se une al mismo expediente y cliente; su foto pasa a ser la del cliente
+  await vincularAdjuntos([item.pedido.adjunto.id, ...(item.dni?.adjuntos ?? [])], { idExpediente: creado.id_expediente, idCliente });
   anotarResolucion(item.idLectura, "creado", creado.id_expediente);
   quitarDeCola(item.id);
   return null;

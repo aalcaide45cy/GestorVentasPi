@@ -11,7 +11,8 @@ import { HttpError } from "@/lib/auth/sesion";
 import { guardarAdjunto, MAX_BYTES_ADJUNTO, detectarMime, type AdjuntoDto } from "./adjuntos";
 import { leerCatalogos } from "./catalogos";
 import { leerTarjetasDeImagen, type TarjetaLeida } from "./dni-lectura";
-import { enCola, imagenesDePdf, textoDeDocumento } from "./ocr";
+import { detectarTarjetas } from "@/lib/documentos/tarjetas";
+import { enCola, imagenesDePdf, mirarDocumento, textoDeDocumento } from "./ocr";
 
 /**
  * Lectura automática de documentos para rellenar fichas: el DNI (cliente y foto) y el pedido (expediente).
@@ -144,6 +145,42 @@ export async function leerDni(ej: Ejecutor, idUsuario: number, nombreFichero: st
 
   const lado: ResultadoDni["lado"] = tarjetas.some((t) => t.lado === "anverso") ? "anverso" : tarjetas.some((t) => t.lado === "reverso") ? "reverso" : "desconocido";
   return { datos: { ...combinado, avisos, nombreCompleto: nombreCompleto(combinado) }, adjuntos, fotoId, lado, tarjetas: tarjetas.length };
+}
+
+export type TipoDocumento = "pedido" | "dni" | "otro";
+
+const SENAL_PEDIDO = /PEDIDO|RENAULT|DACIA|VEHICULO|ESTABLECIMIENTO|CLIENTE|RENEW|MATRICULA|BASTIDOR/;
+const SENAL_DNI = /IDENTIDAD|IDESP|NACIONAL|ESPANA|DNI|NIE/;
+const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
+/**
+ * Decide si un fichero es un pedido o un DNI sin leerlo entero: el texto de un PDF con texto, o la cabecera de la primera hoja y,
+ * si no basta, si hay una tarjeta con la forma de un DNI. Así se puede soltar cualquiera de los dos en cualquier casilla.
+ */
+export async function clasificarDocumento(datos: Buffer): Promise<TipoDocumento> {
+  const m = await mirarDocumento(datos);
+  if (m.texto !== null) {
+    if (parsearPedido(m.texto, { modelos: [], tiposVenta: [], aliasModelos: [], marcas: [] }).esPedido) return "pedido";
+    return SENAL_DNI.test(sinAcentos(m.texto)) ? "dni" : "otro";
+  }
+  const cab = sinAcentos(m.cabecera);
+  if (SENAL_PEDIDO.test(cab)) return "pedido";
+  if (SENAL_DNI.test(cab)) return "dni";
+  if (m.primera && (await detectarTarjetas(m.primera).catch(() => [])).length > 0) return "dni";
+  // Sin señales claras: si la cabecera no se pudo juzgar se prueba como pedido (que lo descartará si no lo es)
+  return m.ajeno ? "otro" : "pedido";
+}
+
+export type ResultadoAutomatico = { tipo: "dni"; resultado: ResultadoDni } | { tipo: "pedido"; resultado: ResultadoPedido };
+
+/** Lee un fichero que puede ser un pedido o un DNI: lo reconoce y lo lee como corresponda. `aceptar` limita lo que se admite. */
+export async function leerDocumentoAutomatico(ej: Ejecutor, idUsuario: number, nombre: string, datos: Buffer, opciones: { permitirDuplicados?: boolean; aceptar?: TipoDocumento[] } = {}): Promise<ResultadoAutomatico> {
+  const tipo = await clasificarDocumento(datos);
+  if (tipo === "otro") throw new HttpError(422, "No he reconocido este documento como un pedido ni como un DNI, así que no lo he guardado.");
+  const aceptar = opciones.aceptar ?? ["pedido", "dni"];
+  if (!aceptar.includes(tipo)) throw new HttpError(422, tipo === "dni" ? "Esto es un DNI, y aquí no se puede usar un DNI. No lo he guardado." : "Esto es un pedido, y aquí no se puede usar un pedido. No lo he guardado.");
+  if (tipo === "dni") return { tipo, resultado: await leerDni(ej, idUsuario, nombre, datos) };
+  return { tipo, resultado: await leerPedido(ej, idUsuario, nombre, datos, opciones.permitirDuplicados ?? false) };
 }
 
 /** Lee un pedido (PDF o imagen) y propone los datos del expediente comparando con los catálogos. */

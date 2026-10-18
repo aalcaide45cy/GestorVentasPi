@@ -13,6 +13,7 @@ import { anotarResolucion, cancelarLecturas } from "@/lib/lecturas-pedidos-clien
 import EstadoLecturas from "./EstadoLecturas";
 import PedidoRapidoModal from "./PedidoRapidoModal";
 import RellenarDesdePedidoModal from "./RellenarDesdePedidoModal";
+import { vincularDniAlExpediente } from "@/lib/crear-desde-pedido";
 
 interface Props {
   marcas: (MarcaDto & { modelos: ModeloDto[] })[];
@@ -60,6 +61,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   /** Quita el pedido aplicado y abre el siguiente de la cola, si lo hay. */
   const terminado = (mensaje: string, idExpedienteCreado?: number) => {
     if (!actual) return;
+    if (actual.idExpediente && actual.dni?.adjuntos.length && !mensaje.startsWith("Pedido descartado")) void vincularDniAlExpediente(actual.dni.adjuntos, actual.idExpediente).catch((e: unknown) => mostrar(`No se ha podido unir el DNI al expediente: ${textoError(e)}`, "error"));
     anotarResolucion(actual.idLectura, mensaje.startsWith("Pedido descartado") ? "quitado" : actual.idExpediente ? "completado" : "creado", actual.idExpediente ?? idExpedienteCreado ?? null);
     const siguiente = items[indice + 1] ?? items[indice - 1] ?? null;
     quitarDeCola(actual.id);
@@ -86,7 +88,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     { clave: "cliente", etiqueta: "Cliente", valor: (i) => i.pedido.datos.cliente ?? "", celda: (i) => i.pedido.datos.cliente ?? <span style={{ color: "var(--text-muted)" }}>—</span> },
     ...columnasVehiculo<(typeof items)[number]>((i) => ({ clase: i.pedido.datos.tipoPedido === "usado" ? "VO" : i.pedido.datos.tipoPedido === "nuevo" ? "VN" : null, marca: i.pedido.datos.marcaPropuesta, modelo: i.pedido.datos.modeloPropuesto ?? i.pedido.datos.modeloTexto }), { sin: ["estado", "tipoPago"] }),
     { clave: "fecha", etiqueta: "Fecha", valor: (i) => i.pedido.datos.fechaExpediente ?? "", celda: (i) => (i.pedido.datos.fechaExpediente ? formatDate(i.pedido.datos.fechaExpediente) : "—") },
-    { clave: "destino", etiqueta: "Destino", valor: (i) => (i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente") },
+    { clave: "destino", etiqueta: "Destino", valor: (i) => (i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente") + (i.dni ? " · con DNI" : "") },
     {
       clave: "acciones",
       etiqueta: "",
