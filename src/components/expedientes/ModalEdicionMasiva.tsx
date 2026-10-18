@@ -98,7 +98,7 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
           </p>
         </div>
       }
-      ancho="600px"
+      ancho="1000px"
       tamanoTitulo="1.25rem"
       pie={
         catalogos ? (
@@ -184,14 +184,12 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
                 </select>,
               )}
           </div>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            {grupo("Fecha Exp.", "130px", fecha(fExp, setFExp))}
-            {grupo("Fecha Afect.", "130px", fecha(fAfect, setFAfect))}
-            {grupo("Fecha RCI", "130px", fecha(fRci, setFRci))}
-          </div>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            {grupo("Fecha Mat.", "200px", fecha(fMat, setFMat))}
-            {grupo("Fecha Entrega", "200px", fecha(fEntrega, setFEntrega))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "20px 24px" }}>
+            {grupo("Fecha Exp.", "0", fecha(fExp, setFExp))}
+            {grupo("Fecha Afect.", "0", fecha(fAfect, setFAfect))}
+            {grupo("Fecha RCI", "0", fecha(fRci, setFRci))}
+            {grupo("Fecha Mat.", "0", fecha(fMat, setFMat))}
+            {grupo("Fecha Entrega", "0", fecha(fEntrega, setFEntrega))}
           </div>
         </>
       )}
