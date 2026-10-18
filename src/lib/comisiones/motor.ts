@@ -227,8 +227,6 @@ export function calcularMes(
     if (i.mesComputo !== mes && mesRci === mes) return [{ idExpediente: i.e.id, clase: i.e.clase, tipo: "adelantada" as const, mesRci, mesComputo: i.mesComputo }];
     return [];
   });
-  /** ¿Está cumplida la tasa que mira una regla financiera? (la de la marca del coche, la global o la de usados) */
-  const tasaCumplidaDe = (ambito: AmbitoTasa, idMarca: number | null): boolean => (ambito === "global" ? tasaGlobal.cumplida : ambito === "vo" ? tasaVo.cumplida : tasaDe(idMarca));
   const ratioDe = (ambito: AmbitoTasa, idMarca: number | null): { cumplida: boolean; numerador: number; denominador: number } => {
     if (ambito === "global") return tasaGlobal;
     if (ambito === "vo") return tasaVo;

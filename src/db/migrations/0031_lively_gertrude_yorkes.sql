@@ -14,6 +14,9 @@ SELECT f."id_plan", f."id_marca", f."tipo_financiacion", f."aplica_a", (p.value-
 UPDATE "commission_finance_rates" f SET "importe" = greatest(0, f."importe" - (SELECT coalesce(sum((p.value->>'importe')::integer), 0) FROM jsonb_array_elements(f."reparto") AS p(value)))
  WHERE jsonb_array_length(f."reparto") > 0;
 --> statement-breakpoint
+-- Si la línea original se repartió entera, ya no queda nada en ella
+DELETE FROM "commission_finance_rates" WHERE jsonb_array_length("reparto") > 0 AND "importe" = 0 AND "concepto" = '';
+--> statement-breakpoint
 INSERT INTO "commission_preference_rules" ("id_plan", "nombre", "id_marca", "id_modelo", "tipo_financiacion", "aplica_a", "importe", "activa", "tasa_intervencion", "tasa_ambito", "concepto")
 SELECT r."id_plan", r."nombre", r."id_marca", r."id_modelo", r."tipo_financiacion", r."aplica_a", (p.value->>'importe')::integer, r."activa", r."tasa_intervencion", r."tasa_ambito", p.value->>'concepto'
   FROM "commission_preference_rules" r, jsonb_array_elements(r."reparto") AS p(value)
@@ -21,3 +24,5 @@ SELECT r."id_plan", r."nombre", r."id_marca", r."id_modelo", r."tipo_financiacio
 --> statement-breakpoint
 UPDATE "commission_preference_rules" r SET "importe" = greatest(0, r."importe" - (SELECT coalesce(sum((p.value->>'importe')::integer), 0) FROM jsonb_array_elements(r."reparto") AS p(value)))
  WHERE jsonb_array_length(r."reparto") > 0;
+--> statement-breakpoint
+DELETE FROM "commission_preference_rules" WHERE jsonb_array_length("reparto") > 0 AND "importe" = 0 AND "concepto" = '';
