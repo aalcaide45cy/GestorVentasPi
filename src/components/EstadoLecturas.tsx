@@ -12,7 +12,7 @@ export default function EstadoLecturas() {
   const r = useSyncExternalStore(suscribirResumenLecturas, leerResumenLecturas, () => null);
   const [lista, setLista] = useState<LecturaDto[] | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  if (!r || r.pendientes + r.leyendo + r.descartados + r.errores === 0) return null;
+  if (!r || r.subiendo + r.pendientes + r.leyendo + r.descartados + r.errores === 0) return null;
 
   const ejecutar = async (f: () => Promise<void>) => {
     setOcupado(true);
@@ -28,6 +28,7 @@ export default function EstadoLecturas() {
   return (
     <div className="glass-panel" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.85rem" }}>
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+        {r.subiendo > 0 && <span style={{ color: "var(--primary)", fontWeight: 600 }}>📤 {r.subiendo} subidos, esperando a que termine la carga para empezar a leerlos</span>}
         {r.pendientes + r.leyendo > 0 && (
           <span style={{ color: "var(--primary)", fontWeight: 600 }}>
             ⏳ {r.leyendo} leyéndose y {r.pendientes} en espera ({r.lectores} lecturas a la vez, hasta {r.maximo} si el equipo aguanta)
@@ -36,7 +37,7 @@ export default function EstadoLecturas() {
         {r.descartados > 0 && <span>🗑️ {r.descartados} no eran pedidos o estaban repetidos (ignorados)</span>}
         {r.errores > 0 && <span style={{ color: "var(--danger)" }}>⚠️ {r.errores} con error</span>}
         <span style={{ marginLeft: "auto", display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          {r.pendientes > 0 && (
+          {r.pendientes + r.subiendo > 0 && (
             <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px" }} disabled={ocupado} onClick={() => void ejecutar(cancelarLecturas)}>
               ✖ Cancelar lo pendiente
             </button>

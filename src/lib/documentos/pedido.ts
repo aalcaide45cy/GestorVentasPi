@@ -68,6 +68,25 @@ export interface DatosPedido {
   avisos: string[];
 }
 
+/**
+ * Documentos de la red que se parecen a un pedido pero no lo son (se descubrieron revisando miles de PDF): la hoja de prueba de
+ * un vehículo de demostración, el anexo de condiciones de comercialización de vehículos de ocasión (Anexo VO), la información o
+ * oferta de un vehículo, presupuestos y contratos. Si su cabecera lo dice, no es un pedido aunque lleve el mismo bloque de cliente.
+ */
+const CABECERA_QUE_NO_ES_PEDIDO = /HOJA\s+DE\s+PRUEBA|VEHICULO\s+DE\s+DEMOSTRACION|PRUEBA\s+DE\s+VEHICULO|ANEXO\s+(VO|A\s+LAS\s+CONDICIONES)|^\W*ANEXO\b|INFORMACION\s+DE\s+VEHICULO|OFERTA\s+(DE|FINANCIERA)|PRESUPUESTO|CONTRATO\s+DE/;
+const SENAL_DE_PEDIDO = /PEDIDO\s+DE\s+VEH|N[UÚ]MERO\s+(DE\s+)?PEDIDO\s*:?\s*\d{5,}|(HOJA|ORDEN)\s+DE\s+PEDIDO/;
+
+/** ¿La cabecera (ya sin acentos y en mayúsculas) es de uno de esos documentos que no son pedidos? */
+export function cabeceraDeOtroDocumento(cabeceraNormalizada: string): boolean {
+  return CABECERA_QUE_NO_ES_PEDIDO.test(cabeceraNormalizada.slice(0, 900));
+}
+
+/** Un pedido lleva «PEDIDO DE VEHÍCULO…» o «Número Pedido 12345678» arriba, y no es uno de los documentos de la lista anterior. */
+export function textoDePedido(texto: string): boolean {
+  const t = sinAcentos(texto.slice(0, 2500));
+  return !cabeceraDeOtroDocumento(t) && SENAL_DE_PEDIDO.test(t);
+}
+
 const sinAcentos = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 
 const MESES: Record<string, number> = { ENE: 1, FEB: 2, MAR: 3, ABR: 4, MAY: 5, JUN: 6, JUL: 7, AGO: 8, SEP: 9, SET: 9, OCT: 10, NOV: 11, DIC: 12 };
@@ -367,7 +386,7 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     modeloTexto: modelo?.nombre ?? ([propuesta?.marca, propuesta?.modelo].filter(Boolean).join(" ") || estructura?.modeloLinea) ?? null,
     idTipoDeVenta,
     tipoPedido,
-    esPedido: estructura !== null || tipoPedido !== null || /N[ÚU]MERO\s+(DE\s+)?PEDIDO\s*:?\s*\d{4,}/.test(sinAcentos(texto)) || /\bPEDIDO\s+DE\s+(VEHICULO|COMPRA|VENTA)/.test(cabecera) || /\b(HOJA|ORDEN)\s+DE\s+PEDIDO\b/.test(cabecera),
+    esPedido: textoDePedido(texto),
     retoma,
     avisos,
   };

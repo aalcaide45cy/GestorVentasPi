@@ -1,11 +1,19 @@
+import { existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import sharp from "sharp";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { lecturasPedidos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { accionLecturas, ajustarLectores, encolarLectura, listarLecturas, reanudarLecturas, registroLecturas } from "./lecturas-pedidos";
 
+const ficherosEnEspera = () => (existsSync(process.env.LECTURAS_DIR as string) ? readdirSync(process.env.LECTURAS_DIR as string) : []);
+
 beforeEach(async () => {
+  process.env.LECTURAS_DIR = mkdtempSync(path.join(os.tmpdir(), "gv-lecturas-"));
   process.env.LECTORES_PEDIDOS = "3";
   delete (globalThis as Record<string, unknown>).__lectoresPedidos;
   await reiniciarBd();
@@ -19,8 +27,12 @@ const hoja = (lineas: string[], ruido = 0) =>
 
 async function esperarFin(idUsuario: number) {
   for (let i = 0; i < 240; i++) {
-    const { resumen, lecturas } = await listarLecturas(db, idUsuario);
-    if (resumen.pendientes === 0 && resumen.leyendo === 0) return { resumen, lecturas };
+    const { resumen, lecturas: pedidos } = await listarLecturas(db, idUsuario);
+    if (resumen.pendientes === 0 && resumen.leyendo === 0 && resumen.subiendo === 0) {
+      // La lista corta trae los pedidos; los ignorados, con error o cancelados van aparte
+      const { lecturas: otros } = await listarLecturas(db, idUsuario, { otros: true });
+      return { resumen, lecturas: [...pedidos, ...otros] };
+    }
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error("Las lecturas no terminaron a tiempo");
@@ -46,15 +58,46 @@ describe("lecturas de pedidos en paralelo", () => {
     expect(por[c.id].estado).toBe("descartado");
     expect(resumen).toMatchObject({ pedidos: 1, descartados: 2, errores: 0, lectores: 3 });
 
-    // Del pedido no queda el fichero en la lista (pasa a ser un adjunto); del descartado se guarda una semana por si se quiere rescatar
+    // Ni del pedido (pasa a ser un adjunto) ni del ignorado queda el fichero guardado; del ignorado sí el principio de lo leído
     const filas = await db.select({ id: lecturasPedidos.id, datos: lecturasPedidos.datos }).from(lecturasPedidos);
-    expect(filas.find((f) => f.id === a.id)?.datos).toBeNull();
-    expect(filas.find((f) => f.id === b.id)?.datos).not.toBeNull();
+    expect(filas.every((f) => f.datos === null)).toBe(true);
+    // Los ficheros esperaban en disco (no en la base) y ya no queda ninguno
+    expect(ficherosEnEspera()).toEqual([]);
+    expect(por[b.id].error).toMatch(/^No es un pedido: «FICHA/);
 
     // Recoger el pedido lo quita de la lista
     expect(await accionLecturas(db, u.idUsuario, { accion: "recoger", ids: [a.id] })).toBe(1);
     expect(await accionLecturas(db, u.idUsuario, { accion: "limpiar" })).toBe(2);
     expect((await listarLecturas(db, u.idUsuario)).lecturas).toHaveLength(0);
+    expect((await listarLecturas(db, u.idUsuario, { otros: true })).lecturas).toHaveLength(0);
+  }, 120_000);
+
+  it("en una subida por lotes no se lee nada hasta «iniciar», y un lote abandonado empieza solo pasado un rato", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const pedido = await hoja(["PEDIDO DE VEHICULO NUEVO", "RENAULT RETAIL GROUP", "CLIENTE Sr. D. Eva Ruiz   ESTABLECIMIENTO"], 9);
+    const a = await encolarLectura(db, u.idUsuario, "uno.png", pedido, null, false, true);
+    expect(a.estado).toBe("subiendo");
+    await new Promise((r) => setTimeout(r, 1500));
+    const { resumen } = await listarLecturas(db, u.idUsuario);
+    expect(resumen).toMatchObject({ subiendo: 1, pendientes: 0, leyendo: 0, pedidos: 0 });
+    expect(ficherosEnEspera()).toHaveLength(1);
+
+    expect(await accionLecturas(db, u.idUsuario, { accion: "iniciar" })).toBe(1);
+    const fin = await esperarFin(u.idUsuario);
+    expect(fin.lecturas.find((l) => l.id === a.id)?.estado).toBe("pedido");
+
+    // Abandonado: se retrasa su fecha y la siguiente consulta lo pone a leer
+    const b = await encolarLectura(db, u.idUsuario, "dos.png", await hoja(["PEDIDO DE VEHICULO NUEVO", "RENAULT RETAIL GROUP", "CLIENTE Sr. D. Eva Ruiz   ESTABLECIMIENTO"], 21), null, false, true);
+    await db.update(lecturasPedidos).set({ creadaEn: new Date(Date.now() - 5 * 60 * 1000) }).where(eq(lecturasPedidos.id, b.id));
+    const fin2 = await esperarFin(u.idUsuario);
+    expect(fin2.lecturas.find((l) => l.id === b.id)?.estado).toBe("pedido");
+
+    // Cancelar también cancela lo que sigue subido sin iniciar
+    const c = await encolarLectura(db, u.idUsuario, "tres.png", await hoja(["PEDIDO DE VEHICULO NUEVO", "RENAULT RETAIL GROUP", "CLIENTE Sr. D. Eva Ruiz   ESTABLECIMIENTO"], 33), null, false, true);
+    expect(await accionLecturas(db, u.idUsuario, { accion: "cancelar" })).toBe(1);
+    expect((await listarLecturas(db, u.idUsuario, { otros: true })).lecturas.find((l) => l.id === c.id)?.estado).toBe("cancelado");
+    expect(ficherosEnEspera()).toEqual([]);
+    rmSync(process.env.LECTURAS_DIR as string, { recursive: true, force: true });
   }, 120_000);
 
   it("retoma lo que estaba leyéndose al reiniciar y cancela lo pendiente", async () => {
@@ -79,16 +122,15 @@ describe("lecturas de pedidos en paralelo", () => {
     const b = await encolarLectura(db, u.idUsuario, "ficha.png", ajeno, null, false);
     const { lecturas } = await esperarFin(u.idUsuario);
 
-    // El roto llega a la cola con los datos vacíos y un aviso; el ignorado se conserva para poder rescatarlo
+    // El roto llega a la cola con los datos vacíos y un aviso
     const rota = lecturas.find((l) => l.id === a.id);
     expect(rota?.estado).toBe("pedido");
     expect(rota?.resultado?.datos.avisos[0]).toMatch(/No se pudo leer automáticamente/);
     expect(rota?.resultado?.adjunto.id).toBeGreaterThan(0);
     expect(lecturas.find((l) => l.id === b.id)?.estado).toBe("descartado");
 
-    // Rescatar el ignorado lo manda también a la cola
-    expect(await accionLecturas(db, u.idUsuario, { accion: "rescatar", ids: [b.id] })).toBe(1);
-    expect((await listarLecturas(db, u.idUsuario)).lecturas.find((l) => l.id === b.id)?.estado).toBe("pedido");
+    // Del ignorado no se conserva el fichero: no se puede rescatar (hay que volver a cargarlo)
+    expect(await accionLecturas(db, u.idUsuario, { accion: "rescatar", ids: [b.id] })).toBe(0);
 
     // Anotar qué se hizo y verlo en el registro
     await accionLecturas(db, u.idUsuario, { accion: "recoger", ids: [a.id] });

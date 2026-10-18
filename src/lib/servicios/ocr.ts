@@ -2,6 +2,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { HttpError } from "@/lib/auth/sesion";
+import { cabeceraDeOtroDocumento } from "@/lib/documentos/pedido";
 import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
 
 /**
@@ -277,14 +278,17 @@ export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean 
  * y el bloque de cliente). Si hay texto legible y no aparece ninguna señal de pedido, el documento se descarta sin leerlo entero.
  * Si no se puede juzgar (poco texto, página girada…) devuelve false y se hace la lectura completa.
  */
-async function pareceAjenoAlPedido(primeraPagina: Buffer): Promise<boolean> {
+async function pareceAjenoAlPedido(primeraPagina: Buffer): Promise<{ ajeno: boolean; cabecera: string }> {
   const meta = await sharp(primeraPagina, { failOn: "none" }).metadata();
-  if (!meta.width || !meta.height) return false;
+  if (!meta.width || !meta.height) return { ajeno: false, cabecera: "" };
   const arriba = await sharp(primeraPagina, { failOn: "none" }).extract({ left: 0, top: 0, width: meta.width, height: Math.max(1, Math.round(meta.height * 0.34)) }).png().toBuffer();
   const texto = (await ocrOrientado([arriba], { columnas: true })).map((l) => l.texto).join(" ");
   const limpio = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-  if ((limpio.match(/[A-Z]/g) ?? []).length < 25) return false;
-  return !/PEDIDO|RENAULT|DACIA|VEHICULO|ESTABLECIMIENTO|CLIENTE|RENEW|MATRICULA|BASTIDOR/.test(limpio);
+  const cabecera = limpio.replace(/\s+/g, " ").trim().slice(0, 160);
+  // Hoja de prueba, Anexo VO, oferta…: se descarta sin leer más
+  if (cabeceraDeOtroDocumento(limpio)) return { ajeno: true, cabecera };
+  if ((limpio.match(/[A-Z]/g) ?? []).length < 25) return { ajeno: false, cabecera };
+  return { ajeno: !/PEDIDO|RENAULT|DACIA|VEHICULO|ESTABLECIMIENTO|CLIENTE|RENEW|MATRICULA|BASTIDOR/.test(limpio), cabecera };
 }
 
 /** Lectura sin esperar turno (los pedidos en lote, que se leen varios a la vez); conserva su tiempo máximo. */
@@ -296,9 +300,9 @@ function enParalelo<T>(tarea: () => Promise<T>, maxMs: number): Promise<T> {
   return Promise.race([tarea(), limite]).finally(() => clearTimeout(temporizador));
 }
 
-type TextoLeido = { texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean };
+type TextoLeido = { texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean; cabecera?: string };
 
-export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<{ texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean }> {
+export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<TextoLeido> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
   if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
   const tipo = tipoDeFichero(datos);
@@ -307,7 +311,10 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; pa
   return ejecutar(async () => {
     try {
       if (tipo === "imagen") {
-        if (opciones.cribar && (await pareceAjenoAlPedido(datos))) return { texto: "", metodo: "ocr" as const, descartado: true };
+        if (opciones.cribar) {
+          const c = await pareceAjenoAlPedido(datos);
+          if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
+        }
         return { texto: (await ocrOrientado([datos], { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       }
       const doc = await abrirPdf(datos);
@@ -318,7 +325,10 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; pa
         if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
         // Escaneado: primero solo la primera hoja; si no parece de un pedido se descarta sin leer más
         const primera = await paginasComoImagenes(doc, 1);
-        if (opciones.cribar && (await pareceAjenoAlPedido(primera[0]))) return { texto: "", metodo: "ocr" as const, descartado: true };
+        if (opciones.cribar) {
+          const c = await pareceAjenoAlPedido(primera[0]);
+          if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
+        }
         const imagenes = paginas > 1 ? [...primera, ...(await paginasComoImagenes(doc, paginas)).slice(1)] : primera;
         return { texto: (await ocrOrientado(imagenes, { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       } finally {

@@ -1,0 +1,1 @@
+ALTER TABLE "lecturas_pedidos" ADD COLUMN "ruta" text;

@@ -908,7 +908,9 @@ export const lecturasPedidos = pgTable(
     /** SHA-256 del fichero: el mismo archivo subido otra vez no se vuelve a leer. */
     huella: varchar("huella", { length: 64 }).notNull(),
     datos: bytea("datos"),
-    /** pendiente | leyendo | pedido | descartado | error | cancelado */
+    /** Dónde está el fichero (cifrado) mientras espera su lectura: en disco, no en la base, para no engordarla ni sus copias con miles de PDF. */
+    ruta: text("ruta"),
+    /** subiendo | pendiente | leyendo | pedido | descartado | error | cancelado */
     estado: varchar("estado", { length: 12 }).notNull().default("pendiente"),
     resultado: jsonb("resultado").$type<unknown>(),
     error: text("error"),

@@ -77,6 +77,8 @@ async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
 /** Recoge los pedidos leídos y los pone en la cola; devuelve si aún hay lecturas por terminar. */
 async function consultar(): Promise<boolean> {
   if (consultando) return true;
+  // Mientras se sube no se pregunta al servidor: la lectura no empieza hasta que termine la subida
+  if (subiendo > 0) return true;
   consultando = true;
   try {
     const { resumen: r, lecturas } = await pedir<{ resumen: ResumenLecturas; lecturas: LecturaDto[] }>("/api/documentos/lecturas");
@@ -111,7 +113,7 @@ async function consultar(): Promise<boolean> {
     }
     if (recogidos.length > 0) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "recoger", ids: recogidos }) });
 
-    const trabajando = r.pendientes + r.leyendo;
+    const trabajando = r.pendientes + r.leyendo + r.subiendo;
     if (trabajando > 0 || subiendo > 0) fijarLectura({ hechos: Math.max(0, subidosEnTanda - trabajando - subiendo), total: Math.max(subidosEnTanda, 1) });
     else {
       fijarLectura(null);
@@ -158,22 +160,42 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
   iniciarSondeo();
   let siguiente = 0;
   let subidos = 0;
+  let fallosSeguidos = 0;
+  let detenida = false;
   fijarSubida({ hechos: 0, total: ficheros.length });
+  const dest = { eleccion: destino.eleccion ?? null, idExpediente: destino.idExpediente ?? null };
+  const subirUno = async (f: File, senal: AbortSignal) => {
+    const q = new URLSearchParams({ nombre: f.name, lote: "1" });
+    if (permitirDuplicadosAhora()) q.set("duplicados", "permitir");
+    if (dest.eleccion || dest.idExpediente) q.set("destino", JSON.stringify(dest));
+    await pedir(`/api/documentos/lecturas?${q.toString()}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, signal: senal });
+  };
   const subir = async () => {
-    while (siguiente < ficheros.length && !cancelada) {
+    while (siguiente < ficheros.length && !cancelada && !detenida) {
       const f = ficheros[siguiente++];
       const c = new AbortController();
       controladores.push(c);
       subiendo++;
       try {
-        const q = new URLSearchParams({ nombre: f.name });
-        if (permitirDuplicadosAhora()) q.set("duplicados", "permitir");
-        const dest = { eleccion: destino.eleccion ?? null, idExpediente: destino.idExpediente ?? null };
-        if (dest.eleccion || dest.idExpediente) q.set("destino", JSON.stringify(dest));
-        await pedir(`/api/documentos/lecturas?${q.toString()}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, signal: c.signal });
+        try {
+          await subirUno(f, c.signal);
+        } catch (e) {
+          if (c.signal.aborted) throw e;
+          // Un reintento por si fue un fallo puntual
+          await new Promise((r) => setTimeout(r, 1000));
+          await subirUno(f, c.signal);
+        }
+        fallosSeguidos = 0;
       } catch (e) {
         subidosEnTanda--;
-        if (!cancelada) avisar(`${f.name}: ${e instanceof Error ? e.message : "no se pudo subir"}`, "error");
+        fallosSeguidos++;
+        if (!cancelada) {
+          // Con el servidor caído no se avisa de cada fichero: tras unos cuantos fallos seguidos se detiene la subida
+          if (fallosSeguidos >= 5) {
+            detenida = true;
+            avisar(`La subida se ha detenido: el servidor no responde (${e instanceof Error ? e.message : "sin conexión"}). Se habían subido ${subidos} pedidos; vuelve a cargar cuando el servidor responda.`, "error");
+          } else if (fallosSeguidos <= 2) avisar(`${f.name}: ${e instanceof Error ? e.message : "no se pudo subir"}`, "error");
+        }
       } finally {
         subiendo--;
         subidos++;
@@ -184,12 +206,13 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
   };
   try {
     await Promise.all(Array.from({ length: Math.min(6, ficheros.length) }, subir));
+    // Terminada la subida (y solo entonces) empieza la lectura de todo lo subido
+    if (!cancelada) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "iniciar" }) }).catch(() => undefined);
   } finally {
     fijarSubida(null);
   }
   iniciarSondeo();
 }
-
 /** Corta las subidas en curso y cancela lo que aún no ha empezado a leerse (lo que ya se está leyendo termina). */
 export async function cancelarLecturas(): Promise<void> {
   cancelada = true;
@@ -219,6 +242,6 @@ export async function accionSobreLecturas(accion: "reintentar" | "limpiar" | "re
 
 /** Los descartados y con error, para que se vea qué pasó con cada documento. */
 export async function listarNoPedidos(): Promise<LecturaDto[]> {
-  const { lecturas } = await pedir<{ lecturas: LecturaDto[] }>("/api/documentos/lecturas");
-  return lecturas.filter((l) => l.estado === "descartado" || l.estado === "error" || l.estado === "cancelado");
+  const { lecturas } = await pedir<{ lecturas: LecturaDto[] }>("/api/documentos/lecturas?otros=1");
+  return lecturas;
 }

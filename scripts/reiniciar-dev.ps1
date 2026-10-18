@@ -16,4 +16,6 @@ if ($conexion) {
   foreach ($x in $cadena) { & taskkill /PID $x /T /F | Out-Null }
   Start-Sleep -Seconds 2
 }
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run dev" -WorkingDirectory $Carpeta -WindowStyle Hidden
+# La salida del servidor se guarda en un archivo para poder ver por qué se cayó, si pasa
+$registro = Join-Path $env:TEMP "gestorventas-dev.log"
+Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run dev > `"$registro`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden

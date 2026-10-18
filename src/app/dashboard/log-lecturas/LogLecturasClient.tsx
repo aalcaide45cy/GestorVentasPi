@@ -12,6 +12,7 @@ import type { RegistroLectura } from "@/lib/servicios/lecturas-pedidos";
 type Filtro = "todas" | "problemas" | "pedido" | "descartado" | "error";
 
 const ETIQUETA: Record<string, { texto: string; color: string }> = {
+  subiendo: { texto: "Subido, esperando a leerse", color: "var(--text-muted)" },
   pendiente: { texto: "En espera", color: "var(--text-muted)" },
   leyendo: { texto: "Leyéndose", color: "var(--primary)" },
   pedido: { texto: "Pedido leído", color: "var(--success)" },
@@ -110,11 +111,6 @@ export default function LogLecturasClient() {
       valor: () => "",
       celda: (f) => (
         <span style={{ display: "inline-flex", gap: "6px" }}>
-          {f.rescatable && f.estado === "descartado" && (
-            <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.78rem" }} disabled={ocupado} onClick={() => void rescatar(f)} title="Si en realidad sí era un pedido: pásalo a la cola para rellenarlo a mano mirando el PDF">
-              ↩️ Pasar a la cola
-            </button>
-          )}
           {f.estado === "error" && f.rescatable && (
             <>
               <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.78rem" }} disabled={ocupado} onClick={() => void reintentar(f)}>
@@ -144,7 +140,7 @@ export default function LogLecturasClient() {
       <div>
         <h1 style={{ margin: 0 }}>📄 Log de lecturas de pedidos</h1>
         <p style={{ color: "var(--text-secondary)", margin: "6px 0 0", lineHeight: 1.5 }}>
-          Qué ha pasado con cada PDF o foto que has subido para leer, durante los últimos tres meses: si se leyó, si se ignoró por no ser un pedido, si falló la lectura y qué se hizo después (expediente creado, completado o quitado de la cola). Sirve para localizar un pedido que no entró en la cola o un dato mal leído. Lo ignorado se conserva una semana por si hay que pasarlo a la cola.
+          Qué ha pasado con cada PDF o foto que has subido para leer, durante los últimos tres meses: si se leyó, si se ignoró por no ser un pedido, si falló la lectura y qué se hizo después (expediente creado, completado o quitado de la cola). Sirve para localizar un pedido que no entró en la cola o un dato mal leído. De lo ignorado no se guarda el fichero, solo el principio de lo que se leyó para ver por qué; si en realidad era un pedido, vuelve a cargarlo.
         </p>
       </div>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>

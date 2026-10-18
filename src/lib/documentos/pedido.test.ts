@@ -274,4 +274,15 @@ describe("documentos que no son pedidos", () => {
   it("un pedido sí lo es", () => {
     expect(parsearPedido("RENAULT RETAIL GROUP - PEDIDO DE VEHÍCULO\nCliente: JUAN PEREZ", catalogo).esPedido).toBe(true);
   });
+  it("la hoja de prueba de un vehículo de demostración, el Anexo VO y las ofertas no son pedidos", () => {
+    const hoja = "HOJA DE PRUEBA VEHÍCULO DE DEMOSTRACIÓN Viernes, 12 Abril 2024 CLIENTE ESTABLECIMIENTO Sr. D. Juan Perez Número Pedido 12345678";
+    const anexo = "ANEXO A LAS CONDICIONES DE COMERCIALIZACIÓN DE LOS VEHÍCULOS DE OCASIÓN Y Toda señal recibida en la venta";
+    const oferta = "INFORMACIÓN DE VEHÍCULO NUEVO Viernes, 07 Marzo 2025 / 17:30 hs - 6951-00 CLIENTE ESTABLECIMIENTO";
+    for (const t of [hoja, anexo, oferta]) expect(parsearPedido(t, catalogo).esPedido).toBe(false);
+  });
+  it("un pedido de Renault o Dacia lo es aunque el reconocimiento ensucie la cabecera", () => {
+    for (const t of ["PEDIDO DE VEH�CULO NUEVO Número Pedido 14275199 - 7508-00", "e? NETA PEDIDO DE VEHÍCULO NUEVO Número Pedido 12192475", "PEDIDO DE VEHÍCULO renew NÚMERO PEDIDO 19125", "Número Pedido 11556134 - 6653-00 - dnt Emitido: Jueves"]) {
+      expect(parsearPedido(t, catalogo).esPedido).toBe(true);
+    }
+  });
 });

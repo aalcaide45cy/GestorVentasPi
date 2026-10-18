@@ -12,8 +12,9 @@ export const dynamic = "force-dynamic";
 export const GET = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
   // ?registro=1: el registro de lecturas de los últimos tres meses (el administrador ve las de todos)
-  if (new URL(req.url).searchParams.get("registro") === "1") return NextResponse.json({ success: true, data: await registroLecturas(db, u.idUsuario, esAdministrador(u.rol)) });
-  return NextResponse.json({ success: true, data: await listarLecturas(db, u.idUsuario) });
+  const q = new URL(req.url).searchParams;
+  if (q.get("registro") === "1") return NextResponse.json({ success: true, data: await registroLecturas(db, u.idUsuario, esAdministrador(u.rol)) });
+  return NextResponse.json({ success: true, data: await listarLecturas(db, u.idUsuario, { otros: q.get("otros") === "1" }) });
 });
 
 /**
@@ -34,7 +35,7 @@ export const POST = manejar(async (req: Request) => {
     }
   }
   const datos = Buffer.from(await req.arrayBuffer());
-  const r = await encolarLectura(db, u.idUsuario, q.get("nombre") ?? "pedido", datos, destino, q.get("duplicados") === "permitir");
+  const r = await encolarLectura(db, u.idUsuario, q.get("nombre") ?? "pedido", datos, destino, q.get("duplicados") === "permitir", q.get("lote") === "1");
   return NextResponse.json({ success: true, data: r }, { status: 201 });
 });
 

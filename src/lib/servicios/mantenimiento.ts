@@ -4,6 +4,7 @@ import type { Ejecutor } from "@/db";
 import { sembrar, sembrarCatalogoInicial } from "@/db/semilla";
 import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, importacionesRegistros, marcas, modelos, telefonosClientes, tiendas, tipoDeVenta, usuarios, usuariosTiendas } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
+import { borrarTodosLosFicheros } from "./lecturas-pedidos";
 import { crearCopia } from "@/lib/servicios/copias";
 
 export interface AnalisisBbdd {
@@ -154,5 +155,6 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
     console.error("Error al vaciar la base de datos:", e);
     throw new HttpError(500, `No se ha borrado nada (la copia previa ${copiaPrevia} sí se creó). Motivo: ${causa}`);
   }
+  await borrarTodosLosFicheros();
   return { copiaPrevia };
 }
