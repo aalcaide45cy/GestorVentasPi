@@ -22,7 +22,7 @@ const GRUPOS: { titulo: string; ayuda: string; secciones: Seccion[] }[] = [
 ];
 
 /** «Datos por secciones»: exportar, importar y guardar copias internas de cada tipo de datos por separado. */
-export default function PanelDatos() {
+export default function PanelDatos({ alIrACopias }: { alIrACopias?: () => void }) {
   const router = useRouter();
   const { datos, recargar } = useCarga<DatosPanel>("/api/admin/datos", ultimoPanel ?? INICIAL);
   // Lo que pesa cada archivo se calcula exportando de verdad cada sección: va en otra petición para no retrasar las cajitas
@@ -52,14 +52,16 @@ export default function PanelDatos() {
       </div>
 
       <div className="glass-panel" style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)" }}>
-        <div style={{ fontWeight: 700 }}>🗄️ Toda la aplicación</div>
+        <div style={{ fontWeight: 700 }}>🗄️ Toda la aplicación a la vez</div>
         <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-          Para guardar o restaurar <b>todo</b> a la vez tienes dos opciones. La <b>copia completa (.dump)</b> es la más segura y la recomendada: incluye todo, se valida al crearla y está justo debajo, en «Copias de seguridad». El <b>JSON de datos básicos</b> es legible y sirve para llevar tiendas, usuarios, clientes, expedientes y catálogos a otro equipo, pero <b>NO incluye planes de comisionamiento, liquidaciones, puntos ni documentos</b> y <b>sí incluye las contraseñas cifradas y los secretos del doble factor</b>: guárdalo en un sitio seguro y guarda también el archivo .env (o al menos APP_SECRET).
+          Lo más seguro es la <b>copia completa (.dump)</b>: incluye todo y se valida al crearla (pestaña «Copias de seguridad»). El <b>JSON de datos básicos</b> es legible y sirve para llevar tiendas, usuarios, clientes, expedientes y catálogos a otro equipo, pero <b>NO incluye planes de comisionamiento, liquidaciones, puntos ni documentos</b> y <b>sí incluye las contraseñas cifradas y los secretos del doble factor</b>: guárdalo en un sitio seguro (y el archivo .env, o al menos APP_SECRET).
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-          <a className="btn btn-primary" style={botonChico} href="#copias-de-seguridad" title="Baja a «Copias de seguridad»: crea una copia completa (.dump) de toda la aplicación, descárgala, súbela o restáurala. Es la forma más segura de guardar todo.">
-            💾 Copia completa (.dump)…
-          </a>
+          {alIrACopias && (
+            <button type="button" className="btn btn-primary" style={botonChico} onClick={alIrACopias} title="Abre la pestaña «Copias de seguridad»: crea una copia completa (.dump) de toda la aplicación, descárgala, súbela o restáurala.">
+              💾 Ir a las copias completas (.dump)
+            </button>
+          )}
           <BotonesBackup deshabilitado={false} />
         </div>
       </div>

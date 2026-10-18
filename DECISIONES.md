@@ -304,3 +304,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 
 ## Archivos sin vincular: limpiables de cualquier antigüedad (v1.0.19)
 - La limpieza «Archivos subidos que nunca se vincularon» ya no espera dos días: el propietario quiere poder borrarlos siempre (con copia previa y confirmación). Si alguno sigue en la cola de pedidos, ese pedido ya no se podrá usar. La Papelera ya los incluía sin plazo.
+
+## Configuración ordenada en subpestañas y papelera con vista previa (v1.0.19)
+- BBDD pasa a seis subpestañas (Análisis y limpieza · Papelera y purga · Exportar e importar · Copias de seguridad · Sistema · Migración y borrado); Expedientes (Lista · Selección y eliminación · Foto del cliente) y Tema (Oscuros · Claros · Originales, y dentro, bloques plegables por intensidad). La subpestaña abierta y los bloques plegados se recuerdan en el navegador (`estructura.tsx`). Modelos: cada marca es un bloque plegable (las de comisiones abiertas, el resto cerradas), con «Desplegar/Plegar todas» y el alta de modelo plegada.
+- Se quita lo repetido: la explicación de la copia completa en «Exportar e importar» se resume y lleva a la pestaña de copias; el JSON de datos básicos sigue donde estaba.
+- Las tarjetas del análisis de documentos sin vincular, documentos de eliminados, clientes y expedientes eliminados (que salían vacías: tenían contador pero no filas) abren ahora el mismo gestor de la Papelera: tabla ancha con columnas a elegir, vista previa de los PDF y fotos de cada fila (también eliminados o sin vincular), elección fila a fila, descarga y purga con confirmación.

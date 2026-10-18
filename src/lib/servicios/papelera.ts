@@ -39,6 +39,8 @@ export interface FilaPapelera {
   bytes: number;
   /** Cuándo se eliminó (ISO), si consta. */
   eliminadoEn: string | null;
+  /** Cuántos documentos tiene (para poder verlos antes de decidir). */
+  documentos: number;
   /** Lo que impide purgarla ahora mismo (por ejemplo, que aún tiene expedientes eliminados), si algo lo impide. */
   bloqueo: string | null;
 }
@@ -162,15 +164,19 @@ async function bloqueosCatalogo(ej: Ejecutor): Promise<Map<string, string>> {
   return new Map(r.map((x) => [x.clave, x.motivo]));
 }
 
-export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite = 500): Promise<{ total: number; filas: FilaPapelera[] }> {
+/** Qué documentos se miran: los leídos y nunca vinculados, los eliminados (o de algo eliminado), o ambos. */
+export type MotivoDocumentos = "sin_vincular" | "eliminados";
+
+export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite = 500, motivo?: MotivoDocumentos): Promise<{ total: number; filas: FilaPapelera[] }> {
   const lim = sql.raw(String(limite));
+  const condDocs = motivo === "sin_vincular" ? sql`(a.ambito = 'pendiente' and a.eliminado_en is null)` : motivo === "eliminados" ? sql`(a.eliminado_en is not null or (a.ambito <> 'pendiente' and ((a.id_expediente is not null and e.eliminado_en is not null) or (a.id_expediente is null and a.id_cliente is not null and c.eliminado_en is not null))))` : SQL_DOCUMENTOS;
   if (categoria === "expedientes") {
     const r = await filas<{ id: number; cliente: string | null; matricula: string | null; eliminado_en: string; docs: number; bytes: string }>(
       ej,
       sql`select e.id_expediente id, c.nombre cliente, e.matricula, e.eliminado_en, (select count(*) from adjuntos a where a.id_expediente = e.id_expediente)::int docs, (coalesce((select sum(a.tamano) from adjuntos a where a.id_expediente = e.id_expediente), 0) + pg_column_size(e.*))::bigint bytes from expedientes e left join clientes c on c.id = e.id_cliente where e.eliminado_en is not null order by bytes desc, e.id_expediente desc limit ${lim}`,
     );
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from expedientes where eliminado_en is not null`);
-    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `Exp. ${x.id}${x.cliente ? ` · ${x.cliente}` : ""}${x.matricula ? ` · ${x.matricula}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), bloqueo: null })) };
+    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `Exp. ${x.id}${x.cliente ? ` · ${x.cliente}` : ""}${x.matricula ? ` · ${x.matricula}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), documentos: x.docs, bloqueo: null })) };
   }
   if (categoria === "clientes") {
     const r = await filas<{ id: number; nombre: string | null; dni: string | null; eliminado_en: string; exps: number; docs: number; bytes: string }>(
@@ -180,15 +186,15 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from clientes where eliminado_en is not null`);
     return {
       total: num(n),
-      filas: r.map((x) => ({ id: String(x.id), texto: `${x.nombre ?? "(sin nombre)"}${x.dni ? ` · ${x.dni}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), bloqueo: x.exps > 0 ? `Tiene ${x.exps} expediente${x.exps === 1 ? "" : "s"} (elimínalos primero)` : null })),
+      filas: r.map((x) => ({ id: String(x.id), texto: `${x.nombre ?? "(sin nombre)"}${x.dni ? ` · ${x.dni}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), documentos: x.docs, bloqueo: x.exps > 0 ? `Tiene ${x.exps} expediente${x.exps === 1 ? "" : "s"} (elimínalos primero)` : null })),
     };
   }
   if (categoria === "documentos") {
     const r = await filas<{ id: number; nombre: string; tipo: string; tamano: string; creado_en: string; eliminado_en: string | null; ambito: string; eid: number | null; cid: number | null; e_elim: boolean | null; c_elim: boolean | null }>(
       ej,
-      sql`select a.id, a.nombre, a.tipo, a.tamano::bigint tamano, a.creado_en, a.eliminado_en, a.ambito, e.id_expediente eid, c.id cid, (e.eliminado_en is not null) e_elim, (c.eliminado_en is not null) c_elim ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} order by a.tamano desc, a.id desc limit ${lim}`,
+      sql`select a.id, a.nombre, a.tipo, a.tamano::bigint tamano, a.creado_en, a.eliminado_en, a.ambito, e.id_expediente eid, c.id cid, (e.eliminado_en is not null) e_elim, (c.eliminado_en is not null) c_elim ${SQL_DOCUMENTOS_JOIN} where ${condDocs} order by a.tamano desc, a.id desc limit ${lim}`,
     );
-    const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS}`);
+    const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n ${SQL_DOCUMENTOS_JOIN} where ${condDocs}`);
     return {
       total: num(n),
       filas: r.map((x) => ({
@@ -197,6 +203,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
         detalle: `${x.eliminado_en ? "Documento eliminado" : x.ambito === "pendiente" ? "Sin vincular" : x.eid && x.e_elim ? `Del expediente eliminado ${x.eid}` : "Del cliente eliminado"} · ${x.tipo} · subido el ${fechaCorta(x.creado_en)} · ${mb(num(x.tamano))}`,
         bytes: num(x.tamano),
         eliminadoEn: iso(x.eliminado_en),
+        documentos: 1,
         bloqueo: null,
       })),
     };
@@ -212,7 +219,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
         union all select 'tiendas:' || id_tienda, 'Tienda ' || nombre, eliminado_en from tiendas where eliminado_en is not null
         order by 2 limit ${lim}`,
     );
-    return { total: r.length, filas: r.map((x) => ({ id: x.clave, texto: x.texto, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)}`, bytes: 0, eliminadoEn: iso(x.eliminado_en), bloqueo: bloqueos.get(x.clave) ?? null })) };
+    return { total: r.length, filas: r.map((x) => ({ id: x.clave, texto: x.texto, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)}`, bytes: 0, eliminadoEn: iso(x.eliminado_en), documentos: 0, bloqueo: bloqueos.get(x.clave) ?? null })) };
   }
   if (categoria === "historial") {
     const r = await filas<{ id: string; en: string; accion: string; tabla: string; operacion: string; usuario: string | null; bytes: string }>(
@@ -220,7 +227,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
       sql`select h.id, h.en, h.accion, h.tabla, h.operacion, u.nombre usuario, pg_column_size(h.*)::bigint bytes from historial_cambios h left join usuarios u on u.id_usuario = h.id_usuario order by h.id desc limit ${lim}`,
     );
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from historial_cambios`);
-    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion} · ${x.tabla} (${x.operacion === "D" ? "borrado" : x.operacion === "I" ? "alta" : "cambio"})`, detalle: `${new Date(x.en).toLocaleString("es-ES")}${x.usuario ? ` · ${x.usuario}` : ""}`, bytes: num(x.bytes), eliminadoEn: null, bloqueo: null })) };
+    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion} · ${x.tabla} (${x.operacion === "D" ? "borrado" : x.operacion === "I" ? "alta" : "cambio"})`, detalle: `${new Date(x.en).toLocaleString("es-ES")}${x.usuario ? ` · ${x.usuario}` : ""}`, bytes: num(x.bytes), eliminadoEn: null, documentos: 0, bloqueo: null })) };
   }
   if (categoria === "lecturas") {
     const r = await filas<{ id: number; nombre: string; estado: string; creada_en: string; bytes: string }>(
@@ -228,11 +235,11 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
       sql`select id, nombre, estado, creada_en, pg_column_size(l.*)::bigint bytes from lecturas_pedidos l where estado in ('descartado', 'cancelado', 'pedido', 'error') order by id desc limit ${lim}`,
     );
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from lecturas_pedidos where estado in ('descartado', 'cancelado', 'pedido', 'error')`);
-    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: x.nombre, detalle: `${x.estado} · ${new Date(x.creada_en).toLocaleString("es-ES")}`, bytes: num(x.bytes), eliminadoEn: null, bloqueo: null })) };
+    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: x.nombre, detalle: `${x.estado} · ${new Date(x.creada_en).toLocaleString("es-ES")}`, bytes: num(x.bytes), eliminadoEn: null, documentos: 0, bloqueo: null })) };
   }
   const r = await filas<{ id: number; accion: string; entidad: string | null; en: string; bytes: string }>(ej, sql`select id, accion, entidad, en, pg_column_size(a.*)::bigint bytes from auditoria a order by id desc limit ${lim}`).catch(() => []);
   const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from auditoria`);
-  return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion}${x.entidad ? ` · ${x.entidad}` : ""}`, detalle: new Date(x.en).toLocaleString("es-ES"), bytes: num(x.bytes), eliminadoEn: null, bloqueo: null })) };
+  return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion}${x.entidad ? ` · ${x.entidad}` : ""}`, detalle: new Date(x.en).toLocaleString("es-ES"), bytes: num(x.bytes), eliminadoEn: null, documentos: 0, bloqueo: null })) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -262,6 +269,24 @@ export async function descargarPapelera(ej: Ejecutor, categoria: Categoria, ids:
     datos = await filas(ej, sql`select to_jsonb(a) as registro from auditoria a order by id`);
   }
   return { app: "GestorVentasPi", categoria, titulo: TEXTOS[categoria].titulo, exportadoEn: new Date().toISOString(), registros: datos.length, datos };
+}
+
+export interface DocumentoDeFila {
+  id: number;
+  nombre: string;
+  tipo: string;
+  mime: string;
+  tamano: number;
+  creadoEn: string;
+  eliminado: boolean;
+}
+
+/** Los documentos de un expediente o de un cliente (también los eliminados), para verlos antes de decidir. */
+export async function documentosDeFila(ej: Ejecutor, categoria: Categoria, id: number): Promise<DocumentoDeFila[]> {
+  if (categoria !== "expedientes" && categoria !== "clientes" && categoria !== "documentos") return [];
+  const donde = categoria === "expedientes" ? sql`a.id_expediente = ${id}` : categoria === "clientes" ? sql`a.id_cliente = ${id}` : sql`a.id = ${id}`;
+  const r = await filas<{ id: number; nombre: string; tipo: string; mime: string; tamano: string; creado_en: string; eliminado: boolean }>(ej, sql`select a.id, a.nombre, a.tipo, a.mime, a.tamano::bigint tamano, a.creado_en, (a.eliminado_en is not null) eliminado from adjuntos a where ${donde} order by a.id`);
+  return r.map((x) => ({ id: x.id, nombre: x.nombre, tipo: x.tipo, mime: x.mime, tamano: num(x.tamano), creadoEn: iso(x.creado_en) ?? "", eliminado: x.eliminado }));
 }
 
 /** Un documento cualquiera (también eliminado o sin vincular), descifrado, para descargarlo desde la papelera. */

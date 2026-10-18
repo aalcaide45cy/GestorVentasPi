@@ -28,7 +28,8 @@ export const GET = manejar(async (req: Request) => {
       await auditar({ idUsuario: admin.idUsuario, accion: "papelera_descargada", entidad: categoria, detalle: { registros: contenido.registros } });
       return new NextResponse(JSON.stringify(contenido, null, 2), { headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="gv_papelera_${categoria}_${new Date().toISOString().slice(0, 10)}.json"`, "Cache-Control": "no-store" } });
     }
-    return NextResponse.json({ success: true, data: await filasPapelera(db, categoria) });
+    const motivo = q.get("motivo");
+    return NextResponse.json({ success: true, data: await filasPapelera(db, categoria, 500, motivo === "sin_vincular" || motivo === "eliminados" ? motivo : undefined) });
   }
   const [categorias, espacio] = await Promise.all([resumenPapelera(db), espacioBaseDeDatos(db)]);
   return NextResponse.json({ success: true, data: { categorias, espacio } });

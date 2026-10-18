@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { ModeloDto } from "@/lib/dto";
 import type { MarcaConModelos } from "./PestanaMarcas";
-import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
+import { guardarPreferencia } from "@/lib/preferencias";
+import { Plegable } from "./estructura";
+import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, useOrden, usePeticion } from "./utilidades";
 
 interface Props {
   marcas: MarcaConModelos[];
@@ -258,62 +260,65 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
   const hayCambiosDeOrden = (lista: FilaModelo[]) =>
     lista.some((f) => ordenesTemporales[f.modelo.id_modelo] !== undefined && ordenesTemporales[f.modelo.id_modelo] !== f.modelo.orden_acceso_rapido);
 
-  const cabeceraBloque = (titulo: React.ReactNode, lista: FilaModelo[]) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <h4 style={{ fontSize: "1.05rem", fontWeight: "bold", display: "flex", alignItems: "center", gap: "8px" }}>{titulo}</h4>
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        {hayCambiosDeOrden(lista) && (
-          <button type="button" className="btn btn-primary" onClick={() => void guardarOrdenes(lista)} style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }} disabled={cargando}>
-            💾 Guardar Orden
-          </button>
-        )}
-        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>{lista.length} modelo(s)</span>
-      </div>
-    </div>
-  );
+  /** Botón «Guardar orden» (si hay cambios) para la cabecera de cada marca. */
+  const accionesBloque = (lista: FilaModelo[]) =>
+    hayCambiosDeOrden(lista) ? (
+      <button type="button" className="btn btn-primary" onClick={() => void guardarOrdenes(lista)} style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }} disabled={cargando}>
+        💾 Guardar Orden
+      </button>
+    ) : null;
 
-  const restoDeMarcas = ordenadas.filter((f) => !f.sistemaComisiones);
+  /** Despliega o pliega de golpe todas las marcas. */
+  const plegarTodas = (abrir: boolean) => marcas.forEach((m) => guardarPreferencia(`plegable-modelos-marca-${m.id_marca}`, abrir ? "abierto" : "cerrado"));
+
+  // Primero las marcas con sistema de comisiones, después el resto, cada una en su bloque plegable
+  const marcasOrdenadas = [...marcas].sort((a, b) => Number(b.sistema_comisiones) - Number(a.sistema_comisiones) || a.nombre.localeCompare(b.nombre, "es"));
 
   return (
-    <div className="glass-panel" style={estiloPanel}>
-      <h3 style={{ fontSize: "1.15rem" }}>Gestión de Modelos</h3>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
+        <h3 style={{ fontSize: "1.15rem", margin: 0 }}>🚙 Gestión de modelos</h3>
+        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{filas.length} modelo(s) en {marcas.length} marca(s)</span>
+      </div>
 
-      <form onSubmit={crear} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-        <select
-          className="form-select"
-          value={marcaNueva}
-          onChange={(e) => {
-            const v = e.target.value ? Number(e.target.value) : "";
-            setMarcaNueva(v);
-            const marca = marcas.find((m) => m.id_marca === v);
-            const n = marca?.nombre.toLowerCase().trim();
-            setAccesoRapido(n === "renault" || n === "dacia");
-          }}
-          required
-          style={{ flex: 1, minWidth: "160px" }}
-        >
-          <option value="">Selecciona Marca</option>
-          {marcas.filter((m) => m.activo).map((m) => (
-            <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
-          ))}
-        </select>
-        <input type="text" className="form-input" placeholder="Nombre de modelo... (Ej. Qashqai)" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={cargando || !marcaNueva} required style={{ flex: 2, minWidth: "200px" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input type="checkbox" id="chkModeloAccesoRapido" checked={accesoRapido} onChange={(e) => setAccesoRapido(e.target.checked)} style={estiloCheck} />
-          <label htmlFor="chkModeloAccesoRapido" style={estiloEtiquetaCheck}>Acceso Rápido</label>
-        </div>
-        {accesoRapido && (
+      <Plegable id="modelos-crear" titulo="➕ Crear un modelo nuevo" abiertoPorDefecto={false}>
+        <form onSubmit={crear} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          <select
+            className="form-select"
+            value={marcaNueva}
+            onChange={(e) => {
+              const v = e.target.value ? Number(e.target.value) : "";
+              setMarcaNueva(v);
+              const marca = marcas.find((m) => m.id_marca === v);
+              const n = marca?.nombre.toLowerCase().trim();
+              setAccesoRapido(n === "renault" || n === "dacia");
+            }}
+            required
+            style={{ flex: 1, minWidth: "160px" }}
+          >
+            <option value="">Selecciona Marca</option>
+            {marcas.filter((m) => m.activo).map((m) => (
+              <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
+            ))}
+          </select>
+          <input type="text" className="form-input" placeholder="Nombre de modelo... (Ej. Qashqai)" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={cargando || !marcaNueva} required style={{ flex: 2, minWidth: "200px" }} />
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>Orden:</span>
-            <input type="number" className="form-input" value={ordenNuevo} onChange={(e) => setOrdenNuevo(Number(e.target.value))} disabled={cargando} style={{ width: "80px", padding: "8px", textAlign: "center" }} min={0} />
+            <input type="checkbox" id="chkModeloAccesoRapido" checked={accesoRapido} onChange={(e) => setAccesoRapido(e.target.checked)} style={estiloCheck} />
+            <label htmlFor="chkModeloAccesoRapido" style={estiloEtiquetaCheck}>Acceso Rápido</label>
           </div>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={cargando || !marcaNueva}>
-          + Crear Modelo
-        </button>
-      </form>
+          {accesoRapido && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>Orden:</span>
+              <input type="number" className="form-input" value={ordenNuevo} onChange={(e) => setOrdenNuevo(Number(e.target.value))} disabled={cargando} style={{ width: "80px", padding: "8px", textAlign: "center" }} min={0} />
+            </div>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={cargando || !marcaNueva}>
+            + Crear Modelo
+          </button>
+        </form>
+      </Plegable>
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "center", background: "rgba(255, 255, 255, 0.03)", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+      <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.03)", padding: "10px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
         <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Filtrar modelos:</span>
         <input type="text" className="form-input" placeholder="Buscar por modelo o marca..." value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ maxWidth: "300px", padding: "6px 12px" }} />
         {filtro && (
@@ -321,31 +326,39 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
             Limpiar
           </button>
         )}
+        <span style={{ flex: 1 }} />
+        <button type="button" className="btn btn-secondary" onClick={() => plegarTodas(true)} style={{ padding: "4px 10px", fontSize: "0.8rem" }} title="Despliega todas las marcas">
+          ▾ Desplegar todas
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={() => plegarTodas(false)} style={{ padding: "4px 10px", fontSize: "0.8rem" }} title="Pliega todas las marcas">
+          ▸ Plegar todas
+        </button>
       </div>
 
-      {marcas
-        .filter((m) => m.sistema_comisiones)
-        .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
-        .map((marca) => {
-          const lista = ordenadas.filter((f) => f.idMarca === marca.id_marca);
-          return (
-            <div key={marca.id_marca} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
-              {cabeceraBloque(
-                <>
-                  <span style={{ color: "var(--primary)" }}>📦 Modelos de {marca.nombre}</span>
-                  <span style={{ fontSize: "0.75rem", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Comisiones Activo</span>
-                </>,
-                lista,
-              )}
-              {tabla(lista, "No hay modelos registrados para esta marca.")}
-            </div>
-          );
-        })}
-
-      <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px" }}>
-        {cabeceraBloque("💼 Resto de Marcas", restoDeMarcas)}
-        {tabla(restoDeMarcas, "No hay modelos para el resto de marcas.")}
-      </div>
+      {marcasOrdenadas.map((marca) => {
+        const lista = ordenadas.filter((f) => f.idMarca === marca.id_marca);
+        // Con un filtro puesto, solo las marcas que tienen algo que enseñar
+        if (q && lista.length === 0) return null;
+        return (
+          <Plegable
+            key={marca.id_marca}
+            id={`modelos-marca-${marca.id_marca}`}
+            abiertoPorDefecto={marca.sistema_comisiones}
+            borde={marca.sistema_comisiones ? "1px solid rgba(59, 130, 246, 0.25)" : undefined}
+            titulo={
+              <>
+                <span style={{ color: marca.sistema_comisiones ? "var(--primary)" : undefined }}>{marca.sistema_comisiones ? "📦" : "💼"} {marca.nombre}</span>
+                {marca.sistema_comisiones && <span style={{ fontSize: "0.72rem", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Comisiones Activo</span>}
+                {!marca.activo && <span style={{ fontSize: "0.72rem", background: "var(--bg-surface-tint)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Inactiva</span>}
+              </>
+            }
+            resumen={`${lista.length} modelo(s)`}
+            acciones={accionesBloque(lista)}
+          >
+            {tabla(lista, "No hay modelos registrados para esta marca.")}
+          </Plegable>
+        );
+      })}
 
       {reasignando && (
         <Modal

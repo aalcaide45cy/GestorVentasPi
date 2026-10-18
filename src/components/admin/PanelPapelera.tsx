@@ -8,7 +8,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { tamanoLegible } from "@/components/datos/DatosSeccion";
-import type { Categoria, FilaPapelera, InfoCategoria, ResultadoCompactado, ResultadoPurga } from "@/lib/servicios/papelera";
+import type { Categoria, DocumentoDeFila, FilaPapelera, InfoCategoria, ResultadoCompactado, ResultadoPurga } from "@/lib/servicios/papelera";
 
 interface Resumen {
   categorias: InfoCategoria[];
@@ -17,6 +17,17 @@ interface Resumen {
 
 const VACIO: Resumen = { categorias: [], espacio: { total: 0, tablas: [] } };
 const ICONOS: Record<Categoria, string> = { expedientes: "📁", clientes: "👥", documentos: "📎", catalogo: "🏷️", historial: "↩️", lecturas: "📄", auditoria: "🛡️" };
+
+/** Qué arrastra purgar cada categoría (para la confirmación cuando se purga desde fuera de la Papelera). */
+const TEXTOS_PURGA: Record<Categoria, string> = {
+  expedientes: "Se borran el expediente, sus documentos y sus marcas de pagado/reclamado.",
+  clientes: "Se borran el cliente, sus correos, teléfonos y documentos.",
+  documentos: "Se borra el archivo de verdad. Si un pedido sin vincular sigue en tu cola de pedidos, esa entrada ya no se podrá usar.",
+  catalogo: "Se borran los que ningún expediente ni plan usa ya.",
+  historial: "Ya no se podrá deshacer nada de lo purgado.",
+  lecturas: "Se pierde el registro de lecturas.",
+  auditoria: "Se pierde ese rastro de seguridad.",
+};
 
 const botonChico = { padding: "6px 12px", fontSize: "0.82rem" } as const;
 const tamano = (b: number): string => (b <= 0 ? "—" : tamanoLegible(b));
@@ -51,13 +62,73 @@ function ModalConfirmarPurga({ titulo, texto, palabra, boton, trabajando, alConf
   );
 }
 
-/** Lista de lo que hay en una categoría, para ver, elegir, descargar y purgar fila a fila. */
-function ModalFilas({ info, alCerrar, alPurgar }: { info: InfoCategoria; alCerrar: () => void; alPurgar: (ids: string[]) => void }) {
-  const { datos } = useCarga<{ total: number; filas: FilaPapelera[] } | null>(`/api/admin/papelera?categoria=${info.categoria}`, null);
+const ESPERA_VISTA = "Cargando el documento…";
+
+/** Vista previa de los documentos de una fila (de un expediente, de un cliente o el propio documento): PDF y fotos, sin descargar. */
+function PanelVista({ categoria, fila, alCerrar }: { categoria: Categoria; fila: FilaPapelera; alCerrar: () => void }) {
+  const { datos } = useCarga<DocumentoDeFila[] | null>(`/api/admin/papelera/documentos?categoria=${categoria}&id=${fila.id}`, null);
+  const [elegido, setElegido] = useState<number | null>(null);
+  const docs = datos ?? [];
+  const actual = docs.find((d) => d.id === elegido) ?? docs[0] ?? null;
+  const url = actual ? `/api/admin/papelera/documento?id=${actual.id}&ver=1` : null;
+  return (
+    <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", gap: "8px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px", background: "var(--bg-surface-tint)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+        <strong style={{ fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fila.texto}>
+          👁 {fila.texto}
+        </strong>
+        <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.78rem" }} onClick={alCerrar}>
+          ✕ Cerrar vista
+        </button>
+      </div>
+      {!datos && <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{ESPERA_VISTA}</span>}
+      {datos && docs.length === 0 && <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>No tiene documentos.</span>}
+      {docs.length > 1 && (
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {docs.map((d) => (
+            <button key={d.id} type="button" className={`btn ${actual?.id === d.id ? "btn-primary" : "btn-secondary"}`} style={{ padding: "3px 10px", fontSize: "0.78rem" }} onClick={() => setElegido(d.id)} title={`${d.tipo} · ${tamano(d.tamano)}${d.eliminado ? " · eliminado" : ""}`}>
+              {d.nombre}
+            </button>
+          ))}
+        </div>
+      )}
+      {actual && url && (
+        <>
+          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+            <span>
+              📄 {actual.nombre} · {actual.tipo} · {tamano(actual.tamano)}
+              {actual.eliminado ? " · eliminado" : ""}
+            </span>
+            <span style={{ display: "flex", gap: "10px" }}>
+              <a href={url} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
+                Abrir en otra pestaña
+              </a>
+              <a href={`/api/admin/papelera/documento?id=${actual.id}`} style={{ color: "var(--primary)" }}>
+                Descargar
+              </a>
+            </span>
+          </div>
+          {actual.mime.startsWith("image/") ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt={actual.nombre} style={{ maxWidth: "100%", maxHeight: "68vh", objectFit: "contain", borderRadius: "var(--radius-sm)", background: "#fff" }} />
+          ) : (
+            <iframe key={actual.id} src={url} title={actual.nombre} style={{ width: "100%", height: "68vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Lista de lo que hay en una categoría, para ver (con vista previa de sus documentos), elegir, descargar y purgar fila a fila. */
+function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar }: { categoria: Categoria; titulo: string; explicacion: string; motivo?: string; alCerrar: () => void; alPurgar: (ids: string[]) => void }) {
+  const { datos } = useCarga<{ total: number; filas: FilaPapelera[] } | null>(`/api/admin/papelera?categoria=${categoria}${motivo ? `&motivo=${motivo}` : ""}`, null);
   const [marcadas, setMarcadas] = useState<string[]>([]);
+  const [vista, setVista] = useState<FilaPapelera | null>(null);
   const alternar = (id: string, v: boolean) => setMarcadas((m) => (v ? [...m, id] : m.filter((x) => x !== id)));
   const filas = datos?.filas ?? [];
   const purgables = filas.filter((f) => !f.bloqueo).map((f) => f.id);
+  const conVista = categoria === "expedientes" || categoria === "clientes" || categoria === "documentos";
 
   const columnas: ColumnaTabla<FilaPapelera>[] = [
     {
@@ -67,12 +138,27 @@ function ModalFilas({ info, alCerrar, alPurgar }: { info: InfoCategoria; alCerra
       celda: (f) => <input type="checkbox" checked={marcadas.includes(f.id)} onChange={(e) => alternar(f.id, e.target.checked)} style={{ accentColor: "var(--primary)" }} title="Elige esta fila para descargarla o purgarla" />,
       ayuda: "Elige filas para descargarlas o purgarlas",
     },
-    { clave: "texto", etiqueta: "Qué es", valor: (f) => f.texto, celda: (f) => <span style={{ whiteSpace: "normal", fontWeight: 600 }}>{f.texto}</span> },
-    { clave: "detalle", etiqueta: "Detalle", valor: (f) => f.detalle, celda: (f) => <span style={{ whiteSpace: "normal", fontSize: "0.82rem" }}>{f.detalle}</span>, ayuda: "Cuándo se eliminó y qué arrastra" },
+    { clave: "texto", etiqueta: "Qué es", valor: (f) => f.texto, celda: (f) => <span style={{ whiteSpace: "normal", fontWeight: 600 }}>{f.texto}</span>, ayuda: "Nombre del documento, cliente o expediente" },
+    { clave: "detalle", etiqueta: "Detalle", valor: (f) => f.detalle, celda: (f) => <span style={{ whiteSpace: "normal", fontSize: "0.82rem" }}>{f.detalle}</span>, ayuda: "Cuándo se eliminó o se subió y qué arrastra" },
+    { clave: "eliminado", etiqueta: "Eliminado el", valor: (f) => f.eliminadoEn ?? "", celda: (f) => (f.eliminadoEn ? new Date(f.eliminadoEn).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "—"), ayuda: "Cuándo se eliminó (los documentos sin vincular no se han eliminado: nunca se vincularon)" },
+    { clave: "documentos", etiqueta: "Docs", valor: (f) => f.documentos, celda: (f) => f.documentos.toLocaleString("es-ES"), alinear: "right", ayuda: "Cuántos documentos tiene" },
     { clave: "bytes", etiqueta: "Ocupa", valor: (f) => f.bytes, celda: (f) => tamano(f.bytes), alinear: "right", ayuda: "Lo que ocupa (con sus documentos, si los tiene)" },
     { clave: "bloqueo", etiqueta: "Estado", valor: (f) => f.bloqueo ?? "", celda: (f) => (f.bloqueo ? <span style={{ color: "var(--warning)", whiteSpace: "normal", fontSize: "0.8rem" }}>⏳ {f.bloqueo}</span> : <span style={{ color: "var(--text-muted)" }}>Se puede purgar</span>), ayuda: "Si algo impide purgarla ahora mismo" },
   ];
-  if (info.categoria === "documentos") {
+  if (conVista) {
+    columnas.push({
+      clave: "ver",
+      etiqueta: "Ver",
+      valor: () => "",
+      celda: (f) => (
+        <button type="button" className={`btn ${vista?.id === f.id ? "btn-primary" : "btn-secondary"}`} style={{ padding: "2px 10px", fontSize: "0.78rem" }} disabled={f.documentos === 0} onClick={() => setVista(vista?.id === f.id ? null : f)} title={f.documentos === 0 ? "No tiene documentos" : "Vista previa de sus documentos (PDF o fotos) sin descargarlos"}>
+          👁 Ver
+        </button>
+      ),
+      ayuda: "Vista previa de los documentos antes de decidir",
+    });
+  }
+  if (categoria === "documentos") {
     columnas.push({
       clave: "archivo",
       etiqueta: "Archivo",
@@ -87,11 +173,11 @@ function ModalFilas({ info, alCerrar, alPurgar }: { info: InfoCategoria; alCerra
 
   return (
     <Modal
-      titulo={`${ICONOS[info.categoria]} ${info.titulo}`}
-      ancho="1100px"
+      titulo={`${ICONOS[categoria]} ${titulo}${datos ? ` (${datos.total.toLocaleString("es-ES")})` : ""}`}
+      ancho="min(1600px, 96vw)"
       pie={
         <>
-          <a className={`btn btn-secondary${marcadas.length === 0 ? " disabled" : ""}`} aria-disabled={marcadas.length === 0} style={marcadas.length === 0 ? { pointerEvents: "none", opacity: 0.5 } : undefined} href={`/api/admin/papelera?categoria=${info.categoria}&descargar=1&ids=${marcadas.join(",")}`} title="Descarga en JSON lo que has elegido (sin los archivos de los documentos)">
+          <a className={`btn btn-secondary${marcadas.length === 0 ? " disabled" : ""}`} aria-disabled={marcadas.length === 0} style={marcadas.length === 0 ? { pointerEvents: "none", opacity: 0.5 } : undefined} href={`/api/admin/papelera?categoria=${categoria}&descargar=1&ids=${marcadas.join(",")}`} title="Descarga en JSON lo que has elegido (sin los archivos de los documentos)">
             📥 Descargar lo elegido ({marcadas.length})
           </a>
           <button type="button" className="btn btn-danger" disabled={marcadas.length === 0} onClick={() => alPurgar(marcadas)} title="Borra de verdad lo que has elegido">
@@ -103,8 +189,8 @@ function ModalFilas({ info, alCerrar, alPurgar }: { info: InfoCategoria; alCerra
         </>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "65vh", overflowY: "auto" }}>
-        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>{info.explicacion}</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "72vh", overflowY: "auto" }}>
+        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>{explicacion}</p>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMarcadas(purgables)} disabled={!datos}>
             Elegir todo lo que se puede purgar ({purgables.length})
@@ -113,10 +199,60 @@ function ModalFilas({ info, alCerrar, alPurgar }: { info: InfoCategoria; alCerra
             Quitar la elección
           </button>
         </div>
-        {!datos ? <p style={{ margin: 0, color: "var(--text-secondary)" }}>Cargando…</p> : <TablaDatos<FilaPapelera> id={`papelera-${info.categoria}`} columnas={columnas} filas={filas} clave={(f) => f.id} compacta ordenInicial={info.categoria === "historial" || info.categoria === "lecturas" || info.categoria === "auditoria" ? undefined : { clave: "bytes", asc: false }} placeholder="Buscar…" vacio="No hay nada." />}
-        {datos && datos.total > filas.length && <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>Se muestran {filas.length.toLocaleString("es-ES")} de {datos.total.toLocaleString("es-ES")}. «Purgar todo» de la categoría los alcanza todos.</p>}
+        <div style={{ display: "flex", gap: "14px", alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ flex: vista ? "1.2 1 520px" : "1 1 100%", minWidth: 0 }}>
+            {!datos ? <p style={{ margin: 0, color: "var(--text-secondary)" }}>Cargando…</p> : <TablaDatos<FilaPapelera> id={`papelera-${categoria}`} columnas={columnas} filas={filas} clave={(f) => f.id} compacta ordenInicial={categoria === "historial" || categoria === "lecturas" || categoria === "auditoria" ? undefined : { clave: "bytes", asc: false }} placeholder="Buscar…" vacio="No hay nada." />}
+            {datos && datos.total > filas.length && <p style={{ margin: "8px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>Se muestran {filas.length.toLocaleString("es-ES")} de {datos.total.toLocaleString("es-ES")}. «Purgar todo» de la categoría los alcanza todos.</p>}
+          </div>
+          {vista && (
+            <div style={{ flex: "1 1 460px", minWidth: 0, position: "sticky", top: 0 }}>
+              <PanelVista key={vista.id} categoria={categoria} fila={vista} alCerrar={() => setVista(null)} />
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Lista de una categoría con todo lo necesario para gestionarla: ver, previsualizar documentos, elegir, descargar y purgar con
+ * confirmación. Lo usan la Papelera y las tarjetas del análisis que hablan de documentos, clientes y expedientes eliminados.
+ */
+export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, alCerrar, alTerminar }: { categoria: Categoria; titulo: string; explicacion: string; alPurga?: string; motivo?: string; alCerrar: () => void; alTerminar: () => void }) {
+  const { mostrar } = useToast();
+  const [ids, setIds] = useState<string[] | null>(null);
+  const [trabajando, setTrabajando] = useState(false);
+  const purgar = async () => {
+    if (!ids) return;
+    setTrabajando(true);
+    try {
+      const { data } = await llamar<ResultadoPurga>("/api/admin/papelera", { method: "POST", cuerpo: { categoria, ids, confirmacion: "PURGAR" } });
+      mostrar(`✅ ${data.purgados.toLocaleString("es-ES")} purgados${data.bloqueados > 0 ? ` y ${data.bloqueados} que se han dejado porque algo los usa aún` : ""}. Copia previa: ${data.copiaPrevia ?? "—"}. Si quieres que el disco recupere el espacio, usa «Compactar base de datos» en la Papelera.`, data.purgados === 0 ? "aviso" : undefined, 12000);
+      setIds(null);
+      alTerminar();
+      alCerrar();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+  return (
+    <>
+      <ModalFilas categoria={categoria} titulo={titulo} explicacion={explicacion} motivo={motivo} alCerrar={alCerrar} alPurgar={setIds} />
+      {ids && (
+        <ModalConfirmarPurga
+          titulo={`🗑️ Purgar ${ids.length.toLocaleString("es-ES")} elegidos de «${titulo}»`}
+          texto={`Se borran de verdad y no se pueden recuperar salvo restaurando la copia previa. ${alPurga ?? TEXTOS_PURGA[categoria]}`}
+          palabra="PURGAR"
+          boton="Purgar de verdad"
+          trabajando={trabajando}
+          alConfirmar={() => void purgar()}
+          alCancelar={() => setIds(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -266,7 +402,7 @@ export default function PanelPapelera() {
         </div>
       </div>
 
-      {ver && <ModalFilas info={ver} alCerrar={() => setVer(null)} alPurgar={(ids) => setPurga({ info: ver, ids, dias: null })} />}
+      {ver && <GestorFilas categoria={ver.categoria} titulo={ver.titulo} explicacion={ver.explicacion} alPurga={ver.alPurgar} alCerrar={() => setVer(null)} alTerminar={refrescar} />}
       {purga && (
         <ModalConfirmarPurga
           titulo={`🗑️ Purgar «${purga.info.titulo}»`}

@@ -9,7 +9,10 @@ import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { AnalisisBbdd, CategoriaAnomalia, FilaAnomalia } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
 import PanelDatos from "./PanelDatos";
-import PanelPapelera from "./PanelPapelera";
+import PanelPapelera, { GestorFilas } from "./PanelPapelera";
+import { SubPestanas } from "./estructura";
+import { guardarPreferencia } from "@/lib/preferencias";
+import type { Categoria } from "@/lib/servicios/papelera";
 import PanelActualizar from "./PanelActualizar";
 import PanelMigracion from "./PanelMigracion";
 import PanelVaciar from "./PanelVaciar";
@@ -28,6 +31,8 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
   const [analizando, setAnalizando] = useState(false);
   const [limpiando, setLimpiando] = useState(false);
   const [analisis, setAnalisis] = useState<AnalisisBbdd | null>(null);
+  /** Las tarjetas que hablan de documentos, clientes y expedientes eliminados abren la lista completa de la Papelera (con vista previa). */
+  const [gestor, setGestor] = useState<{ categoria: Categoria; titulo: string; explicacion: string; motivo?: string } | null>(null);
   const [mostrarCsv, setMostrarCsv] = useState(mostrarBotonesCsvInicial);
   /** Se incrementa para que la lista de copias de seguridad se vuelva a leer (p. ej. tras crear la copia previa de un borrado). */
   const [versionCopias, setVersionCopias] = useState(0);
@@ -109,10 +114,21 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
         ) : null,
     },
   ];
+  const abrirCategoria = (c: CategoriaAnomalia) => {
+    const aGestor: Record<string, { categoria: Categoria; motivo?: string }> = {
+      lim_adjuntos: { categoria: "documentos", motivo: "sin_vincular" },
+      lim_adjuntos_eliminados: { categoria: "documentos", motivo: "eliminados" },
+      info_clientes_eliminados: { categoria: "clientes" },
+      info_expedientes_eliminados: { categoria: "expedientes" },
+    };
+    const g = aGestor[c.id];
+    if (g) setGestor({ ...g, titulo: c.titulo, explicacion: c.explicacion });
+    else setAbierta(c);
+  };
   const tarjetaCategoria = (c: CategoriaAnomalia) => {
     const color = c.cantidad === 0 ? "var(--text-muted)" : c.tipo === "limpiable" ? "var(--warning)" : "var(--info)";
     return (
-      <button key={c.id} type="button" onClick={() => c.cantidad > 0 && setAbierta(c)} disabled={c.cantidad === 0} title={c.cantidad > 0 ? "Ver cuáles son" : c.explicacion} style={{ ...tarjeta, textAlign: "left", cursor: c.cantidad > 0 ? "pointer" : "default", color: "inherit", font: "inherit" }}>
+      <button key={c.id} type="button" onClick={() => c.cantidad > 0 && abrirCategoria(c)} disabled={c.cantidad === 0} title={c.cantidad > 0 ? "Ver cuáles son" : c.explicacion} style={{ ...tarjeta, textAlign: "left", cursor: c.cantidad > 0 ? "pointer" : "default", color: "inherit", font: "inherit" }}>
         <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.02em" }}>{c.titulo}</div>
         <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color }}>{c.cantidad}</div>
         <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>{c.cantidad > 0 ? "Pulsa para ver cuáles" : "Todo en orden"}</div>
@@ -122,105 +138,125 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
 
   return (
     <div className="glass-panel" style={{ ...estiloPanel, padding: "32px" }}>
-      <PanelActualizar />
+      <SubPestanas
+        id="bbdd"
+        pestanas={[
+          { clave: "analisis", etiqueta: "🔍 Análisis y limpieza", ayuda: "Busca registros huérfanos y cosas a revisar en la base de datos", insignia: analisis ? analisis.stats.totalAnomalies + analisis.stats.totalARevisar : undefined },
+          { clave: "papelera", etiqueta: "🗑️ Papelera y purga", ayuda: "Todo lo eliminado que sigue guardado: verlo, descargarlo y purgarlo de verdad" },
+          { clave: "datos", etiqueta: "📦 Exportar e importar", ayuda: "Exportar, importar y guardar copias internas de cada sección de datos" },
+          { clave: "copias", etiqueta: "💾 Copias de seguridad", ayuda: "Copias completas .dump, descarga, restauración y Google Drive" },
+          { clave: "sistema", etiqueta: "⚙️ Sistema", ayuda: "Actualizar la aplicación y opciones de interfaz" },
+          { clave: "peligro", etiqueta: "🧨 Migración y borrado", ayuda: "Traer datos de la aplicación antigua o borrar todos los datos" },
+        ]}
+      >
+        {(pestana) => (
+          <>
+            {pestana === "analisis" && (
+              <>
+              <div>
+                <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🗄️ Análisis y limpieza de la base de datos</h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5" }}>
+                  Busca dos cosas: <b>registros huérfanos</b> que se pueden borrar sin riesgo (correos y teléfonos sin cliente, archivos subidos que nunca se vincularon…) y <b>cosas a revisar a mano</b> (expedientes sin cliente, bastidores o DNI repetidos, clientes sin expedientes…). Pulsa cualquier tarjeta para ver la lista.
+                  <br />
+                  <strong style={{ color: "var(--warning)" }}>Seguro:</strong> solo se borra lo de «Se puede limpiar», y antes se guarda una copia de seguridad completa que puedes restaurar. Lo de «A revisar» nunca se toca solo.
+                </p>
+              </div>
 
-      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+              <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-secondary" onClick={() => void analizar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px" }}>
+                  {analizando ? "Analizando..." : analisis ? "🔍 Analizar de nuevo" : "🔍 Analizar la base de datos"}
+                </button>
+                {analisis && analisis.stats.totalAnomalies > 0 && (
+                  <button type="button" className="btn btn-primary" onClick={() => void limpiar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "var(--warning)", borderColor: "var(--warning)" }}>
+                    {limpiando ? "Limpiando..." : `🧹 Limpiar los ${analisis.stats.totalAnomalies} huérfanos (con copia previa)`}
+                  </button>
+                )}
+              </div>
 
-      <div>
-        <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🗄️ Análisis y limpieza de la base de datos</h3>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5" }}>
-          Busca dos cosas: <b>registros huérfanos</b> que se pueden borrar sin riesgo (correos y teléfonos sin cliente, archivos subidos que nunca se vincularon…) y <b>cosas a revisar a mano</b> (expedientes sin cliente, bastidores o DNI repetidos, clientes sin expedientes…). Pulsa cualquier tarjeta para ver la lista.
-          <br />
-          <strong style={{ color: "var(--warning)" }}>Seguro:</strong> solo se borra lo de «Se puede limpiar», y antes se guarda una copia de seguridad completa que puedes restaurar. Lo de «A revisar» nunca se toca solo.
-        </p>
-      </div>
+              {analisis && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "8px" }}>
+                  <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>🧹 Se puede limpiar</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>{analisis.categorias.filter((c) => c.tipo === "limpiable").map(tarjetaCategoria)}</div>
+                  {analisis.stats.totalAnomalies === 0 ? (
+                    <div style={{ padding: "12px 16px", background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--success)", fontSize: "0.9rem", fontWeight: 600 }}>✅ No hay registros huérfanos que borrar.</div>
+                  ) : (
+                    <div style={{ padding: "12px 16px", background: "rgba(245, 158, 11, 0.06)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--warning)", fontSize: "0.9rem", fontWeight: 600 }}>
+                      ⚠️ Hay {analisis.stats.totalAnomalies} registros huérfanos que se pueden borrar de forma segura.
+                    </div>
+                  )}
+                  <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>🔎 A revisar a mano ({analisis.stats.totalARevisar})</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>{analisis.categorias.filter((c) => c.tipo === "revisar").map(tarjetaCategoria)}</div>
+                </div>
+              )}
 
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-secondary" onClick={() => void analizar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px" }}>
-          {analizando ? "Analizando..." : analisis ? "🔍 Analizar de nuevo" : "🔍 Analizar la base de datos"}
-        </button>
-        {analisis && analisis.stats.totalAnomalies > 0 && (
-          <button type="button" className="btn btn-primary" onClick={() => void limpiar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "var(--warning)", borderColor: "var(--warning)" }}>
-            {limpiando ? "Limpiando..." : `🧹 Limpiar los ${analisis.stats.totalAnomalies} huérfanos (con copia previa)`}
-          </button>
-        )}
-      </div>
-
-      {analisis && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "8px" }}>
-          <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>🧹 Se puede limpiar</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>{analisis.categorias.filter((c) => c.tipo === "limpiable").map(tarjetaCategoria)}</div>
-          {analisis.stats.totalAnomalies === 0 ? (
-            <div style={{ padding: "12px 16px", background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--success)", fontSize: "0.9rem", fontWeight: 600 }}>✅ No hay registros huérfanos que borrar.</div>
-          ) : (
-            <div style={{ padding: "12px 16px", background: "rgba(245, 158, 11, 0.06)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "var(--radius-sm)", color: "var(--warning)", fontSize: "0.9rem", fontWeight: 600 }}>
-              ⚠️ Hay {analisis.stats.totalAnomalies} registros huérfanos que se pueden borrar de forma segura.
-            </div>
-          )}
-          <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>🔎 A revisar a mano ({analisis.stats.totalARevisar})</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>{analisis.categorias.filter((c) => c.tipo === "revisar").map(tarjetaCategoria)}</div>
-        </div>
-      )}
-
+              {gestor && <GestorFilas categoria={gestor.categoria} titulo={gestor.titulo} explicacion={gestor.explicacion} motivo={gestor.motivo} alCerrar={() => setGestor(null)} alTerminar={() => void analizar()} />}
       {abierta && (
-        <Modal
-          titulo={`${abierta.titulo} (${abierta.cantidad})`}
-          ancho="900px"
-          pie={
-            <button type="button" className="btn btn-secondary" onClick={() => setAbierta(null)}>
-              Cerrar
-            </button>
-          }
-        >
-          <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.88rem", lineHeight: 1.5 }}>
-            {abierta.explicacion}
-            {abierta.cantidad > abierta.filas.length ? ` Se muestran las primeras ${abierta.filas.length}.` : ""}
-          </p>
-          <TablaDatos<FilaAnomalia> id={`bbdd-${abierta.id}`} columnas={columnasAnomalia} filas={abierta.filas} clave={(f) => `${abierta.id}-${f.id}-${f.detalle}`} placeholder="Buscar…" />
-        </Modal>
-      )}
-
-      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
-
-      <PanelPapelera />
-
-      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
-
-      <PanelDatos />
-
-      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
-
-      <div id="copias-de-seguridad">
-        <PanelCopias key={versionCopias} />
-      </div>
-
-      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
-
-      <PanelMigracion alTerminar={() => setVersionCopias((n) => n + 1)} />
-
-      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
-
-      <PanelVaciar alTerminar={() => setVersionCopias((n) => n + 1)} />
-
-      <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
-
-      <div>
-        <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>⚙️ Opciones de Interfaz y Seguridad</h3>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5", marginBottom: "16px" }}>
-          Ajusta la visibilidad de elementos clave del sistema. Los cambios se guardan directamente en la base de datos.
-        </p>
-        <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", backgroundColor: "rgba(255, 255, 255, 0.01)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <input type="checkbox" id="toggleCSVButtonsCheckbox" checked={mostrarCsv} onChange={(e) => void alternarCsv(e.target.checked)} style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--primary)" }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              <label htmlFor="toggleCSVButtonsCheckbox" style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer" }}>
-                Mostrar botones de Exportar todo (CSV) e Importar CSV
-              </label>
-              <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Si se desmarca, los botones de CSV en la pestaña de expedientes se ocultarán para todos los usuarios.</span>
-            </div>
-          </div>
-        </div>
-      </div>
+                <Modal
+                  titulo={`${abierta.titulo} (${abierta.cantidad})`}
+                  ancho="900px"
+                  pie={
+                    <button type="button" className="btn btn-secondary" onClick={() => setAbierta(null)}>
+                      Cerrar
+                    </button>
+                  }
+                >
+                  <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.88rem", lineHeight: 1.5 }}>
+                    {abierta.explicacion}
+                    {abierta.cantidad > abierta.filas.length ? ` Se muestran las primeras ${abierta.filas.length}.` : ""}
+                  </p>
+                  <TablaDatos<FilaAnomalia> id={`bbdd-${abierta.id}`} columnas={columnasAnomalia} filas={abierta.filas} clave={(f) => `${abierta.id}-${f.id}-${f.detalle}`} placeholder="Buscar…" />
+                </Modal>
+              )}
+              </>
+            )}
+            {pestana === "papelera" && (
+              <>
+              <PanelPapelera />
+              </>
+            )}
+            {pestana === "datos" && (
+              <>
+              <PanelDatos alIrACopias={() => guardarPreferencia("subpestana-bbdd", "copias")} />
+              </>
+            )}
+            {pestana === "copias" && (
+              <>
+              <div id="copias-de-seguridad">
+                <PanelCopias key={versionCopias} />
+              </div>
+              </>
+            )}
+            {pestana === "sistema" && (
+              <>
+              <PanelActualizar />
+              <div>
+                <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>⚙️ Opciones de Interfaz y Seguridad</h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5", marginBottom: "16px" }}>
+                  Ajusta la visibilidad de elementos clave del sistema. Los cambios se guardan directamente en la base de datos.
+                </p>
+                <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", backgroundColor: "rgba(255, 255, 255, 0.01)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <input type="checkbox" id="toggleCSVButtonsCheckbox" checked={mostrarCsv} onChange={(e) => void alternarCsv(e.target.checked)} style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "var(--primary)" }} />
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                      <label htmlFor="toggleCSVButtonsCheckbox" style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer" }}>
+                        Mostrar botones de Exportar todo (CSV) e Importar CSV
+                      </label>
+                      <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Si se desmarca, los botones de CSV en la pestaña de expedientes se ocultarán para todos los usuarios.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </>
+            )}
+            {pestana === "peligro" && (
+              <>
+              <PanelMigracion alTerminar={() => setVersionCopias((n) => n + 1)} />
+              <PanelVaciar alTerminar={() => setVersionCopias((n) => n + 1)} />
+              </>
+            )}
+          </>
+        )}
+      </SubPestanas>
     </div>
   );
 }
