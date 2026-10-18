@@ -59,7 +59,7 @@ const LIMITE_FILAS = 300;
 /**
  * Analiza la base de datos y devuelve dos clases de hallazgos:
  * - **Limpiables** (se pueden borrar sin riesgo): correos y teléfonos sin cliente, relaciones usuario-tienda sin usuario o tienda,
- *   registros de importación sin su bloque y archivos adjuntos subidos hace más de dos días que nunca se vincularon.
+ *   registros de importación sin su bloque y archivos adjuntos subidos que nunca se vincularon (de cualquier antigüedad).
  * - **A revisar** (solo se muestran; lo decides tú): expedientes sin cliente, vendedor, modelo o forma de pago, bastidores o
  *   matrículas repetidos, clientes sin expedientes o con el mismo DNI, expedientes que usan un modelo, estado o forma de pago
  *   eliminados, entregas anteriores al pedido, líneas de liquidación de expedientes que ya no existen y pedidos leídos con error.
@@ -79,7 +79,7 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
   const telefonos = await filasDe<{ id: number; telefono: string }>(sql`select t.id_telefono_cliente as id, t.telefono from telefonos_clientes t left join clientes c on c.id = t.id_cliente where c.id is null`);
   const userTiendas = await filasDe<{ id: number }>(sql`select ut.id_usuario_tienda as id from usuarios_tiendas ut left join usuarios u on u.id_usuario = ut.id_usuario left join tiendas t on t.id_tienda = ut.id_tienda where u.id_usuario is null or t.id_tienda is null`);
   const registros = await filasDe<{ id: number }>(sql`select r.id from importaciones_registros r left join importaciones_bloques b on b.id = r.bloque_id where b.id is null`);
-  const adjuntosViejos = await filasDe<{ id: number; nombre: string }>(sql`select id, nombre from adjuntos where ambito = 'pendiente' and eliminado_en is null and creado_en < now() - interval '2 days'`);
+  const adjuntosViejos = await filasDe<{ id: number; nombre: string }>(sql`select id, nombre from adjuntos where ambito = 'pendiente' and eliminado_en is null`);
   // Documentos que siguen guardados aunque su expediente o su cliente se eliminó (el borrado de la aplicación es lógico: no quita los archivos)
   const adjuntosDeEliminados = await filasDe<{ id: number; nombre: string; tamano: string; motivo: string }>(
     sql`select a.id, a.nombre, a.tamano::bigint as tamano,
@@ -89,7 +89,7 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
       order by a.tamano desc`,
   );
   const bytesAdjuntosEliminados = adjuntosDeEliminados.reduce((t, a) => t + Number(a.tamano), 0);
-  const [{ bytes: bytesSinVincular }] = await filasDe<{ bytes: string }>(sql`select coalesce(sum(tamano), 0)::bigint as bytes from adjuntos where ambito = 'pendiente' and eliminado_en is null and creado_en < now() - interval '2 days'`);
+  const [{ bytes: bytesSinVincular }] = await filasDe<{ bytes: string }>(sql`select coalesce(sum(tamano), 0)::bigint as bytes from adjuntos where ambito = 'pendiente' and eliminado_en is null`);
   const mb = (b: number) => (b >= 1048576 ? `${(b / 1048576).toLocaleString("es-ES", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024)).toLocaleString("es-ES")} KB`);
   const eliminados = await filasDe<{ tabla: string; n: number }>(sql`select 'clientes' as tabla, count(*)::int as n from clientes where eliminado_en is not null union all select 'expedientes', count(*)::int from expedientes where eliminado_en is not null`);
   const nEliminados = (t: string) => eliminados.find((x) => x.tabla === t)?.n ?? 0;
@@ -110,7 +110,7 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
     { id: "lim_telefonos", titulo: "Teléfonos de clientes sin cliente", explicacion: "Teléfonos de un cliente que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: telefonos.length, filas: telefonos.slice(0, LIMITE_FILAS).map((t) => ({ id: t.id, texto: t.telefono, detalle: "No hay ningún cliente con este teléfono" })) },
     { id: "lim_usuarios_tiendas", titulo: "Relaciones usuario-tienda obsoletas", explicacion: "Una tienda asignada a un usuario o tienda que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: userTiendas.length, filas: userTiendas.slice(0, LIMITE_FILAS).map((u) => ({ id: u.id, texto: `Relación #${u.id}`, detalle: "El usuario o la tienda ya no existe" })) },
     { id: "lim_importaciones", titulo: "Registros de importación sin su importación", explicacion: "Líneas del log de importaciones cuya importación ya no está. Se pueden borrar.", tipo: "limpiable", cantidad: registros.length, filas: registros.slice(0, LIMITE_FILAS).map((r) => ({ id: r.id, texto: `Registro #${r.id}`, detalle: "No pertenece a ninguna importación" })) },
-    { id: "lim_adjuntos", titulo: "Archivos subidos que nunca se vincularon", explicacion: `PDF o fotos subidos hace más de dos días que no se asociaron a ningún cliente o expediente (por ejemplo, de un pedido leído y cancelado). Ocupan ${mb(Number(bytesSinVincular))}. Se pueden borrar.`, tipo: "limpiable", cantidad: adjuntosViejos.length, filas: adjuntosViejos.slice(0, LIMITE_FILAS).map((a) => ({ id: a.id, texto: a.nombre, detalle: "Subido hace más de dos días y sin vincular" })) },
+    { id: "lim_adjuntos", titulo: "Archivos subidos que nunca se vincularon", explicacion: `PDF o fotos subidos que no se asociaron a ningún cliente o expediente (por ejemplo, de un pedido leído y cancelado), sean de hace un rato o de hace meses. Si alguno sigue en tu cola de pedidos, ese pedido ya no se podrá usar. Ocupan ${mb(Number(bytesSinVincular))}. Se pueden borrar.`, tipo: "limpiable", cantidad: adjuntosViejos.length, filas: adjuntosViejos.slice(0, LIMITE_FILAS).map((a) => ({ id: a.id, texto: a.nombre, detalle: "Subido y sin vincular a nada" })) },
 
     await cat(
       { id: "exp_sin_cliente", titulo: "Expedientes sin cliente", explicacion: "Expedientes activos que no tienen ningún cliente asociado.", tipo: "revisar" },
@@ -257,8 +257,8 @@ export async function limpiarBbdd(ej: Ejecutor, entrada: z.infer<typeof esquemaL
       total += (await tx.delete(importacionesRegistros).where(inArray(importacionesRegistros.id, entrada.cleanImportRegistros)).returning({ id: importacionesRegistros.id })).length;
     }
     if (entrada.cleanAdjuntos.length > 0) {
-      // Solo los que siguen sin vincular y tienen más de dos días: nunca un adjunto de un expediente o cliente
-      const r = await tx.execute(sql`delete from adjuntos where id in (${sql.join(entrada.cleanAdjuntos.map((i) => sql`${i}`), sql`, `)}) and ambito = 'pendiente' and creado_en < now() - interval '2 days' returning id`);
+      // Solo los que siguen sin vincular: nunca un adjunto de un expediente o cliente
+      const r = await tx.execute(sql`delete from adjuntos where id in (${sql.join(entrada.cleanAdjuntos.map((i) => sql`${i}`), sql`, `)}) and ambito = 'pendiente' returning id`);
       total += r.rows.length;
     }
     if (entrada.cleanAdjuntosEliminados.length > 0) {

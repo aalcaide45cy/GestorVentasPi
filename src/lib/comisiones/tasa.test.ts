@@ -126,12 +126,13 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
     Array.from({ length: 10 }, (_, i) => coche(100 + i, i < financiados ? { categoriaVenta: "CREDITO", fechaRci: "2026-06-05", ...extra } : { categoriaVenta: "CONTADO" }));
   const plan65 = () => plan({ tasaGlobal: { tipoTasa: "porcentaje", objetivo: 65 } });
 
-  it("una financiación contratada en el mes suma aunque el coche se matricule otro mes (6/10 = 60 % → 7/10 = 70 %)", () => {
+  it("una financiación adelantada (coche que se matricula otro mes) suma a la tasa de su marca pero NO a la global: poner la fecha no la mueve (6/10 = 60 %)", () => {
     const sin = calcularMes(plan65(), V, "2026-06", diez(6));
     expect(sin.tasaGlobal).toMatchObject({ numerador: 6, denominador: 10, cumplida: false });
     const adelantada = coche(200, { categoriaVenta: "CREDITO", fechaRci: "2026-06-20", fechaMatriculacion: "2026-07-03" });
     const con = calcularMes(plan65(), V, "2026-06", [...diez(6), adelantada]);
-    expect(con.tasaGlobal).toMatchObject({ numerador: 7, denominador: 10, porcentaje: 70, cumplida: true });
+    expect(con.tasaGlobal).toMatchObject({ numerador: 6, denominador: 10, porcentaje: 60, cumplida: false });
+    expect(con.tasaIntervencion[0]).toMatchObject({ numerador: 7, denominador: 10 });
   });
 
   it("al mes siguiente, el coche con la financiación del mes anterior cuenta en el denominador pero no en el numerador (9/10)", () => {
@@ -273,13 +274,13 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
       expect(marcaDe(soloNuevos, 3)).toMatchObject({ numerador: 3, denominador: 3, porcentaje: 100 });
     });
 
-    it("hoja 2: con financiaciones contratadas sin que el coche cuente, la tasa pasa del 100 %: Renault 3/2 = 150 %, Dacia 6/5 = 120 %, global 9/7 = 128,57 %", () => {
+    it("hoja 2: con financiaciones contratadas sin que el coche cuente, la tasa de cada marca pasa del 100 % (Renault 3/2 = 150 %, Dacia 6/5 = 120 %) pero la global no se mueve (7/7)", () => {
       const adelantada = (id: number, idMarca: number) => fin(id, idMarca, { fechaMatriculacion: "2026-07-05" });
       const e = [fin(1, 2), fin(2, 2), adelantada(3, 2), fin(4, 3), fin(5, 3), fin(6, 3), fin(7, 3), fin(8, 3), adelantada(9, 3)];
       const r = calcularMes(plan(), V, "2026-06", e);
       expect(marcaDe(r, 2)).toMatchObject({ numerador: 3, denominador: 2, porcentaje: 150 });
       expect(marcaDe(r, 3)).toMatchObject({ numerador: 6, denominador: 5, porcentaje: 120 });
-      expect(r.tasaGlobal).toMatchObject({ numerador: 9, denominador: 7, porcentaje: 128.57, cumplida: true });
+      expect(r.tasaGlobal).toMatchObject({ numerador: 7, denominador: 7, porcentaje: 100, cumplida: true });
     });
   });
 

@@ -293,7 +293,7 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 ## Tarjeta del mes anterior con marco punteado, etiqueta «sin fecha» y descartar pedidos libera documentos (v1.0.19)
 - La tarjeta «Mes anterior» lleva el mismo marco amarillo punteado que la del mes elegido cuando no es el actual.
 - La nota bajo la tasa distingue las financiaciones adelantadas que suman («6 + 1 adelantada», coche con fecha en otro mes) de las «sin fecha» (coche sin facturación ni matriculación: no suma a la global, solo a su marca). Antes mostraba «5 + 1» con 6 de 7.
-- **[P] Pendiente de confirmar con el propietario:** una financiación adelantada de un coche CON fecha en otro mes (p. ej. RCI en septiembre y matriculación en octubre) suma a la global de septiembre, como en la «hoja 2» de la empresa (global 9/7 = 128,57 %). El propietario pide que poner la fecha no cambie la global; contradice esa hoja, así que se deja como está hasta que lo confirme.
+- **Decidido por el propietario:** una financiación adelantada (coche con o sin fecha en otro mes) NO suma a la tasa global ni a la de usados, solo a la de su marca, para que poner la fecha del coche no mueva la global. Contradice la «hoja 2» de la empresa en la global (9/7 = 128,57 %), que ahora da 7/7; las marcas siguen dando 150 % y 120 %.
 - Descartar un pedido de la cola, o vaciar la cola, marca como eliminados sus documentos (antes quedaban «sin vincular» dos días). Los documentos eliminados (también los que estaban sin vincular) entran en la limpieza «Documentos de expedientes o clientes eliminados».
 
 ## Papelera y purga (control total de lo eliminado) (v1.0.19)
@@ -301,3 +301,6 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - Purgar expedientes borra también sus documentos, sus marcas de pagado/reclamado y las entradas del diario de deshacer que guardan sus datos. Las liquidaciones, sus líneas y el libro de puntos NO se tocan (la base los protege con disparadores: son el histórico de lo cobrado); quien quiera borrarlo todo tiene «Borrar todos los datos». Un cliente solo se purga si ya no le quedan expedientes; un elemento de catálogo, si ningún expediente ni plan lo usa (la fila dice por qué no).
 - Las purgas se hacen sin anotar en el diario de deshacer (`app.hist_grupo` vacío) para no guardar otra copia de lo borrado.
 - «Compactar base de datos» (VACUUM FULL de las tablas que más pesan): al borrar filas PostgreSQL deja el hueco reservado y la base (261 MB en disco) no encoge sola aunque la copia de seguridad pese menos.
+
+## Archivos sin vincular: limpiables de cualquier antigüedad (v1.0.19)
+- La limpieza «Archivos subidos que nunca se vincularon» ya no espera dos días: el propietario quiere poder borrarlos siempre (con copia previa y confirmación). Si alguno sigue en la cola de pedidos, ese pedido ya no se podrá usar. La Papelera ya los incluía sin plazo.

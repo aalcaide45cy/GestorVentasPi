@@ -87,7 +87,7 @@ describe("mantenimiento de la base de datos", () => {
     expect(await listarExpedientes(db)).toHaveLength(1);
   });
 
-  it("avisa de lo que hay que revisar a mano (sin tocarlo) y limpia solo los adjuntos sueltos de más de dos días", async () => {
+  it("avisa de lo que hay que revisar a mano (sin tocarlo) y limpia los adjuntos sueltos de cualquier antigüedad", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana", dni: "12345678Z" }, expediente: { vin: "VF1ABC", matricula: "1234BCD" } }));
     await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana Dos" }, expediente: { vin: "vf1 abc", matricula: "9999ZZZ" } }));
@@ -102,12 +102,12 @@ describe("mantenimiento de la base de datos", () => {
     expect(cat("cli_dni_repetido").cantidad).toBe(2);
     expect(cat("cli_sin_expedientes").filas.map((f) => f.texto).join()).toMatch(/Sin Compras/);
     expect(cat("exp_sin_modelo").cantidad).toBe(2);
-    // Lo limpiable es solo el adjunto viejo; lo «a revisar» no cuenta como limpieza
-    expect(a.stats.totalAnomalies).toBe(1);
+    // Lo limpiable son los dos adjuntos sin vincular (el viejo y el reciente); lo «a revisar» no cuenta como limpieza
+    expect(a.stats.totalAnomalies).toBe(2);
     expect(a.stats.totalARevisar).toBeGreaterThan(0);
 
-    expect(await limpiarBbdd(db, esquemaLimpieza.parse({ cleanAdjuntos: [suelto.id, reciente.id] }))).toBe(1);
-    expect((await db.select().from(adjuntos)).map((x) => x.nombre)).toEqual(["reciente.pdf"]);
+    expect(await limpiarBbdd(db, esquemaLimpieza.parse({ cleanAdjuntos: [suelto.id, reciente.id] }))).toBe(2);
+    expect(await db.select().from(adjuntos)).toHaveLength(0);
     expect(await listarExpedientes(db)).toHaveLength(2);
   });
 

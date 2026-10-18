@@ -39,12 +39,12 @@ const VO_SIN_ESCALA: Centimos = 15000;
 
 /**
  * ¿Suma este coche al numerador de la tasa global (o de usados) del mes? Su RCI cae en el mes, es una venta financiada y el coche cuenta
- * en algún mes (puede ser otro: la financiación adelantada suma en el mes de su RCI, como en la hoja 2 de la empresa). Uno sin fecha de
- * facturación ni de matriculación no cuenta en ninguno: su financiación se anota como «adelantada» y suma a la tasa de su marca, pero no
- * a la global ni a la de usados (así sale 6 de 7 = 85,71 % como en la hoja de la empresa).
+ * ESE MISMO mes. Una financiación adelantada (coche que cuenta en otro mes, o en ninguno todavía) NO suma a la global ni a la de usados, para
+ * que poner o cambiar la fecha de matriculación de ese coche no mueva la tasa global del mes en que se contrató (decisión del propietario).
+ * Sí suma a la tasa de su marca.
  */
 function financiaEnElMes(i: { e: ExpedienteMotor; mesComputo: Mes | null }, mes: Mes): boolean {
-  return i.mesComputo !== null && mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e);
+  return i.mesComputo === mes && mesDe(i.e.fechaRci) === mes && esFinanciadoParaTasa(i.e);
 }
 
 interface Info {

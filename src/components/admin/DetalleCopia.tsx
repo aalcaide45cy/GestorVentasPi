@@ -124,7 +124,7 @@ export default function ModalDetalleCopia({ copia, alCerrar }: { copia: CopiaDto
                 </p>
                 {nSinVincular > 0 && sinVincular * 5 >= totalDocumentos && (
                   <div role="note" style={{ padding: "10px 14px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.85rem" }}>
-                    ⚠️ <b>{nSinVincular.toLocaleString("es-ES")}</b> documentos ({tamano(sinVincular)}, el {porcentaje(sinVincular, totalDocumentos)} de los documentos) se leyeron pero no se asociaron a ningún expediente ni cliente, y siguen guardados. Si ya no los necesitas, en Configuración › BBDD, «Analizar base de datos» te deja limpiar los de más de dos días; así las copias pesan mucho menos.
+                    ⚠️ <b>{nSinVincular.toLocaleString("es-ES")}</b> documentos ({tamano(sinVincular)}, el {porcentaje(sinVincular, totalDocumentos)} de los documentos) se leyeron pero no se asociaron a ningún expediente ni cliente, y siguen guardados. Si ya no los necesitas, en Configuración › BBDD, «Analizar base de datos» (o la Papelera) te deja borrarlos; así las copias pesan mucho menos.
                   </div>
                 )}
                 <TablaDatos<DetalleCopia["documentosAhora"][number]>
