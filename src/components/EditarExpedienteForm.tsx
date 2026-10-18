@@ -14,7 +14,7 @@ import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import NombreConFoto from "./documentos/FotoCliente";
 import { mensajeDeError } from "./expedientes/comun";
 import ModalPedidoEnExpediente, { type CambiosDelPedido } from "./expedientes/ModalPedidoEnExpediente";
-import type { ResultadoPedido } from "@/lib/servicios/documentos";
+import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 
@@ -203,6 +203,16 @@ function FormularioEditarExpediente({
 
   /* ---- Pedido leído: vista previa en un modal y, al aplicar, se rellena el formulario ---- */
   const [pedidoLeido, setPedidoLeido] = useState<ResultadoPedido | null>(null);
+  // DNI leído (cara y datos): junta lo que dan el anverso y el reverso, por si se sueltan por separado
+  const [dniLeido, setDniLeido] = useState<ResultadoDni | null>(null);
+  const juntarDni = (r: ResultadoDni) =>
+    setDniLeido((previo) =>
+      previo
+        ? { ...r, datos: { ...r.datos, dni: r.datos.dni ?? previo.datos.dni, nombre: r.datos.nombre ?? previo.datos.nombre, apellidos: r.datos.apellidos ?? previo.datos.apellidos, nombreCompleto: r.datos.nombreCompleto ?? previo.datos.nombreCompleto, fechaNacimiento: r.datos.fechaNacimiento ?? previo.datos.fechaNacimiento }, fotoId: r.fotoId ?? previo.fotoId }
+        : r,
+    );
+  // «Aplicar» en el modal del pedido guarda el expediente con su cliente: se envía el formulario cuando ya tiene los datos nuevos
+  const formularioRef = useRef<HTMLFormElement>(null);
   const etiquetaModelo = (id: number | ""): string => {
     if (id === "") return "";
     for (const [idMarca, lista] of Object.entries(modelosPorMarca)) {
@@ -226,6 +236,7 @@ function FormularioEditarExpediente({
     if (c.fEntrega) setFEntrega(c.fEntrega);
     if (c.fMat) setFMat(c.fMat);
     const dc = c.datosCliente;
+    if (dc.fechaNacimiento && c.cliente.modo !== "existente") setFechaNacimiento(dc.fechaNacimiento);
     const conPrincipal = (lista: ContactoEdicion[], valor: string): ContactoEdicion[] => {
       const rellenos = lista.filter((x) => x.valor.trim() !== "");
       if (rellenos.some((x) => x.valor.trim().toLowerCase() === valor.trim().toLowerCase())) return lista;
@@ -257,7 +268,7 @@ function FormularioEditarExpediente({
       mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.", "error");
     }
     setPedidoLeido(null);
-    mostrar("Pedido aplicado: revisa los datos y pulsa «Guardar Cambios».");
+    setTimeout(() => formularioRef.current?.requestSubmit(), 150);
   };
 
   const desasignar = () => {
@@ -399,6 +410,7 @@ function FormularioEditarExpediente({
       router.refresh();
     }
   };
+
 
   /* ---- Salida con cambios sin guardar ---- */
   const navegar = (url: string) => {
@@ -590,7 +602,7 @@ function FormularioEditarExpediente({
           </button>
         </div>
       )}
-      <form onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <form ref={formularioRef} onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {aviso && (
           <div className="glass-panel" style={{ padding: "16px 20px", backgroundColor: "rgba(16, 185, 129, 0.1)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontWeight: 600, fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -677,10 +689,11 @@ function FormularioEditarExpediente({
                   } catch (e) {
                     mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
                   }
+                  juntarDni(r);
                   mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
                 }}
               />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI para guardarlo y tomar la foto del cliente (los datos se escriben a mano).</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI para guardarlo y tomar la foto del cliente. Se lee a la vez que el pedido y sus datos (nombre, DNI, fecha de nacimiento) se te ofrecen en la ventana del pedido.</span>
             </div>
 
             <div className="rejilla-ficha">
@@ -722,9 +735,20 @@ function FormularioEditarExpediente({
               {pedidoLeido && (
                 <ModalPedidoEnExpediente
                   pedido={pedidoLeido}
-                  actuales={{ idModelo: modelo, modelo: etiquetaModelo(modelo), idTipoVenta: tipoVenta, tipoVenta: tiposVenta.find((t) => t.id === Number(tipoVenta))?.nombre ?? "", vin, matricula, fExp, fEntrega, fMat, idCliente: asignado ? asignado.id : null, dni, nombre, telefono: telefonos.find((t) => t.valor.trim() !== "")?.valor ?? "", email: emails.find((m) => m.valor.trim() !== "")?.valor ?? "" }}
+                  actuales={{ idModelo: modelo, modelo: etiquetaModelo(modelo), idTipoVenta: tipoVenta, tipoVenta: tiposVenta.find((t) => t.id === Number(tipoVenta))?.nombre ?? "", vin, matricula, fExp, fEntrega, fMat, idCliente: asignado ? asignado.id : null, dni, nombre, fNac: fechaNacimiento, telefono: telefonos.find((t) => t.valor.trim() !== "")?.valor ?? "", email: emails.find((m) => m.valor.trim() !== "")?.valor ?? "" }}
                   opcionesModelo={Object.entries(modelosPorMarca).flatMap(([idMarca, lista]) => lista.map((m) => ({ id: m.id, etiqueta: `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim() })))}
                   opcionesTipoVenta={tiposVenta.map((t) => ({ id: t.id, etiqueta: t.nombre }))}
+                  dni={dniLeido}
+                  alLeerDni={async (r) => {
+                    try {
+                      await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+                      setVersionAdjuntos((v) => v + 1);
+                      if (r.fotoId) setFotoNueva(r.fotoId);
+                    } catch (e) {
+                      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
+                    }
+                    juntarDni(r);
+                  }}
                   alAplicar={(c) => aplicarPedido(c, pedidoLeido)}
                   alCancelar={() => setPedidoLeido(null)}
                 />

@@ -4,8 +4,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
+import { BotonLeerDni } from "../documentos/BotonLeerDocumento";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
-import type { ResultadoPedido } from "@/lib/servicios/documentos";
+import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import VisorPedido from "../documentos/VisorPedido";
 
 /** Lo que el formulario del expediente tiene ahora, para compararlo con el pedido. */
@@ -23,6 +24,8 @@ export interface ValoresActuales {
   idCliente: number | null;
   dni: string;
   nombre: string;
+  /** Fecha de nacimiento del cliente en el formulario (AAAA-MM-DD). */
+  fNac: string;
   telefono: string;
   email: string;
 }
@@ -45,10 +48,10 @@ export interface CambiosDelPedido {
   fMat?: string;
   cliente: EleccionCliente;
   /** Con «mantener»: los datos que se añaden al cliente actual. Con «nuevo»: todos los del cliente nuevo. */
-  datosCliente: { dni?: string; nombre?: string; telefono?: string; email?: string };
+  datosCliente: { dni?: string; nombre?: string; telefono?: string; email?: string; fechaNacimiento?: string };
 }
 
-type Clave = "modelo" | "tipoVenta" | "vin" | "matricula" | "fExp" | "fEntrega" | "fMat" | "dni" | "nombre" | "telefono" | "email";
+type Clave = "modelo" | "tipoVenta" | "vin" | "matricula" | "fExp" | "fEntrega" | "fMat" | "dni" | "nombre" | "fNac" | "telefono" | "email";
 type Tipo = "seleccion" | "texto" | "fecha";
 
 interface Fila {
@@ -58,6 +61,8 @@ interface Fila {
   actual: string;
   /** Lo que propone el pedido, ya con las correcciones del usuario. */
   pedido: string;
+  /** Valor alternativo (del pedido o del DNI) que se puede elegir con un botón. */
+  alternativas?: { origen: string; valor: string }[];
   opciones?: OpcionCatalogo[];
   seleccionado?: number | null;
   /** Aviso cuando el pedido trae algo que no se reconoce (por ejemplo, un modelo que no está en el catálogo). */
@@ -69,25 +74,39 @@ interface Props {
   actuales: ValoresActuales;
   opcionesModelo: OpcionCatalogo[];
   opcionesTipoVenta: OpcionCatalogo[];
+  /** DNI leído (cara y datos) mientras se lee el pedido o con el modal abierto; null si aún no hay. */
+  dni: ResultadoDni | null;
+  /** Se llama con cada DNI que se lee desde este modal (el formulario guarda el documento y la foto). */
+  alLeerDni: (r: ResultadoDni) => void | Promise<void>;
   alAplicar: (cambios: CambiosDelPedido) => Promise<void>;
   alCancelar: () => void;
 }
 
 const norm = (t: string) => t.replace(/\s+/g, "").toUpperCase();
 
+/** Si el pedido y el DNI dicen cosas distintas, las dos opciones para elegir con un botón. */
+function alternativas(delPedido: string | null | undefined, delDni: string | null | undefined): { origen: string; valor: string }[] | undefined {
+  if (!delPedido || !delDni || norm(delPedido) === norm(delDni)) return undefined;
+  return [
+    { origen: "Pedido", valor: delPedido },
+    { origen: "DNI", valor: delDni },
+  ];
+}
+
 /**
  * Pedido leído en «Editar expediente»: vista previa de todos los datos que trae (vehículo, venta y cliente) frente a los del expediente,
  * con una casilla para cada uno. Todo lo que propone el pedido se puede **corregir a mano** antes de aplicarlo, por si la lectura se ha
  * equivocado. Al aplicar se rellena el formulario; el expediente se guarda después con «Guardar Cambios».
  */
-export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesModelo, opcionesTipoVenta, alAplicar, alCancelar }: Props) {
+export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesModelo, opcionesTipoVenta, dni, alLeerDni, alAplicar, alCancelar }: Props) {
   const { mostrar } = useToast();
   const d = pedido.datos;
   const [verPdf, setVerPdf] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
 
   // Valores del pedido que se pueden corregir
-  const [texto, setTexto] = useState<Record<string, string>>({ vin: d.vin ?? "", matricula: d.matricula ?? "", fExp: d.fechaExpediente ?? "", fEntrega: d.fechaEntrega ?? "", fMat: d.fechaMatriculacion ?? "", dni: d.dni ?? "", nombre: d.cliente ?? "", telefono: d.telefono ?? "", email: d.email ?? "" });
+  // El DNI, si se ha leído, manda sobre el pedido para el DNI, el nombre y la fecha de nacimiento (se puede cambiar con los botones)
+  const [texto, setTexto] = useState<Record<string, string>>({ vin: d.vin ?? "", matricula: d.matricula ?? "", fExp: d.fechaExpediente ?? "", fEntrega: d.fechaEntrega ?? "", fMat: d.fechaMatriculacion ?? "", dni: dni?.datos.dni ?? d.dni ?? "", nombre: dni?.datos.nombreCompleto ?? d.cliente ?? "", fNac: dni?.datos.fechaNacimiento ?? "", telefono: d.telefono ?? "", email: d.email ?? "" });
   const [idModeloSel, setIdModeloSel] = useState<number | null>(d.idModelo);
   const [idTipoSel, setIdTipoSel] = useState<number | null>(d.idTipoDeVenta);
   const etiqueta = (lista: OpcionCatalogo[], id: number | null) => lista.find((o) => o.id === id)?.etiqueta ?? "";
@@ -102,8 +121,9 @@ export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesMode
     { clave: "fMat", etiqueta: "Fecha de matriculación", tipo: "fecha", actual: actuales.fMat, pedido: texto.fMat },
   ];
   const filasCliente: Fila[] = [
-    { clave: "dni", etiqueta: "DNI / NIE", tipo: "texto", actual: actuales.dni, pedido: texto.dni },
-    { clave: "nombre", etiqueta: "Nombre", tipo: "texto", actual: actuales.nombre, pedido: texto.nombre },
+    { clave: "dni", etiqueta: "DNI / NIE", tipo: "texto", actual: actuales.dni, pedido: texto.dni, alternativas: alternativas(d.dni, dni?.datos.dni) },
+    { clave: "nombre", etiqueta: "Nombre", tipo: "texto", actual: actuales.nombre, pedido: texto.nombre, alternativas: alternativas(d.cliente, dni?.datos.nombreCompleto) },
+    { clave: "fNac", etiqueta: "Fecha de nacimiento (del DNI)", tipo: "fecha", actual: actuales.fNac, pedido: texto.fNac },
     { clave: "telefono", etiqueta: "Teléfono", tipo: "texto", actual: actuales.telefono, pedido: texto.telefono },
     { clave: "email", etiqueta: "Correo", tipo: "texto", actual: actuales.email, pedido: texto.email },
   ];
@@ -111,6 +131,16 @@ export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesMode
   const distinto = (f: Fila) => f.pedido.trim() !== "" && norm(f.actual) !== norm(f.pedido);
   const aplicable = (f: Fila) => distinto(f);
   const [marcado, setMarcado] = useState<Record<string, boolean>>(() => Object.fromEntries([...filas, ...filasCliente].map((f) => [f.clave, aplicable(f) && f.actual.trim() === ""])));
+
+  // Si el DNI llega con el modal abierto, se ofrecen sus datos
+  const [dniPrevio, setDniPrevio] = useState(dni);
+  if (dni !== dniPrevio) {
+    setDniPrevio(dni);
+    if (dni) {
+      setTexto((p) => ({ ...p, dni: dni.datos.dni ?? p.dni, nombre: dni.datos.nombreCompleto ?? p.nombre, fNac: dni.datos.fechaNacimiento ?? p.fNac }));
+      setMarcado((p) => ({ ...p, dni: actuales.dni.trim() === "" && !!dni.datos.dni, nombre: actuales.nombre.trim() === "" && !!dni.datos.nombreCompleto, fNac: actuales.fNac.trim() === "" && !!dni.datos.fechaNacimiento }));
+    }
+  }
 
   const tieneCliente = actuales.idCliente !== null || actuales.nombre.trim() !== "";
   const [coincidencias, setCoincidencias] = useState<CoincidenciaCliente[] | null>(null);
@@ -162,12 +192,13 @@ export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesMode
       if (por(filas[4])) cambios.fExp = texto.fExp;
       if (por(filas[5])) cambios.fEntrega = texto.fEntrega;
       if (por(filas[6])) cambios.fMat = texto.fMat;
-      if (cliente.modo === "nuevo") cambios.datosCliente = { dni: texto.dni.trim() || undefined, nombre: texto.nombre.trim() || undefined, telefono: texto.telefono.trim() || undefined, email: texto.email.trim() || undefined };
+      if (cliente.modo === "nuevo") cambios.datosCliente = { dni: texto.dni.trim() || undefined, nombre: texto.nombre.trim() || undefined, fechaNacimiento: texto.fNac || undefined, telefono: texto.telefono.trim() || undefined, email: texto.email.trim() || undefined };
       if (cliente.modo === "mantener") {
         if (por(filasCliente[0])) cambios.datosCliente.dni = texto.dni.trim();
         if (por(filasCliente[1])) cambios.datosCliente.nombre = texto.nombre.trim();
-        if (por(filasCliente[2])) cambios.datosCliente.telefono = texto.telefono.trim();
-        if (por(filasCliente[3])) cambios.datosCliente.email = texto.email.trim();
+        if (por(filasCliente[2])) cambios.datosCliente.fechaNacimiento = texto.fNac;
+        if (por(filasCliente[3])) cambios.datosCliente.telefono = texto.telefono.trim();
+        if (por(filasCliente[4])) cambios.datosCliente.email = texto.email.trim();
       }
       await alAplicar(cambios);
     } catch (e) {
@@ -222,6 +253,15 @@ export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesMode
               <td>{verActual(f)}</td>
               <td style={{ textAlign: "right" }}>
                 {editor(f)}
+                {f.alternativas && (
+                  <span style={{ display: "flex", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap", marginTop: "4px" }}>
+                    {f.alternativas.map((alt) => (
+                      <button key={alt.origen} type="button" className="btn btn-secondary" style={{ padding: "1px 8px", fontSize: "0.72rem", borderColor: norm(f.pedido) === norm(alt.valor) ? "var(--primary)" : undefined }} onClick={() => corregir(f.clave, alt.valor)} title={`Usar el valor del ${alt.origen.toLowerCase()}`}>
+                        {alt.origen}: {alt.valor}
+                      </button>
+                    ))}
+                  </span>
+                )}
                 {f.nota && <span style={{ display: "block", color: "var(--warning)", fontSize: "0.75rem", textAlign: "right" }}>{f.nota}</span>}
                 {!f.nota && f.pedido.trim() !== "" && !distinto(f) && <span style={{ color: "var(--success)", marginLeft: "6px", fontSize: "0.75rem" }}>igual</span>}
                 {!f.nota && distinto(f) && f.actual.trim() !== "" && <span style={{ color: "var(--warning)", marginLeft: "6px", fontSize: "0.75rem" }}>distinto</span>}
@@ -293,6 +333,14 @@ export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesMode
           {d.avisos.length > 0 && <div style={{ color: "var(--warning)", fontSize: "0.82rem" }}>⚠️ {d.avisos[0]}</div>}
 
           <strong style={{ fontSize: "0.95rem" }}>Cliente</strong>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", padding: "8px 10px", border: "1px dashed var(--border-light)", borderRadius: "var(--radius-sm)" }}>
+            <BotonLeerDni compacta alLeer={alLeerDni} />
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+              {dni
+                ? `🪪 DNI leído: ${dni.datos.nombreCompleto ?? "sin nombre"}${dni.datos.dni ? ` · ${dni.datos.dni}` : ""}${dni.fotoId ? " · foto detectada" : ""}. Puedes soltar el reverso u otro DNI.`
+                : "Suelta aquí el DNI (también puedes hacerlo mientras se lee el pedido, en el cuadro de «Documentos»): se detecta la cara y se leen el nombre, el DNI y la fecha de nacimiento para ofrecértelos."}
+            </span>
+          </div>
           {coincidencias === null ? (
             <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Buscando al cliente…</span>
           ) : (
@@ -317,7 +365,7 @@ export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesMode
                   <label key={f.clave} style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                     {f.etiqueta}
                     {f.clave === "nombre" ? " *" : ""}
-                    <input className="form-input" value={f.pedido} onChange={(e) => setTexto((p) => ({ ...p, [f.clave]: e.target.value }))} style={{ borderColor: f.clave === "nombre" && f.pedido.trim() === "" ? "var(--danger)" : undefined }} />
+                    <input className="form-input" type={f.tipo === "fecha" ? "date" : "text"} value={f.pedido} onChange={(e) => setTexto((p) => ({ ...p, [f.clave]: e.target.value }))} style={{ borderColor: f.clave === "nombre" && f.pedido.trim() === "" ? "var(--danger)" : undefined }} />
                   </label>
                 ))}
               </div>

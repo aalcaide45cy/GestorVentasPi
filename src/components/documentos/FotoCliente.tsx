@@ -28,10 +28,10 @@ export default function NombreConFoto({ fotoId, children }: { fotoId?: number | 
   };
   const colocar = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
-    const alto = 190 + 20;
+    const alto = 240 + 20;
     // Debajo del nombre; si no cabe, encima
     const y = r.bottom + 8 + alto > window.innerHeight ? Math.max(8, r.top - alto - 8) : r.bottom + 8;
-    setPosicion({ x: Math.min(r.left, window.innerWidth - 180), y });
+    setPosicion({ x: Math.min(r.left, window.innerWidth - 220), y });
   };
 
   return (
@@ -47,7 +47,7 @@ export default function NombreConFoto({ fotoId, children }: { fotoId?: number | 
       {posicion && (
         <span role="tooltip" style={{ position: "fixed", left: posicion.x, top: posicion.y, zIndex: 3000, padding: "6px", background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", boxShadow: "0 12px 32px rgba(0,0,0,0.35)", pointerEvents: "none" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/adjuntos?id=${fotoId}&miniatura=1`} alt="Foto del cliente" width={150} height={190} style={{ display: "block", width: "150px", height: "190px", objectFit: "cover", borderRadius: "4px" }} onError={() => setFallo(true)} />
+          <img src={`/api/adjuntos?id=${fotoId}&miniatura=1`} alt="Foto del cliente" width={190} height={240} style={{ display: "block", width: "190px", height: "240px", objectFit: "cover", borderRadius: "4px" }} onError={() => setFallo(true)} />
         </span>
       )}
     </span>

@@ -1,4 +1,5 @@
 import path from "node:path";
+import sharp from "sharp";
 import { createCanvas, GlobalFonts, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
@@ -94,5 +95,26 @@ describe("lectura de documentos", () => {
     expect(r.datos.vin).toMatch(/^[A-Z0-9]{17}$/);
     expect(r.datos.matricula).toBe("1234BCD");
     expect(r.adjunto.tipo).toBe("pedido");
+  });
+});
+
+describe("recorte de la foto del DNI", () => {
+  it("deja margen alrededor de la cara: la cara no ocupa todo el recorte", async () => {
+    // Fondo negro y una «cara» blanca de 160×250 px (región normalizada x 0,1; y 0,2; ancho 0,2; alto 0,5)
+    const imagen = await sharp({ create: { width: 800, height: 500, channels: 3, background: "#000000" } })
+      .composite([{ input: await sharp({ create: { width: 160, height: 250, channels: 3, background: "#ffffff" } }).png().toBuffer(), left: 80, top: 100 }])
+      .png()
+      .toBuffer();
+    const foto = await recortarFotoDni(imagen, { x: 0.1, y: 0.2, ancho: 0.2, alto: 0.5, densidad: 1 });
+    expect(foto).not.toBeNull();
+    const { data, info } = await sharp(foto as Buffer).greyscale().raw().toBuffer({ resolveWithObject: true });
+    expect([info.width, info.height]).toEqual([300, 380]);
+    const claro = data.filter((v) => v > 128).length / data.length;
+    expect(claro).toBeGreaterThan(0.2);
+    expect(claro).toBeLessThan(0.5); // con la región justa sería casi 1
+    // Los bordes del recorte son fondo (margen), no cara
+    expect(data[0]).toBeLessThan(40);
+    expect(data[data.length - 1]).toBeLessThan(40);
+    expect(data[Math.floor(info.height / 2) * info.width]).toBeLessThan(40);
   });
 });

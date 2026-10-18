@@ -236,3 +236,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - La tasa de intervención ya coincidía con la rejilla de la empresa (se añaden como tests sus dos hojas): financiaciones del mes, también las adelantadas, entre coches que cuentan, sin tope del 100 %; las de marca solo con los coches de esa marca.
 
 - **Pedido en «Editar expediente»: todo se puede corregir.** En la columna «Pedido» de la vista previa, cada valor (marca y modelo y tipo de pago con desplegable del catálogo; bastidor, matrícula y fechas; y los datos del cliente) es un campo editable por si la lectura se ha equivocado; al corregirlo se marca solo para aplicar. Si se crea un cliente nuevo, sus datos también se editan en el propio modal.
+
+## Foto del cliente con margen, guardar al aplicar el pedido y DNI en el modal (v1.0.19, ajuste)
+- **Foto del cliente:** el recorte de la cara del DNI deja ahora margen alrededor (un 55 % más de alto y el ancho de una foto de carnet, centrado en la cara) y la ventana que sale al pasar el ratón es algo mayor (190×240). Las fotos ya guardadas conservan su recorte justo: se regeneran al volver a leer el DNI.
+- **«Aplicar al expediente»** (modal del pedido en Editar expediente) rellena el formulario y lo envía solo, así el expediente queda guardado con su cliente (nuevo, asociado o el que ya tenía).
+- **DNI en la cola de lectura:** el cuadro del DNI se puede soltar mientras se lee el pedido (las lecturas hacen cola en el servidor) y también dentro del propio modal. Del DNI se leen la cara, el nombre, el DNI y la fecha de nacimiento; en el modal mandan sobre el pedido para esos datos, con botones «Pedido» / «DNI» para elegir cuando difieren, y la fecha de nacimiento se aplica al cliente.

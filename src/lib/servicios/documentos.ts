@@ -56,20 +56,25 @@ export interface ResultadoPedido {
 }
 
 /**
- * Recorta la fotografía del titular del anverso. Con la región localizada se usa tal cual (con la proporción de una
- * foto de carnet, anclada a la izquierda); sin ella no hay recorte. Devuelve JPEG de 300×380.
+ * Recorta la fotografía del titular del anverso. Con la región localizada se recorta con margen alrededor de la cara (con la
+ * proporción de una foto de carnet); sin ella no hay recorte. Devuelve JPEG de 300×380.
  */
 export async function recortarFotoDni(anverso: Buffer, foto: RegionFoto | null): Promise<Buffer | null> {
   if (!foto) return null;
   try {
     const { width: W, height: H } = await sharp(anverso, { failOn: "none" }).metadata();
     if (!W || !H) return null;
-    const alto = Math.round(foto.alto * H);
-    const ancho = Math.min(Math.round(foto.ancho * W), Math.round(alto * 0.82));
-    const left = Math.max(0, Math.round(foto.x * W));
-    const top = Math.max(0, Math.round(foto.y * H));
+    // Con margen alrededor de la cara (la región detectada es justa): un 55 % más de alto y el ancho que pida la proporción de carnet
+    const altoCara = foto.alto * H;
+    const anchoCara = Math.min(foto.ancho * W, altoCara * 0.82);
+    const alto = Math.min(H, altoCara * 1.55);
+    const ancho = Math.min(W, Math.max(anchoCara * 1.55, alto * 0.79));
+    const cx = foto.x * W + anchoCara / 2;
+    const cy = foto.y * H + altoCara / 2;
+    const left = Math.max(0, Math.min(W - ancho, Math.round(cx - ancho / 2)));
+    const top = Math.max(0, Math.min(H - alto, Math.round(cy - alto / 2)));
     return await sharp(anverso, { failOn: "none" })
-      .extract({ left, top, width: Math.min(ancho, W - left), height: Math.min(alto, H - top) })
+      .extract({ left, top, width: Math.max(1, Math.min(Math.round(ancho), W - left)), height: Math.max(1, Math.min(Math.round(alto), H - top)) })
       .resize(300, 380, { fit: "cover" })
       .jpeg({ quality: 85 })
       .toBuffer();
