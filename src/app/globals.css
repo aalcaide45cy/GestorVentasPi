@@ -307,7 +307,7 @@ select, select option {
 .badge-invitado { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.2); }
 
 /* Tabla con scroll solo en las filas: la cabecera queda fija y la página no se alarga con miles de filas */
-.tabla-scroll { max-height: var(--alto-tabla, 68vh); overflow: auto; }
+.tabla-scroll { max-height: var(--alto-tabla, 68vh); overflow: auto; padding: 0 2px 2px 2px; }
 .tabla-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
 
 /* Tablas */
@@ -349,16 +349,23 @@ select, select option {
 }
 
 /* Fila con aviso (por ejemplo, financiación de otro mes): marco amarillo punteado solo alrededor de esa fila */
+/* Marco en forma de cápsula alrededor de toda la fila (la tabla usa bordes separados, para que los bordes redondeen) */
 tr.fila-aviso > td {
-  border-top: 2px dashed var(--warning);
-  border-bottom: 2px dashed var(--warning);
+  border-top: 2px dashed var(--warning) !important;
+  border-bottom: 2px dashed var(--warning) !important;
   background: rgba(245, 158, 11, 0.08);
 }
 tr.fila-aviso > td:first-child {
   border-left: 2px dashed var(--warning);
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+  padding-left: 16px !important;
 }
 tr.fila-aviso > td:last-child {
   border-right: 2px dashed var(--warning);
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+  padding-right: 16px !important;
 }
 
 .table-compact th,

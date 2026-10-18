@@ -111,7 +111,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>{filas.length === 0 ? vacio : "Ningún resultado con esa búsqueda."}</p>
       ) : (
         <div className="tabla-scroll" style={{ ["--alto-tabla" as string]: "min(55vh, 420px)" }}>
-          <table style={{ width: "100%", fontSize: "0.82rem", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", fontSize: "0.82rem", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr style={{ color: "var(--text-secondary)" }}>
                 {activas.map((c) => (
@@ -124,9 +124,9 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
             </thead>
             <tbody>
               {visibles.map((f) => (
-                <tr key={clave(f)} className={claseFila?.(f) || undefined} style={{ borderTop: "1px solid var(--border-light)", ...(estiloFila?.(f) ?? {}) }}>
+                <tr key={clave(f)} className={claseFila?.(f) || undefined} style={estiloFila?.(f)}>
                   {activas.map((c) => (
-                    <td key={c.clave} style={{ textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
+                    <td key={c.clave} style={{ borderTop: "1px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
                       {c.celda ? c.celda(f) : c.valor(f)}
                     </td>
                   ))}
@@ -135,9 +135,9 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
             </tbody>
             {pieFila && (
               <tfoot>
-                <tr style={{ borderTop: "2px solid var(--border-light)", fontWeight: 700 }}>
+                <tr style={{ fontWeight: 700 }}>
                   {activas.map((c) => (
-                    <td key={c.clave} style={{ textAlign: c.alinear ?? "left", padding: "6px 8px" }}>
+                    <td key={c.clave} style={{ borderTop: "2px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno }}>
                       {pieFila[c.clave] ?? ""}
                     </td>
                   ))}
