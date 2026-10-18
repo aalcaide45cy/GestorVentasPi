@@ -123,7 +123,7 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
     // TRUNCATE no activa los disparadores de protección. Las tablas de comisiones y lo que cuelga de expedientes primero.
     await tx.execute(
       sql.raw(
-        "truncate table adjuntos, rejillas, validaciones_comision, libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade",
+        "truncate table lecturas_pedidos, adjuntos, rejillas, validaciones_comision, libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade",
       ),
     );
     await tx.delete(importacionesRegistros);

@@ -134,8 +134,8 @@ export async function leerDni(ej: Ejecutor, idUsuario: number, nombreFichero: st
 }
 
 /** Lee un pedido (PDF o imagen) y propone los datos del expediente comparando con los catálogos. */
-export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false): Promise<ResultadoPedido> {
-  const { texto, metodo, descartado } = await textoDeDocumento(datos, { cribar: true });
+export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false, opciones: { paralelo?: boolean } = {}): Promise<ResultadoPedido> {
+  const { texto, metodo, descartado } = await textoDeDocumento(datos, { cribar: true, paralelo: opciones.paralelo });
   if (descartado) throw new HttpError(422, NO_ES_PEDIDO);
   const catalogos = await leerCatalogos(ej);
   const marcas = new Map(catalogos.marcas.map((m) => [m.id_marca, m.nombre]));

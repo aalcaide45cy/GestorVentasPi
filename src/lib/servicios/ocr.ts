@@ -15,7 +15,7 @@ import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
 export const MAX_BYTES_OCR = 15 * 1024 * 1024;
 const MAX_PAGINAS = 15;
 /** Un pedido lleva los datos en las primeras hojas; leer más por OCR solo alarga la espera (en la Raspberry, minutos). */
-const MAX_PAGINAS_PEDIDO = 3;
+const MAX_PAGINAS_PEDIDO = 2;
 /** Tiempo máximo de una lectura de pedido: pasado este tiempo se libera la cola para que las demás sigan. */
 const MAX_MS_PEDIDO = 270_000;
 const ESCALA_RASTER = 2.5;
@@ -287,12 +287,24 @@ async function pareceAjenoAlPedido(primeraPagina: Buffer): Promise<boolean> {
   return !/PEDIDO|RENAULT|DACIA|VEHICULO|ESTABLECIMIENTO|CLIENTE|RENEW|MATRICULA|BASTIDOR/.test(limpio);
 }
 
-export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean } = {}): Promise<{ texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean }> {
+/** Lectura sin esperar turno (los pedidos en lote, que se leen varios a la vez); conserva su tiempo máximo. */
+function enParalelo<T>(tarea: () => Promise<T>, maxMs: number): Promise<T> {
+  let temporizador: NodeJS.Timeout | undefined;
+  const limite = new Promise<never>((_, rechazar) => {
+    temporizador = setTimeout(() => rechazar(new HttpError(504, "La lectura ha tardado demasiado y se ha cancelado. Prueba con otra copia del documento o rellena los datos a mano.")), maxMs);
+  });
+  return Promise.race([tarea(), limite]).finally(() => clearTimeout(temporizador));
+}
+
+type TextoLeido = { texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean };
+
+export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<{ texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean }> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
   if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
-  return enCola(async () => {
+  const ejecutar = (t: () => Promise<TextoLeido>) => (opciones.paralelo ? enParalelo(t, MAX_MS_PEDIDO) : enCola(t, MAX_MS_PEDIDO));
+  return ejecutar(async () => {
     try {
       if (tipo === "imagen") {
         if (opciones.cribar && (await pareceAjenoAlPedido(datos))) return { texto: "", metodo: "ocr" as const, descartado: true };
@@ -300,11 +312,14 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean } =
       }
       const doc = await abrirPdf(datos);
       try {
-        const paginas = Math.min(doc.numPages, MAX_PAGINAS);
+        // Un pedido lleva sus datos en las dos primeras hojas: no se lee más
+        const paginas = Math.min(doc.numPages, MAX_PAGINAS_PEDIDO);
         const texto = await textoDePaginas(doc, paginas);
         if (texto.replace(/\s/g, "").length >= 40) return { texto, metodo: "texto-pdf" as const };
-        const imagenes = await paginasComoImagenes(doc, Math.min(paginas, MAX_PAGINAS_PEDIDO));
-        if (opciones.cribar && (await pareceAjenoAlPedido(imagenes[0]))) return { texto: "", metodo: "ocr" as const, descartado: true };
+        // Escaneado: primero solo la primera hoja; si no parece de un pedido se descarta sin leer más
+        const primera = await paginasComoImagenes(doc, 1);
+        if (opciones.cribar && (await pareceAjenoAlPedido(primera[0]))) return { texto: "", metodo: "ocr" as const, descartado: true };
+        const imagenes = paginas > 1 ? [...primera, ...(await paginasComoImagenes(doc, paginas)).slice(1)] : primera;
         return { texto: (await ocrOrientado(imagenes, { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       } finally {
         await doc.cleanup?.();
@@ -314,7 +329,7 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean } =
       console.error("Error de OCR:", e instanceof Error ? e.message : e);
       throw new HttpError(500, "No se ha podido leer el documento. Prueba con otra imagen.");
     }
-  }, MAX_MS_PEDIDO);
+  });
 }
 
 /** OCR de recortes de una sola línea (una celda): devuelve un resultado por imagen, en el mismo orden. */

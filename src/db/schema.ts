@@ -892,3 +892,35 @@ export const adjuntosDatos = pgTable("adjuntos_datos", {
   datos: bytea("datos").notNull(),
   miniatura: bytea("miniatura"),
 });
+
+/**
+ * Lista persistente de pedidos subidos para leer con OCR. Cada PDF o foto se guarda (cifrado) nada más subirse y lo van
+ * cogiendo los lectores en paralelo; si el servidor se reinicia, lo pendiente se retoma. `datos` se borra al terminar
+ * (un pedido pasa a ser un adjunto; lo que no es un pedido no se conserva).
+ */
+export const lecturasPedidos = pgTable(
+  "lecturas_pedidos",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario").references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    nombre: text("nombre").notNull(),
+    tamano: integer("tamano").notNull(),
+    /** SHA-256 del fichero: el mismo archivo subido otra vez no se vuelve a leer. */
+    huella: varchar("huella", { length: 64 }).notNull(),
+    datos: bytea("datos"),
+    /** pendiente | leyendo | pedido | descartado | error | cancelado */
+    estado: varchar("estado", { length: 12 }).notNull().default("pendiente"),
+    resultado: jsonb("resultado").$type<unknown>(),
+    error: text("error"),
+    intentos: integer("intentos").notNull().default(0),
+    /** Modelo y pago elegidos al soltarlo sobre un acceso rápido, o expediente que se va a completar. */
+    destino: jsonb("destino").$type<unknown>(),
+    permitirDuplicados: boolean("permitir_duplicados").notNull().default(false),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    empezadaEn: timestamp("empezada_en", { withTimezone: true }),
+    terminadaEn: timestamp("terminada_en", { withTimezone: true }),
+    /** Cuando el navegador ya ha recogido el pedido leído y lo ha puesto en la cola. */
+    recogidaEn: timestamp("recogida_en", { withTimezone: true }),
+  },
+  (t) => [index("lecturas_pedidos_estado_idx").on(t.estado, t.id), index("lecturas_pedidos_usuario_idx").on(t.idUsuario, t.huella)],
+);
