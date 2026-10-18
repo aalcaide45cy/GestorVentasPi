@@ -61,6 +61,8 @@ export interface DatosPedido {
   idTipoDeVenta: number | null;
   /** «nuevo» (pedido de vehículo nuevo), «usado» (vehículo de ocasión vendido) o null si no se reconoce. */
   tipoPedido: "nuevo" | "usado" | null;
+  /** false si el documento no tiene pinta de pedido (otro PDF con datos de un cliente): no debe crear ni adjuntarse a nada. */
+  esPedido: boolean;
   /** Vehículo de retoma (usado que deja el cliente), de la sección «Valoración VO»: su matrícula nunca es la del coche vendido. */
   retoma: { matricula: string | null; vin: string | null; texto: string | null } | null;
   avisos: string[];
@@ -365,6 +367,7 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
     modeloTexto: modelo?.nombre ?? ([propuesta?.marca, propuesta?.modelo].filter(Boolean).join(" ") || estructura?.modeloLinea) ?? null,
     idTipoDeVenta,
     tipoPedido,
+    esPedido: estructura !== null || tipoPedido !== null || /N[ÚU]MERO\s+(DE\s+)?PEDIDO\s*:?\s*\d{4,}/.test(sinAcentos(texto)) || /\bPEDIDO\s+DE\s+(VEHICULO|COMPRA|VENTA)/.test(cabecera) || /\b(HOJA|ORDEN)\s+DE\s+PEDIDO\b/.test(cabecera),
     retoma,
     avisos,
   };

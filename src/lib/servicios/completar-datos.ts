@@ -55,7 +55,14 @@ export const esquemaFilaCompletar = z.object({
 });
 export type FilaCompletar = z.infer<typeof esquemaFilaCompletar>;
 
-export const esquemaPrevisualizarCompletar = z.object({ filas: z.array(esquemaFilaCompletar).min(1).max(5000) });
+export const REFERENCIAS = ["bastidor", "matricula", "nif", "nombre"] as const;
+export type Referencia = (typeof REFERENCIAS)[number];
+
+export const esquemaPrevisualizarCompletar = z.object({
+  filas: z.array(esquemaFilaCompletar).min(1).max(5000),
+  /** Con qué datos se localiza el expediente de cada fila (por defecto, todos, en este orden). */
+  referencias: z.array(z.enum(REFERENCIAS)).min(1).default([...REFERENCIAS]),
+});
 
 export interface PropuestaCampo {
   campo: CampoCompletar;
@@ -143,11 +150,11 @@ async function cargarExpedientes(ej: Ejecutor, usuario: UsuarioActual): Promise<
 }
 
 /** Busca el expediente de una fila: primero por bastidor, luego matrícula, luego NIF y, por último, nombre (siempre sin duplicar dudas). */
-function buscar(fila: FilaCompletar, idx: { vin: Map<string, ExpedienteCargado>; mat: Map<string, ExpedienteCargado>; nif: Map<string, ExpedienteCargado[]>; nombre: Map<string, ExpedienteCargado[]> }): { exp: ExpedienteCargado | null; como: FilaPrevisualizada["coincide"]; ambiguo: boolean } {
+function buscar(fila: FilaCompletar, refs: ReadonlySet<Referencia>, idx: { vin: Map<string, ExpedienteCargado>; mat: Map<string, ExpedienteCargado>; nif: Map<string, ExpedienteCargado[]>; nombre: Map<string, ExpedienteCargado[]> }): { exp: ExpedienteCargado | null; como: FilaPrevisualizada["coincide"]; ambiguo: boolean } {
   const vin = norm(fila.bastidor);
-  if (vin && idx.vin.has(vin)) return { exp: idx.vin.get(vin)!, como: "bastidor", ambiguo: false };
+  if (refs.has("bastidor") && vin && idx.vin.has(vin)) return { exp: idx.vin.get(vin)!, como: "bastidor", ambiguo: false };
   const mat = norm(fila.matricula);
-  if (mat && idx.mat.has(mat)) return { exp: idx.mat.get(mat)!, como: "matricula", ambiguo: false };
+  if (refs.has("matricula") && mat && idx.mat.has(mat)) return { exp: idx.mat.get(mat)!, como: "matricula", ambiguo: false };
   const afinar = (lista: ExpedienteCargado[]): ExpedienteCargado[] => {
     if (lista.length <= 1) return lista;
     const marca = sinAcentos(fila.marca);
@@ -158,7 +165,7 @@ function buscar(fila: FilaCompletar, idx: { vin: Map<string, ExpedienteCargado>;
     return vacios.length > 0 ? vacios : base;
   };
   for (const [clave, mapa, como] of [[norm(fila.nif), idx.nif, "nif"] as const, [nombreClave(fila.cliente), idx.nombre, "nombre"] as const]) {
-    if (!clave) continue;
+    if (!clave || !refs.has(como)) continue;
     const lista = afinar(mapa.get(clave) ?? []);
     if (lista.length === 1) return { exp: lista[0], como, ambiguo: false };
     if (lista.length > 1) return { exp: null, como, ambiguo: true };
@@ -167,7 +174,8 @@ function buscar(fila: FilaCompletar, idx: { vin: Map<string, ExpedienteCargado>;
 }
 
 /** Ofrece, para cada fila del listado, lo que se rellenaría o corregiría en el expediente que le corresponde. No guarda nada. */
-export async function previsualizarCompletado(ej: Ejecutor, usuario: UsuarioActual, filas: FilaCompletar[]): Promise<ResultadoPrevisualizar> {
+export async function previsualizarCompletado(ej: Ejecutor, usuario: UsuarioActual, filas: FilaCompletar[], referencias: readonly Referencia[] = REFERENCIAS): Promise<ResultadoPrevisualizar> {
+  const refs = new Set<Referencia>(referencias);
   const todos = await cargarExpedientes(ej, usuario);
   const idx = { vin: new Map<string, ExpedienteCargado>(), mat: new Map<string, ExpedienteCargado>(), nif: new Map<string, ExpedienteCargado[]>(), nombre: new Map<string, ExpedienteCargado[]>() };
   for (const e of todos) {
@@ -198,7 +206,7 @@ export async function previsualizarCompletado(ej: Ejecutor, usuario: UsuarioActu
       salida.push({ ...base, idExpediente: null, clienteApp: null, vehiculoApp: null, coincide: null, estado: "anulado", motivo: "Expediente anulado en el listado", propuestas: [] });
       continue;
     }
-    const { exp, como, ambiguo } = buscar(f, idx);
+    const { exp, como, ambiguo } = buscar(f, refs, idx);
     if (!exp) {
       salida.push({ ...base, idExpediente: null, clienteApp: null, vehiculoApp: null, coincide: como, estado: ambiguo ? "ambiguo" : "sin_coincidencia", motivo: ambiguo ? "Hay varios expedientes posibles: no se toca ninguno" : "No hay ningún expediente tuyo que coincida (no se crea nada)", propuestas: [] });
       continue;

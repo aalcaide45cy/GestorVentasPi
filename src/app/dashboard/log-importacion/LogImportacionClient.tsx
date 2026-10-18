@@ -6,6 +6,7 @@ import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { mensajeDeError } from "@/components/expedientes/comun";
+import ModalCompletarDatos, { hayBorradorCompletar } from "@/components/expedientes/ModalCompletarDatos";
 import type { BloqueImportacionDto } from "@/lib/servicios/importaciones";
 
 interface Opcion {
@@ -107,6 +108,12 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
   const [fAfect, setFAfect] = useState("");
   const [fMat, setFMat] = useState("");
   const [fEntrega, setFEntrega] = useState("");
+  // Importación de «Completar datos» que se dejó a medias en este navegador
+  const [pendiente, setPendiente] = useState(false);
+  const [retomando, setRetomando] = useState(false);
+  useEffect(() => {
+    void Promise.resolve().then(() => setPendiente(hayBorradorCompletar()));
+  }, [retomando]);
 
   const recargar = async () => {
     try {
@@ -308,6 +315,16 @@ Los clientes que se crearan con ella no se borran. Las comisiones se recalculan 
           ))}
         </div>
       </div>
+
+      {pendiente && (
+        <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", borderLeft: "4px solid var(--warning)" }}>
+          <span>📥 Tienes una importación de «Completar datos» a medias: puedes retomarla donde la dejaste y cambiar lo que quieras antes de aplicarla.</span>
+          <button type="button" className="btn btn-primary" onClick={() => setRetomando(true)}>
+            Retomar importación
+          </button>
+        </div>
+      )}
+      {retomando && <ModalCompletarDatos alCerrar={() => setRetomando(false)} alAplicar={() => void recargar()} />}
 
       {cargando ? (
         <div className="glass-panel" style={{ padding: "40px", textAlign: "center" }}>

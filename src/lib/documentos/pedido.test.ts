@@ -265,3 +265,13 @@ describe("pedidos escaneados con ruido de OCR", () => {
     expect(parsearPedido(t, catalogo).tipoPedido).toBe("nuevo");
   });
 });
+
+describe("documentos que no son pedidos", () => {
+  it("un PDF con datos de un cliente pero sin pinta de pedido no es un pedido", () => {
+    const ficha = ["FICHA DE CLIENTE", "Nombre: JUAN PEREZ GARCIA", "NIF: 12345678Z", "Teléfono: 600123123", "Matrícula 1234 BCD"].join("\n");
+    expect(parsearPedido(ficha, catalogo).esPedido).toBe(false);
+  });
+  it("un pedido sí lo es", () => {
+    expect(parsearPedido("RENAULT RETAIL GROUP - PEDIDO DE VEHÍCULO\nCliente: JUAN PEREZ", catalogo).esPedido).toBe(true);
+  });
+});

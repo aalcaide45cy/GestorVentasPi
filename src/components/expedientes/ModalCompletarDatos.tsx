@@ -1,13 +1,30 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { leerListadoRenault, type FilaListadoRenault, type ListadoLeido } from "@/lib/listados-renault";
-import type { FilaPrevisualizada, PropuestaCampo, ResultadoPrevisualizar } from "@/lib/servicios/completar-datos";
+import type { FilaPrevisualizada, PropuestaCampo, Referencia, ResultadoPrevisualizar } from "@/lib/servicios/completar-datos";
 
 type Filtro = "con_cambios" | "todas";
+
+const CLAVE_BORRADOR = "completar-datos-borrador";
+const REFS: { id: Referencia; texto: string; ayuda: string }[] = [
+  { id: "bastidor", texto: "Bastidor", ayuda: "El número de bastidor (VIN): el dato más fiable" },
+  { id: "matricula", texto: "Matrícula", ayuda: "La matrícula del vehículo" },
+  { id: "nif", texto: "NIF/NIE", ayuda: "El documento del cliente" },
+  { id: "nombre", texto: "Nombre del cliente", ayuda: "El nombre, por si no hay otro dato (puede haber dudas con clientes repetidos)" },
+];
+
+/** ¿Hay una importación a medias guardada en este navegador? (para ofrecer continuarla desde el Log de importaciones) */
+export function hayBorradorCompletar(): boolean {
+  try {
+    return window.localStorage.getItem(CLAVE_BORRADOR) !== null;
+  } catch {
+    return false;
+  }
+}
 
 const claveCampo = (fila: number, campo: string) => `${fila}|${campo}`;
 const formatear = (v: string | null) => (v ? (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split("-").reverse().join("/") : v) : "(vacío)");
@@ -26,6 +43,67 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
   const [trabajando, setTrabajando] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>("con_cambios");
   const [hecho, setHecho] = useState<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[] } | null>(null);
+  const [referencias, setReferencias] = useState<Referencia[]>(["bastidor", "matricula", "nif", "nombre"]);
+
+  /** Busca los expedientes de las filas con las referencias elegidas; si hay una selección guardada, la conserva. */
+  const previsualizar = async (leidos: ListadoLeido[], refs: Referencia[], previos?: Set<string>) => {
+    // Un mismo coche puede salir en varios listados (uno trae el teléfono, otro la matrícula): se juntan por bastidor
+    const filas: FilaListadoRenault[] = unir(leidos.flatMap((l) => l.filas));
+    const { data } = await llamar<ResultadoPrevisualizar>("/api/expedientes/completar/previsualizar", { method: "POST", cuerpo: { filas, referencias: refs } });
+    setResultado(data);
+    const marcados = new Set<string>();
+    for (const f of data.filas) for (const p of f.propuestas) if (previos ? previos.has(claveCampo(f.fila, p.campo)) : p.tipo === "rellenar" || !p.aviso) marcados.add(claveCampo(f.fila, p.campo));
+    setElegidos(marcados);
+  };
+
+  // Si se cerró la ventana a medias, la importación queda guardada y se retoma al volver a abrirla
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      try {
+        const guardado = window.localStorage.getItem(CLAVE_BORRADOR);
+      if (!guardado) return;
+      const b = JSON.parse(guardado) as { listados: ListadoLeido[]; referencias: Referencia[]; elegidos: string[] };
+      if (!Array.isArray(b.listados) || b.listados.length === 0) return;
+      setListados(b.listados);
+      setReferencias(b.referencias.length > 0 ? b.referencias : ["bastidor"]);
+      setTrabajando(true);
+      previsualizar(b.listados, b.referencias, new Set(b.elegidos))
+        .catch((err) => mostrar(textoError(err), "error"))
+        .finally(() => setTrabajando(false));
+      } catch {
+        /* sin borrador */
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (listados.length === 0 || hecho) return;
+    try {
+      window.localStorage.setItem(CLAVE_BORRADOR, JSON.stringify({ listados, referencias, elegidos: [...elegidos] }));
+    } catch {
+      /* el borrador es una comodidad: si no cabe, no pasa nada */
+    }
+  }, [listados, referencias, elegidos, hecho]);
+  const descartar = () => {
+    try {
+      window.localStorage.removeItem(CLAVE_BORRADOR);
+    } catch {
+      /* nada */
+    }
+    setListados([]);
+    setResultado(null);
+    setElegidos(new Set());
+  };
+  const cambiarReferencia = (r: Referencia, activa: boolean) => {
+    const nuevas = REFS.map((x) => x.id).filter((id) => (id === r ? activa : referencias.includes(id)));
+    if (nuevas.length === 0) return;
+    setReferencias(nuevas);
+    if (listados.length === 0) return;
+    setTrabajando(true);
+    previsualizar(listados, nuevas)
+      .catch((err) => mostrar(textoError(err), "error"))
+      .finally(() => setTrabajando(false));
+  };
 
   const leerArchivos = async (e: ChangeEvent<HTMLInputElement>) => {
     const archivos = Array.from(e.target.files ?? []);
@@ -44,13 +122,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
       }
       if (leidos.length === 0) return;
       setListados(leidos);
-      // Un mismo coche puede salir en varios listados (uno trae el teléfono, otro la matrícula): se juntan por bastidor
-      const filas: FilaListadoRenault[] = unir(leidos.flatMap((l) => l.filas));
-      const { data } = await llamar<ResultadoPrevisualizar>("/api/expedientes/completar/previsualizar", { method: "POST", cuerpo: { filas } });
-      setResultado(data);
-      const marcados = new Set<string>();
-      for (const f of data.filas) for (const p of f.propuestas) if (p.tipo === "rellenar" || !p.aviso) marcados.add(claveCampo(f.fila, p.campo));
-      setElegidos(marcados);
+      await previsualizar(leidos, referencias);
     } catch (err) {
       mostrar(textoError(err), "error");
     } finally {
@@ -94,6 +166,11 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
     try {
       const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[] }>("/api/expedientes/completar/aplicar", { method: "POST", cuerpo: { archivo: listados.map((l) => l.nombre).join(", ").slice(0, 250), cambios } });
       setHecho(data);
+      try {
+        window.localStorage.removeItem(CLAVE_BORRADOR);
+      } catch {
+        /* nada */
+      }
       mostrar(`Datos completados en ${data.expedientesCambiados} expediente(s).`);
       alAplicar();
     } catch (err) {
@@ -115,8 +192,13 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
       ancho="1100px"
       pie={
         <>
-          <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>
-            {hecho ? "Cerrar" : "Cancelar"}
+          {listados.length > 0 && !hecho && (
+            <button type="button" className="btn btn-secondary" onClick={descartar} disabled={trabajando} title="Olvida esta importación guardada">
+              Descartar importación
+            </button>
+          )}
+          <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando} title={hecho ? "" : "Puedes cerrar y seguir luego: la importación queda guardada y la recuperas desde el Log de importaciones o desde este mismo botón"}>
+            {hecho ? "Cerrar" : "Cerrar y seguir luego"}
           </button>
           {resultado && !hecho && (
             <button type="button" className="btn btn-primary" onClick={() => void aplicar()} disabled={trabajando || totalElegido === 0}>
@@ -134,6 +216,17 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
           {trabajando ? "Leyendo…" : listados.length > 0 ? "Elegir otros archivos" : "Elegir archivos (.xlsx, .xls, .csv)"}
           <input type="file" accept=".xlsx,.xls,.csv" multiple hidden disabled={trabajando} onChange={(e) => void leerArchivos(e)} />
         </label>
+
+        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center", fontSize: "0.85rem" }}>
+          <b>Localizar cada expediente por:</b>
+          {REFS.map((r) => (
+            <label key={r.id} style={{ display: "flex", gap: "5px", alignItems: "center" }} title={r.ayuda}>
+              <input type="checkbox" checked={referencias.includes(r.id)} disabled={trabajando} onChange={(e) => cambiarReferencia(r.id, e.target.checked)} />
+              {r.texto}
+            </label>
+          ))}
+          <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Se prueban en este orden; desmarca los que no quieras usar.</span>
+        </div>
 
         {listados.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.82rem" }}>

@@ -141,6 +141,8 @@ export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero:
     aliasModelos: (await ej.select({ alias: aliasModelos.alias, id: aliasModelos.idModelo }).from(aliasModelos)).map((a) => ({ alias: a.alias, id: a.id })),
     marcas: catalogos.marcas.map((m) => m.nombre),
   });
+  // Un PDF que no es un pedido (otros papeles con datos de un cliente) se ignora: ni se propone nada ni se guarda en ningún sitio
+  if (!parsed.esPedido) throw new HttpError(422, "No parece un pedido, así que se ha ignorado (no se ha guardado ni adjuntado a nada).");
   const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
   // Con «Permitir expedientes duplicados» no se busca ni se avisa de pedidos parecidos
   const similares = permitirDuplicados ? [] : await buscarExpedientesSimilares(ej, parsed);

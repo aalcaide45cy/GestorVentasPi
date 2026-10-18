@@ -39,6 +39,15 @@ describe("completar datos desde un listado", () => {
     expect(await db.select().from(expedientes)).toHaveLength(1);
   });
 
+  it("solo localiza por las referencias que se elijan", async () => {
+    const { admin, exp } = await escenario();
+    const f = fila({ cliente: "Francisco Mayor Casado", bastidor: "UU1DJF00477657076" });
+    expect((await previsualizarCompletado(db, admin, [f], ["matricula", "nif"])).filas[0].estado).toBe("sin_coincidencia");
+    const r = await previsualizarCompletado(db, admin, [f], ["nombre"]);
+    expect(r.filas[0].idExpediente).toBe(exp.idExpediente);
+    expect(r.filas[0].coincide).toBe("nombre");
+  });
+
   it("en un usado no toca la fecha de matriculación del vehículo", async () => {
     const { admin } = await escenario("VO");
     const r = await previsualizarCompletado(db, admin, [fila({ bastidor: "UU1DJF00477657076", fMatriculacion: "2017-11-28", fEntrega: "2026-10-15" })]);
