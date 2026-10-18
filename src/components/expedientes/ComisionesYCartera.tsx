@@ -123,14 +123,17 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
     const suma = (...ids: string[]) => linea.conceptos.filter((c) => ids.includes(c.concepto)).reduce((t, c) => t + c.importe, 0);
     return { linea, e: porId.get(linea.idExpediente), info: resultado?.expedientes?.[String(linea.idExpediente)], coche: suma("coche_vn", "vo"), financiacion: suma("financiacion"), preference: suma("preference"), bonus: suma("regla", "especial") };
   });
-  // Tasa de intervención financiera del mes: coches financiados / coches que cuentan, sumando todas las marcas
+  // Tasa de intervención financiera del mes: global (todos los coches nuevos), por marca y de usados
   const tasas = hayPlan ? resultado.tasaIntervencion : [];
-  const tasaNum = tasas.reduce((t, x) => t + x.numerador, 0);
-  const tasaDen = tasas.reduce((t, x) => t + x.denominador, 0);
-  const tasaTotal = tasaDen > 0 ? (tasaNum / tasaDen) * 100 : null;
-  const colorTasa = tasas.length === 0 ? undefined : tasas.every((x) => x.cumplida) ? "var(--success)" : "var(--warning)";
+  const tasaG = hayPlan ? resultado.tasaGlobal : null;
+  const tasaV = hayPlan ? resultado.tasaVo : null;
+  const tasaTotal = tasaG && tasaG.denominador > 0 ? (tasaG.numerador / tasaG.denominador) * 100 : null;
+  const colorTasa = tasaG === null ? undefined : tasaG.conObjetivo ? (tasaG.cumplida ? "var(--success)" : "var(--warning)") : tasas.length === 0 ? undefined : tasas.every((x) => x.cumplida) ? "var(--success)" : "var(--warning)";
   const nombreMarca = (id: number) => [...porId.values()].find((e) => e.modelo?.marca?.id_marca === id)?.modelo?.marca?.nombre ?? `Marca ${id}`;
-  const textoTasa = tasas.length === 0 ? "Sin coches con financiación calculable este mes" : `Coches financiados entre los que cuentan: ${tasas.map((x) => `${nombreMarca(x.idMarca)} ${x.numerador}/${x.denominador}${x.porcentaje !== null ? ` (${String(x.porcentaje).replace(".", ",")} %)` : ""} ${x.cumplida ? "✅ objetivo cumplido" : "❌ objetivo no cumplido"}`).join(" · ")}`;
+  const pc = (n: number, d: number) => (d > 0 ? ` (${((n * 100) / d).toFixed(1).replace(".", ",")} %)` : "");
+  const textoTasa = tasaG === null || (tasaG.denominador === 0 && (tasaV?.denominador ?? 0) === 0) ? "Sin coches con financiación calculable este mes" : `Coches financiados entre los que cuentan. Global (nuevos): ${tasaG.numerador}/${tasaG.denominador}${pc(tasaG.numerador, tasaG.denominador)}${tasaG.conObjetivo ? (tasaG.cumplida ? " ✔ cumplida" : " ✘ no cumplida") : ""}. ${tasas.map((x) => `${nombreMarca(x.idMarca)} ${x.numerador}/${x.denominador}${pc(x.numerador, x.denominador)} ${x.cumplida ? "✔" : "✘"}`).join(" · ")}${tasaV && tasaV.denominador > 0 ? `. Usados (VO): ${tasaV.numerador}/${tasaV.denominador}${pc(tasaV.numerador, tasaV.denominador)}${tasaV.conObjetivo ? (tasaV.cumplida ? " ✔ cumplida" : " ✘ no cumplida") : ""}` : ""}`;
+  const tasaDen = tasaG?.denominador ?? 0;
+  const tasaNum = tasaG?.numerador ?? 0;
   const efP = efectoPuntos(hayPlan ? resultado.puntosMes : null, hayPlan ? resultado.objetivoX : null);
   const efT = efectoTramo(hayPlan ? resultado.tramo : null);
   return (
@@ -159,6 +162,12 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
                 {tasaTotal === null ? <span style={{ color: "var(--text-muted)" }}>—</span> : <span style={{ color: colorTasa }}>{`${tasaTotal.toFixed(1).replace(".", ",")} %`}</span>}
                 {tasaDen > 0 && <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaNum}/{tasaDen}</span>}
               </Indicador>
+              {tasaV && tasaV.denominador > 0 && (
+                <Indicador etiqueta="Tasa int. usados" ayuda="Usados (VO) financiados entre los que cuentan este mes">
+                  <span style={{ color: tasaV.conObjetivo ? (tasaV.cumplida ? "var(--success)" : "var(--warning)") : undefined }}>{`${((tasaV.numerador / tasaV.denominador) * 100).toFixed(1).replace(".", ",")} %`}</span>
+                  <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaV.numerador}/{tasaV.denominador}</span>
+                </Indicador>
+              )}
               <Indicador etiqueta="Bruto" ayuda="Comisión antes de penalizaciones">
                 {euros(resultado.bruto)}
               </Indicador>

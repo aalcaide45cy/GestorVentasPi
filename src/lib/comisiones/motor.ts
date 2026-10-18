@@ -1,6 +1,8 @@
 import type {
+  AmbitoTasa,
   ApuntePuntos,
   CategoriaVenta,
+  CondicionTasa,
   Centimos,
   Centesimas,
   ConceptoLinea,
@@ -15,6 +17,8 @@ import type {
   ReglaPreferenceMotor,
   ResultadoMes,
   TarifaUsadoMotor,
+  TasaAmbitoResultado,
+  TasaConfigMotor,
   TasaMarcaResultado,
   VendedorMotor,
 } from "./tipos";
@@ -63,6 +67,8 @@ function resultadoVacio(mes: Mes, idVendedor: number, idPlan: number | null, avi
     puntosMes: 0,
     tramo: 0,
     tasaIntervencion: [],
+    tasaGlobal: tasaVacia(),
+    tasaVo: tasaVacia(),
     lineas: [],
     bruto: 0,
     penalizacion: 0,
@@ -194,6 +200,10 @@ export function calcularMes(
     if (idMarca === null) return false;
     return tasas.find((t) => t.idMarca === idMarca)?.cumplida ?? true;
   };
+  const tasaGlobal = calcularTasaAmbito(infos, mes, "VN", plan.tasaGlobal);
+  const tasaVo = calcularTasaAmbito(infos, mes, "VO", plan.tasaVo);
+  /** ¿Está cumplida la tasa que mira una regla financiera? (la de la marca del coche, la global o la de usados) */
+  const tasaCumplidaDe = (ambito: AmbitoTasa, idMarca: number | null): boolean => (ambito === "global" ? tasaGlobal.cumplida : ambito === "vo" ? tasaVo.cumplida : tasaDe(idMarca));
 
   /* Pasos 5 y 8.5: reglas y bonus (puntos e importes) */
   let puntosReglas: Centesimas = 0;
@@ -245,7 +255,7 @@ export function calcularMes(
   /* Pasos 8.3 y 8.4: financiación y Preference (mes de la fecha RCI) */
   for (const i of infos) {
     if (mesDe(i.e.fechaRci) !== mes) continue;
-    for (const c of financiacionYPreference(plan, i.e, mes)) anotar(i, c);
+    for (const c of financiacionYPreference(plan, i.e, mes, tasaCumplidaDe)) anotar(i, c);
   }
 
   /* Paso 8.6: conceptos especiales del expediente */
@@ -278,6 +288,8 @@ export function calcularMes(
     puntosMes,
     tramo,
     tasaIntervencion: tasas,
+    tasaGlobal,
+    tasaVo,
     lineas: lineasOrd,
     bruto,
     penalizacion,
@@ -291,6 +303,25 @@ export function calcularMes(
 /* ------------------------------------------------------------------ */
 /* Tasa de intervención (paso 7)                                       */
 /* ------------------------------------------------------------------ */
+
+function tasaVacia(): TasaAmbitoResultado {
+  return { numerador: 0, denominador: 0, porcentaje: null, unidades: 0, cumplida: true, conObjetivo: false };
+}
+
+/**
+ * Tasa de intervención financiera de los coches nuevos (todas las marcas juntas) o de los usados: coches financiados en el mes
+ * entre los que cuentan en el mes, con el mismo criterio que la tasa por marca. Sin objetivo en el plan se da por cumplida.
+ */
+function calcularTasaAmbito(infos: Info[], mes: Mes, clase: "VN" | "VO", cfg: TasaConfigMotor | undefined): TasaAmbitoResultado {
+  const coches = infos.filter((i) => i.e.clase === clase);
+  const denominador = coches.filter((i) => i.mesComputo === mes).length;
+  const numerador = coches.filter((i) => mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta)).length;
+  const objetivo = cfg?.objetivo ?? null;
+  const conObjetivo = objetivo !== null;
+  let cumplida = true;
+  if (conObjetivo && denominador > 0) cumplida = cfg?.tipoTasa === "unidades" ? numerador >= objetivo : numerador * 100 >= objetivo * denominador;
+  return { numerador, denominador, porcentaje: denominador === 0 ? null : Math.round((numerador * 10000) / denominador) / 100, unidades: numerador, cumplida, conObjetivo };
+}
 
 function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResultado[] {
   const marcas = new Set<number>();
@@ -481,7 +512,7 @@ function especificidad(r: ReglaPreferenceMotor): number {
   return 1;
 }
 
-function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes): ConceptoLinea[] {
+function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes, tasaCumplidaDe: (ambito: AmbitoTasa, idMarca: number | null) => boolean): ConceptoLinea[] {
   const res: ConceptoLinea[] = [];
   const mk = (concepto: "financiacion" | "preference", descripcion: string, importe: Centimos, aviso?: string): ConceptoLinea => ({
     concepto,
@@ -502,9 +533,20 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
 
   // El incentivo de una venta Preference se enseña en la columna «Preference», junto a las reglas BOX3
   const conceptoFin = cat === "PREFERENCE" ? "preference" : "financiacion";
-  const tarifa = plan.financiacionPorMarcaTipo.find((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e));
-  if (!tarifa && e.clase === "VO") return res; // los usados solo cobran financiación si hay una regla que se aplique a usados
-  if (!tarifa) {
+  // Una regla puede cobrarse solo si la tasa de intervención está (o no) cumplida; las que llevan condición mandan sobre las que no
+  const cumpleTasa = (r: { tasaIntervencion?: CondicionTasa; tasaAmbito?: AmbitoTasa }): boolean => {
+    const c = r.tasaIntervencion ?? "indiferente";
+    return c === "indiferente" || tasaCumplidaDe(r.tasaAmbito ?? "marca", e.idMarca) === (c === "cumplida");
+  };
+  const condicionada = (r: { tasaIntervencion?: CondicionTasa }) => ((r.tasaIntervencion ?? "indiferente") === "indiferente" ? 1 : 0);
+  const delCoche = plan.financiacionPorMarcaTipo.filter((f) => f.idMarca === e.idMarca && f.tipo === cat && aplica(f.aplicaA, e));
+  const tarifa = delCoche.filter(cumpleTasa).sort((a, b) => condicionada(a) - condicionada(b))[0];
+  if (!tarifa && e.clase === "VO" && delCoche.length === 0) return res; // los usados solo cobran financiación si hay una regla que se aplique a usados
+  if (!tarifa && delCoche.length > 0) {
+    // Hay incentivo para este coche, pero solo con otra situación de la tasa de intervención
+    const ambitos = [...new Set(delCoche.map((f) => f.tasaAmbito ?? "marca"))].map((a) => (a === "global" ? "global" : a === "vo" ? "de usados" : `de ${e.idMarca === null ? "la marca" : (plan.nombresMarca?.[e.idMarca] ?? "la marca")}`));
+    res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `No se cobra la financiación ${cat}: la tasa de intervención ${ambitos.join(" / ")} no está en la situación que pide la regla`));
+  } else if (!tarifa) {
     res.push(mk(conceptoFin, `Financiación ${cat}`, 0, `Sin incentivo de financiación ${cat} para la marca ${e.idMarca === null ? "(sin marca)" : (plan.nombresMarca?.[e.idMarca] ?? `#${e.idMarca}`)}`));
   } else {
     const v = enteroValido(tarifa.importe);
@@ -519,9 +561,10 @@ function financiacionYPreference(plan: PlanMotor, e: ExpedienteMotor, mes: Mes):
           aplica(r.aplicaA, e) &&
           (r.idMarca === null || r.idMarca === e.idMarca) &&
           (r.idModelo === null || r.idModelo === e.idModelo) &&
-          (r.tipo === null || r.tipo === "PREFERENCE"),
+          (r.tipo === null || r.tipo === "PREFERENCE") &&
+          cumpleTasa(r),
       )
-      .sort((a, b) => especificidad(b) - especificidad(a) || a.id - b.id);
+      .sort((a, b) => condicionada(a) - condicionada(b) || especificidad(b) - especificidad(a) || a.id - b.id);
     const mejor = candidatas[0];
     if (mejor) {
       const v = enteroValido(mejor.importe);

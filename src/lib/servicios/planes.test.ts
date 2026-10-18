@@ -47,6 +47,29 @@ async function base() {
 }
 
 describe("planes", () => {
+  it("guarda y devuelve la tasa de intervención global y de usados, y la condición de las reglas financieras", async () => {
+    const { modelo } = await base();
+    const [marca] = await db.select().from(marcas).limit(1);
+    const guardado = await guardarPlan(db, null, {
+      nombre: "Agosto 2026",
+      fechaInicio: "2026-08-01",
+      fechaFin: "2026-08-31",
+      tasaGlobalObjetivo: 70,
+      tasaVoTipo: "unidades",
+      tasaVoObjetivo: 3,
+      financiacion: [
+        { idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 5000, tasaIntervencion: "cumplida", tasaAmbito: "global" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 2000, tasaIntervencion: "no_cumplida", tasaAmbito: "global" },
+        { idMarca: marca.idMarca, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 1000 },
+      ],
+      preference: [{ nombre: "BOX3", idMarca: null, idModelo: modelo.idModelo, tipoFinanciacion: null, importe: 7500, tasaIntervencion: "cumplida", tasaAmbito: "vo" }],
+    });
+    const leido = await leerPlan(db, guardado.plan.idPlan);
+    expect(leido).toMatchObject({ tasaGlobalTipo: "porcentaje", tasaGlobalObjetivo: 70, tasaVoTipo: "unidades", tasaVoObjetivo: 3 });
+    expect(leido?.financiacion.map((f) => [f.importe, f.tasaIntervencion, f.tasaAmbito]).sort()).toEqual([[1000, "indiferente", "marca"], [2000, "no_cumplida", "global"], [5000, "cumplida", "global"]]);
+    expect(leido?.preference[0]).toMatchObject({ tasaIntervencion: "cumplida", tasaAmbito: "vo" });
+  });
+
   it("guarda y lee un plan completo, avisa de solapes y valida", async () => {
     const { plan } = await base();
     const leido = await leerPlan(db, plan.idPlan);

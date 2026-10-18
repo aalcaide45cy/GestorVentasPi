@@ -400,6 +400,12 @@ export const commissionPlans = pgTable("commission_plans", {
   voPuntosModo: varchar("vo_puntos_modo", { length: 10 }).notNull().default("cuentan"),
   /** Puntos por usado (centésimas); sin valor se usan los del modelo, la marca o el predeterminado. */
   voPuntos: integer("vo_puntos"),
+  /** Objetivo de la tasa de intervención financiera GLOBAL (todos los coches nuevos): 70 = 70 % o nº de unidades; sin valor = sin objetivo. */
+  tasaGlobalTipo: varchar("tasa_global_tipo", { length: 20 }).notNull().default("porcentaje"),
+  tasaGlobalObjetivo: integer("tasa_global_objetivo"),
+  /** Lo mismo para los usados (VO). */
+  tasaVoTipo: varchar("tasa_vo_tipo", { length: 20 }).notNull().default("porcentaje"),
+  tasaVoObjetivo: integer("tasa_vo_objetivo"),
   penalizacionImporte: integer("penalizacion_importe").notNull().default(0),
   penalizacionTitulo: text("penalizacion_titulo"),
   penalizacionDescripcion: text("penalizacion_descripcion"),
@@ -502,8 +508,12 @@ export const commissionFinanceRates = pgTable(
     /** A qué coches se aplica: VN (nuevos), VO (usados), VO:SUBTIPO o TODOS. */
     aplicaA: varchar("aplica_a", { length: 40 }).notNull().default("VN"),
     importe: integer("importe").notNull().default(0),
+    /** Solo se cobra si la tasa de intervención está cumplida / no cumplida (indiferente = siempre). */
+    tasaIntervencion: varchar("tasa_intervencion", { length: 20 }).notNull().default("indiferente"),
+    /** Qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
+    tasaAmbito: varchar("tasa_ambito", { length: 10 }).notNull().default("marca"),
   },
-  (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion, t.aplicaA)],
+  (t) => [uniqueIndex("commission_finance_rates_uq").on(t.idPlan, t.idMarca, t.tipoFinanciacion, t.aplicaA, t.tasaIntervencion, t.tasaAmbito)],
 );
 
 export const commissionPreferenceRules = pgTable("commission_preference_rules", {
@@ -517,6 +527,10 @@ export const commissionPreferenceRules = pgTable("commission_preference_rules", 
   aplicaA: varchar("aplica_a", { length: 40 }).notNull().default("VN"),
   importe: integer("importe").notNull().default(0),
   activa: boolean("activa").notNull().default(true),
+  /** Solo se cobra si la tasa de intervención está cumplida / no cumplida (indiferente = siempre). */
+  tasaIntervencion: varchar("tasa_intervencion", { length: 20 }).notNull().default("indiferente"),
+  /** Qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
+  tasaAmbito: varchar("tasa_ambito", { length: 10 }).notNull().default("marca"),
 });
 
 /** Columnas comunes de reglas y bonus (las penalizaciones son bonus con `es_penalizacion`). */

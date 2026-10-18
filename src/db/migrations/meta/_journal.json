@@ -183,6 +183,13 @@
       "when": 1792299226195,
       "tag": "0025_numerous_jack_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792323489678,
+      "tag": "0026_daily_stryfe",
+      "breakpoints": true
     }
   ]
 }

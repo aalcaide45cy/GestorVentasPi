@@ -8,18 +8,44 @@ import { reglaNueva, type PropsPestana } from "./tipos";
 const TIPOS = ["CREDITO", "PREFERENCE", "RENTING", "CONTADO"] as const;
 const ETIQUETA: Record<(typeof TIPOS)[number], string> = { CREDITO: "Crédito", PREFERENCE: "Preference", RENTING: "Renting", CONTADO: "Contado" };
 
+type CondicionTasa = "indiferente" | "cumplida" | "no_cumplida";
+type AmbitoTasa = "marca" | "global" | "vo";
+
+/**
+ * Condición de una regla financiera sobre la tasa de intervención: «indiferente» (siempre se cobra), «cumplida» o «no cumplida», y
+ * qué tasa se mira: la de la marca del coche, la global (todos los nuevos) o la de usados.
+ */
+function SelectorTasa({ condicion, ambito, alCambiar }: { condicion: CondicionTasa; ambito: AmbitoTasa; alCambiar: (c: { tasaIntervencion?: CondicionTasa; tasaAmbito?: AmbitoTasa }) => void }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "190px" }}>
+      <select className="form-input" value={condicion} onChange={(e) => alCambiar({ tasaIntervencion: e.target.value as CondicionTasa })} title="Indiferente: se cobra siempre. Cumplida o no cumplida: solo se cobra en esa situación de la tasa del mes.">
+        <option value="indiferente">Indiferente (siempre)</option>
+        <option value="cumplida">Solo si está cumplida</option>
+        <option value="no_cumplida">Solo si NO está cumplida</option>
+      </select>
+      {condicion !== "indiferente" && (
+        <select className="form-input" value={ambito} onChange={(e) => alCambiar({ tasaAmbito: e.target.value as AmbitoTasa })} title="Qué tasa de intervención financiera se comprueba">
+          <option value="marca">Tasa de la marca del coche</option>
+          <option value="global">Tasa global (todos los nuevos)</option>
+          <option value="vo">Tasa de usados (VO)</option>
+        </select>
+      )}
+    </div>
+  );
+}
+
 /** Financiación / Reglas del Plan. */
 export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <Seccion
         titulo="Incentivo de financiación por marca y tipo"
-        ayuda="Se genera en el mes de la fecha RCI para ventas a Crédito, Preference o Renting. El Contado no genera incentivo."
+        ayuda="Se genera en el mes de la fecha RCI para ventas a Crédito, Preference o Renting. El Contado no genera incentivo. Cada línea puede cobrarse solo si la tasa de intervención financiera está cumplida o no (la de la marca del coche, la global de nuevos o la de usados): así puedes poner dos líneas para la misma marca con importes distintos según la tasa. Los objetivos de la tasa global y de usados se fijan en la pestaña Objetivo."
         acciones={
           <BotonMini
             onClick={() => {
               const marca = cat.marcas[0];
-              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 0 }] }));
+              if (marca) setPlan((p) => ({ ...p, financiacion: [...p.financiacion, { idMarca: marca.id, tipoFinanciacion: "CREDITO", aplicaA: "VN", importe: 0, tasaIntervencion: "indiferente", tasaAmbito: "marca" }] }));
             }}
           >
             + Añadir incentivo
@@ -33,6 +59,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                 <th>Marca</th>
                 <th>Tipo de financiación</th>
                 <th title="A qué coches afecta esta regla: nuevos, usados o los dos">Se aplica a</th>
+                <th title="Solo se cobra si la tasa de intervención financiera está (o no) cumplida. Elige también qué tasa se mira.">Tasa de intervención</th>
                 <th>Importe (€)</th>
                 <th />
               </tr>
@@ -60,6 +87,9 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                   </td>
                   <td>
                     <SelectorVehiculo estilo="financiacion" valor={f.aplicaA} alCambiar={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, aplicaA: v } : x)) }))} />
+                  </td>
+                  <td>
+                    <SelectorTasa condicion={f.tasaIntervencion} ambito={f.tasaAmbito} alCambiar={(c) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, ...c } : x)) }))} />
                   </td>
                   <td>
                     <InputCentesimas valor={f.importe} onChange={(v) => setPlan((p) => ({ ...p, financiacion: p.financiacion.map((x, j) => (j === i ? { ...x, importe: v ?? 0 } : x)) }))} />
@@ -91,7 +121,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
       <Seccion
         titulo="Reglas Preference / BOX3"
         ayuda="Se aplica solo la regla más específica: marca + modelo, después modelo, después marca y por último la general."
-        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, aplicaA: "VN", importe: 0, activa: true }] }))}>+ Nueva regla</BotonMini>}
+        acciones={<BotonMini onClick={() => setPlan((p) => ({ ...p, preference: [...p.preference, { nombre: "", idMarca: null, idModelo: null, tipoFinanciacion: null, aplicaA: "VN", importe: 0, activa: true, tasaIntervencion: "indiferente", tasaAmbito: "marca" }] }))}>+ Nueva regla</BotonMini>}
       >
         <div className="table-container">
           <table className="table-premium table-compact">
@@ -101,6 +131,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                 <th>Marca</th>
                 <th>Modelo</th>
                 <th title="A qué coches afecta esta regla: nuevos, usados o los dos">Se aplica a</th>
+                <th title="Solo se cobra si la tasa de intervención financiera está (o no) cumplida. Elige también qué tasa se mira.">Tasa de intervención</th>
                 <th>Importe (€)</th>
                 <th>Activa</th>
                 <th />
@@ -138,6 +169,9 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
                     </td>
                     <td>
                       <SelectorVehiculo estilo="financiacion" valor={r.aplicaA} alCambiar={(v) => set({ aplicaA: v })} />
+                    </td>
+                    <td>
+                      <SelectorTasa condicion={r.tasaIntervencion} ambito={r.tasaAmbito} alCambiar={(c) => set(c)} />
                     </td>
                     <td>
                       <InputCentesimas valor={r.importe} onChange={(v) => set({ importe: v ?? 0 })} />

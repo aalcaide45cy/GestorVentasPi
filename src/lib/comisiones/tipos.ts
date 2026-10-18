@@ -100,7 +100,16 @@ export interface FinanciacionMotor {
   /** A qué coches se aplica (por defecto, los nuevos). */
   aplicaA?: string;
   importe: Centimos;
+  /** Solo se cobra si la tasa de intervención está cumplida / no cumplida (por defecto, siempre). */
+  tasaIntervencion?: CondicionTasa;
+  /** Qué tasa se mira (por defecto, la de la marca del coche). */
+  tasaAmbito?: AmbitoTasa;
 }
+
+/** Condición sobre la tasa de intervención financiera. */
+export type CondicionTasa = "cumplida" | "no_cumplida" | "indiferente";
+/** Qué tasa de intervención se mira: la de la marca del coche, la global (todos los nuevos) o la de usados. */
+export type AmbitoTasa = "marca" | "global" | "vo";
 
 export interface ReglaPreferenceMotor {
   id: number;
@@ -112,6 +121,8 @@ export interface ReglaPreferenceMotor {
   aplicaA?: string;
   importe: Centimos;
   activa?: boolean;
+  tasaIntervencion?: CondicionTasa;
+  tasaAmbito?: AmbitoTasa;
 }
 
 export interface ReglaBonusMotor {
@@ -133,6 +144,12 @@ export interface ReglaBonusMotor {
   /** Solo reglas del evento `preference`. */
   ligarACredito: boolean;
   activa?: boolean;
+}
+
+/** Objetivo de una tasa que no es de marca (la global de nuevos o la de usados). Sin objetivo, siempre se considera cumplida. */
+export interface TasaConfigMotor {
+  tipoTasa: "porcentaje" | "unidades";
+  objetivo: number | null;
 }
 
 export interface TasaMarcaMotor {
@@ -173,6 +190,9 @@ export interface PlanMotor {
   reglasPreference: ReglaPreferenceMotor[];
   reglasYBonus: ReglaBonusMotor[];
   tasaIntervencionPorMarca: TasaMarcaMotor[];
+  /** Objetivo de la tasa global (todos los coches nuevos) y de la de usados. */
+  tasaGlobal?: TasaConfigMotor;
+  tasaVo?: TasaConfigMotor;
   /** Solo para los textos de aviso. */
   nombresModelo?: Record<number, string>;
   nombresMarca?: Record<number, string>;
@@ -223,6 +243,17 @@ export interface TasaMarcaResultado {
   cumplida: boolean;
 }
 
+/** Tasa de intervención financiera de un conjunto de coches (todos los nuevos, o los usados). */
+export interface TasaAmbitoResultado {
+  numerador: number;
+  denominador: number;
+  porcentaje: number | null;
+  unidades: number;
+  cumplida: boolean;
+  /** Hay objetivo fijado en el plan (si no, se da por cumplida). */
+  conObjetivo: boolean;
+}
+
 export type EventoLibro = "PEDIDO" | "MATRICULACION" | "COBRO" | "REGLA" | "AJUSTE";
 
 export interface ApuntePuntos {
@@ -245,6 +276,9 @@ export interface ResultadoMes {
   /** Tramo final, ya limitado al rango del plan. */
   tramo: number;
   tasaIntervencion: TasaMarcaResultado[];
+  /** Tasa de todos los coches nuevos (suma de marcas) y tasa de los usados. */
+  tasaGlobal: TasaAmbitoResultado;
+  tasaVo: TasaAmbitoResultado;
   lineas: LineaExpediente[];
   bruto: Centimos;
   penalizacion: Centimos;

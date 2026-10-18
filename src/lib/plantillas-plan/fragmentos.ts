@@ -30,7 +30,7 @@ export const TITULO_AMBITO: Record<Ambito, string> = {
 export const INFO_COMPONENTE: Record<Componente, { titulo: string; ayuda: string }> = {
   resumen: { titulo: "Tramos y puntos por pedido", ayuda: "Tramo mínimo y máximo y puntos por pedido." },
   vendedores: { titulo: "Objetivos de los vendedores", ayuda: "Objetivo X y arrastre de cada vendedor (se buscan por nombre)." },
-  tasas: { titulo: "Tasa de intervención por marca", ayuda: "Tipo de tasa, objetivo y puntos por defecto de cada marca." },
+  tasas: { titulo: "Tasa de intervención (marcas, global y usados)", ayuda: "Tipo de tasa, objetivo y puntos por defecto de cada marca, y el objetivo de la tasa global y la de usados." },
   promociones: { titulo: "Promociones de puntos", ayuda: "Puntos especiales según unidades vendidas." },
   puntosModelo: { titulo: "Puntos por modelo", ayuda: "Puntos que da cada modelo (se buscan por marca y modelo)." },
   tarifasVN: { titulo: "Tarifas VN por tramo", ayuda: "Importes por modelo y tramo. Los modelos que no existan en tu catálogo se omiten (usa VN › Plantillas para crearlos)." },
@@ -87,15 +87,18 @@ export function extraer(plan: PlanEditable, cat: CatalogoNombres, comps: Compone
   const tiene = (c: Componente) => comps.includes(c);
   if (tiene("resumen")) f.resumen = { tramoMin: plan.tramoMin, tramoMax: plan.tramoMax, puntosPorPedido: plan.puntosPorPedido };
   if (tiene("vendedores")) f.vendedores = plan.vendedores.flatMap((v) => { const n = cat.vendedores.find((x) => x.id === v.idUsuario)?.nombre; return n ? [{ nombre: n, objetivoBase: v.objetivoBase, arrastre: v.arrastre }] : []; });
-  if (tiene("tasas")) f.tasas = plan.tasas.flatMap((t) => { const m = marca(t.idMarca); return m ? [{ marca: m, tipoTasa: t.tipoTasa, objetivo: t.objetivo, puntosDefecto: t.puntosDefecto }] : []; });
+  if (tiene("tasas")) {
+    f.tasas = plan.tasas.flatMap((t) => { const m = marca(t.idMarca); return m ? [{ marca: m, tipoTasa: t.tipoTasa, objetivo: t.objetivo, puntosDefecto: t.puntosDefecto }] : []; });
+    f.tasasPlan = { tasaGlobalTipo: plan.tasaGlobalTipo, tasaGlobalObjetivo: plan.tasaGlobalObjetivo, tasaVoTipo: plan.tasaVoTipo, tasaVoObjetivo: plan.tasaVoObjetivo };
+  }
   if (tiene("promociones")) f.promociones = plan.promociones.map((p) => ({ nombre: p.nombre, puntosEspeciales: p.puntosEspeciales, minimoUnidades: p.minimoUnidades, puntosSiNoCumple: p.puntosSiNoCumple }));
   if (tiene("puntosModelo")) f.puntosModelo = plan.puntosModelo.flatMap((p) => { const m = modelo(p.idModelo); return m ? [{ ...m, puntos: p.puntos }] : []; });
   if (tiene("tarifasVN")) f.tarifasVN = plan.tarifasVN.flatMap((t) => { const m = modelo(t.idModelo); return m ? [{ ...m, tasaCumplida: t.tasaCumplida, importes: { ...t.importes }, activo: t.activo, orden: t.orden }] : []; });
   if (tiene("opcionesUsados")) f.opcionesUsados = { voPuntosModo: plan.voPuntosModo, voPuntos: plan.voPuntos };
   if (tiene("usados")) f.usados = plan.usados.map((u) => ({ ...u }));
   if (tiene("patrones")) f.patrones = plan.patrones.map((p) => ({ ...p, tiers: p.tiers.map((t) => ({ ...t })) }));
-  if (tiene("financiacion")) f.financiacion = plan.financiacion.flatMap((x) => { const m = marca(x.idMarca); return m ? [{ marca: m, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe }] : []; });
-  if (tiene("preference")) f.preference = plan.preference.map((p) => { const mo = modelo(p.idModelo); return { nombre: p.nombre, marca: mo?.marca ?? marca(p.idMarca), modelo: mo?.modelo ?? null, tipoFinanciacion: p.tipoFinanciacion, aplicaA: p.aplicaA, importe: p.importe, activa: p.activa }; });
+  if (tiene("financiacion")) f.financiacion = plan.financiacion.flatMap((x) => { const m = marca(x.idMarca); return m ? [{ marca: m, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe, tasaIntervencion: x.tasaIntervencion, tasaAmbito: x.tasaAmbito }] : []; });
+  if (tiene("preference")) f.preference = plan.preference.map((p) => { const mo = modelo(p.idModelo); return { nombre: p.nombre, marca: mo?.marca ?? marca(p.idMarca), modelo: mo?.modelo ?? null, tipoFinanciacion: p.tipoFinanciacion, aplicaA: p.aplicaA, importe: p.importe, activa: p.activa, tasaIntervencion: p.tasaIntervencion, tasaAmbito: p.tasaAmbito }; });
   const regla = (r: PlanEditable["reglas"][number]) => {
     const mo = modelo(r.idModelo);
     const { idMarca, idModelo, ...resto } = r;
@@ -161,6 +164,7 @@ export function aplicar(plan: PlanEditable, f: Fragmento, cat: CatalogoNombres, 
     p.vendedores = lista("vendedores", p.vendedores, f.vendedores.map((v) => { const id = vendedorId(v.nombre); return { valor: id === null ? null : { idUsuario: id, objetivoBase: v.objetivoBase, arrastre: v.arrastre }, etiqueta: `Vendedor «${v.nombre}»` }; }), (x) => String(x.idUsuario));
   if (quiere("tasas") && f.tasas)
     p.tasas = lista("tasas", p.tasas, f.tasas.map((t) => { const id = marcaId(t.marca); return { valor: id === null ? null : { idMarca: id, tipoTasa: t.tipoTasa, objetivo: t.objetivo, puntosDefecto: t.puntosDefecto }, etiqueta: `Marca «${t.marca}»` }; }), (x) => String(x.idMarca));
+  if (quiere("tasas") && f.tasasPlan) p = { ...p, ...f.tasasPlan };
   if (quiere("promociones") && f.promociones)
     p.promociones = lista("promociones", p.promociones, f.promociones.map((x) => ({ valor: { ...x }, etiqueta: x.nombre })), (x) => norm(x.nombre));
   if (quiere("puntosModelo") && f.puntosModelo)
@@ -175,7 +179,7 @@ export function aplicar(plan: PlanEditable, f: Fragmento, cat: CatalogoNombres, 
   if (quiere("usados") && f.usados) p.usados = lista("usados", p.usados, f.usados.map((x) => ({ valor: { ...x }, etiqueta: x.subtipo })), (x) => norm(x.subtipo));
   if (quiere("patrones") && f.patrones) p.patrones = lista("patrones", p.patrones, f.patrones.map((x) => ({ valor: { ...x, tiers: x.tiers.map((t) => ({ ...t })) }, etiqueta: x.nombre })), (x) => norm(x.nombre));
   if (quiere("financiacion") && f.financiacion)
-    p.financiacion = lista("financiacion", p.financiacion, f.financiacion.map((x) => { const id = marcaId(x.marca); return { valor: id === null ? null : { idMarca: id, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe }, etiqueta: `Marca «${x.marca}» (${x.tipoFinanciacion.toLowerCase()}, ${x.aplicaA})` }; }), (x) => `${x.idMarca}|${x.tipoFinanciacion}|${x.aplicaA}`);
+    p.financiacion = lista("financiacion", p.financiacion, f.financiacion.map((x) => { const id = marcaId(x.marca); return { valor: id === null ? null : { idMarca: id, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe, tasaIntervencion: x.tasaIntervencion, tasaAmbito: x.tasaAmbito }, etiqueta: `Marca «${x.marca}» (${x.tipoFinanciacion.toLowerCase()}, ${x.aplicaA}${x.tasaIntervencion === "indiferente" ? "" : `, tasa ${x.tasaIntervencion === "cumplida" ? "cumplida" : "no cumplida"}`})` }; }), (x) => `${x.idMarca}|${x.tipoFinanciacion}|${x.aplicaA}|${x.tasaIntervencion}|${x.tasaAmbito}`);
   /** Regla (o bonus) con marca y modelo por nombre → con ids; nula si el nombre de marca o modelo no existe aquí. */
   const resolverRegla = (r: NonNullable<Fragmento["reglas"]>[number]): PlanEditable["reglas"][number] | null => {
     const idM = r.marca === null ? null : marcaId(r.marca);
@@ -195,9 +199,9 @@ export function aplicar(plan: PlanEditable, f: Fragmento, cat: CatalogoNombres, 
         const idM = x.marca === null ? null : marcaId(x.marca);
         const idMo = x.modelo === null ? null : modeloId(x.marca, x.modelo);
         const roto = (x.marca !== null && idM === null) || (x.modelo !== null && idMo === null);
-        return { valor: roto ? null : { nombre: x.nombre, idMarca: idM, idModelo: idMo, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe, activa: x.activa }, etiqueta: x.nombre ?? [x.marca, x.modelo].filter(Boolean).join(" ") ?? "Regla Preference" };
+        return { valor: roto ? null : { nombre: x.nombre, idMarca: idM, idModelo: idMo, tipoFinanciacion: x.tipoFinanciacion, aplicaA: x.aplicaA, importe: x.importe, activa: x.activa, tasaIntervencion: x.tasaIntervencion, tasaAmbito: x.tasaAmbito }, etiqueta: x.nombre ?? [x.marca, x.modelo].filter(Boolean).join(" ") ?? "Regla Preference" };
       }),
-      (x) => `${norm(x.nombre ?? "")}|${x.idMarca ?? ""}|${x.idModelo ?? ""}|${x.tipoFinanciacion ?? ""}|${x.aplicaA}`,
+      (x) => `${norm(x.nombre ?? "")}|${x.idMarca ?? ""}|${x.idModelo ?? ""}|${x.tipoFinanciacion ?? ""}|${x.aplicaA}|${x.tasaIntervencion}|${x.tasaAmbito}`,
     );
   if (quiere("reglas") && f.reglas) p.reglas = lista("reglas", p.reglas, f.reglas.map((r) => ({ valor: resolverRegla(r), etiqueta: r.nombre })), claveRegla);
   if (quiere("bonus") && f.bonus) p.bonus = lista("bonus", p.bonus, f.bonus.map((r) => ({ valor: resolverRegla(r), etiqueta: r.nombre })), claveRegla);

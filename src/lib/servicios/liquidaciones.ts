@@ -45,6 +45,8 @@ import {
 const DESPLAZAMIENTO_BONUS = 1_000_000;
 
 const aplicaDe = (v: string): string => v || "VN";
+const condicionTasa = (v: string): "indiferente" | "cumplida" | "no_cumplida" => (v === "cumplida" || v === "no_cumplida" ? v : "indiferente");
+const ambitoTasa = (v: string): "marca" | "global" | "vo" => (v === "global" || v === "vo" ? v : "marca");
 const CATEGORIAS: CategoriaVenta[] = ["CONTADO", "CREDITO", "PREFERENCE", "RENTING"];
 const categoria = (v: string | null | undefined): CategoriaVenta | null => (CATEGORIAS.includes(v as CategoriaVenta) ? (v as CategoriaVenta) : null);
 
@@ -109,6 +111,8 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     penalizacionImporte: p.penalizacionImporte,
     voPuntosModo: p.voPuntosModo === "no" ? "no" : "cuentan",
     voPuntos: p.voPuntos,
+    tasaGlobal: { tipoTasa: p.tasaGlobalTipo === "unidades" ? "unidades" : "porcentaje", objetivo: p.tasaGlobalObjetivo },
+    tasaVo: { tipoTasa: p.tasaVoTipo === "unidades" ? "unidades" : "porcentaje", objetivo: p.tasaVoObjetivo },
     objetivos: Object.fromEntries(vend.map((v) => [v.idUsuario, { base: v.objetivoBase, arrastre: v.arrastre }])),
     puntosPorDefectoModelo: Object.fromEntries(puntosModelo.map((x) => [x.idModelo, x.puntos])),
     puntosPorDefectoMarca: Object.fromEntries(tasas.map((x) => [x.idMarca, x.puntosDefecto])),
@@ -118,9 +122,9 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     patronesVO: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
     financiacionPorMarcaTipo: fin.flatMap((f) => {
       const tipo = categoria(f.tipoFinanciacion);
-      return tipo ? [{ idMarca: f.idMarca, tipo, aplicaA: aplicaDe(f.aplicaA), importe: f.importe }] : [];
+      return tipo ? [{ idMarca: f.idMarca, tipo, aplicaA: aplicaDe(f.aplicaA), importe: f.importe, tasaIntervencion: condicionTasa(f.tasaIntervencion), tasaAmbito: ambitoTasa(f.tasaAmbito) }] : [];
     }),
-    reglasPreference: pref.map((r) => ({ id: r.idPrefRule, nombre: r.nombre ?? undefined, idMarca: r.idMarca, idModelo: r.idModelo, tipo: categoria(r.tipoFinanciacion), aplicaA: aplicaDe(r.aplicaA), importe: r.importe, activa: r.activa })),
+    reglasPreference: pref.map((r) => ({ id: r.idPrefRule, nombre: r.nombre ?? undefined, idMarca: r.idMarca, idModelo: r.idModelo, tipo: categoria(r.tipoFinanciacion), aplicaA: aplicaDe(r.aplicaA), importe: r.importe, activa: r.activa, tasaIntervencion: condicionTasa(r.tasaIntervencion), tasaAmbito: ambitoTasa(r.tasaAmbito) })),
     reglasYBonus: [...reglas.map((r) => mapearRegla(r, r.idRule)), ...bonus.map((r) => mapearRegla(r, r.idBonusRule + DESPLAZAMIENTO_BONUS))],
     tasaIntervencionPorMarca: tasas.map((t) => ({ idMarca: t.idMarca, tipoTasa: t.tipoTasa === "unidades" ? "unidades" : "porcentaje", objetivo: t.objetivo })),
     nombresMarca: Object.fromEntries(nMarcas.map((m) => [m.id, m.nombre])),

@@ -60,6 +60,11 @@ export const esquemaPlanBase = z.object({
     puntosPorPedido: entero.min(0).default(0),
     voPuntosModo: z.enum(["cuentan", "no"]).default("cuentan"),
     voPuntos: entero.min(0).nullable().default(null),
+    /** Objetivo de la tasa de intervención financiera global (todos los nuevos) y de usados; sin objetivo = siempre cumplida. */
+    tasaGlobalTipo: z.enum(["porcentaje", "unidades"]).default("porcentaje"),
+    tasaGlobalObjetivo: entero.min(0).nullable().default(null),
+    tasaVoTipo: z.enum(["porcentaje", "unidades"]).default("porcentaje"),
+    tasaVoObjetivo: entero.min(0).nullable().default(null),
     penalizacionImporte: entero.min(0).default(0),
     penalizacionTitulo: z.string().max(200).nullable().default(null),
     penalizacionDescripcion: z.string().max(1000).nullable().default(null),
@@ -95,9 +100,9 @@ export const esquemaPlanBase = z.object({
     patrones: z
       .array(z.object({ nombre: z.string().trim().min(1).max(200), aplicaAVn: z.boolean().default(false), rotativo: z.boolean().default(false), activo: z.boolean().default(true), tiers: z.array(z.object({ unidad: z.number().int().positive(), importe: entero.min(0) })).default([]) }))
       .default([]),
-    financiacion: z.array(z.object({ idMarca: z.number().int().positive(), tipoFinanciacion: tipoFin, aplicaA: aplicaA.default("VN"), importe: entero })).default([]),
+    financiacion: z.array(z.object({ idMarca: z.number().int().positive(), tipoFinanciacion: tipoFin, aplicaA: aplicaA.default("VN"), importe: entero, tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca") })).default([]),
     preference: z
-      .array(z.object({ nombre: z.string().max(200).nullable().default(null), idMarca: idNull, idModelo: idNull, tipoFinanciacion: tipoFin.nullable().default(null), aplicaA: aplicaA.default("VN"), importe: entero, activa: z.boolean().default(true) }))
+      .array(z.object({ nombre: z.string().max(200).nullable().default(null), idMarca: idNull, idModelo: idNull, tipoFinanciacion: tipoFin.nullable().default(null), aplicaA: aplicaA.default("VN"), importe: entero, activa: z.boolean().default(true), tasaIntervencion: z.enum(["indiferente", "cumplida", "no_cumplida"]).default("indiferente"), tasaAmbito: z.enum(["marca", "global", "vo"]).default("marca") }))
       .default([]),
     reglas: z.array(esquemaRegla).default([]),
     bonus: z.array(esquemaRegla).default([]),
@@ -143,6 +148,9 @@ export async function listarPlanes(ej: Ejecutor): Promise<ResumenPlan[]> {
   }));
 }
 
+const condTasa = (v: string): "indiferente" | "cumplida" | "no_cumplida" => (v === "cumplida" || v === "no_cumplida" ? v : "indiferente");
+const ambTasa = (v: string): "marca" | "global" | "vo" => (v === "global" || v === "vo" ? v : "marca");
+
 export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditable | null> {
   const [p] = await ej.select().from(commissionPlans).where(eq(commissionPlans.idPlan, idPlan));
   if (!p) return null;
@@ -186,6 +194,10 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     puntosPorPedido: p.puntosPorPedido,
     voPuntosModo: p.voPuntosModo === "no" ? "no" : "cuentan",
     voPuntos: p.voPuntos,
+    tasaGlobalTipo: p.tasaGlobalTipo === "unidades" ? "unidades" : "porcentaje",
+    tasaGlobalObjetivo: p.tasaGlobalObjetivo,
+    tasaVoTipo: p.tasaVoTipo === "unidades" ? "unidades" : "porcentaje",
+    tasaVoObjetivo: p.tasaVoObjetivo,
     penalizacionImporte: p.penalizacionImporte,
     penalizacionTitulo: p.penalizacionTitulo,
     penalizacionDescripcion: p.penalizacionDescripcion,
@@ -197,8 +209,8 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     tarifasVN: tarifas.map((x) => ({ idModelo: x.idModelo, tasaCumplida: x.tasaCumplida, importes: x.importes, activo: x.activo, orden: x.orden })),
     usados: usados.map((x) => ({ subtipo: x.subtipo, importePrimera: x.importePrimera, importeResto: x.importeResto, minAplicar: x.minAplicar, activo: x.activo })),
     patrones: patrones.map((x) => ({ nombre: x.nombre, aplicaAVn: x.aplicaAVn, rotativo: x.rotativo, activo: x.activo, tiers: x.tiers })),
-    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", aplicaA: x.aplicaA || "VN", importe: x.importe })),
-    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, aplicaA: x.aplicaA || "VN", importe: x.importe, activa: x.activa })),
+    financiacion: fin.map((x) => ({ idMarca: x.idMarca, tipoFinanciacion: x.tipoFinanciacion as "CREDITO", aplicaA: x.aplicaA || "VN", importe: x.importe, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito) })),
+    preference: pref.map((x) => ({ nombre: x.nombre, idMarca: x.idMarca, idModelo: x.idModelo, tipoFinanciacion: x.tipoFinanciacion as "PREFERENCE" | null, aplicaA: x.aplicaA || "VN", importe: x.importe, activa: x.activa, tasaIntervencion: condTasa(x.tasaIntervencion), tasaAmbito: ambTasa(x.tasaAmbito) })),
     reglas: reglas.map(regla),
     bonus: bonus.map(regla),
     pendientes: pend.map((x) => ({ concepto: x.concepto, importe: x.importe, mesOrigen: x.mesOrigen })),
@@ -284,6 +296,10 @@ export async function guardarPlan(ej: Ejecutor, idPlan: number | null, entrada: 
       puntosPorPedido: p.puntosPorPedido,
       voPuntosModo: p.voPuntosModo,
       voPuntos: p.voPuntos,
+      tasaGlobalTipo: p.tasaGlobalTipo,
+      tasaGlobalObjetivo: p.tasaGlobalObjetivo,
+      tasaVoTipo: p.tasaVoTipo,
+      tasaVoObjetivo: p.tasaVoObjetivo,
       penalizacionImporte: p.penalizacionImporte,
       penalizacionTitulo: p.penalizacionTitulo,
       penalizacionDescripcion: p.penalizacionDescripcion,
