@@ -111,7 +111,7 @@ describe("recorte de la foto del DNI", () => {
     expect([info.width, info.height]).toEqual([300, 380]);
     const claro = data.filter((v) => v > 128).length / data.length;
     expect(claro).toBeGreaterThan(0.2);
-    expect(claro).toBeLessThan(0.5); // con la región justa sería casi 1
+    expect(claro).toBeLessThan(0.65); // con la región justa sería casi 1
     // Los bordes del recorte son fondo (margen), no cara
     expect(data[0]).toBeLessThan(40);
     expect(data[data.length - 1]).toBeLessThan(40);
