@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { BotonesDatosSeccion, descargarSeccion } from "@/components/datos/DatosSeccion";
 import { useToast } from "@/components/Toast";
 import { euros, etiquetaTramo, nombreMes, puntos } from "@/lib/formato";
@@ -99,6 +100,51 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
     }
   };
 
+  const columnasMias: ColumnaTabla<LiquidacionResumen>[] = [
+    { clave: "mes", etiqueta: "Mes", valor: (l) => l.mes, celda: (l) => nombreMes(l.mes) },
+    { clave: "estado", etiqueta: "Estado", valor: (l) => l.estado },
+    { clave: "puntos", etiqueta: "Puntos / Objetivo", valor: (l) => l.puntosMes, celda: (l) => `${puntos(l.puntosMes)} / ${puntos(l.objetivoX)}`, alinear: "right" },
+    { clave: "tramo", etiqueta: "Tramo", valor: (l) => l.tramo, celda: (l) => etiquetaTramo(l.tramo) },
+    { clave: "neto", etiqueta: "Neto", valor: (l) => l.neto, celda: (l) => <b>{euros(l.neto)}</b>, alinear: "right" },
+    { clave: "mesPago", etiqueta: "Se cobra en", valor: (l) => l.mesPago, celda: (l) => nombreMes(l.mesPago) },
+  ];
+  const columnasPlanes: ColumnaTabla<ResumenPlan>[] = [
+    {
+      clave: "plan",
+      etiqueta: "Plan",
+      valor: (p) => p.nombre,
+      celda: (p) => (
+        <>
+          {p.nombre}
+          {p.solapadoCon.length > 0 && <div style={{ color: "var(--warning)", fontSize: "0.8rem" }}>⚠️ Plan ya existente: se solapa con «{p.solapadoCon.map((x) => x.nombre).join("», «")}»</div>}
+        </>
+      ),
+    },
+    { clave: "periodo", etiqueta: "Periodo", valor: (p) => p.fechaInicio, celda: (p) => `${p.fechaInicio.split("-").reverse().join("/")} – ${p.fechaFin.split("-").reverse().join("/")}` },
+    { clave: "estado", etiqueta: "Estado", valor: (p) => p.estado },
+    { clave: "vendedores", etiqueta: "Vendedores", valor: (p) => p.vendedores, alinear: "right" },
+    { clave: "liquidaciones", etiqueta: "Liquidaciones", valor: (p) => p.liquidaciones, alinear: "right" },
+    {
+      clave: "acciones",
+      etiqueta: "Acciones",
+      valor: () => "",
+      celda: (p) => (
+        <span style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap" }}>
+          <BotonMini onClick={() => void abrir(p)}>Abrir</BotonMini>
+          <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => void duplicar(p)}>
+            Duplicar
+          </BotonMini>
+          <BotonMini titulo="Descarga solo este plan como archivo .json (se puede importar en otra instalación o en esta con «Importar»)." onClick={() => void exportarUno(p)}>
+            Exportar SOLO este plan
+          </BotonMini>
+          <BotonMini peligro onClick={() => setABorrar(p)}>
+            Eliminar
+          </BotonMini>
+        </span>
+      ),
+    },
+  ];
+
   if (editando) {
     return (
       <PlanEditor
@@ -122,41 +168,15 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <Seccion titulo="Mis liquidaciones" ayuda="Solo lectura. Lo generado en un mes se cobra en la nómina de fin del mes siguiente.">
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Mes</th>
-                  <th>Estado</th>
-                  <th style={{ textAlign: "right" }}>Puntos / Objetivo</th>
-                  <th>Tramo</th>
-                  <th style={{ textAlign: "right" }}>Neto</th>
-                  <th>Se cobra en</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mias.map((l) => (
-                  <tr key={l.idLiquidation}>
-                    <td>{nombreMes(l.mes)}</td>
-                    <td>{l.estado}</td>
-                    <td style={{ textAlign: "right" }}>
-                      {puntos(l.puntosMes)} / {puntos(l.objetivoX)}
-                    </td>
-                    <td>{etiquetaTramo(l.tramo)}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(l.neto)}</td>
-                    <td>{nombreMes(l.mesPago)}</td>
-                  </tr>
-                ))}
-                {mias.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ color: "var(--text-muted)" }}>
-                      Todavía no hay liquidaciones calculadas.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <TablaDatos<LiquidacionResumen>
+            id="mis-liquidaciones"
+            columnas={columnasMias}
+            filas={mias}
+            clave={(l) => l.idLiquidation}
+            placeholder="Buscar por mes o estado…"
+            vacio="Todavía no hay liquidaciones calculadas."
+            pie={(fs) => ({ mes: `${fs.length} liquidación${fs.length === 1 ? "" : "es"}`, neto: euros(fs.reduce((t, l) => t + l.neto, 0)) })}
+          />
         </Seccion>
         {prevision.length > 0 && (
           <Seccion titulo="Previsión de nómina">
@@ -185,57 +205,15 @@ export default function ComisionesManager({ cat, esAdmin }: Props) {
           </div>
         }
       >
-        <div className="table-container">
-          <table className="table-premium">
-            <thead>
-              <tr>
-                <th>Plan</th>
-                <th>Periodo</th>
-                <th>Estado</th>
-                <th>Vendedores</th>
-                <th>Liquidaciones</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {planes.map((p) => (
-                <tr key={p.idPlan}>
-                  <td>
-                    {p.nombre}
-                    {p.solapadoCon.length > 0 && (
-                      <div style={{ color: "var(--warning)", fontSize: "0.8rem" }}>⚠️ Plan ya existente: se solapa con «{p.solapadoCon.map((s) => s.nombre).join("», «")}»</div>
-                    )}
-                  </td>
-                  <td>
-                    {p.fechaInicio.split("-").reverse().join("/")} – {p.fechaFin.split("-").reverse().join("/")}
-                  </td>
-                  <td>{p.estado}</td>
-                  <td>{p.vendedores}</td>
-                  <td>{p.liquidaciones}</td>
-                  <td style={{ display: "flex", gap: "6px", flexWrap: "wrap", minWidth: "200px" }}>
-                    <BotonMini onClick={() => abrir(p)}>Abrir</BotonMini>
-                    <BotonMini titulo="Crea un plan nuevo con una copia de todos los valores de este (tarifas, puntos, objetivos, reglas…); después cada plan es independiente" onClick={() => duplicar(p)}>
-                      Duplicar
-                    </BotonMini>
-                    <BotonMini titulo="Descarga solo este plan como archivo .json (se puede importar en otra instalación o en esta con «Importar»)." onClick={() => void exportarUno(p)}>
-                      Exportar SOLO este plan
-                    </BotonMini>
-                    <BotonMini peligro onClick={() => setABorrar(p)}>
-                      Eliminar
-                    </BotonMini>
-                  </td>
-                </tr>
-              ))}
-              {planes.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ color: "var(--text-muted)" }}>
-                    Aún no hay planes. Crea el primero con «Nuevo plan».
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <TablaDatos<ResumenPlan>
+          id="planes-comisiones"
+          columnas={columnasPlanes}
+          filas={planes}
+          clave={(p) => p.idPlan}
+          placeholder="Buscar por plan, periodo, estado…"
+          vacio="Aún no hay planes. Crea el primero con «Nuevo plan»."
+          pie={(fs) => ({ plan: `${fs.length} plan${fs.length === 1 ? "" : "es"}`, liquidaciones: fs.reduce((t, p) => t + p.liquidaciones, 0) })}
+        />
       </Seccion>
 
       {AVISO_COTEJO}
