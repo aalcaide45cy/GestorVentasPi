@@ -164,7 +164,7 @@ describe("4. Tasa de intervención", () => {
     expect(calcularMes(plan({ tasaIntervencionPorMarca: [{ idMarca: 1, tipoTasa: "unidades", objetivo: 4 }] }), V, MES, e).tasaIntervencion[0].cumplida).toBe(false);
     expect(calcularMes(plan({ tasaIntervencionPorMarca: [{ idMarca: 1, tipoTasa: "porcentaje", objetivo: 30 }] }), V, MES, e).tasaIntervencion[0].cumplida).toBe(true);
   });
-  it("contado no suma al numerador; Preference y Renting sí; los VO no cuentan", () => {
+  it("contado no suma al numerador; Preference y Renting sí; los VO financiados también cuentan", () => {
     const e = [
       ...vn(1, 1, { categoriaVenta: "PREFERENCE", fechaRci: "2026-06-02" }),
       ...vn(2, 1, { categoriaVenta: "RENTING", fechaRci: "2026-06-03" }),
@@ -172,8 +172,11 @@ describe("4. Tasa de intervención", () => {
       exp(4, { clase: "VO", fechaFacturacion: "2026-06-05", categoriaVenta: "CREDITO", fechaRci: "2026-06-05" }),
     ];
     const t = calcularMes(plan(), V, MES, e).tasaIntervencion[0];
-    expect(t.numerador).toBe(2);
-    expect(t.denominador).toBe(3);
+    expect(t.numerador).toBe(3);
+    expect(t.denominador).toBe(4);
+    const sinVo = calcularMes(plan({ tasaIncluyeVo: false }), V, MES, e).tasaIntervencion[0];
+    expect(sinVo.numerador).toBe(2);
+    expect(sinVo.denominador).toBe(3);
   });
   it("sin VN de esa marca en el mes se considera cumplida", () => {
     const soloRci = [exp(1, { fechaMatriculacion: "2026-05-10", categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];

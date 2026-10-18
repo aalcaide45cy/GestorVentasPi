@@ -406,6 +406,8 @@ export const commissionPlans = pgTable("commission_plans", {
   /** Lo mismo para los usados (VO). */
   tasaVoTipo: varchar("tasa_vo_tipo", { length: 20 }).notNull().default("porcentaje"),
   tasaVoObjetivo: integer("tasa_vo_objetivo"),
+  /** Los usados financiados cuentan también en la tasa global y en la de cada marca (por defecto, sí). */
+  tasaIncluyeVo: boolean("tasa_incluye_vo").notNull().default(true),
   penalizacionImporte: integer("penalizacion_importe").notNull().default(0),
   penalizacionTitulo: text("penalizacion_titulo"),
   penalizacionDescripcion: text("penalizacion_descripcion"),

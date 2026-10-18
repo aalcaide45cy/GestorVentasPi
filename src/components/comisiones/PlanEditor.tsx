@@ -84,6 +84,7 @@ const PLAN_VACIO = (): Plan => {
     tasaGlobalObjetivo: null,
     tasaVoTipo: "porcentaje",
     tasaVoObjetivo: null,
+    tasaIncluyeVo: true,
     penalizacionImporte: 0,
     penalizacionTitulo: null,
     penalizacionDescripcion: null,

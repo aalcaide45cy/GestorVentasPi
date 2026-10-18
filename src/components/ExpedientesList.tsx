@@ -24,6 +24,7 @@ import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, pe
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
+import { EtiquetaClase } from "./etiquetas";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, TextoCopiable, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
@@ -66,6 +67,7 @@ type Columna =
   | "cliente"
   | "telefono"
   | "email"
+  | "clase"
   | "marca"
   | "modelo"
   | "marca_modelo"
@@ -84,6 +86,7 @@ const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
   { clave: "cliente", etiqueta: "Cliente" },
   { clave: "telefono", etiqueta: "Teléfono" },
   { clave: "email", etiqueta: "Email" },
+  { clave: "clase", etiqueta: "VN / VO" },
   { clave: "marca", etiqueta: "Marca" },
   { clave: "modelo", etiqueta: "Modelo" },
   { clave: "marca_modelo", etiqueta: "Marca y modelo" },
@@ -106,7 +109,7 @@ const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false };
 const ORDEN_POR_DEFECTO: Columna[] = COLUMNAS.map((c) => c.clave);
 const solo = (claves: Columna[]): Visibles => Object.fromEntries(COLUMNAS.map((c) => [c.clave, claves.includes(c.clave)])) as Visibles;
 const VISTAS_INCLUIDAS: { id: string; nombre: string; ayuda: string; config: ConfigColumnas }[] = [
-  { id: "compacta", nombre: "Compacta", ayuda: "Cliente, marca y modelo juntos, tipo de venta, estado, vendedor y fecha de expediente.", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "marca_modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente"]) } },
+  { id: "compacta", nombre: "Compacta", ayuda: "Cliente, marca y modelo juntos, tipo de venta, estado, vendedor y fecha de expediente.", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "clase", "marca_modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente"]) } },
   { id: "fechas", nombre: "Seguimiento de fechas", ayuda: "Cliente, vehículo, vendedor y todas las fechas (expediente, afectación, RCI, matriculación, facturación, entrega).", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "marca_modelo", "vendedor", "fecha_expediente", "fecha_afectacion", "fecha_rci", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega"]) } },
   { id: "contacto", nombre: "Contacto", ayuda: "Cliente, teléfono, email, vehículo y vendedor para llamar o escribir.", config: { orden: ["cliente", "telefono", "email", "marca_modelo", "vendedor", ...ORDEN_POR_DEFECTO.filter((c) => !["cliente", "telefono", "email", "marca_modelo", "vendedor"].includes(c))], visibles: solo(["cliente", "telefono", "email", "marca_modelo", "vendedor"]) } },
   { id: "todas", nombre: "Todas las columnas", ayuda: "Todas las columnas, con marca y modelo por separado.", config: { orden: ORDEN_POR_DEFECTO, visibles: { ...TODAS, marca_modelo: false } } },
@@ -120,6 +123,7 @@ const ANCHO_COLUMNA: Record<Columna, number> = {
   marca: 90,
   modelo: 150,
   marca_modelo: 170,
+  clase: 70,
   tipo_venta: 100,
   estado: 100,
   vendedor: 130,
@@ -145,6 +149,7 @@ const ENCABEZADOS: Record<Columna, { etiqueta: string; fondo?: string }> = {
   cliente: { etiqueta: "Cliente" },
   telefono: { etiqueta: "Teléfono" },
   email: { etiqueta: "Email" },
+  clase: { etiqueta: "VN / VO" },
   marca: { etiqueta: "Marca" },
   modelo: { etiqueta: "Modelo" },
   marca_modelo: { etiqueta: "Marca y modelo" },
@@ -454,6 +459,8 @@ export default function ExpedientesList({
           return e.cliente?.telefonos[0]?.telefono ?? "";
         case "email":
           return e.cliente?.emails[0]?.email ?? "";
+        case "clase":
+          return e.estadoVehiculo?.clase ?? "";
         case "marca":
           return e.modelo?.marca?.nombre ?? "";
         case "modelo":
@@ -1395,6 +1402,11 @@ export default function ExpedientesList({
                       email: mostrarCol("email") && (
                           <td>
                             {exp.cliente?.emails[0]?.email ? <TextoCopiable texto={exp.cliente.emails[0].email} /> : <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>}
+                          </td>
+                      ),
+                      clase: mostrarCol("clase") && (
+                          <td style={{ textAlign: "center" }}>
+                            <EtiquetaClase clase={exp.estadoVehiculo?.clase} />
                           </td>
                       ),
                       marca: mostrarCol("marca") && (

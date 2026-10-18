@@ -1,0 +1,1 @@
+ALTER TABLE "commission_plans" ADD COLUMN "tasa_incluye_vo" boolean DEFAULT true NOT NULL;

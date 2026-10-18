@@ -67,8 +67,13 @@ const cartera = (): ExpedienteMotor[] => [
 describe("tasa de intervención financiera: global, por marca y de usados", () => {
   it("se calcula la tasa global (todos los nuevos), la de cada marca y la de usados", () => {
     const r = calcularMes(plan({ tasaGlobal: { tipoTasa: "porcentaje", objetivo: 70 }, tasaVo: { tipoTasa: "porcentaje", objetivo: 60 } }), V, "2026-06", cartera());
-    expect(r.tasaGlobal).toMatchObject({ numerador: 4, denominador: 5, porcentaje: 80, cumplida: true, conObjetivo: true });
-    expect(r.tasaIntervencion[0]).toMatchObject({ idMarca: 1, numerador: 4, denominador: 5, cumplida: true });
+    // Los usados financiados también cuentan en la global y en la de la marca: 5 financiados de 7
+    expect(r.tasaGlobal).toMatchObject({ numerador: 5, denominador: 7, cumplida: true, conObjetivo: true });
+    expect(r.tasaIntervencion[0]).toMatchObject({ idMarca: 1, numerador: 5, denominador: 7, cumplida: true });
+    expect(r.tasaCoches).toHaveLength(7);
+    // Si el plan lo desactiva, solo los nuevos: 4 de 5
+    const soloVn = calcularMes(plan({ tasaIncluyeVo: false, tasaGlobal: { tipoTasa: "porcentaje", objetivo: 70 } }), V, "2026-06", cartera());
+    expect(soloVn.tasaGlobal).toMatchObject({ numerador: 4, denominador: 5, porcentaje: 80 });
     expect(r.tasaVo).toMatchObject({ numerador: 1, denominador: 2, porcentaje: 50, cumplida: false, conObjetivo: true });
   });
 

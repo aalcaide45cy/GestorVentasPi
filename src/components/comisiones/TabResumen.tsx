@@ -1,5 +1,6 @@
 "use client";
 
+import EditorTasas from "./EditorTasas";
 import { InputCentesimas, InputEntero, Campo, Seccion } from "./campos";
 import type { PropsPestana } from "./tipos";
 
@@ -47,6 +48,9 @@ export default function TabResumen({ plan, setPlan, cat, solapados }: PropsPesta
         {punto("Patrones progresivos de VO", plan.patrones.length)}
         {punto("Promociones de puntos", plan.promociones.length)}
       </ul>
+
+      <h4 style={{ margin: "10px 0 0", fontSize: "1rem" }}>Tasa de intervención financiera</h4>
+      <EditorTasas plan={plan} setPlan={setPlan} cat={cat} ambito="todas" />
 
       <h4 style={{ margin: "10px 0 0", fontSize: "1rem" }}>Ajustes del plan</h4>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", alignItems: "start" }}>

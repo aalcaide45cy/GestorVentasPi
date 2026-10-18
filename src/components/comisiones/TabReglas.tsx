@@ -1,5 +1,6 @@
 "use client";
 
+import EditorTasas from "./EditorTasas";
 import EditorReglas from "./EditorReglas";
 import SelectorVehiculo from "./SelectorVehiculo";
 import { BotonMini, InputCentesimas, Seccion } from "./campos";
@@ -40,7 +41,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <Seccion
         titulo="Incentivo de financiación por marca y tipo"
-        ayuda="Se genera en el mes de la fecha RCI para ventas a Crédito, Preference o Renting. El Contado no genera incentivo. Cada línea puede cobrarse solo si la tasa de intervención financiera está cumplida o no (la de la marca del coche, la global de nuevos o la de usados): así puedes poner dos líneas para la misma marca con importes distintos según la tasa. Los objetivos de la tasa global y de usados se fijan en la pestaña Objetivo."
+        ayuda="Se genera en el mes de la fecha RCI para ventas a Crédito, Preference o Renting. El Contado no genera incentivo. Cada línea puede cobrarse solo si la tasa de intervención financiera está cumplida o no (la de la marca del coche, la global de nuevos o la de usados): así puedes poner dos líneas para la misma marca con importes distintos según la tasa. Los objetivos de la tasa se pueden fijar aquí mismo, y también en Objetivo, Modelos VN y Resumen."
         acciones={
           <BotonMini
             onClick={() => {
@@ -52,6 +53,7 @@ export function TabReglas({ plan, setPlan, cat }: PropsPestana) {
           </BotonMini>
         }
       >
+        <EditorTasas plan={plan} setPlan={setPlan} cat={cat} ambito="todas" />
         <div className="table-container">
           <table className="table-premium table-compact">
             <thead>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { InputCentesimas, BotonMini, Seccion } from "./campos";
+import EditorTasas from "./EditorTasas";
 import BarraPlantillas from "./PlantillasTarifas";
 import { tramosDe, type Plan, type PropsPestana } from "./tipos";
 import { etiquetaTramo } from "@/lib/formato";
@@ -114,6 +115,7 @@ export default function TabModelos({ plan, setPlan, cat: catBase }: PropsPestana
         const modelos = modelosDe(marca.id);
         return (
           <Seccion key={marca.id} destacado titulo={`📦 MODELOS DE ${marca.nombre.toUpperCase()}`}>
+            <EditorTasas plan={plan} setPlan={setPlan} cat={cat} ambito="marca" idMarca={marca.id} />
             <div className="table-container">
               <table className="table-premium table-compact">
                 <thead>

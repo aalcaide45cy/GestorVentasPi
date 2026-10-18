@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { useCarga } from "@/components/comisiones/useCarga";
-import type { ResultadoMes } from "@/lib/comisiones";
+import type { ResultadoMes, TasaCocheDetalle } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import { usePreferencia } from "@/lib/preferencias";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import Modal from "@/components/Modal";
 import AvisoComision from "./AvisoComision";
 import { TextoCopiable, datosVehiculoDeExpediente } from "./comun";
 import { columnasVehiculo } from "../etiquetas";
@@ -64,10 +65,17 @@ interface TarjetaProps {
 }
 
 /** Cajita con un indicador (puntos, tramo, bruto…) para ver las cifras de un vistazo. */
-function Indicador({ etiqueta, ayuda, children }: { etiqueta: string; ayuda: string; children: ReactNode }) {
+function Indicador({ etiqueta, ayuda, children, alAbrir }: { etiqueta: string; ayuda: string; children: ReactNode; alAbrir?: () => void }) {
   return (
-    <div title={ayuda} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, overflow: "hidden" }}>
-      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{etiqueta}</span>
+    <div
+      title={alAbrir ? `${ayuda} (pulsa para ver el detalle)` : ayuda}
+      role={alAbrir ? "button" : undefined}
+      tabIndex={alAbrir ? 0 : undefined}
+      onClick={alAbrir}
+      onKeyDown={alAbrir ? (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), alAbrir()) : undefined}
+      style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, overflow: "hidden", cursor: alAbrir ? "pointer" : undefined }}
+    >
+      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{etiqueta}{alAbrir ? " 🔎" : ""}</span>
       <span style={{ fontSize: "clamp(0.95rem, 1.5vw, 1.2rem)", fontWeight: 800, overflowWrap: "anywhere", lineHeight: 1.2 }}>{children}</span>
     </div>
   );
@@ -113,9 +121,113 @@ const columnasDesglose: ColumnaTabla<FilaDesglose>[] = [
   { clave: "total", etiqueta: "Total", valor: (f) => f.linea.importe, celda: (f) => <strong>{euros(f.linea.importe)}</strong>, alinear: "right" },
 ];
 
+type TipoDetalle = "puntos" | "tramo" | "tasa" | "tasaVo" | "bruto" | "penalizacion" | "objetivo" | "coches" | "neto";
+
+interface FilaTasa {
+  coche: TasaCocheDetalle;
+  fila: FilaDesglose;
+}
+
+interface FilaResumen {
+  concepto: string;
+  valor: string;
+  nota: string;
+}
+
+const columnasResumen: ColumnaTabla<FilaResumen>[] = [
+  { clave: "concepto", etiqueta: "Concepto", valor: (f) => f.concepto },
+  { clave: "valor", etiqueta: "Valor", valor: (f) => f.valor, alinear: "right" },
+  { clave: "nota", etiqueta: "Cómo sale", valor: (f) => f.nota },
+];
+
+const pcTexto = (n: number, d: number) => (d === 0 ? "—" : `${((n / d) * 100).toFixed(1).replace(".", ",")} %`);
+
+/** Columnas de los coches que entran en la tasa: si cuentan en el mes y si están financiados. */
+const columnasTasa: ColumnaTabla<FilaTasa>[] = [
+  { clave: "cliente", etiqueta: "Cliente", valor: (f) => nombreCliente(f.fila), celda: (f) => <Link href={`/dashboard/expedientes/editar/${f.coche.idExpediente}`} style={{ color: "inherit", fontWeight: 600 }}>{nombreCliente(f.fila)}</Link>, ancho: 130 },
+  { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.fila.e?.matricula ?? f.fila.info?.matricula ?? "", oculta: true },
+  ...columnasVehiculo<FilaTasa>((f) => ({ ...datosVehiculoDeExpediente(f.fila.e), clase: f.coche.clase, marca: marcaDe(f.fila) || null, modelo: f.fila.e?.modelo?.nombre_modelo ?? (f.fila.e ? null : f.fila.info?.vehiculo) ?? null, estado: f.fila.e?.estadoVehiculo?.nombre_estado_vehiculo ?? (f.coche.clase === "VO" ? "Usado" : "Nuevo") })),
+  { clave: "cuenta", etiqueta: "Cuenta este mes", valor: (f) => (f.coche.cuenta ? "Sí" : "No"), ayuda: "Suma en el denominador de la tasa" },
+  { clave: "financiado", etiqueta: "Financiado (RCI este mes)", valor: (f) => (f.coche.financiado ? "Sí" : "No"), ayuda: "Suma en el numerador de la tasa" },
+];
+
+type ResultadoConInfo = ResultadoMes & { expedientes?: Record<string, { cliente: string; vehiculo: string; matricula: string | null }> };
+
+/** Modal con el detalle de un indicador del panel de comisiones: una tabla con ordenación, buscador y columnas a elegir. */
+function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar }: { tipo: TipoDetalle; resultado: ResultadoConInfo; filas: FilaDesglose[]; porId: Map<number, ExpedienteDto>; nombreMarca: (id: number) => string; alCerrar: () => void }) {
+  const cuentan = filas.filter((f) => f.linea.cuenta);
+  const titulos: Record<TipoDetalle, string> = { puntos: "Puntos del mes", tramo: "Tramo del mes", tasa: "Tasa de intervención financiera", tasaVo: "Tasa de intervención de usados", bruto: "Bruto del mes", penalizacion: "Penalización", objetivo: "Objetivo X", coches: "Coches que cuentan en el mes", neto: "Neto a cobrar" };
+  const filaDe = (idExpediente: number): FilaDesglose =>
+    filas.find((f) => f.linea.idExpediente === idExpediente) ?? { linea: { idExpediente, clase: "VN", mesComputo: null, cuenta: false, unidades: 0, puntos: 0, importe: 0, conceptos: [] }, e: porId.get(idExpediente), info: resultado.expedientes?.[String(idExpediente)], coche: 0, financiacion: 0, preference: 0, bonus: 0 };
+  let contenido: ReactNode;
+  if (tipo === "tasa" || tipo === "tasaVo") {
+    const esVo = tipo === "tasaVo";
+    const t = esVo ? resultado.tasaVo : resultado.tasaGlobal;
+    const coches: FilaTasa[] = resultado.tasaCoches.filter((c) => (esVo ? c.clase === "VO" : c.clase === "VN" || resultado.tasaIncluyeVo)).map((c) => ({ coche: c, fila: filaDe(c.idExpediente) }));
+    const resumen: FilaResumen[] = [
+      { concepto: esVo ? "Usados (VO)" : resultado.tasaIncluyeVo ? "Global (nuevos y usados)" : "Global (solo nuevos)", valor: `${t.numerador}/${t.denominador} · ${pcTexto(t.numerador, t.denominador)}`, nota: t.conObjetivo ? (t.cumplida ? "Objetivo cumplido" : "Objetivo NO cumplido") : "Sin objetivo en el plan (se da por cumplida)" },
+      ...(esVo ? [] : resultado.tasaIntervencion.map((x) => ({ concepto: `Marca ${nombreMarca(x.idMarca)}`, valor: `${x.numerador}/${x.denominador} · ${pcTexto(x.numerador, x.denominador)}`, nota: x.cumplida ? "Objetivo cumplido" : "Objetivo NO cumplido" }))),
+    ];
+    contenido = (
+      <>
+        <TablaDatos<FilaResumen> id="detalle-tasa-resumen" columnas={columnasResumen} filas={resumen} clave={(f) => f.concepto} />
+        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+          El denominador son los coches que cuentan este mes y el numerador los financiados (RCI este mes).{esVo || resultado.tasaIncluyeVo ? "" : " Los usados no cuentan porque el plan lo tiene desactivado."}
+        </p>
+        <TablaDatos<FilaTasa> id="detalle-tasa-coches" columnas={columnasTasa} filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." />
+      </>
+    );
+  } else if (tipo === "objetivo") {
+    const resumen: FilaResumen[] = [
+      { concepto: "Objetivo base", valor: puntos(resultado.objetivoBase), nota: "Puntos fijados en el plan para este vendedor" },
+      { concepto: "Arrastre", valor: puntos(resultado.objetivoArrastre), nota: "Puntos que se arrastran de meses anteriores" },
+      { concepto: "Objetivo X", valor: puntos(resultado.objetivoX), nota: "Base + arrastre" },
+    ];
+    contenido = <TablaDatos<FilaResumen> id="detalle-objetivo" columnas={columnasResumen} filas={resumen} clave={(f) => f.concepto} />;
+  } else if (tipo === "penalizacion" || tipo === "neto") {
+    const resumen: FilaResumen[] = [
+      { concepto: "Bruto", valor: euros(resultado.bruto), nota: "Suma de las comisiones de los coches del mes" },
+      { concepto: "Penalización", valor: resultado.penalizacion > 0 ? `−${euros(resultado.penalizacion)}` : "—", nota: "Importe fijado en el plan, se descuenta del bruto" },
+      { concepto: "Neto", valor: euros(resultado.neto), nota: "Bruto menos penalización (nunca menos de 0 €)" },
+    ];
+    contenido = <TablaDatos<FilaResumen> id="detalle-neto" columnas={columnasResumen} filas={resumen} clave={(f) => f.concepto} />;
+  } else {
+    const resumen: FilaResumen[] = [{ concepto: "Puntos del mes", valor: puntos(resultado.puntosMes), nota: `Objetivo X ${puntos(resultado.objetivoX)} → tramo ${etiquetaTramo(resultado.tramo)}` }];
+    contenido = (
+      <>
+        {(tipo === "puntos" || tipo === "tramo") && <TablaDatos<FilaResumen> id="detalle-puntos-resumen" columnas={columnasResumen} filas={resumen} clave={(f) => f.concepto} />}
+        <TablaDatos<FilaDesglose>
+          id={`detalle-${tipo}`}
+          columnas={columnasDesglose}
+          filas={tipo === "bruto" ? filas : cuentan}
+          clave={(f) => f.linea.idExpediente}
+          textoExtra={(f) => f.linea.conceptos.map((c) => c.descripcion).join(" ")}
+          placeholder="Buscar por cliente, modelo, marca, matrícula…"
+          vacio="Todavía no hay coches que cuenten en este mes."
+          pie={(fs) => ({ cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`, puntos: puntos(fs.reduce((t, f) => t + f.linea.puntos, 0)), total: euros(fs.reduce((t, f) => t + f.linea.importe, 0)) })}
+        />
+      </>
+    );
+  }
+  return (
+    <Modal
+      titulo={`${titulos[tipo]} · ${resultado.mes}`}
+      ancho="1100px"
+      pie={
+        <button type="button" className="btn btn-secondary" onClick={alCerrar}>
+          Cerrar
+        </button>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>{contenido}</div>
+    </Modal>
+  );
+}
+
 function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargado, porId, destacada, fueraDeMes }: TarjetaProps) {
   const [desgloseGuardado, guardarDesglose] = usePreferencia(`desglose-${clave}`);
   const abierta = desgloseGuardado === "abierto";
+  const [detalle, setDetalle] = useState<TipoDetalle | null>(null);
   const setAbierta = (v: boolean) => guardarDesglose(v ? "abierto" : "cerrado");
   const hayPlan = resultado !== null && resultado.idPlan !== null;
   const lineas = hayPlan ? resultado.lineas.filter((l) => l.importe !== 0 || l.cuenta) : [];
@@ -147,41 +259,42 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
           <div style={{ display: "flex", gap: "18px", alignItems: "stretch", flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", minWidth: "150px" }}>
               <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>Neto a cobrar</span>
-              <h3 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", overflowWrap: "anywhere", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1 }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
+              <h3 role="button" tabIndex={0} title="Pulsa para ver cómo sale el neto" onClick={() => setDetalle("neto")} style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", overflowWrap: "anywhere", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1, cursor: "pointer" }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
               <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>💶 {pagoTexto}</span>
             </div>
             <div style={{ flex: 1, minWidth: "260px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
-              <Indicador etiqueta="Puntos" ayuda={efP.titulo || "Puntos del mes"}>
+              <Indicador etiqueta="Puntos" alAbrir={() => setDetalle("puntos")} ayuda={efP.titulo || "Puntos del mes"}>
                 <span className={efP.className} style={efP.style}>{puntos(resultado.puntosMes)}</span>
                 <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> / {puntos(resultado.objetivoX)}</span>
               </Indicador>
-              <Indicador etiqueta="Tramo" ayuda={efT.titulo || "Tramo del mes"}>
+              <Indicador etiqueta="Tramo" alAbrir={() => setDetalle("tramo")} ayuda={efT.titulo || "Tramo del mes"}>
                 <span className={efT.className} style={efT.style}>{etiquetaTramo(resultado.tramo)}</span>
               </Indicador>
-              <Indicador etiqueta="Tasa int. financiera" ayuda={textoTasa}>
+              <Indicador etiqueta="Tasa int. financiera" alAbrir={() => setDetalle("tasa")} ayuda={textoTasa}>
                 {tasaTotal === null ? <span style={{ color: "var(--text-muted)" }}>—</span> : <span style={{ color: colorTasa }}>{`${tasaTotal.toFixed(1).replace(".", ",")} %`}</span>}
                 {tasaDen > 0 && <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaNum}/{tasaDen}</span>}
               </Indicador>
               {tasaV && tasaV.denominador > 0 && (
-                <Indicador etiqueta="Tasa int. usados" ayuda="Usados (VO) financiados entre los que cuentan este mes">
+                <Indicador etiqueta="Tasa int. usados" alAbrir={() => setDetalle("tasaVo")} ayuda="Usados (VO) financiados entre los que cuentan este mes">
                   <span style={{ color: tasaV.conObjetivo ? (tasaV.cumplida ? "var(--success)" : "var(--warning)") : undefined }}>{`${((tasaV.numerador / tasaV.denominador) * 100).toFixed(1).replace(".", ",")} %`}</span>
                   <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> {tasaV.numerador}/{tasaV.denominador}</span>
                 </Indicador>
               )}
-              <Indicador etiqueta="Bruto" ayuda="Comisión antes de penalizaciones">
+              <Indicador etiqueta="Bruto" alAbrir={() => setDetalle("bruto")} ayuda="Comisión antes de penalizaciones">
                 {euros(resultado.bruto)}
               </Indicador>
-              <Indicador etiqueta="Penalización" ayuda="Penalizaciones descontadas del bruto">
+              <Indicador etiqueta="Penalización" alAbrir={() => setDetalle("penalizacion")} ayuda="Penalizaciones descontadas del bruto">
                 <span style={{ color: resultado.penalizacion > 0 ? "var(--danger)" : "var(--text-muted)" }}>{resultado.penalizacion > 0 ? `−${euros(resultado.penalizacion)}` : "—"}</span>
               </Indicador>
-              <Indicador etiqueta="Objetivo X" ayuda="Puntos que marcan el tramo X de este mes">
+              <Indicador etiqueta="Objetivo X" alAbrir={() => setDetalle("objetivo")} ayuda="Puntos que marcan el tramo X de este mes">
                 {puntos(resultado.objetivoX)}
               </Indicador>
-              <Indicador etiqueta="Coches" ayuda="Expedientes que cuentan en este mes">
+              <Indicador etiqueta="Coches" alAbrir={() => setDetalle("coches")} ayuda="Expedientes que cuentan en este mes">
                 {resultado.lineas.filter((l) => l.cuenta).length}
               </Indicador>
             </div>
           </div>
+          {detalle && <DetalleIndicador tipo={detalle} resultado={resultado} filas={filasDesglose} porId={porId} nombreMarca={nombreMarca} alCerrar={() => setDetalle(null)} />}
           <button type="button" className="btn btn-secondary" onClick={() => setAbierta(!abierta)} style={{ padding: "6px 10px", fontSize: "0.8rem", alignSelf: "flex-start" }}>
             {abierta ? "Ocultar desglose" : `Ver desglose (${lineas.length})`}
           </button>

@@ -18,6 +18,7 @@ import type {
   ResultadoMes,
   TarifaUsadoMotor,
   TasaAmbitoResultado,
+  TasaCocheDetalle,
   TasaConfigMotor,
   TasaMarcaResultado,
   VendedorMotor,
@@ -69,6 +70,10 @@ function resultadoVacio(mes: Mes, idVendedor: number, idPlan: number | null, avi
     tasaIntervencion: [],
     tasaGlobal: tasaVacia(),
     tasaVo: tasaVacia(),
+    tasaIncluyeVo: true,
+    tasaCoches: [],
+    objetivoBase: 0,
+    objetivoArrastre: 0,
     lineas: [],
     bruto: 0,
     penalizacion: 0,
@@ -200,8 +205,12 @@ export function calcularMes(
     if (idMarca === null) return false;
     return tasas.find((t) => t.idMarca === idMarca)?.cumplida ?? true;
   };
-  const tasaGlobal = calcularTasaAmbito(infos, mes, "VN", plan.tasaGlobal);
-  const tasaVo = calcularTasaAmbito(infos, mes, "VO", plan.tasaVo);
+  const incluyeVo = plan.tasaIncluyeVo !== false;
+  const tasaGlobal = calcularTasaAmbito(infos, mes, incluyeVo ? ["VN", "VO"] : ["VN"], plan.tasaGlobal);
+  const tasaVo = calcularTasaAmbito(infos, mes, ["VO"], plan.tasaVo);
+  const tasaCoches: TasaCocheDetalle[] = infos
+    .filter((i) => i.mesComputo === mes || mesDe(i.e.fechaRci) === mes)
+    .map((i) => ({ idExpediente: i.e.id, clase: i.e.clase, idMarca: i.e.idMarca, cuenta: i.mesComputo === mes, financiado: mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta) }));
   /** ¿Está cumplida la tasa que mira una regla financiera? (la de la marca del coche, la global o la de usados) */
   const tasaCumplidaDe = (ambito: AmbitoTasa, idMarca: number | null): boolean => (ambito === "global" ? tasaGlobal.cumplida : ambito === "vo" ? tasaVo.cumplida : tasaDe(idMarca));
 
@@ -290,6 +299,10 @@ export function calcularMes(
     tasaIntervencion: tasas,
     tasaGlobal,
     tasaVo,
+    tasaIncluyeVo: incluyeVo,
+    tasaCoches,
+    objetivoBase: obj ? obj.base : 0,
+    objetivoArrastre: obj ? obj.arrastre : 0,
     lineas: lineasOrd,
     bruto,
     penalizacion,
@@ -312,8 +325,8 @@ function tasaVacia(): TasaAmbitoResultado {
  * Tasa de intervención financiera de los coches nuevos (todas las marcas juntas) o de los usados: coches financiados en el mes
  * entre los que cuentan en el mes, con el mismo criterio que la tasa por marca. Sin objetivo en el plan se da por cumplida.
  */
-function calcularTasaAmbito(infos: Info[], mes: Mes, clase: "VN" | "VO", cfg: TasaConfigMotor | undefined): TasaAmbitoResultado {
-  const coches = infos.filter((i) => i.e.clase === clase);
+function calcularTasaAmbito(infos: Info[], mes: Mes, clases: ("VN" | "VO")[], cfg: TasaConfigMotor | undefined): TasaAmbitoResultado {
+  const coches = infos.filter((i) => clases.includes(i.e.clase));
   const denominador = coches.filter((i) => i.mesComputo === mes).length;
   const numerador = coches.filter((i) => mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta)).length;
   const objetivo = cfg?.objetivo ?? null;
@@ -327,12 +340,13 @@ function calcularTasas(plan: PlanMotor, infos: Info[], mes: Mes): TasaMarcaResul
   const marcas = new Set<number>();
   for (const i of infos) {
     const e = i.e;
-    if (e.clase !== "VN" || e.idMarca === null) continue;
+    if ((e.clase !== "VN" && !(plan.tasaIncluyeVo !== false && e.clase === "VO")) || e.idMarca === null) continue;
     if (i.mesComputo === mes || mesDe(e.fechaRci) === mes) marcas.add(e.idMarca);
   }
   const res: TasaMarcaResultado[] = [];
+  const incluyeVo = plan.tasaIncluyeVo !== false;
   for (const idMarca of [...marcas].sort((a, b) => a - b)) {
-    const vn = infos.filter((i) => i.e.clase === "VN" && i.e.idMarca === idMarca);
+    const vn = infos.filter((i) => (i.e.clase === "VN" || (incluyeVo && i.e.clase === "VO")) && i.e.idMarca === idMarca);
     const denominador = vn.filter((i) => i.mesComputo === mes).length;
     const numerador = vn.filter((i) => mesDe(i.e.fechaRci) === mes && i.e.categoriaVenta !== null && FINANCIADAS.includes(i.e.categoriaVenta)).length;
     const cfg = plan.tasaIntervencionPorMarca.find((t) => t.idMarca === idMarca);

@@ -89,7 +89,7 @@ export function extraer(plan: PlanEditable, cat: CatalogoNombres, comps: Compone
   if (tiene("vendedores")) f.vendedores = plan.vendedores.flatMap((v) => { const n = cat.vendedores.find((x) => x.id === v.idUsuario)?.nombre; return n ? [{ nombre: n, objetivoBase: v.objetivoBase, arrastre: v.arrastre }] : []; });
   if (tiene("tasas")) {
     f.tasas = plan.tasas.flatMap((t) => { const m = marca(t.idMarca); return m ? [{ marca: m, tipoTasa: t.tipoTasa, objetivo: t.objetivo, puntosDefecto: t.puntosDefecto }] : []; });
-    f.tasasPlan = { tasaGlobalTipo: plan.tasaGlobalTipo, tasaGlobalObjetivo: plan.tasaGlobalObjetivo, tasaVoTipo: plan.tasaVoTipo, tasaVoObjetivo: plan.tasaVoObjetivo };
+    f.tasasPlan = { tasaGlobalTipo: plan.tasaGlobalTipo, tasaGlobalObjetivo: plan.tasaGlobalObjetivo, tasaVoTipo: plan.tasaVoTipo, tasaVoObjetivo: plan.tasaVoObjetivo, tasaIncluyeVo: plan.tasaIncluyeVo };
   }
   if (tiene("promociones")) f.promociones = plan.promociones.map((p) => ({ nombre: p.nombre, puntosEspeciales: p.puntosEspeciales, minimoUnidades: p.minimoUnidades, puntosSiNoCumple: p.puntosSiNoCumple }));
   if (tiene("puntosModelo")) f.puntosModelo = plan.puntosModelo.flatMap((p) => { const m = modelo(p.idModelo); return m ? [{ ...m, puntos: p.puntos }] : []; });

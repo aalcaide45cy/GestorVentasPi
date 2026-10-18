@@ -280,9 +280,14 @@ describe("tasa de intervención y comisión del coche (T17–T18)", () => {
     expect(r.tasaIntervencion[0].cumplida).toBe(false);
     expect(calcularMes(p({ tasaIntervencionPorMarca: [{ idMarca: 1, tipoTasa: "unidades", objetivo: 7 }] }), V, "2026-06", conFinanciados(7)).tasaIntervencion[0].cumplida).toBe(true);
   });
-  it("los VO no cuentan para la tasa", () => {
-    const e = [...conFinanciados(7), exp(50, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: "2026-06-10" })];
-    expect(calcularMes(p(), V, "2026-06", e).tasaIntervencion[0].denominador).toBe(10);
+  it("los VO financiados cuentan para la tasa (decisión del propietario), salvo que el plan lo desactive", () => {
+    const e = [...conFinanciados(7), exp(50, { clase: "VO", subtipoVO: "USADO", fechaFacturacion: "2026-06-10", categoriaVenta: "CREDITO", fechaRci: "2026-06-10" })];
+    const con = calcularMes(p(), V, "2026-06", e).tasaIntervencion[0];
+    expect(con.denominador).toBe(11);
+    expect(con.numerador).toBe(8);
+    const sin = calcularMes(p({ tasaIncluyeVo: false }), V, "2026-06", e).tasaIntervencion[0];
+    expect(sin.denominador).toBe(10);
+    expect(sin.numerador).toBe(7);
   });
   it("T18 sin VN de la marca en el mes → cumplida", () => {
     const e = [exp(1, { idMarca: 2, categoriaVenta: "CREDITO", fechaRci: "2026-06-10", fechaMatriculacion: "2026-07-10" })];

@@ -24,6 +24,7 @@ const plan = (extra: Partial<PlanEditable> = {}): PlanEditable => ({
   tasaGlobalObjetivo: null,
   tasaVoTipo: "porcentaje",
   tasaVoObjetivo: null,
+  tasaIncluyeVo: true,
   penalizacionImporte: 0,
   penalizacionTitulo: null,
   penalizacionDescripcion: null,

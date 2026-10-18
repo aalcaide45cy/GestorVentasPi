@@ -112,6 +112,7 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     voPuntosModo: p.voPuntosModo === "no" ? "no" : "cuentan",
     voPuntos: p.voPuntos,
     tasaGlobal: { tipoTasa: p.tasaGlobalTipo === "unidades" ? "unidades" : "porcentaje", objetivo: p.tasaGlobalObjetivo },
+    tasaIncluyeVo: p.tasaIncluyeVo,
     tasaVo: { tipoTasa: p.tasaVoTipo === "unidades" ? "unidades" : "porcentaje", objetivo: p.tasaVoObjetivo },
     objetivos: Object.fromEntries(vend.map((v) => [v.idUsuario, { base: v.objetivoBase, arrastre: v.arrastre }])),
     puntosPorDefectoModelo: Object.fromEntries(puntosModelo.map((x) => [x.idModelo, x.puntos])),

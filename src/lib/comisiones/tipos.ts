@@ -193,6 +193,8 @@ export interface PlanMotor {
   /** Objetivo de la tasa global (todos los coches nuevos) y de la de usados. */
   tasaGlobal?: TasaConfigMotor;
   tasaVo?: TasaConfigMotor;
+  /** Los usados financiados cuentan también en la tasa global y en la de su marca (por defecto, sí). */
+  tasaIncluyeVo?: boolean;
   /** Solo para los textos de aviso. */
   nombresModelo?: Record<number, string>;
   nombresMarca?: Record<number, string>;
@@ -254,6 +256,15 @@ export interface TasaAmbitoResultado {
   conObjetivo: boolean;
 }
 
+/** Un coche de la tasa de intervención: si cuenta en el mes (denominador) y si se financió en el mes (numerador). */
+export interface TasaCocheDetalle {
+  idExpediente: number;
+  clase: "VN" | "VO";
+  idMarca: number | null;
+  cuenta: boolean;
+  financiado: boolean;
+}
+
 export type EventoLibro = "PEDIDO" | "MATRICULACION" | "COBRO" | "REGLA" | "AJUSTE";
 
 export interface ApuntePuntos {
@@ -279,6 +290,13 @@ export interface ResultadoMes {
   /** Tasa de todos los coches nuevos (suma de marcas) y tasa de los usados. */
   tasaGlobal: TasaAmbitoResultado;
   tasaVo: TasaAmbitoResultado;
+  /** Si los usados cuentan en la tasa global y en la de marca. */
+  tasaIncluyeVo: boolean;
+  /** Los coches que entran en las tasas, para ver el detalle. */
+  tasaCoches: TasaCocheDetalle[];
+  /** Objetivo X del vendedor = base + arrastre. */
+  objetivoBase: Centesimas;
+  objetivoArrastre: Centesimas;
   lineas: LineaExpediente[];
   bruto: Centimos;
   penalizacion: Centimos;

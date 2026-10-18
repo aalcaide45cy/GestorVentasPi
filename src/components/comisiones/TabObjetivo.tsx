@@ -1,5 +1,6 @@
 "use client";
 
+import EditorTasas from "./EditorTasas";
 import { BotonMini, InputCentesimas, InputEntero, Seccion } from "./campos";
 import type { PropsPestana } from "./tipos";
 
@@ -79,40 +80,7 @@ export default function TabObjetivo({ plan, setPlan, cat }: PropsPestana) {
         titulo="Tasa de intervención global y de usados"
         ayuda="La tasa global suma todos los coches nuevos de todas las marcas; la de usados (VO), los usados. Cada una compara los coches financiados del mes con los que cuentan en el mes. Sin objetivo se da siempre por cumplida. Se usan en las reglas financieras («Solo si está cumplida» o «no cumplida») y se enseñan en el resumen del mes."
       >
-        <div className="table-container">
-          <table className="table-premium">
-            <thead>
-              <tr>
-                <th>Tasa</th>
-                <th>Con objetivo</th>
-                <th>Tipo de tasa</th>
-                <th>Objetivo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(
-                [
-                  { etiqueta: "Global (todos los coches nuevos)", tipo: plan.tasaGlobalTipo, objetivo: plan.tasaGlobalObjetivo, claveTipo: "tasaGlobalTipo", claveObjetivo: "tasaGlobalObjetivo" },
-                  { etiqueta: "Usados (VO)", tipo: plan.tasaVoTipo, objetivo: plan.tasaVoObjetivo, claveTipo: "tasaVoTipo", claveObjetivo: "tasaVoObjetivo" },
-                ] as const
-              ).map((f) => (
-                <tr key={f.claveTipo}>
-                  <td>{f.etiqueta}</td>
-                  <td>
-                    <input type="checkbox" checked={f.objetivo !== null} onChange={(e) => setPlan((p) => ({ ...p, [f.claveObjetivo]: e.target.checked ? 70 : null }))} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} title="Sin objetivo, la tasa se da siempre por cumplida" />
-                  </td>
-                  <td>
-                    <select className="form-input" value={f.tipo} disabled={f.objetivo === null} onChange={(e) => setPlan((p) => ({ ...p, [f.claveTipo]: e.target.value as "porcentaje" | "unidades" }))}>
-                      <option value="porcentaje">Porcentaje (%)</option>
-                      <option value="unidades">Unidades</option>
-                    </select>
-                  </td>
-                  <td>{f.objetivo === null ? <span style={{ color: "var(--text-muted)" }}>Sin objetivo (siempre cumplida)</span> : <InputEntero valor={f.objetivo} min={0} onChange={(n) => setPlan((p) => ({ ...p, [f.claveObjetivo]: n }))} />}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <EditorTasas plan={plan} setPlan={setPlan} cat={cat} ambito="global" />
       </Seccion>
 
       <Seccion
