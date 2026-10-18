@@ -296,3 +296,13 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Ayuda emergente** de reserva en todos los botones que no tenían.
 - Pruebas: nuevas `copias-seccion`, `plantillas-tarifas` y `plantillas-plan`.
 - Añadido después: comisionado desde «Editar expediente», tasa de intervención financiera en Comisiones, tablas con buscador en el desglose y la cartera, selección en lote de copias de seguridad, clave de recuperación para restaurar copias en cualquier instalación y aviso claro del JSON de datos básicos.
+
+## Versión 1.1.0 (18/10/2026)
+
+- **Comisiones y tasa**: tasa con usados y por marca editable, «Cuenta para la tasa» por forma de pago, financiaciones adelantadas marcadas (cápsula amarilla punteada; suman a la tasa de su marca y no a la global), reparto sustituido por líneas independientes con destino, bonus manuales, fechas de bonus con atajos (◀ ▶, Actual, Plan) y duplicar un plan ajustando sus fechas internas; cajas del mes anterior y del mes elegido con el mismo diseño y la del mes anterior ocultable.
+- **Deshacer y rehacer** con historial en toda la aplicación (sin recargar la página), colores por marca y por estado de vehículo, tablas con alineación y vista de columnas.
+- **Pedidos y DNI**: se reconoce solo si un archivo es pedido o DNI; cualquier casilla admite los dos, y en el panel un pedido con su DNI crea el expediente con el DNI adjunto y la foto recortada del cliente. Recorte de la foto con la cabeza entera. Guardar un expediente nunca se impide: se avisa y se señala el campo.
+- **Expedientes**: deshabilitar expedientes (no cuentan en comisiones ni tasa) por selección y desde el expediente; selección y eliminación que se quedan activas con cuenta atrás configurable.
+- **Base de datos** (Configuración › BBDD): subpestañas (Análisis, Papelera y purga, Exportar e importar, Copias, Sistema, Migración y borrado); **Papelera y purga** para ver con vista previa, descargar, elegir y purgar de verdad lo eliminado (con copia previa), purga a fondo y compactar la base; cajitas de datos al instante con el peso de cada archivo; detalle de cada copia de seguridad con lo que ocupa cada tabla; análisis que ya no cuenta los eliminados como huérfanos.
+- **Configuración**: Modelos plegables por marca, Expedientes y Tema con subpestañas.
+- Pruebas: 494 en verde (nuevas: ajuste de fechas, papelera, detalle de copias, tasa, historial).
