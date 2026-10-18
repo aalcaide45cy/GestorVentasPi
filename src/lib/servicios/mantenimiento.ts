@@ -15,6 +15,17 @@ export interface FilaAnomalia {
   detalle: string;
   /** Dónde mirarlo en la aplicación (un expediente o un cliente), si lo hay. */
   enlace?: string;
+  /** Más datos de la fila (matrícula, fechas, vendedor…), uno por columna de la categoría. */
+  extra?: Record<string, string | number | null>;
+}
+
+/** Una columna más de la tabla de una categoría (el usuario las ordena, oculta y elige con «Columnas y vistas»). */
+export interface ColumnaAnomalia {
+  clave: string;
+  etiqueta: string;
+  ayuda?: string;
+  /** «fecha»: viene como AAAA-MM-DD y se enseña como DD/MM/AAAA; «numero»: alineada a la derecha. */
+  tipo?: "texto" | "fecha" | "numero";
 }
 
 /** Algo que el análisis ha encontrado. «limpiable»: se puede borrar sin riesgo; «revisar»: lo decides tú a mano. */
@@ -23,6 +34,8 @@ export interface CategoriaAnomalia {
   titulo: string;
   explicacion: string;
   tipo: "limpiable" | "revisar";
+  /** Columnas extra de la tabla (además de «Qué es» y «Por qué se señala»). */
+  columnas?: ColumnaAnomalia[];
   cantidad: number;
   /** Las primeras 300 filas, para verlas en una tabla. */
   filas: FilaAnomalia[];
@@ -56,6 +69,38 @@ export interface AnalisisBbdd {
 
 const LIMITE_FILAS = 300;
 
+const COLUMNAS_EXPEDIENTE: ColumnaAnomalia[] = [
+  { clave: "cliente", etiqueta: "Cliente", ayuda: "Cliente del expediente" },
+  { clave: "dni", etiqueta: "DNI / NIE", ayuda: "DNI del cliente" },
+  { clave: "matricula", etiqueta: "Matrícula" },
+  { clave: "bastidor", etiqueta: "Bastidor (VIN)" },
+  { clave: "vehiculo", etiqueta: "Vehículo", ayuda: "Marca y modelo" },
+  { clave: "tipo_venta", etiqueta: "Forma de pago" },
+  { clave: "estado", etiqueta: "Estado del vehículo" },
+  { clave: "vendedor", etiqueta: "Vendedor" },
+  { clave: "tienda", etiqueta: "Tienda" },
+  { clave: "f_pedido", etiqueta: "F. pedido", tipo: "fecha" },
+  { clave: "f_afectacion", etiqueta: "F. afectación", tipo: "fecha" },
+  { clave: "f_rci", etiqueta: "F. RCI", tipo: "fecha", ayuda: "Fecha de contratación de la financiación" },
+  { clave: "f_matriculacion", etiqueta: "F. matriculación", tipo: "fecha" },
+  { clave: "f_facturacion", etiqueta: "F. facturación", tipo: "fecha" },
+  { clave: "f_entrega", etiqueta: "F. entrega", tipo: "fecha" },
+  { clave: "documentos", etiqueta: "Docs", tipo: "numero", ayuda: "Documentos adjuntos" },
+];
+
+const COLUMNAS_CLIENTE: ColumnaAnomalia[] = [
+  { clave: "nombre", etiqueta: "Cliente" },
+  { clave: "dni", etiqueta: "DNI / NIE" },
+  { clave: "nacimiento", etiqueta: "F. nacimiento", tipo: "fecha" },
+  { clave: "domicilio", etiqueta: "Domicilio" },
+  { clave: "poblacion", etiqueta: "Población" },
+  { clave: "tienda", etiqueta: "Tienda" },
+  { clave: "correos", etiqueta: "Correos" },
+  { clave: "telefonos", etiqueta: "Teléfonos" },
+  { clave: "expedientes", etiqueta: "Expedientes", tipo: "numero", ayuda: "Expedientes vigentes del cliente" },
+  { clave: "documentos", etiqueta: "Docs", tipo: "numero", ayuda: "Documentos adjuntos" },
+];
+
 /**
  * Analiza la base de datos y devuelve dos clases de hallazgos:
  * - **Limpiables** (se pueden borrar sin riesgo): correos y teléfonos sin cliente, relaciones usuario-tienda sin usuario o tienda,
@@ -67,18 +112,63 @@ const LIMITE_FILAS = 300;
  */
 export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
   const filasDe = async <T extends Record<string, unknown>>(consulta: ReturnType<typeof sql>): Promise<T[]> => (await ej.execute(consulta)).rows as unknown as T[];
+  /** Más datos de unos expedientes (una sola consulta para todas las filas de la tabla). */
+  const datosExpedientes = async (ids: number[]): Promise<Map<number, Record<string, string | number | null>>> => {
+    if (ids.length === 0) return new Map();
+    const r = await filasDe<Record<string, string | number | null>>(sql`
+      select e.id_expediente as id, c.nombre as cliente, c.dni, e.matricula, e.vin as bastidor, trim(coalesce(k.nombre || ' ', '') || coalesce(m.nombre_modelo, '')) as vehiculo,
+        t.nombre_tipo_venta as tipo_venta, s.nombre_estado_vehiculo as estado, u.nombre as vendedor, ti.nombre as tienda,
+        to_char(e.fecha_expediente, 'YYYY-MM-DD') as f_pedido, to_char(e.fecha_afectacion, 'YYYY-MM-DD') as f_afectacion, to_char(e.fecha_rci, 'YYYY-MM-DD') as f_rci,
+        to_char(e.fecha_matriculacion, 'YYYY-MM-DD') as f_matriculacion, to_char(e.fecha_facturacion, 'YYYY-MM-DD') as f_facturacion, to_char(e.fecha_entrega, 'YYYY-MM-DD') as f_entrega,
+        (select count(*)::int from adjuntos a where a.id_expediente = e.id_expediente and a.eliminado_en is null) as documentos
+      from expedientes e left join clientes c on c.id = e.id_cliente left join modelos m on m.id_modelo = e.id_modelo left join marcas k on k.id_marca = m.marca_id
+        left join tipo_de_venta t on t.id_tipo_de_venta = e.id_tipo_de_venta left join estado_vehiculo s on s.id_estado_vehiculo = e.id_estado_vehiculo
+        left join usuarios u on u.id_usuario = e.id_usuario left join tiendas ti on ti.id_tienda = e.id_tienda
+      where e.id_expediente in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+    return new Map(r.map(({ id, ...resto }) => [Number(id), resto]));
+  };
+  /** Más datos de unos clientes. */
+  const datosClientes = async (ids: number[]): Promise<Map<number, Record<string, string | number | null>>> => {
+    if (ids.length === 0) return new Map();
+    const r = await filasDe<Record<string, string | number | null>>(sql`
+      select c.id, c.nombre, c.dni, to_char(c.fecha_de_nacimiento, 'YYYY-MM-DD') as nacimiento, c.domicilio, c.poblacion, ti.nombre as tienda,
+        (select string_agg(m.email, ', ' order by m.id_email_cliente) from emails_clientes m where m.id_cliente = c.id) as correos,
+        (select string_agg(t.telefono, ', ' order by t.id_telefono_cliente) from telefonos_clientes t where t.id_cliente = c.id) as telefonos,
+        (select count(*)::int from expedientes e where e.id_cliente = c.id and e.eliminado_en is null) as expedientes,
+        (select count(*)::int from adjuntos a where a.id_cliente = c.id and a.eliminado_en is null) as documentos
+      from clientes c left join tiendas ti on ti.id_tienda = c.tienda_id
+      where c.id in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+    return new Map(r.map(({ id, ...resto }) => [Number(id), resto]));
+  };
   const cat = async (c: Omit<CategoriaAnomalia, "cantidad" | "filas">, total: ReturnType<typeof sql>, filas: ReturnType<typeof sql>): Promise<CategoriaAnomalia> => {
     const [{ n }] = await filasDe<{ n: number }>(total);
-    const r = n === 0 ? [] : await filasDe<{ id: number; texto: string | null; detalle: string | null }>(filas);
-    return { ...c, cantidad: Number(n), filas: r.map((f) => ({ id: f.id, texto: f.texto ?? "(sin dato)", detalle: f.detalle ?? "", ...(c.id.startsWith("cli_") ? { enlace: `/dashboard/clientes/editar/${f.id}` } : c.id.startsWith("exp_") ? { enlace: `/dashboard/expedientes/editar/${f.id}` } : {}) })) };
+    const r = n === 0 ? [] : await filasDe<{ id: number; texto: string | null; detalle: string | null } & Record<string, string | number | null>>(filas);
+    // Cualquier columna de la consulta que no sea id, texto o detalle pasa a ser una columna más de la tabla
+    const propios = r.map(({ id, texto, detalle, ...resto }) => ({ id, texto, detalle, resto: resto as Record<string, string | number | null> }));
+    const esExp = c.id.startsWith("exp_");
+    const esCli = c.id.startsWith("cli_");
+    const masDatos = esExp ? await datosExpedientes(propios.map((f) => f.id)) : esCli ? await datosClientes(propios.map((f) => f.id)) : new Map<number, Record<string, string | number | null>>();
+    const columnas = c.columnas ?? (esExp ? COLUMNAS_EXPEDIENTE : esCli ? COLUMNAS_CLIENTE : undefined);
+    return {
+      ...c,
+      ...(columnas ? { columnas } : {}),
+      cantidad: Number(n),
+      filas: propios.map((f) => ({
+        id: f.id,
+        texto: f.texto ?? "(sin dato)",
+        detalle: f.detalle ?? "",
+        ...(Object.keys(f.resto).length > 0 || masDatos.has(Number(f.id)) ? { extra: { ...f.resto, ...(masDatos.get(Number(f.id)) ?? {}) } } : {}),
+        ...(esCli ? { enlace: `/dashboard/clientes/editar/${f.id}` } : esExp ? { enlace: `/dashboard/expedientes/editar/${f.id}` } : {}),
+      })),
+    };
   };
   const activos = sql`e.eliminado_en is null`;
   const lim = sql.raw(String(LIMITE_FILAS));
 
-  const emails = await filasDe<{ id: number; email: string }>(sql`select e.id_email_cliente as id, e.email from emails_clientes e left join clientes c on c.id = e.id_cliente where c.id is null`);
-  const telefonos = await filasDe<{ id: number; telefono: string }>(sql`select t.id_telefono_cliente as id, t.telefono from telefonos_clientes t left join clientes c on c.id = t.id_cliente where c.id is null`);
-  const userTiendas = await filasDe<{ id: number }>(sql`select ut.id_usuario_tienda as id from usuarios_tiendas ut left join usuarios u on u.id_usuario = ut.id_usuario left join tiendas t on t.id_tienda = ut.id_tienda where u.id_usuario is null or t.id_tienda is null`);
-  const registros = await filasDe<{ id: number }>(sql`select r.id from importaciones_registros r left join importaciones_bloques b on b.id = r.bloque_id where b.id is null`);
+  const emails = await filasDe<{ id: number; email: string; tipo: string | null; cliente: number | null }>(sql`select e.id_email_cliente as id, e.email, e.tipo_email as tipo, e.id_cliente as cliente from emails_clientes e left join clientes c on c.id = e.id_cliente where c.id is null`);
+  const telefonos = await filasDe<{ id: number; telefono: string; tipo: string | null; cliente: number | null }>(sql`select t.id_telefono_cliente as id, t.telefono, t.tipo_telefono as tipo, t.id_cliente as cliente from telefonos_clientes t left join clientes c on c.id = t.id_cliente where c.id is null`);
+  const userTiendas = await filasDe<{ id: number; usuario: number | null; tienda: number | null }>(sql`select ut.id_usuario_tienda as id, ut.id_usuario as usuario, ut.id_tienda as tienda from usuarios_tiendas ut left join usuarios u on u.id_usuario = ut.id_usuario left join tiendas t on t.id_tienda = ut.id_tienda where u.id_usuario is null or t.id_tienda is null`);
+  const registros = await filasDe<{ id: number; bloque: number | null; expediente: number | null; accion: string | null; cliente: string | null; matricula: string | null; bastidor: string | null; cambios: string | null }>(sql`select r.id, r.bloque_id as bloque, r.id_expediente as expediente, r.tipo_accion as accion, r.cliente_nombre as cliente, r.matricula, r.bastidor, r.cambios from importaciones_registros r left join importaciones_bloques b on b.id = r.bloque_id where b.id is null`);
   const adjuntosViejos = await filasDe<{ id: number; nombre: string }>(sql`select id, nombre from adjuntos where ambito = 'pendiente' and eliminado_en is null`);
   // Documentos que siguen guardados aunque su expediente o su cliente se eliminó (el borrado de la aplicación es lógico: no quita los archivos)
   const adjuntosDeEliminados = await filasDe<{ id: number; nombre: string; tamano: string; motivo: string }>(
@@ -93,8 +183,8 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
   const mb = (b: number) => (b >= 1048576 ? `${(b / 1048576).toLocaleString("es-ES", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024)).toLocaleString("es-ES")} KB`);
   const eliminados = await filasDe<{ tabla: string; n: number }>(sql`select 'clientes' as tabla, count(*)::int as n from clientes where eliminado_en is not null union all select 'expedientes', count(*)::int from expedientes where eliminado_en is not null`);
   const nEliminados = (t: string) => eliminados.find((x) => x.tabla === t)?.n ?? 0;
-  const lineasFantasma = await filasDe<{ id_line: number; texto: string }>(
-    sql`select l.id_line, coalesce(u.nombre, 'sin vendedor') || ' · ' || coalesce(liq.mes, '') as texto from commission_liquidation_lines l join commission_liquidations liq on liq.id_liquidation = l.id_liquidation left join usuarios u on u.id_usuario = liq.id_usuario left join expedientes e on e.id_expediente = l.id_expediente where l.id_expediente is null or e.id_expediente is null or e.eliminado_en is not null limit ${lim}`,
+  const lineasFantasma = await filasDe<{ id_line: number; texto: string; vendedor: string | null; mes: string | null; expediente: number | null; mes_computo: string | null; puntos: number | null; importe: number | null }>(
+    sql`select l.id_line, coalesce(u.nombre, 'sin vendedor') || ' · ' || coalesce(liq.mes, '') as texto, u.nombre as vendedor, liq.mes, l.id_expediente as expediente, l.mes_computo, l.puntos, l.importe from commission_liquidation_lines l join commission_liquidations liq on liq.id_liquidation = l.id_liquidation left join usuarios u on u.id_usuario = liq.id_usuario left join expedientes e on e.id_expediente = l.id_expediente where l.id_expediente is null or e.id_expediente is null or e.eliminado_en is not null limit ${lim}`,
   );
 
   const categorias: CategoriaAnomalia[] = [
@@ -106,10 +196,10 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
       cantidad: adjuntosDeEliminados.length,
       filas: adjuntosDeEliminados.slice(0, LIMITE_FILAS).map((a) => ({ id: a.id, texto: a.nombre, detalle: `${a.motivo} · ${mb(Number(a.tamano))}` })),
     },
-    { id: "lim_emails", titulo: "Correos de clientes sin cliente", explicacion: "Direcciones de correo que pertenecían a un cliente que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: emails.length, filas: emails.slice(0, LIMITE_FILAS).map((e) => ({ id: e.id, texto: e.email, detalle: "No hay ningún cliente con este correo" })) },
-    { id: "lim_telefonos", titulo: "Teléfonos de clientes sin cliente", explicacion: "Teléfonos de un cliente que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: telefonos.length, filas: telefonos.slice(0, LIMITE_FILAS).map((t) => ({ id: t.id, texto: t.telefono, detalle: "No hay ningún cliente con este teléfono" })) },
-    { id: "lim_usuarios_tiendas", titulo: "Relaciones usuario-tienda obsoletas", explicacion: "Una tienda asignada a un usuario o tienda que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: userTiendas.length, filas: userTiendas.slice(0, LIMITE_FILAS).map((u) => ({ id: u.id, texto: `Relación #${u.id}`, detalle: "El usuario o la tienda ya no existe" })) },
-    { id: "lim_importaciones", titulo: "Registros de importación sin su importación", explicacion: "Líneas del log de importaciones cuya importación ya no está. Se pueden borrar.", tipo: "limpiable", cantidad: registros.length, filas: registros.slice(0, LIMITE_FILAS).map((r) => ({ id: r.id, texto: `Registro #${r.id}`, detalle: "No pertenece a ninguna importación" })) },
+    { id: "lim_emails", titulo: "Correos de clientes sin cliente", explicacion: "Direcciones de correo que pertenecían a un cliente que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: emails.length, filas: emails.slice(0, LIMITE_FILAS).map((e) => ({ id: e.id, texto: e.email, detalle: "No hay ningún cliente con este correo", extra: { tipo: e.tipo, cliente: e.cliente } })), columnas: [{ clave: "tipo", etiqueta: "Tipo" }, { clave: "cliente", etiqueta: "Nº de cliente (ya no existe)", tipo: "numero" }] },
+    { id: "lim_telefonos", titulo: "Teléfonos de clientes sin cliente", explicacion: "Teléfonos de un cliente que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: telefonos.length, filas: telefonos.slice(0, LIMITE_FILAS).map((t) => ({ id: t.id, texto: t.telefono, detalle: "No hay ningún cliente con este teléfono", extra: { tipo: t.tipo, cliente: t.cliente } })), columnas: [{ clave: "tipo", etiqueta: "Tipo" }, { clave: "cliente", etiqueta: "Nº de cliente (ya no existe)", tipo: "numero" }] },
+    { id: "lim_usuarios_tiendas", titulo: "Relaciones usuario-tienda obsoletas", explicacion: "Una tienda asignada a un usuario o tienda que ya no existe. Se pueden borrar.", tipo: "limpiable", cantidad: userTiendas.length, filas: userTiendas.slice(0, LIMITE_FILAS).map((u) => ({ id: u.id, texto: `Relación #${u.id}`, detalle: "El usuario o la tienda ya no existe", extra: { usuario: u.usuario, tienda: u.tienda } })), columnas: [{ clave: "usuario", etiqueta: "Usuario nº", tipo: "numero" }, { clave: "tienda", etiqueta: "Tienda nº", tipo: "numero" }] },
+    { id: "lim_importaciones", titulo: "Registros de importación sin su importación", explicacion: "Líneas del log de importaciones cuya importación ya no está. Se pueden borrar.", tipo: "limpiable", cantidad: registros.length, filas: registros.slice(0, LIMITE_FILAS).map((r) => ({ id: r.id, texto: `Registro #${r.id}`, detalle: "No pertenece a ninguna importación", extra: { accion: r.accion, cliente: r.cliente, matricula: r.matricula, bastidor: r.bastidor, expediente: r.expediente, bloque: r.bloque, cambios: r.cambios } })), columnas: [{ clave: "accion", etiqueta: "Acción" }, { clave: "cliente", etiqueta: "Cliente" }, { clave: "matricula", etiqueta: "Matrícula" }, { clave: "bastidor", etiqueta: "Bastidor (VIN)" }, { clave: "expediente", etiqueta: "Expediente nº", tipo: "numero" }, { clave: "bloque", etiqueta: "Importación nº (ya no existe)", tipo: "numero" }, { clave: "cambios", etiqueta: "Cambios" }] },
     { id: "lim_adjuntos", titulo: "Archivos subidos que nunca se vincularon", explicacion: `PDF o fotos subidos que no se asociaron a ningún cliente o expediente (por ejemplo, de un pedido leído y cancelado), sean de hace un rato o de hace meses. Si alguno sigue en tu cola de pedidos, ese pedido ya no se podrá usar. Ocupan ${mb(Number(bytesSinVincular))}. Se pueden borrar.`, tipo: "limpiable", cantidad: adjuntosViejos.length, filas: adjuntosViejos.slice(0, LIMITE_FILAS).map((a) => ({ id: a.id, texto: a.nombre, detalle: "Subido y sin vincular a nada" })) },
 
     await cat(
@@ -168,7 +258,15 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
       explicacion: "Líneas de una liquidación guardada cuyo expediente se eliminó. Las liquidaciones guardadas son históricas y no se tocan; solo se avisa.",
       tipo: "revisar",
       cantidad: lineasFantasma.length,
-      filas: lineasFantasma.map((l) => ({ id: l.id_line, texto: l.texto, detalle: "El expediente de esta línea ya no existe o está eliminado" })),
+      columnas: [
+        { clave: "vendedor", etiqueta: "Vendedor" },
+        { clave: "mes", etiqueta: "Mes de la liquidación" },
+        { clave: "expediente", etiqueta: "Expediente nº", tipo: "numero" },
+        { clave: "mes_computo", etiqueta: "Mes en que contaba" },
+        { clave: "puntos", etiqueta: "Puntos", tipo: "numero", ayuda: "Centésimas de punto" },
+        { clave: "importe", etiqueta: "Importe (céntimos)", tipo: "numero" },
+      ],
+      filas: lineasFantasma.map((l) => ({ id: l.id_line, texto: l.texto, detalle: "El expediente de esta línea ya no existe o está eliminado", extra: { vendedor: l.vendedor, mes: l.mes, expediente: l.expediente, mes_computo: l.mes_computo, puntos: l.puntos, importe: l.importe } })),
     },
     {
       id: "info_clientes_eliminados",
@@ -187,9 +285,9 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
       filas: [],
     },
     await cat(
-      { id: "lec_errores", titulo: "Pedidos leídos con error o sin terminar", explicacion: "Documentos subidos para leer que dieron error o se quedaron a medias. Míralos en el Log de lecturas.", tipo: "revisar" },
+      { id: "lec_errores", columnas: [{ clave: "estado", etiqueta: "Estado" }, { clave: "fecha", etiqueta: "Subido el", tipo: "fecha" }, { clave: "usuario", etiqueta: "Usuario" }, { clave: "kb", etiqueta: "Tamaño (KB)", tipo: "numero" }], titulo: "Pedidos leídos con error o sin terminar", explicacion: "Documentos subidos para leer que dieron error o se quedaron a medias. Míralos en el Log de lecturas.", tipo: "revisar" },
       sql`select count(*)::int as n from lecturas_pedidos where estado = 'error'`,
-      sql`select id, nombre as texto, coalesce(error, 'Error de lectura') as detalle from lecturas_pedidos where estado = 'error' order by id desc limit ${lim}`,
+      sql`select l.id, l.nombre as texto, coalesce(l.error, 'Error de lectura') as detalle, l.estado, to_char(l.creada_en, 'YYYY-MM-DD') as fecha, u.nombre as usuario, round(l.tamano / 1024.0)::int as kb from lecturas_pedidos l left join usuarios u on u.id_usuario = l.id_usuario where l.estado = 'error' order by l.id desc limit ${lim}`,
     ),
   ];
 
