@@ -400,6 +400,10 @@ export default function Sidebar({ user, version }: SidebarProps) {
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10 9 9 9 8 9" />
               </EnlaceNav>
+              <EnlaceNav href="/dashboard/log-lecturas" titulo="Log Lecturas" colapsado={isCollapsed}>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M7 8h10M7 12h10M7 16h6" />
+              </EnlaceNav>
             </>
           )}
           {isVendedorOrUp && labMostrar !== "false" && (

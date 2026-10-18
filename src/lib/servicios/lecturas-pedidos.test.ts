@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { lecturasPedidos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { accionLecturas, encolarLectura, listarLecturas, reanudarLecturas } from "./lecturas-pedidos";
+import { accionLecturas, encolarLectura, listarLecturas, reanudarLecturas, registroLecturas } from "./lecturas-pedidos";
 
 beforeEach(async () => {
   process.env.LECTORES_PEDIDOS = "3";
@@ -46,9 +46,10 @@ describe("lecturas de pedidos en paralelo", () => {
     expect(por[c.id].estado).toBe("descartado");
     expect(resumen).toMatchObject({ pedidos: 1, descartados: 2, errores: 0, lectores: 3 });
 
-    // De lo descartado no queda el fichero guardado; del pedido tampoco (pasa a ser un adjunto)
-    const filas = await db.select({ datos: lecturasPedidos.datos }).from(lecturasPedidos);
-    expect(filas.every((f) => f.datos === null)).toBe(true);
+    // Del pedido no queda el fichero en la lista (pasa a ser un adjunto); del descartado se guarda una semana por si se quiere rescatar
+    const filas = await db.select({ id: lecturasPedidos.id, datos: lecturasPedidos.datos }).from(lecturasPedidos);
+    expect(filas.find((f) => f.id === a.id)?.datos).toBeNull();
+    expect(filas.find((f) => f.id === b.id)?.datos).not.toBeNull();
 
     // Recoger el pedido lo quita de la lista
     expect(await accionLecturas(db, u.idUsuario, { accion: "recoger", ids: [a.id] })).toBe(1);
@@ -68,5 +69,34 @@ describe("lecturas de pedidos en paralelo", () => {
     const [g] = await db.insert(lecturasPedidos).values({ idUsuario: u.idUsuario, nombre: "luego.png", tamano: 1, huella: "y".repeat(64), datos: cifrarBuffer(pedido), estado: "error", error: "fallo" }).returning();
     expect(await accionLecturas(db, u.idUsuario, { accion: "reintentar", ids: [g.id] })).toBe(1);
     await esperarFin(u.idUsuario);
+  }, 120_000);
+
+  it("un fallo de lectura no hace desaparecer el pedido: pasa a la cola para rellenarlo a mano, y todo queda en el registro", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const roto = Buffer.from("%PDF-1.4\nesto no es un pdf de verdad");
+    const ajeno = await hoja(["FICHA DE MANTENIMIENTO DEL TALLER", "Nombre: Juan Perez Garcia   NIF 12345678Z", "Telefono 600123123  Observaciones varias del taller"]);
+    const a = await encolarLectura(db, u.idUsuario, "roto.pdf", roto, null, false);
+    const b = await encolarLectura(db, u.idUsuario, "ficha.png", ajeno, null, false);
+    const { lecturas } = await esperarFin(u.idUsuario);
+
+    // El roto llega a la cola con los datos vacíos y un aviso; el ignorado se conserva para poder rescatarlo
+    const rota = lecturas.find((l) => l.id === a.id);
+    expect(rota?.estado).toBe("pedido");
+    expect(rota?.resultado?.datos.avisos[0]).toMatch(/No se pudo leer automáticamente/);
+    expect(rota?.resultado?.adjunto.id).toBeGreaterThan(0);
+    expect(lecturas.find((l) => l.id === b.id)?.estado).toBe("descartado");
+
+    // Rescatar el ignorado lo manda también a la cola
+    expect(await accionLecturas(db, u.idUsuario, { accion: "rescatar", ids: [b.id] })).toBe(1);
+    expect((await listarLecturas(db, u.idUsuario)).lecturas.find((l) => l.id === b.id)?.estado).toBe("pedido");
+
+    // Anotar qué se hizo y verlo en el registro
+    await accionLecturas(db, u.idUsuario, { accion: "recoger", ids: [a.id] });
+    expect(await accionLecturas(db, u.idUsuario, { accion: "resolver", ids: [a.id], resolucion: "quitado" })).toBe(1);
+    const registro = await registroLecturas(db, u.idUsuario, false);
+    expect(registro).toHaveLength(2);
+    const r = registro.find((x) => x.id === a.id);
+    expect(r).toMatchObject({ estado: "pedido", resolucion: "quitado" });
+    expect(r?.error).toBeTruthy();
   }, 120_000);
 });

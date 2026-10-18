@@ -921,6 +921,10 @@ export const lecturasPedidos = pgTable(
     terminadaEn: timestamp("terminada_en", { withTimezone: true }),
     /** Cuando el navegador ya ha recogido el pedido leído y lo ha puesto en la cola. */
     recogidaEn: timestamp("recogida_en", { withTimezone: true }),
+    /** Qué se hizo después con un pedido leído: creado | completado | quitado (descartado a mano de la cola). */
+    resolucion: varchar("resolucion", { length: 12 }),
+    /** Expediente que se creó o completó con este pedido. */
+    idExpediente: integer("id_expediente"),
   },
   (t) => [index("lecturas_pedidos_estado_idx").on(t.estado, t.id), index("lecturas_pedidos_usuario_idx").on(t.idUsuario, t.huella)],
 );

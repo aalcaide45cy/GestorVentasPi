@@ -1,5 +1,6 @@
 import { llamar } from "@/components/comisiones/api";
 import { vincularAdjuntos } from "@/components/documentos/BotonLeerDocumento";
+import { anotarResolucion } from "@/lib/lecturas-pedidos-cliente";
 import { leerCola, quitarDeCola, type ItemCola } from "@/lib/pedidos-cola";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 
@@ -14,7 +15,9 @@ async function crearUno(item: ItemCola, vendedorId: number): Promise<string | nu
   if (item.idExpediente) return "es para completar un expediente que ya existe";
   const idModelo = item.eleccion ? item.eleccion.idModelo : d.idModelo;
   const idTipo = item.eleccion ? item.eleccion.tipo.id_tipo_de_venta : d.idTipoDeVenta;
-  if (idModelo === null) return "su marca o modelo no está en los catálogos";
+  if (idModelo === null) return "su marca o modelo no está en los catálogos: elígelos a mano";
+  if (!item.eleccion && d.avisos.some((a) => a.includes("varios modelos"))) return "el modelo es dudoso (aparecen varios en el pedido): elígelo a mano";
+  if (d.avisos.some((a) => a.startsWith("No se pudo leer automáticamente") || a.startsWith("El lector no lo reconoció"))) return "no se pudo leer: rellénalo a mano";
   if (idTipo === null) return "no se ha reconocido la forma de pago";
 
   // Nunca se duplica: se mira justo ahora, por si uno anterior de esta misma tanda ya lo ha creado
@@ -65,6 +68,7 @@ async function crearUno(item: ItemCola, vendedorId: number): Promise<string | nu
   });
   if (idCliente) await llamar("/api/expedientes", { method: "PUT", cuerpo: { id_expediente: creado.id_expediente, id_cliente: idCliente, expediente: {} } }).catch(() => undefined);
   await vincularAdjuntos([item.pedido.adjunto.id], { idExpediente: creado.id_expediente, idCliente });
+  anotarResolucion(item.idLectura, "creado", creado.id_expediente);
   quitarDeCola(item.id);
   return null;
 }

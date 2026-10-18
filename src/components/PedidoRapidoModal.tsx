@@ -12,6 +12,7 @@ import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
 import type { EleccionRapida, ItemCola } from "@/lib/pedidos-cola";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import VisorPedido from "./documentos/VisorPedido";
 
 export type { EleccionRapida };
 type MarcaConModelos = MarcaDto & { modelos: ModeloDto[] };
@@ -26,7 +27,7 @@ interface Props {
   total: number;
   alIr: (delta: -1 | 1) => void;
   alCerrar: () => void;
-  alTerminar: (mensaje: string) => void;
+  alTerminar: (mensaje: string, idExpediente?: number) => void;
   /** Descarta el pedido: lo quita de la cola sin crear nada. */
   alDescartar: () => void;
 }
@@ -41,6 +42,7 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
 export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
   const { mostrar } = useToast();
   const router = useRouter();
+  const [verPdf, setVerPdf] = useState(false);
   const [masivo, setMasivo] = useState<{ hechos: number; total: number } | null>(null);
   const pedido = item.pedido;
   const eleccion = item.eleccion;
@@ -207,6 +209,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       const resumen = [modeloTexto, tipoTexto].filter(Boolean).join(" · ");
       alTerminar(
         `${cliente === "nuevo" ? `Expediente creado con el cliente nuevo ${d.cliente}` : idCliente ? "Expediente creado y asociado al cliente" : "Expediente creado sin cliente"}${resumen ? ` (${resumen})` : ""}.`,
+        creado.id_expediente,
       );
     } catch (e) {
       mostrar(textoError(e), "error");
@@ -333,9 +336,12 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           )}
         </span>
       }
-      ancho="700px"
+      ancho={verPdf ? "1500px" : "700px"}
       pie={
         <>
+          <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
+            {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
+          </button>
           <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
             Cancelar
           </button>
@@ -353,7 +359,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
         </>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", flex: "1 1 0", minWidth: 0 }}>
         <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
           Fichero: {item.nombre}
           {d.numeroPedido ? ` · Pedido ${d.numeroPedido}` : ""}
@@ -457,6 +464,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             </>
           )}
         </div>
+      </div>
+      {verPdf && <VisorPedido idAdjunto={pedido.adjunto.id} nombre={item.nombre} />}
       </div>
     </Modal>
   );

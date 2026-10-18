@@ -8,7 +8,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import type { ExpedienteDto, MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
 import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola } from "@/lib/pedidos-cola";
-import { cancelarLecturas } from "@/lib/lecturas-pedidos-cliente";
+import { anotarResolucion, cancelarLecturas } from "@/lib/lecturas-pedidos-cliente";
 import EstadoLecturas from "./EstadoLecturas";
 import PedidoRapidoModal from "./PedidoRapidoModal";
 import RellenarDesdePedidoModal from "./RellenarDesdePedidoModal";
@@ -57,8 +57,9 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   };
 
   /** Quita el pedido aplicado y abre el siguiente de la cola, si lo hay. */
-  const terminado = (mensaje: string) => {
+  const terminado = (mensaje: string, idExpedienteCreado?: number) => {
     if (!actual) return;
+    anotarResolucion(actual.idLectura, mensaje.startsWith("Pedido descartado") ? "quitado" : actual.idExpediente ? "completado" : "creado", actual.idExpediente ?? idExpedienteCreado ?? null);
     const siguiente = items[indice + 1] ?? items[indice - 1] ?? null;
     quitarDeCola(actual.id);
     mostrar(mensaje);
@@ -96,7 +97,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
           <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => abrirDeCola(i.id)}>
             Abrir
           </button>
-          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => quitarDeCola(i.id)} title="Quita el pedido de la cola sin aplicarlo">
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => { anotarResolucion(i.idLectura, "quitado"); quitarDeCola(i.id); }} title="Quita el pedido de la cola sin aplicarlo">
             Descartar
           </button>
         </div>

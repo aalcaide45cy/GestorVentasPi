@@ -22,6 +22,8 @@ export interface ItemCola {
   eleccion: EleccionRapida | null;
   /** Expediente al que se soltó (para completarlo) o null si se creará uno nuevo. */
   idExpediente: number | null;
+  /** Lectura del servidor de la que viene (para anotar en el registro qué se hizo con el pedido). */
+  idLectura?: number;
 }
 
 export interface EstadoCola {

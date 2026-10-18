@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import os from "node:os";
-import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, type Ejecutor } from "@/db";
-import { lecturasPedidos } from "@/db/schema";
+import { clientes, expedientes, lecturasPedidos, usuarios } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
+import { parsearPedido } from "@/lib/documentos/pedido";
+import { guardarAdjunto } from "./adjuntos";
 import { NO_ES_PEDIDO, leerPedido, type ResultadoPedido } from "./documentos";
 import { MAX_BYTES_OCR, tipoDeFichero } from "./ocr";
 
@@ -58,7 +60,8 @@ export function lectoresPermitidos(): number {
   return Math.max(1, Math.min(16, porNucleos, porMemoria));
 }
 
-const MAX_DIAS_HISTORIAL = 7;
+const MAX_DIAS_FICHERO = 7;
+const MAX_DIAS_REGISTRO = 90;
 
 interface EstadoLectores {
   activos: number;
@@ -103,12 +106,18 @@ export async function encolarLectura(ej: Ejecutor, idUsuario: number, nombre: st
   return { id: f.id, estado: "pendiente" };
 }
 
+/** De lo descartado se guarda el fichero una semana (por si el reconocimiento se equivocó); el registro, tres meses. */
+async function limpiarHistorial(ej: Ejecutor): Promise<void> {
+  const semana = new Date(Date.now() - MAX_DIAS_FICHERO * 24 * 3600 * 1000);
+  await ej.update(lecturasPedidos).set({ datos: null }).where(and(isNotNull(lecturasPedidos.datos), lt(lecturasPedidos.terminadaEn, semana), inArray(lecturasPedidos.estado, ["descartado", "cancelado"])));
+  const tresMeses = new Date(Date.now() - MAX_DIAS_REGISTRO * 24 * 3600 * 1000);
+  await ej.delete(lecturasPedidos).where(and(lt(lecturasPedidos.terminadaEn, tresMeses), inArray(lecturasPedidos.estado, ["descartado", "cancelado", "pedido"])));
+}
+
 export async function listarLecturas(ej: Ejecutor, idUsuario: number): Promise<{ resumen: ResumenLecturas; lecturas: LecturaDto[] }> {
   await reanudarLecturas();
   despertarLectores();
-  // Limpieza oportunista: lo ya recogido o descartado hace más de una semana
-  const corte = new Date(Date.now() - MAX_DIAS_HISTORIAL * 24 * 3600 * 1000);
-  await ej.delete(lecturasPedidos).where(and(lt(lecturasPedidos.terminadaEn, corte), or(eq(lecturasPedidos.estado, "descartado"), eq(lecturasPedidos.estado, "cancelado"), eq(lecturasPedidos.estado, "pedido"))));
+  await limpiarHistorial(ej);
 
   const filas = await ej
     .select({ id: lecturasPedidos.id, nombre: lecturasPedidos.nombre, estado: lecturasPedidos.estado, error: lecturasPedidos.error, destino: lecturasPedidos.destino, resultado: lecturasPedidos.resultado, creadaEn: lecturasPedidos.creadaEn })
@@ -132,8 +141,11 @@ export async function listarLecturas(ej: Ejecutor, idUsuario: number): Promise<{
 }
 
 export const esquemaAccionLecturas = z.object({
-  accion: z.enum(["recoger", "limpiar", "reintentar", "cancelar"]),
+  accion: z.enum(["recoger", "limpiar", "reintentar", "cancelar", "rescatar", "resolver"]),
   ids: z.array(z.number().int().positive()).max(5000).optional(),
+  /** Solo en «resolver»: qué se hizo con el pedido y con qué expediente. */
+  resolucion: z.enum(["creado", "completado", "quitado"]).optional(),
+  idExpediente: z.number().int().positive().nullish(),
 });
 
 /**
@@ -141,6 +153,8 @@ export const esquemaAccionLecturas = z.object({
  * - limpiar: oculta los descartados y cancelados de la lista.
  * - reintentar: vuelve a poner en pendiente los que dieron error.
  * - cancelar: los que aún no han empezado se cancelan (los que se están leyendo terminan).
+ * - rescatar: un descartado o con error pasa a la cola de pedidos para rellenarlo a mano mirando el PDF.
+ * - resolver: deja anotado en el registro qué se hizo con el pedido (expediente creado o completado, o quitado de la cola).
  */
 export async function accionLecturas(ej: Ejecutor, idUsuario: number, e: z.infer<typeof esquemaAccionLecturas>): Promise<number> {
   const suyas = eq(lecturasPedidos.idUsuario, idUsuario);
@@ -162,6 +176,16 @@ export async function accionLecturas(ej: Ejecutor, idUsuario: number, e: z.infer
         .where(and(suyas, eq(lecturasPedidos.estado, "error"), sql`${lecturasPedidos.datos} is not null`, deLaLista))
         .returning({ id: lecturasPedidos.id });
       despertarLectores();
+      return r.length;
+    }
+    case "rescatar": {
+      let n = 0;
+      for (const id of e.ids ?? []) if (await rescatarLectura(ej, idUsuario, id)) n++;
+      return n;
+    }
+    case "resolver": {
+      if (!e.resolucion || !e.ids || e.ids.length === 0) throw new HttpError(400, "Faltan datos para anotar qué se hizo con el pedido");
+      const r = await ej.update(lecturasPedidos).set({ resolucion: e.resolucion, idExpediente: e.idExpediente ?? null }).where(and(suyas, inArray(lecturasPedidos.id, e.ids))).returning({ id: lecturasPedidos.id });
       return r.length;
     }
     case "cancelar": {
@@ -207,10 +231,12 @@ async function procesar(ej: Ejecutor, fila: FilaReservada): Promise<void> {
     const mensaje = e instanceof Error ? e.message : "No se ha podido leer";
     if (e instanceof HttpError && mensaje === NO_ES_PEDIDO) {
       // No es un pedido: no se guarda nada del documento
-      await ej.update(lecturasPedidos).set({ estado: "descartado", datos: null, error: "No es un pedido: se ha ignorado.", terminadaEn: ahora() }).where(eq(lecturasPedidos.id, fila.id));
+      await ej.update(lecturasPedidos).set({ estado: "descartado", error: "No es un pedido: se ha ignorado.", terminadaEn: ahora() }).where(eq(lecturasPedidos.id, fila.id));
     } else {
       console.error(`Lectura de pedido ${fila.id} fallida:`, mensaje);
       await ej.update(lecturasPedidos).set({ estado: "error", error: mensaje, terminadaEn: ahora() }).where(eq(lecturasPedidos.id, fila.id));
+      // Un fallo de lectura no hace desaparecer el pedido: pasa a la cola para rellenarlo a mano mirando el PDF
+      if (fila.id_usuario !== null) await rescatarLectura(ej, fila.id_usuario, fila.id).catch(() => undefined);
     }
   }
 }
@@ -236,6 +262,91 @@ async function bucle(): Promise<void> {
   } finally {
     st.reservando = false;
   }
+}
+
+/**
+ * Pasa a la cola de pedidos un documento descartado o con error, con los datos vacíos y un aviso, para rellenarlo a mano
+ * mirando el PDF. Devuelve false si ya no se conserva el fichero.
+ */
+export async function rescatarLectura(ej: Ejecutor, idUsuario: number, id: number): Promise<boolean> {
+  const [f] = await ej.select().from(lecturasPedidos).where(and(eq(lecturasPedidos.id, id), eq(lecturasPedidos.idUsuario, idUsuario), inArray(lecturasPedidos.estado, ["error", "descartado"])));
+  if (!f?.datos) return false;
+  const datos = descifrarBuffer(Buffer.from(f.datos));
+  const adjunto = await guardarAdjunto(ej, { datos, nombre: f.nombre, tipo: "pedido", creadoPor: idUsuario });
+  const vacio = parsearPedido("", { modelos: [], tiposVenta: [] });
+  const motivo = f.estado === "error" ? `No se pudo leer automáticamente (${f.error ?? "error de lectura"})` : "El lector no lo reconoció como un pedido";
+  const resultado: ResultadoPedido = { datos: { ...vacio, esPedido: true, avisos: [`${motivo}: rellena los datos a mano mirando el PDF.`] }, similares: [], adjunto, metodo: "ocr" };
+  await ej.update(lecturasPedidos).set({ estado: "pedido", resultado, datos: null, recogidaEn: null, terminadaEn: new Date() }).where(eq(lecturasPedidos.id, id));
+  return true;
+}
+
+export interface RegistroLectura {
+  id: number;
+  nombre: string;
+  usuario: string | null;
+  estado: EstadoLectura;
+  error: string | null;
+  creadaEn: string;
+  terminadaEn: string | null;
+  /** Lo que se leyó, si fue un pedido. */
+  cliente: string | null;
+  numeroPedido: string | null;
+  vehiculo: string | null;
+  avisos: string[];
+  resolucion: "creado" | "completado" | "quitado" | null;
+  idExpediente: number | null;
+  /** Si el expediente enlazado sigue existiendo (no eliminado). */
+  expedienteActivo: boolean;
+  /** Se conserva el fichero (descartados, una semana): se puede rescatar a la cola. */
+  rescatable: boolean;
+}
+
+/** Registro de lecturas (tres meses): qué pasó con cada documento, para localizar fallos de lectura. El administrador ve todos. */
+export async function registroLecturas(ej: Ejecutor, idUsuario: number, esAdmin: boolean): Promise<RegistroLectura[]> {
+  await limpiarHistorial(ej);
+  const filas = await ej
+    .select({
+      id: lecturasPedidos.id,
+      nombre: lecturasPedidos.nombre,
+      usuario: usuarios.nombre,
+      estado: lecturasPedidos.estado,
+      error: lecturasPedidos.error,
+      creadaEn: lecturasPedidos.creadaEn,
+      terminadaEn: lecturasPedidos.terminadaEn,
+      resultado: lecturasPedidos.resultado,
+      resolucion: lecturasPedidos.resolucion,
+      idExpediente: lecturasPedidos.idExpediente,
+      tieneDatos: sql<boolean>`${lecturasPedidos.datos} is not null`,
+      expedienteVivo: sql<boolean>`${expedientes.idExpediente} is not null and ${expedientes.eliminadoEn} is null`,
+      clienteExp: clientes.nombre,
+    })
+    .from(lecturasPedidos)
+    .leftJoin(usuarios, eq(usuarios.idUsuario, lecturasPedidos.idUsuario))
+    .leftJoin(expedientes, eq(expedientes.idExpediente, lecturasPedidos.idExpediente))
+    .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+    .where(esAdmin ? undefined : eq(lecturasPedidos.idUsuario, idUsuario))
+    .orderBy(desc(lecturasPedidos.id))
+    .limit(3000);
+  return filas.map((f) => {
+    const r = (f.resultado as ResultadoPedido | null) ?? null;
+    return {
+      id: f.id,
+      nombre: f.nombre,
+      usuario: f.usuario,
+      estado: f.estado as EstadoLectura,
+      error: f.error,
+      creadaEn: f.creadaEn.toISOString(),
+      terminadaEn: f.terminadaEn?.toISOString() ?? null,
+      cliente: r?.datos.cliente ?? f.clienteExp ?? null,
+      numeroPedido: r?.datos.numeroPedido ?? null,
+      vehiculo: r?.datos.modeloTexto ?? null,
+      avisos: r?.datos.avisos ?? [],
+      resolucion: (f.resolucion as RegistroLectura["resolucion"]) ?? null,
+      idExpediente: f.idExpediente,
+      expedienteActivo: !!f.expedienteVivo,
+      rescatable: f.tieneDatos && (f.estado === "descartado" || f.estado === "error"),
+    };
+  });
 }
 
 /** Pone a trabajar a los lectores que falten (no espera a que terminen). */

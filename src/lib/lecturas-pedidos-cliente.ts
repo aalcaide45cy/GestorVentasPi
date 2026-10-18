@@ -76,7 +76,7 @@ async function consultar(): Promise<boolean> {
       if (huecosEnCola() === 0) break; // cola llena: se quedan en el servidor hasta que haya sitio
       // Si ya existe un expediente de este pedido, la lectura sirve para completarlo: nunca se crea uno duplicado
       const yaExiste = l.destino?.idExpediente ? null : (pedido.similares[0]?.idExpediente ?? null);
-      const nuevos = anadirACola([{ nombre: l.nombre, pedido, eleccion: yaExiste ? null : ((l.destino?.eleccion as EleccionRapida | null | undefined) ?? null), idExpediente: l.destino?.idExpediente ?? yaExiste }]);
+      const nuevos = anadirACola([{ nombre: l.nombre, pedido, eleccion: yaExiste ? null : ((l.destino?.eleccion as EleccionRapida | null | undefined) ?? null), idExpediente: l.destino?.idExpediente ?? yaExiste, idLectura: l.id }]);
       recogidosEnTanda++;
       recogidos.push(l.id);
       if (abrirElPrimero && nuevos[0]) {
@@ -171,8 +171,14 @@ export async function cancelarLecturas(): Promise<void> {
   await consultar();
 }
 
-export async function accionSobreLecturas(accion: "reintentar" | "limpiar"): Promise<void> {
-  await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion }) });
+/** Anota en el registro de lecturas qué se hizo con un pedido de la cola (expediente creado o completado, o quitado). */
+export function anotarResolucion(idLectura: number | undefined, resolucion: "creado" | "completado" | "quitado", idExpediente?: number | null): void {
+  if (!idLectura) return;
+  void pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "resolver", ids: [idLectura], resolucion, idExpediente: idExpediente ?? null }) }).catch(() => undefined);
+}
+
+export async function accionSobreLecturas(accion: "reintentar" | "limpiar" | "rescatar", ids?: number[]): Promise<void> {
+  await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion, ids }) });
   await consultar();
   iniciarSondeo();
 }

@@ -3,13 +3,16 @@ import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerJson, manejar } from "@/lib/http";
 import { MAX_BYTES_ADJUNTO } from "@/lib/servicios/adjuntos";
-import { accionLecturas, encolarLectura, esquemaAccionLecturas, esquemaDestinoLectura, listarLecturas } from "@/lib/servicios/lecturas-pedidos";
+import { esAdministrador } from "@/lib/auth/permisos";
+import { accionLecturas, encolarLectura, esquemaAccionLecturas, esquemaDestinoLectura, listarLecturas, registroLecturas } from "@/lib/servicios/lecturas-pedidos";
 
 export const dynamic = "force-dynamic";
 
 /** Lista de pedidos subidos para leer (pendientes, en curso, leídos sin recoger, descartados y con error) y el resumen. */
-export const GET = manejar(async () => {
+export const GET = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
+  // ?registro=1: el registro de lecturas de los últimos tres meses (el administrador ve las de todos)
+  if (new URL(req.url).searchParams.get("registro") === "1") return NextResponse.json({ success: true, data: await registroLecturas(db, u.idUsuario, esAdministrador(u.rol)) });
   return NextResponse.json({ success: true, data: await listarLecturas(db, u.idUsuario) });
 });
 
