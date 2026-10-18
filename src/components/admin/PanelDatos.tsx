@@ -4,13 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
 import { useCarga } from "@/components/comisiones/useCarga";
-import { ICONOS, ModalCopiasInternas, ModalExportar, ModalImportar, botonChico, cuantos, type DatosPanel, type SeccionDatos } from "@/components/datos/DatosSeccion";
+import { ICONOS, ModalContenido, ModalCopiasInternas, ModalExportar, ModalImportar, botonChico, cuantos, type DatosPanel, type SeccionDatos } from "@/components/datos/DatosSeccion";
 import type { Seccion } from "@/lib/servicios/intercambio";
 
 const VACIO: DatosPanel = { secciones: [], planes: [] };
 
 const GRUPOS: { titulo: string; ayuda: string; secciones: Seccion[] }[] = [
-  { titulo: "Personas y ventas", ayuda: "Lo que más cambia día a día.", secciones: ["clientes", "expedientes"] },
+  { titulo: "Personas y ventas", ayuda: "Lo que más cambia día a día.", secciones: ["clientes_expedientes", "clientes", "expedientes"] },
   { titulo: "Catálogos", ayuda: "Listas que se eligen al crear un expediente.", secciones: ["marcas_modelos", "tipos_venta", "estados", "tiendas"] },
   { titulo: "Comisiones", ayuda: "Planes, plantillas de tarifas y hojas de cotejo.", secciones: ["planes", "plantillas_tarifas", "plantillas_plan", "rejillas"] },
   { titulo: "Sistema", ayuda: "Configuración y usuarios.", secciones: ["ajustes", "usuarios"] },
@@ -21,7 +21,7 @@ export default function PanelDatos() {
   const router = useRouter();
   const { datos, recargar } = useCarga<DatosPanel>("/api/admin/datos", VACIO);
   const { datos: copias, recargar: recargarCopias } = useCarga<{ conteo: Record<string, number> }>("/api/admin/datos/copias?soloConteo=1", { conteo: {} });
-  const [modal, setModal] = useState<{ tipo: "exportar" | "importar" | "copias"; seccion: SeccionDatos | null } | null>(null);
+  const [modal, setModal] = useState<{ tipo: "exportar" | "importar" | "copias" | "contenido"; seccion: SeccionDatos | null } | null>(null);
 
   const refrescar = () => {
     recargar();
@@ -76,6 +76,7 @@ export default function PanelDatos() {
         );
       })}
 
+      {modal?.tipo === "contenido" && modal.seccion && <ModalContenido seccion={modal.seccion} alCerrar={() => setModal(null)} />}
       {modal?.tipo === "exportar" && modal.seccion && <ModalExportar seccion={modal.seccion} planes={datos.planes} alCerrar={() => setModal(null)} />}
       {modal?.tipo === "importar" && modal.seccion && <ModalImportar seccion={modal.seccion} alCerrar={() => setModal(null)} alTerminar={refrescar} />}
       {modal?.tipo === "copias" && <ModalCopiasInternas seccion={modal.seccion?.seccion ?? null} secciones={datos.secciones} alCerrar={() => setModal(null)} alCambiar={refrescar} />}
@@ -83,15 +84,15 @@ export default function PanelDatos() {
   );
 }
 
-function TarjetaSeccion({ s, copias, alAbrir }: { s: SeccionDatos; copias: number; alAbrir: (tipo: "exportar" | "importar" | "copias") => void }) {
+function TarjetaSeccion({ s, copias, alAbrir }: { s: SeccionDatos; copias: number; alAbrir: (tipo: "exportar" | "importar" | "copias" | "contenido") => void }) {
   return (
     <div className="glass-panel" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)", height: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline" }}>
+      <button type="button" onClick={() => alAbrir("contenido")} title="Pulsa para ver qué contiene: una tabla con orden, buscador y columnas a tu gusto, tal cual se exportaría." style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "baseline", background: "none", border: "none", padding: 0, color: "inherit", font: "inherit", cursor: "pointer", textAlign: "left" }}>
         <strong>
           {ICONOS[s.seccion]} {s.titulo}
         </strong>
-        <span style={{ color: "var(--text-muted)", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{cuantos(s.registros, s)}</span>
-      </div>
+        <span style={{ color: "var(--primary)", fontSize: "0.8rem", textAlign: "right" }}>👁 {cuantos(s.registros, s)}</span>
+      </button>
       <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.45, flex: 1 }}>
         {s.descripcion}
         {s.aviso && (

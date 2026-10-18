@@ -35,7 +35,7 @@ import { esquemaPlantilla } from "./plantillas-tarifas";
 
 export const FORMATO = "gv-seccion-1";
 
-export const SECCIONES = ["clientes", "expedientes", "marcas_modelos", "tipos_venta", "estados", "tiendas", "planes", "plantillas_tarifas", "plantillas_plan", "rejillas", "ajustes", "usuarios"] as const;
+export const SECCIONES = ["clientes", "expedientes", "clientes_expedientes", "marcas_modelos", "tipos_venta", "estados", "tiendas", "planes", "plantillas_tarifas", "plantillas_plan", "rejillas", "ajustes", "usuarios"] as const;
 export type Seccion = (typeof SECCIONES)[number];
 export type Modo = "anadir" | "actualizar" | "sustituir";
 
@@ -54,6 +54,7 @@ export interface InfoSeccion {
 export const INFO_SECCIONES: Record<Seccion, InfoSeccion> = {
   clientes: { titulo: "Clientes", plural: "clientes", descripcion: "Datos de cada cliente: DNI, nombre, fecha de nacimiento, dirección, tienda, correos y teléfonos.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: "Contiene datos personales de tus clientes (DNI, dirección, teléfonos): guarda el archivo en un sitio seguro." },
   expedientes: { titulo: "Expedientes", plural: "expedientes", descripcion: "Todos los expedientes con su cliente, vehículo, tipo de venta, vendedor, fechas y comisiones a mano.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: "Contiene datos personales (nombre y DNI del cliente) y datos de ventas: guarda el archivo en un sitio seguro." },
+  clientes_expedientes: { titulo: "Clientes y expedientes", plural: "clientes y expedientes", descripcion: "Los clientes con todos sus datos y los expedientes enlazados con ellos, en un solo archivo: al importarlo se recomponen solos los clientes y sus expedientes. Es la forma recomendada de llevar tus ventas a otro equipo.", importable: true, modos: ["anadir", "actualizar"], aviso: "Contiene datos personales de tus clientes (DNI, dirección, teléfonos) y datos de ventas: guarda el archivo en un sitio seguro." },
   marcas_modelos: { titulo: "Marcas y modelos", plural: "marcas y modelos", descripcion: "Las marcas con sus modelos y opciones (acceso rápido, sistema de comisiones).", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
   tipos_venta: { titulo: "Tipos de venta (formas de pago)", plural: "tipos de venta", descripcion: "Contado, crédito, preference…, con su color, orden y si exigen fecha RCI.", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
   estados: { titulo: "Estados de vehículo", plural: "estados de vehículo", descripcion: "Nuevo, usado, KM0, demo…, con su clase (VN o VO).", importable: true, modos: ["anadir", "actualizar", "sustituir"], aviso: null },
@@ -163,12 +164,13 @@ const esquemaPaquete = z.object({
 /* Recuento por sección                                                */
 /* ------------------------------------------------------------------ */
 
-export async function resumenSecciones(ej: Ejecutor): Promise<{ seccion: Seccion; registros: number }[]> {
+export async function resumenSecciones(ej: Ejecutor): Promise<{ seccion: Seccion; registros: number; detalle?: string }[]> {
   const cuenta = async (q: Promise<{ n: number }[]>) => (await q)[0]?.n ?? 0;
   const n = sql<number>`count(*)::int`;
   const datos: Record<Seccion, number> = {
     clientes: await cuenta(ej.select({ n }).from(clientes).where(isNull(clientes.eliminadoEn))),
     expedientes: await cuenta(ej.select({ n }).from(expedientes).where(isNull(expedientes.eliminadoEn))),
+    clientes_expedientes: 0,
     marcas_modelos: await cuenta(ej.select({ n }).from(marcas).where(isNull(marcas.eliminadoEn))),
     tipos_venta: await cuenta(ej.select({ n }).from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn))),
     estados: await cuenta(ej.select({ n }).from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn))),
@@ -180,7 +182,8 @@ export async function resumenSecciones(ej: Ejecutor): Promise<{ seccion: Seccion
     ajustes: (await ajustesExportables(ej)).length,
     usuarios: await cuenta(ej.select({ n }).from(usuarios)),
   };
-  return SECCIONES.map((s) => ({ seccion: s, registros: datos[s] }));
+  datos.clientes_expedientes = datos.clientes + datos.expedientes;
+  return SECCIONES.map((s) => ({ seccion: s, registros: datos[s], ...(s === "clientes_expedientes" ? { detalle: `${datos.clientes.toLocaleString("es-ES")} clientes y ${datos.expedientes.toLocaleString("es-ES")} expedientes` } : {}) }));
 }
 
 /** Lista breve de planes para elegir cuáles exportar. */
@@ -209,6 +212,10 @@ export async function exportarSeccion(ej: Ejecutor, seccion: Seccion, opciones: 
       break;
     case "expedientes":
       datos = await exportarExpedientes(ej);
+      break;
+    case "clientes_expedientes":
+      // Un solo archivo con los clientes completos y los expedientes enlazados con ellos (por DNI o nombre), marcados por tipo
+      datos = [...(await exportarClientes(ej)).map((c) => ({ _tipo: "cliente", ...c })), ...(await exportarExpedientes(ej)).map((e) => ({ _tipo: "expediente", ...e }))];
       break;
     case "marcas_modelos": {
       const ms = await ej.select().from(marcas).where(isNull(marcas.eliminadoEn)).orderBy(marcas.nombre);
@@ -254,6 +261,80 @@ export async function exportarSeccion(ej: Ejecutor, seccion: Seccion, opciones: 
       break;
   }
   return { app: "GestorVentasPi", formato: FORMATO, seccion, exportadoEn: new Date().toISOString(), registros: datos.length, datos, ...(mapas ? { mapas } : {}) };
+}
+
+/* ------------------------------------------------------------------ */
+/* Contenido de una sección (para verlo en una tabla antes de exportar) */
+/* ------------------------------------------------------------------ */
+
+export interface ParteContenido {
+  id: string;
+  titulo: string;
+  columnas: { clave: string; etiqueta: string }[];
+  filas: Record<string, string | number>[];
+  /** Total de filas (las enseñadas se recortan). */
+  total: number;
+}
+export interface ContenidoSeccion {
+  seccion: Seccion;
+  partes: ParteContenido[];
+  /** Cuántas filas como máximo se enseñan por tabla. */
+  limite: number;
+}
+
+const ETIQUETAS_COLUMNA: Record<string, string> = {
+  dni: "DNI/NIF",
+  vin: "Bastidor",
+  codigoPostal: "Código postal",
+  fechaNacimiento: "Fecha de nacimiento",
+  tipoVenta: "Tipo de venta",
+  loginEmail: "Correo de acceso",
+  accesoRapido: "Acceso rápido",
+  ordenAccesoRapido: "Orden acceso rápido",
+  requiereRciAlMatricular: "Exige fecha RCI",
+  sistemaComisiones: "Sistema de comisiones",
+  subtipoVo: "Subtipo VO",
+};
+const humanizar = (clave: string): string => ETIQUETAS_COLUMNA[clave] ?? clave.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).replace(/_/g, " ").trim();
+
+/** Convierte un valor cualquiera en un texto corto para una celda de tabla. */
+function celda(v: unknown): string | number {
+  if (v === null || v === undefined || v === "") return "";
+  if (typeof v === "number") return v;
+  if (typeof v === "boolean") return v ? "Sí" : "No";
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "";
+    if (v.every((x) => x && typeof x === "object" && ("email" in x || "telefono" in x))) return v.map((x) => (x as { email?: string; telefono?: string }).email ?? (x as { telefono?: string }).telefono ?? "").join(", ");
+    if (v.every((x) => typeof x !== "object")) return v.join(", ");
+    return `${v.length} elemento${v.length === 1 ? "" : "s"}`;
+  }
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if ("nombre" in o) return `${String(o.nombre ?? "")}${o.dni ? ` (${String(o.dni)})` : ""}`;
+    const sencillos = Object.entries(o).filter(([, x]) => x !== null && typeof x !== "object").slice(0, 3);
+    return sencillos.map(([k, x]) => `${humanizar(k)}: ${String(x)}`).join(" · ") || "(datos)";
+  }
+  return String(v);
+}
+
+function aTabla(id: string, titulo: string, datos: unknown[], limite: number): ParteContenido {
+  const claves: string[] = [];
+  for (const d of datos.slice(0, 200)) {
+    for (const k of Object.keys((d ?? {}) as Record<string, unknown>)) if (k !== "_tipo" && !claves.includes(k)) claves.push(k);
+  }
+  const filas = datos.slice(0, limite).map((d) => Object.fromEntries(claves.map((k) => [k, celda((d as Record<string, unknown>)[k])])));
+  return { id, titulo, columnas: claves.map((k) => ({ clave: k, etiqueta: humanizar(k) })), filas, total: datos.length };
+}
+
+/** Lo que se exportaría de una sección, como tablas legibles (la misma exportación, sin descargar nada). */
+export async function contenidoSeccion(ej: Ejecutor, seccion: Seccion, limite = 5000): Promise<ContenidoSeccion> {
+  const p = await exportarSeccion(ej, seccion);
+  if (seccion === "clientes_expedientes") {
+    const de = (tipo: string) => p.datos.filter((d) => (d as { _tipo?: string })._tipo === tipo);
+    return { seccion, limite, partes: [aTabla("clientes", "Clientes", de("cliente"), limite), aTabla("expedientes", "Expedientes", de("expediente"), limite)] };
+  }
+  return { seccion, limite, partes: [aTabla("todo", INFO_SECCIONES[seccion].titulo, p.datos, limite)] };
 }
 
 async function exportarClientes(ej: Ejecutor) {
@@ -416,12 +497,38 @@ export async function importarSeccion(ej: Ejecutor, idAdmin: number, entrada: un
   return informe;
 }
 
+/** Junta los informes de clientes y de expedientes en uno solo, dejando claro de cuál es cada línea. */
+function unirInformes(base: Informe, clientes: Informe, expedientes: Informe): Informe {
+  const marcar = (i: Informe, etiqueta: string) => i.muestra.map((m) => ({ ...m, texto: `${etiqueta}: ${m.texto}` }));
+  return {
+    ...base,
+    nuevos: clientes.nuevos + expedientes.nuevos,
+    actualizados: clientes.actualizados + expedientes.actualizados,
+    sinCambios: clientes.sinCambios + expedientes.sinCambios,
+    omitidos: clientes.omitidos + expedientes.omitidos,
+    eliminados: clientes.eliminados + expedientes.eliminados,
+    errores: [...clientes.errores.map((e) => `Cliente · ${e}`), ...expedientes.errores.map((e) => `Expediente · ${e}`)].slice(0, 50),
+    totalErrores: clientes.totalErrores + expedientes.totalErrores,
+    avisos: [...clientes.avisos, ...expedientes.avisos].slice(0, 30),
+    muestra: [...marcar(clientes, "Cliente"), ...marcar(expedientes, "Expediente")].slice(0, 40),
+  };
+}
+
 async function ejecutarImportacion(tx: Ejecutor, idAdmin: number, p: z.infer<typeof esquemaPaquete>, modo: Modo, inf: Informe): Promise<Informe> {
   switch (p.seccion) {
     case "clientes":
       return importarClientes(tx, p.datos, modo, inf);
     case "expedientes":
       return importarExpedientes(tx, idAdmin, p.datos, modo, inf);
+    case "clientes_expedientes": {
+      // Primero los clientes (con todos sus datos) y después los expedientes, que ya los encuentran para enlazarse
+      const marcado = (tipo: string) => p.datos.filter((d) => (d as { _tipo?: string } | null)?._tipo === tipo);
+      const cls = marcado("cliente");
+      const exps = marcado("expediente");
+      const infClientes = await importarClientes(tx, cls, modo, nuevoInforme("clientes", modo, cls.length));
+      const infExpedientes = await importarExpedientes(tx, idAdmin, exps, modo, nuevoInforme("expedientes", modo, exps.length));
+      return unirInformes(inf, infClientes, infExpedientes);
+    }
     case "marcas_modelos":
       return importarMarcasModelos(tx, p.datos, modo, inf);
     case "tipos_venta":

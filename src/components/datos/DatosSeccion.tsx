@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Modal, { ModalConfirmar } from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
-import type { InfoSeccion, Informe, Modo, Seccion } from "@/lib/servicios/intercambio";
+import type { ContenidoSeccion, InfoSeccion, Informe, Modo, ParteContenido, Seccion } from "@/lib/servicios/intercambio";
 import type { CopiaInternaDto } from "@/lib/servicios/copias-seccion";
 
 /**
@@ -16,6 +17,8 @@ import type { CopiaInternaDto } from "@/lib/servicios/copias-seccion";
 export interface SeccionDatos extends InfoSeccion {
   seccion: Seccion;
   registros: number;
+  /** Texto con el desglose, si lo hay («120 clientes y 80 expedientes»). */
+  detalle?: string;
 }
 export interface PlanElegible {
   id: number;
@@ -29,7 +32,7 @@ export interface DatosPanel {
   planes: PlanElegible[];
 }
 
-export const ICONOS: Record<Seccion, string> = { clientes: "👥", expedientes: "📁", marcas_modelos: "🚗", tipos_venta: "💳", estados: "🏷️", tiendas: "🏬", planes: "🎯", plantillas_tarifas: "📋", plantillas_plan: "🗒️", rejillas: "🧾", ajustes: "⚙️", usuarios: "🧑‍💼" };
+export const ICONOS: Record<Seccion, string> = { clientes: "👥", expedientes: "📁", clientes_expedientes: "🔗", marcas_modelos: "🚗", tipos_venta: "💳", estados: "🏷️", tiendas: "🏬", planes: "🎯", plantillas_tarifas: "📋", plantillas_plan: "🗒️", rejillas: "🧾", ajustes: "⚙️", usuarios: "🧑‍💼" };
 
 const MODOS: Record<Modo, { titulo: string; ayuda: string }> = {
   anadir: { titulo: "Añadir solo lo nuevo", ayuda: "Crea lo que no existe y deja tal cual lo que ya existe. Es lo más seguro." },
@@ -42,12 +45,15 @@ export const botonChico = { padding: "8px 14px", fontSize: "0.85rem" } as const;
 export const numero = (n: number): string => n.toLocaleString("es-ES");
 
 /** «1 cliente» / «3 clientes»; para el plural usa el texto de la sección. */
-export function cuantos(n: number, s: Pick<InfoSeccion, "plural">): string {
+export function cuantos(n: number, s: Pick<InfoSeccion, "plural"> & { detalle?: string }): string {
+  if (s.detalle) return s.detalle;
   if (n !== 1) return `${numero(n)} ${s.plural}`;
   const singulares: Record<string, string> = {
     clientes: "cliente",
     expedientes: "expediente",
     marcas: "marca",
+    "marcas y modelos": "marca con sus modelos",
+    "clientes y expedientes": "cliente o expediente",
     "tipos de venta": "tipo de venta",
     "estados de vehículo": "estado de vehículo",
     tiendas: "tienda",
@@ -86,6 +92,74 @@ function guardarBlob(blob: Blob, nombre: string): void {
 }
 
 /* ------------------------------------------------------------------ */
+/* Ver el contenido                                                    */
+/* ------------------------------------------------------------------ */
+
+type FilaContenido = Record<string, string | number>;
+
+/** Tabla de una parte del contenido, con orden por columnas, buscador y gestor de columnas. */
+function TablaParte({ seccion, parte }: { seccion: Seccion; parte: ParteContenido }) {
+  const columnas = useMemo<ColumnaTabla<FilaContenido>[]>(() => parte.columnas.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta, valor: (f) => f[c.clave] ?? "" })), [parte]);
+  const filas = useMemo(() => parte.filas.map((f, i) => ({ ...f, __i: i })), [parte]);
+  return <TablaDatos<FilaContenido> id={`contenido-${seccion}-${parte.id}`} columnas={columnas} filas={filas} clave={(f) => f.__i} placeholder={`Buscar en ${parte.titulo.toLowerCase()}…`} vacio="No hay nada en esta sección." />;
+}
+
+/**
+ * «¿Qué se exportaría?»: el contenido de la sección en una tabla (orden, buscador y columnas a tu gusto), tal cual iría al archivo.
+ */
+export function ModalContenido({ seccion, alCerrar }: { seccion: SeccionDatos; alCerrar: () => void }) {
+  const { mostrar } = useToast();
+  const [contenido, setContenido] = useState<ContenidoSeccion | null>(null);
+  const [parte, setParte] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    llamar<ContenidoSeccion>(`/api/admin/datos/contenido?seccion=${seccion.seccion}`)
+      .then((r) => vivo && setContenido(r.data))
+      .catch((e: unknown) => {
+        mostrar(textoError(e), "error");
+        alCerrar();
+      });
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seccion.seccion]);
+  const actual = contenido?.partes[parte];
+  return (
+    <Modal
+      titulo={`${ICONOS[seccion.seccion]} ${seccion.titulo}: qué se exportaría`}
+      ancho="1200px"
+      pie={
+        <button type="button" className="btn btn-secondary" onClick={alCerrar}>
+          Cerrar
+        </button>
+      }
+    >
+      {!contenido ? (
+        <p style={{ color: "var(--text-secondary)" }}>Cargando…</p>
+      ) : (
+        <>
+          <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>
+            Esto es lo que contendría el archivo si exportas ahora. Puedes ordenar por columnas, buscar y elegir qué columnas ver (solo cambia lo que ves aquí, no lo que se exporta).
+          </p>
+          {contenido.partes.length > 1 && (
+            <div style={{ display: "flex", gap: "8px" }}>
+              {contenido.partes.map((p, i) => (
+                <button key={p.id} type="button" className={i === parte ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "6px 14px" }} onClick={() => setParte(i)}>
+                  {p.titulo} ({numero(p.total)})
+                </button>
+              ))}
+            </div>
+          )}
+          {actual && actual.total > actual.filas.length && <div style={{ fontSize: "0.82rem", color: "var(--warning)" }}>Se enseñan las primeras {numero(actual.filas.length)} de {numero(actual.total)} (el archivo lleva todas).</div>}
+          {actual && <TablaParte key={`${seccion.seccion}-${actual.id}`} seccion={seccion.seccion} parte={actual} />}
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Exportar                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -95,14 +169,19 @@ export function ModalExportar({ seccion, planes, idsIniciales, alCerrar }: { sec
   const [elegidos, setElegidos] = useState<number[] | null>(idsIniciales && idsIniciales.length > 0 ? idsIniciales : null);
   const [filtro, setFiltro] = useState("");
   const esPlanes = seccion.seccion === "planes";
+  // Clientes y expedientes van enlazados: si solo se exporta una de las dos, se ofrece llevar las dos juntas (lo recomendado)
+  const esPareja = seccion.seccion === "clientes" || seccion.seccion === "expedientes";
+  const [juntos, setJuntos] = useState(true);
+  const exportaJuntos = esPareja && juntos;
+  const destino = exportaJuntos ? { seccion: "clientes_expedientes" as Seccion, plural: "clientes y expedientes" } : seccion;
   const numExportar = esPlanes && elegidos !== null ? elegidos.length : seccion.registros;
   const visibles = planes.filter((p) => p.nombre.toLowerCase().includes(filtro.trim().toLowerCase()));
 
   const exportar = async () => {
     setOcupado(true);
     try {
-      const r = await descargarSeccion(seccion, elegidos);
-      mostrar(`✅ Exportados ${cuantos(r.registros, seccion)} al archivo ${r.nombre} (se ha descargado en tu equipo).`);
+      const r = await descargarSeccion(destino, elegidos);
+      mostrar(`✅ Exportados ${cuantos(r.registros, exportaJuntos ? { plural: "registros (clientes y expedientes)" } : seccion)} al archivo ${r.nombre} (se ha descargado en tu equipo).`);
       alCerrar();
     } catch (e) {
       mostrar(`No se ha exportado nada. ${textoError(e)}`, "error");
@@ -113,22 +192,47 @@ export function ModalExportar({ seccion, planes, idsIniciales, alCerrar }: { sec
 
   return (
     <Modal
-      titulo={`📤 Exportar ${seccion.plural}`}
-      ancho="560px"
+      titulo={`📤 Exportar ${exportaJuntos ? "clientes y expedientes" : seccion.plural}`}
+      ancho="620px"
       pie={
         <>
           <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={ocupado}>
             Cancelar
           </button>
           <button type="button" className="btn btn-primary" onClick={() => void exportar()} disabled={ocupado || numExportar === 0}>
-            {ocupado ? "Exportando…" : `Sí, exportar ${numero(numExportar)}`}
+            {ocupado ? "Exportando…" : exportaJuntos ? "Sí, exportar clientes y expedientes" : `Sí, exportar ${numero(numExportar)}`}
           </button>
         </>
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.9rem" }}>
+        {esPareja && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer", padding: "10px 12px", border: `1px solid ${juntos ? "var(--primary)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)" }}>
+              <input type="radio" name="pareja-exportar" checked={juntos} onChange={() => setJuntos(true)} style={{ marginTop: "3px" }} />
+              <span>
+                <b>Clientes y expedientes juntos</b> <span style={{ color: "var(--success)", fontSize: "0.8rem" }}>(recomendado)</span>
+                <br />
+                <span style={{ color: "var(--text-secondary)", fontSize: "0.83rem" }}>Un solo archivo: al importarlo, los clientes vuelven con todos sus datos (dirección, correos, teléfonos) y cada expediente se enlaza solo con su cliente.</span>
+              </span>
+            </label>
+            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer", padding: "10px 12px", border: `1px solid ${!juntos ? "var(--warning)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)" }}>
+              <input type="radio" name="pareja-exportar" checked={!juntos} onChange={() => setJuntos(false)} style={{ marginTop: "3px" }} />
+              <span>
+                <b>Solo {seccion.plural}</b>
+                <br />
+                <span style={{ color: "var(--warning)", fontSize: "0.83rem" }}>
+                  ⚠️{" "}
+                  {seccion.seccion === "clientes"
+                    ? "Al importarlo tendrás los clientes pero sin ninguno de sus expedientes (y viceversa: si luego importas solo expedientes, no tendrán los datos completos de sus clientes)."
+                    : "Cada expediente llevará únicamente el nombre y el DNI de su cliente: al importarlo se crearán clientes incompletos, sin dirección, correos ni teléfonos."}
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
         <div>
-          Se van a exportar <b>{cuantos(numExportar, seccion)}</b> a un archivo <b>.json</b> que se descargará en tu equipo. No se borra ni se cambia nada en la aplicación.
+          Se van a exportar <b>{exportaJuntos ? "los clientes y los expedientes" : cuantos(numExportar, seccion)}</b> a un archivo <b>.json</b> que se descargará en tu equipo. No se borra ni se cambia nada en la aplicación.
         </div>
         {esPlanes && (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
