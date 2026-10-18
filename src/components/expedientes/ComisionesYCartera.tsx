@@ -143,14 +143,14 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] = [
   {
     clave: "cuenta",
     etiqueta: "Cuenta",
-    valor: (f) => (f.linea.cuenta ? "Este mes" : "Otros conceptos") + (f.fuera ? (f.fuera.tipo === "anterior" ? " · financiado el mes anterior" : " · financiación adelantada") : ""),
+    valor: (f) => (f.linea.cuenta ? "Sí" : "Otros") + (f.fuera ? (f.fuera.tipo === "anterior" ? " · financiado el mes anterior" : " · financiación adelantada") : ""),
     celda: (f) => (
       <span title={f.fuera ? textoFinanciacionFuera(f.fuera) : undefined}>
-        {f.linea.cuenta ? "Este mes" : "Otros conceptos"}
+        {f.linea.cuenta ? "Sí" : "Otros"}
         {f.fuera && <span style={{ marginLeft: "6px", fontSize: "0.72rem", fontWeight: 700, color: "var(--warning)" }}>💳 {f.fuera.tipo === "anterior" ? "Mes anterior" : "Adelantada"}</span>}
       </span>
     ),
-    ayuda: "«Este mes»: el coche cuenta en este mes. «Otros conceptos»: solo suma bonus o financiación de este mes. Con marco amarillo punteado: su financiación es de otro mes.",
+    ayuda: "«Sí»: el coche cuenta en este mes. «Otros»: el coche no cuenta este mes, solo suma bonus o financiación de este mes. Con marco amarillo punteado: su financiación es de otro mes.",
   },
   { clave: "puntos", etiqueta: "Puntos", valor: (f) => f.linea.puntos, celda: (f) => puntos(f.linea.puntos), alinear: "right", oculta: true },
   { clave: "coche", etiqueta: "Coche", valor: (f) => f.coche, celda: (f) => centimos(f.coche), alinear: "right", ayuda: "Comisión del coche (tarifa VN o VO)" },

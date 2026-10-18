@@ -71,6 +71,8 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
   const [menu, setMenu] = useState(false);
 
   const activas = config.orden.map((k) => columnas.find((c) => c.clave === k)!).filter((c) => c && config.visibles[c.clave] !== false);
+  // Borde transparente de 2 px en la primera y la última columna: así las cifras no se desplazan en las filas con marco (cápsula)
+  const bordesLaterales = (k: number): CSSProperties => ({ ...(k === 0 ? { borderLeft: "2px solid transparent" } : {}), ...(k === activas.length - 1 ? { borderRight: "2px solid transparent" } : {}) });
 
   const visibles = useMemo(() => {
     const q = sinAcentos(texto.trim());
@@ -114,8 +116,8 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
           <table style={{ width: "100%", fontSize: "0.82rem", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr style={{ color: "var(--text-secondary)" }}>
-                {activas.map((c) => (
-                  <th key={c.clave} onClick={() => setOrden((o) => (o?.clave === c.clave ? { clave: c.clave, asc: !o.asc } : { clave: c.clave, asc: true }))} title={c.ayuda ?? `Ordenar por «${c.etiqueta}»`} style={{ textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", minWidth: c.ancho }}>
+                {activas.map((c, k) => (
+                  <th key={c.clave} onClick={() => setOrden((o) => (o?.clave === c.clave ? { clave: c.clave, asc: !o.asc } : { clave: c.clave, asc: true }))} title={c.ayuda ?? `Ordenar por «${c.etiqueta}»`} style={{ textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", minWidth: c.ancho, ...bordesLaterales(k) }}>
                     {c.etiqueta}
                     {orden?.clave === c.clave ? (orden.asc ? " ▲" : " ▼") : <span style={{ opacity: 0.35 }}> ↕</span>}
                   </th>
@@ -125,8 +127,8 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
             <tbody>
               {visibles.map((f) => (
                 <tr key={clave(f)} className={claseFila?.(f) || undefined} style={estiloFila?.(f)}>
-                  {activas.map((c) => (
-                    <td key={c.clave} style={{ borderTop: "1px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
+                  {activas.map((c, k) => (
+                    <td key={c.clave} style={{ ...bordesLaterales(k), borderTop: "1px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
                       {c.celda ? c.celda(f) : c.valor(f)}
                     </td>
                   ))}
@@ -136,8 +138,8 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
             {pieFila && (
               <tfoot>
                 <tr style={{ fontWeight: 700 }}>
-                  {activas.map((c) => (
-                    <td key={c.clave} style={{ borderTop: "2px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno }}>
+                  {activas.map((c, k) => (
+                    <td key={c.clave} style={{ ...bordesLaterales(k), borderTop: "2px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno }}>
                       {pieFila[c.clave] ?? ""}
                     </td>
                   ))}

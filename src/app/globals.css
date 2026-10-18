@@ -355,20 +355,19 @@ tr.fila-aviso > td {
   border-bottom: 2px dashed var(--warning) !important;
   background: rgba(245, 158, 11, 0.08);
   /* el borde de 2 px se compensa con menos relleno para que la fila mida casi lo mismo que las demás */
-  padding-top: 3px !important;
+  padding-top: 4px !important;
   padding-bottom: 3px !important;
 }
+/* Las tablas reservan 2 px de borde transparente a los lados, así que el contenido queda alineado con el de las demás filas */
 tr.fila-aviso > td:first-child {
-  border-left: 2px dashed var(--warning);
+  border-left: 2px dashed var(--warning) !important;
   border-top-left-radius: 999px;
   border-bottom-left-radius: 999px;
-  padding-left: 16px !important;
 }
 tr.fila-aviso > td:last-child {
-  border-right: 2px dashed var(--warning);
+  border-right: 2px dashed var(--warning) !important;
   border-top-right-radius: 999px;
   border-bottom-right-radius: 999px;
-  padding-right: 16px !important;
 }
 
 .table-compact th,
