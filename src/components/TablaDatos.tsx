@@ -45,11 +45,13 @@ interface Props<T> {
   claseFila?: (fila: T) => string;
   /** Menos relleno entre columnas, para tablas dentro de modales que no deben desplazarse a los lados. */
   compacta?: boolean;
+  /** Orden con el que se abre la tabla (por una columna y en un sentido). */
+  ordenInicial?: { clave: string; asc: boolean };
 }
 
 const sinAcentos = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta }: Props<T>) {
+export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial }: Props<T>) {
   const relleno = compacta ? "5px 6px" : "6px 8px";
   const defecto = useMemo<Config>(() => ({ orden: columnas.map((c) => c.clave), visibles: Object.fromEntries(columnas.map((c) => [c.clave, !c.oculta])) }), [columnas]);
   const [guardado, fijar] = usePreferencia(`tabla-${id}`);
@@ -67,11 +69,13 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
   const cambiar = (c: Config) => fijar(JSON.stringify(c));
 
   const [texto, setTexto] = useState("");
-  const [orden, setOrden] = useState<{ clave: string; asc: boolean } | null>(null);
+  const [orden, setOrden] = useState<{ clave: string; asc: boolean } | null>(ordenInicial ?? null);
   const [menu, setMenu] = useState(false);
 
   const activas = config.orden.map((k) => columnas.find((c) => c.clave === k)!).filter((c) => c && config.visibles[c.clave] !== false);
   // Borde transparente de 2 px en la primera y la última columna: así las cifras no se desplazan en las filas con marco (cápsula)
+  // Primera columna a la izquierda, la última a la derecha y el resto centradas (así en todas las tablas)
+  const alineacion = (k: number): "left" | "right" | "center" => (k === 0 ? "left" : k === activas.length - 1 ? "right" : "center");
   const bordesLaterales = (k: number): CSSProperties => ({ ...(k === 0 ? { borderLeft: "2px solid transparent" } : {}), ...(k === activas.length - 1 ? { borderRight: "2px solid transparent" } : {}) });
 
   const visibles = useMemo(() => {
@@ -117,7 +121,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
             <thead>
               <tr style={{ color: "var(--text-secondary)" }}>
                 {activas.map((c, k) => (
-                  <th key={c.clave} onClick={() => setOrden((o) => (o?.clave === c.clave ? { clave: c.clave, asc: !o.asc } : { clave: c.clave, asc: true }))} title={c.ayuda ?? `Ordenar por «${c.etiqueta}»`} style={{ textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", minWidth: c.ancho, ...bordesLaterales(k) }}>
+                  <th key={c.clave} onClick={() => setOrden((o) => (o?.clave === c.clave ? { clave: c.clave, asc: !o.asc } : { clave: c.clave, asc: true }))} title={c.ayuda ?? `Ordenar por «${c.etiqueta}»`} style={{ textAlign: alineacion(k), padding: relleno, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", minWidth: c.ancho, ...bordesLaterales(k) }}>
                     {c.etiqueta}
                     {orden?.clave === c.clave ? (orden.asc ? " ▲" : " ▼") : <span style={{ opacity: 0.35 }}> ↕</span>}
                   </th>
@@ -128,7 +132,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
               {visibles.map((f) => (
                 <tr key={clave(f)} className={claseFila?.(f) || undefined} style={estiloFila?.(f)}>
                   {activas.map((c, k) => (
-                    <td key={c.clave} style={{ ...bordesLaterales(k), borderTop: "1px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
+                    <td key={c.clave} style={{ ...bordesLaterales(k), borderTop: "1px solid var(--border-light)", textAlign: alineacion(k), padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
                       {c.celda ? c.celda(f) : c.valor(f)}
                     </td>
                   ))}
@@ -139,7 +143,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
               <tfoot>
                 <tr style={{ fontWeight: 700 }}>
                   {activas.map((c, k) => (
-                    <td key={c.clave} style={{ ...bordesLaterales(k), borderTop: "2px solid var(--border-light)", textAlign: c.alinear ?? "left", padding: relleno }}>
+                    <td key={c.clave} style={{ ...bordesLaterales(k), borderTop: "2px solid var(--border-light)", textAlign: alineacion(k), padding: relleno }}>
                       {pieFila[c.clave] ?? ""}
                     </td>
                   ))}

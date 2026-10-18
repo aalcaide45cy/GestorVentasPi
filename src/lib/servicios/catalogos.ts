@@ -18,6 +18,7 @@ export const esquemaCrearCatalogo = z.discriminatedUnion("tipo", [
     nombre,
     acceso_rapido: z.boolean().optional(),
     sistema_comisiones: z.boolean().optional(),
+    color: color.nullish(),
   }),
   z.object({
     tipo: z.literal("modelo"),
@@ -53,6 +54,7 @@ export const esquemaActualizarCatalogo = z.discriminatedUnion("tipo", [
     nombre,
     acceso_rapido: z.boolean().optional(),
     sistema_comisiones: z.boolean().optional(),
+    color: color.nullish(),
   }),
   z.object({
     tipo: z.literal("modelo"),
@@ -148,7 +150,7 @@ export async function crearCatalogo(ej: Ejecutor, e: EntradaCrearCatalogo): Prom
     case "marca": {
       const [n] = await ej
         .insert(marcas)
-        .values({ nombre: e.nombre, activo: true, accesoRapido: !!e.acceso_rapido, sistemaComisiones: !!e.sistema_comisiones })
+        .values({ nombre: e.nombre, activo: true, accesoRapido: !!e.acceso_rapido, sistemaComisiones: !!e.sistema_comisiones, color: e.color ?? null })
         .returning();
       return marcaDto(n);
     }
@@ -205,6 +207,7 @@ export async function actualizarCatalogo(ej: Ejecutor, e: EntradaActualizarCatal
           nombre: e.nombre,
           accesoRapido: e.acceso_rapido,
           sistemaComisiones: e.sistema_comisiones,
+          color: e.color,
         })
         .where(eq(marcas.idMarca, e.id))
         .returning();

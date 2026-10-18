@@ -225,6 +225,7 @@ export async function exportarSeccion(ej: Ejecutor, seccion: Seccion, opciones: 
         activo: m.activo ?? true,
         accesoRapido: m.accesoRapido ?? false,
         sistemaComisiones: m.sistemaComisiones,
+        color: m.color,
         modelos: mos.filter((x) => x.marcaId === m.idMarca).map((x) => ({ nombre: x.nombreModelo, accesoRapido: x.accesoRapido ?? false, ordenAccesoRapido: x.ordenAccesoRapido ?? 0 })),
       }));
       break;
@@ -294,6 +295,7 @@ const ETIQUETAS_COLUMNA: Record<string, string> = {
   requiereRciAlMatricular: "Exige fecha RCI",
   cuentaParaTasa: "Cuenta para la tasa de intervención",
   sistemaComisiones: "Sistema de comisiones",
+  color: "Color",
   subtipoVo: "Subtipo VO",
 };
 const humanizar = (clave: string): string => ETIQUETAS_COLUMNA[clave] ?? clave.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).replace(/_/g, " ").trim();
@@ -796,6 +798,7 @@ const filaMarca = z.object({
   activo: z.boolean().nullish(),
   accesoRapido: z.boolean().nullish(),
   sistemaComisiones: z.boolean().nullish(),
+  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "color no válido (usa #RRGGBB)").nullish(),
   modelos: z.array(z.object({ nombre: z.string().trim().min(1).max(150), accesoRapido: z.boolean().nullish(), ordenAccesoRapido: entero })).default([]),
 });
 
@@ -821,14 +824,14 @@ async function importarMarcasModelos(tx: Ejecutor, datos: unknown[], modo: Modo,
     vistas.add(k);
     let m = porMarca.get(k);
     if (!m) {
-      const [nueva] = await tx.insert(marcas).values({ nombre: f.marca.trim(), activo: f.activo ?? true, accesoRapido: f.accesoRapido ?? false, sistemaComisiones: f.sistemaComisiones ?? false }).returning();
+      const [nueva] = await tx.insert(marcas).values({ nombre: f.marca.trim(), activo: f.activo ?? true, accesoRapido: f.accesoRapido ?? false, sistemaComisiones: f.sistemaComisiones ?? false, color: f.color ?? null }).returning();
       m = nueva;
       inf.nuevos++;
       nota(inf, "nuevo", `Marca ${f.marca}: nueva`);
     } else if (modo === "anadir") {
       nota(inf, "omite", `Marca ${f.marca}: ya existe (se añaden solo sus modelos nuevos)`);
     } else {
-      const cambios = diferencias([["activo", m.activo, f.activo], ["accesoRapido", m.accesoRapido, f.accesoRapido], ["sistemaComisiones", m.sistemaComisiones, f.sistemaComisiones]]);
+      const cambios = diferencias([["activo", m.activo, f.activo], ["accesoRapido", m.accesoRapido, f.accesoRapido], ["sistemaComisiones", m.sistemaComisiones, f.sistemaComisiones], ["color", m.color, f.color]]);
       if (cambios) {
         await tx.update(marcas).set(cambios).where(eq(marcas.idMarca, m.idMarca));
         inf.actualizados++;

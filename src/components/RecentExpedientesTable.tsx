@@ -1,6 +1,6 @@
 "use client";
 
-import { EtiquetaClase } from "./etiquetas";
+import { EtiquetaClase, EtiquetaMarca } from "./etiquetas";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -127,11 +127,11 @@ export default function RecentExpedientesTable({
                 </td>
                 <td style={{ textAlign: "center" }}><EtiquetaClase clase={exp.estadoVehiculo?.clase} /></td>
                 <td>
-                  {exp.modelo?.marca?.nombre || <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}
+                  {exp.modelo?.marca?.nombre ? <EtiquetaMarca texto={exp.modelo.marca.nombre} color={exp.modelo.marca.color} /> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}
                 </td>
                 <td>
                   {exp.modelo ? (
-                    <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo.nombre_modelo}</div>
+                    <div style={{ fontWeight: 500, color: "var(--text-primary)" }}><EtiquetaMarca texto={exp.modelo.nombre_modelo} color={exp.modelo.marca?.color} /></div>
                   ) : (
                     <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
                   )}

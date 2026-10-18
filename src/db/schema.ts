@@ -37,6 +37,8 @@ export const marcas = pgTable("marcas", {
   activo: boolean("activo").default(true),
   accesoRapido: boolean("acceso_rapido").default(false),
   sistemaComisiones: boolean("sistema_comisiones").notNull().default(false),
+  /** Color de la marca (#RRGGBB): marca y modelo se enseñan en una cápsula de este color. Sin color, texto normal. */
+  color: varchar("color", { length: 50 }),
   /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
   eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
 });

@@ -48,10 +48,34 @@ export function EtiquetaPago({ nombre, color }: { nombre: string | null | undefi
   );
 }
 
+/** Color del texto (blanco o casi negro) que se lee bien sobre un fondo #RRGGBB. */
+export function colorTextoSobre(fondo: string): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(fondo.trim());
+  if (!m) return "#fff";
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#111827" : "#fff";
+}
+
+/**
+ * Marca y/o modelo dentro de una cápsula del color de la marca. Sin color, el texto va tal cual (como antes), sin cápsula.
+ * Se usa igual para la marca, el modelo y la marca con el modelo.
+ */
+export function EtiquetaMarca({ texto, color, vacio }: { texto: string | null | undefined; color?: string | null; vacio?: ReactNode }) {
+  if (!texto) return <>{vacio ?? <span style={{ color: "var(--text-muted)" }}>—</span>}</>;
+  if (!color) return <>{texto}</>;
+  return (
+    <span className="badge" style={{ ...ESTILO_ETIQUETA, backgroundColor: color, color: colorTextoSobre(color), whiteSpace: "nowrap" }}>
+      {texto}
+    </span>
+  );
+}
+
 /** Lo que una tabla necesita saber de un vehículo para enseñarlo de forma estándar. */
 export interface DatosVehiculo {
   clase?: string | null;
   marca?: string | null;
+  /** Color de la marca (#RRGGBB): marca y modelo se enseñan en una cápsula de ese color. */
+  marcaColor?: string | null;
   modelo?: string | null;
   estado?: string | null;
   estadoColor?: string | null;
@@ -82,12 +106,12 @@ export function columnasVehiculo<T>(datos: (fila: T) => DatosVehiculo, opciones:
   // «Marca y modelo» empieza oculta (ya están Marca y Modelo por separado), salvo que esas dos no se ofrezcan
   const ocultas = new Set<ColumnaVehiculo>([...(sin.has("marca") && sin.has("modelo") ? [] : (["marcaModelo"] as ColumnaVehiculo[])), ...(opciones.ocultas ?? [])]);
   const juntos = (d: DatosVehiculo) => d.marcaModelo ?? [d.marca, d.modelo].filter(Boolean).join(" ");
-  const texto = (v: string | null | undefined): ReactNode => (v ? v : vacio);
+  const texto = (v: string | null | undefined, color?: string | null): ReactNode => <EtiquetaMarca texto={v} color={color} vacio={vacio} />;
   const todas: Record<ColumnaVehiculo, ColumnaTabla<T>> = {
     clase: { clave: "clase", etiqueta: "VN / VO", valor: (f) => datos(f).clase ?? "", celda: (f) => (datos(f).clase ? <EtiquetaClase clase={datos(f).clase} /> : vacio), alinear: "center", ayuda: "Nuevo (VN) o usado (VO)" },
-    marca: { clave: "marca", etiqueta: "Marca", valor: (f) => datos(f).marca ?? "", celda: (f) => texto(datos(f).marca) },
-    modelo: { clave: "modelo", etiqueta: "Modelo", valor: (f) => datos(f).modelo ?? "", celda: (f) => texto(datos(f).modelo) },
-    marcaModelo: { clave: "marcaModelo", etiqueta: "Marca y modelo", valor: (f) => juntos(datos(f)), celda: (f) => texto(juntos(datos(f))), ayuda: "La marca y el modelo juntos en una sola columna" },
+    marca: { clave: "marca", etiqueta: "Marca", valor: (f) => datos(f).marca ?? "", celda: (f) => texto(datos(f).marca, datos(f).marcaColor) },
+    modelo: { clave: "modelo", etiqueta: "Modelo", valor: (f) => datos(f).modelo ?? "", celda: (f) => texto(datos(f).modelo, datos(f).marcaColor) },
+    marcaModelo: { clave: "marcaModelo", etiqueta: "Marca y modelo", valor: (f) => juntos(datos(f)), celda: (f) => texto(juntos(datos(f)), datos(f).marcaColor), ayuda: "La marca y el modelo juntos en una sola columna" },
     estado: { clave: "estado", etiqueta: "Estado", valor: (f) => datos(f).estado ?? "", celda: (f) => (datos(f).estado ? <EtiquetaEstado nombre={datos(f).estado} clase={datos(f).clase} color={datos(f).estadoColor} /> : vacio), alinear: "center", ayuda: "Estado del vehículo, con el mismo color que en la lista de expedientes" },
     tipoPago: { clave: "tipoPago", etiqueta: "Tipo de pago", valor: (f) => datos(f).tipoPago ?? "", celda: (f) => (datos(f).tipoPago ? <EtiquetaPago nombre={datos(f).tipoPago} color={datos(f).tipoPagoColor} /> : vacio), alinear: "center", ayuda: "Forma de pago del expediente" },
   };

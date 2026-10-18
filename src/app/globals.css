@@ -322,6 +322,19 @@ select, select option {
   border-collapse: collapse;
   text-align: left;
 }
+/* Contenido centrado; la primera columna a la izquierda y la última a la derecha */
+.table-premium th,
+.table-premium td {
+  text-align: center;
+}
+.table-premium th:first-child,
+.table-premium td:first-child {
+  text-align: left;
+}
+.table-premium th:last-child,
+.table-premium td:last-child {
+  text-align: right;
+}
 .table-premium th {
   background: var(--bg-surface-tint);
   padding: 16px;

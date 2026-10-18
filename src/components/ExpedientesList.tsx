@@ -24,7 +24,7 @@ import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, pe
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
-import { EtiquetaClase } from "./etiquetas";
+import { EtiquetaClase, EtiquetaMarca } from "./etiquetas";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, TextoCopiable, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
@@ -1410,12 +1410,14 @@ export default function ExpedientesList({
                           </td>
                       ),
                       marca: mostrarCol("marca") && (
-                          <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre} /> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
+                          <td>{exp.modelo?.marca?.nombre ? <TextoCopiable texto={exp.modelo.marca.nombre}><EtiquetaMarca texto={exp.modelo.marca.nombre} color={exp.modelo.marca.color} /></TextoCopiable> : <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>}</td>
                       ),
                       modelo: mostrarCol("modelo") && (
                           <td>
                             {exp.modelo ? (
-                              <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
+                              <TextoCopiable texto={exp.modelo.nombre_modelo} estilo={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                                <EtiquetaMarca texto={exp.modelo.nombre_modelo} color={exp.modelo.marca?.color} />
+                              </TextoCopiable>
                             ) : (
                               <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
                             )}
@@ -1426,7 +1428,9 @@ export default function ExpedientesList({
                       marca_modelo: mostrarCol("marca_modelo") && (
                           <td>
                             {marcaYModelo(exp) ? (
-                              <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }} />
+                              <TextoCopiable texto={marcaYModelo(exp)} estilo={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                                <EtiquetaMarca texto={marcaYModelo(exp)} color={exp.modelo?.marca?.color} />
+                              </TextoCopiable>
                             ) : (
                               <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca ni modelo)</span>
                             )}

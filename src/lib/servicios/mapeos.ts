@@ -55,6 +55,7 @@ export function marcaDto(m: typeof marcas.$inferSelect): MarcaDto {
     activo: m.activo,
     acceso_rapido: m.accesoRapido,
     sistema_comisiones: m.sistemaComisiones,
+    color: m.color,
   };
 }
 

@@ -38,6 +38,8 @@ export interface MarcaDto {
   activo: boolean | null;
   acceso_rapido: boolean | null;
   sistema_comisiones: boolean;
+  /** Color de la marca (#RRGGBB) o null. */
+  color: string | null;
 }
 
 export interface ModeloDto {

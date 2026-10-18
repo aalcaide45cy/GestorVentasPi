@@ -1,6 +1,6 @@
 "use client";
 
-import { InputEntero } from "./campos";
+import { BotonMini, InputEntero } from "./campos";
 import type { Plan, PropsPestana } from "./tipos";
 
 type ClaveTasa = "tasaGlobal" | "tasaVo";
@@ -45,6 +45,7 @@ export default function EditorTasas({ plan, setPlan, cat, ambito, idMarca }: Pro
               <th title="Sin objetivo, la tasa se da siempre por cumplida">Con objetivo</th>
               <th>Tipo</th>
               <th>Objetivo</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -64,6 +65,7 @@ export default function EditorTasas({ plan, setPlan, cat, ambito, idMarca }: Pro
                       </select>
                     </td>
                     <td>{objetivo === null ? <span style={{ color: "var(--text-muted)" }}>Sin objetivo (siempre cumplida)</span> : <InputEntero valor={objetivo} min={0} onChange={(n) => setPlan((p) => cambiar(p, f.clave, { objetivo: n }))} />}</td>
+                    <td />
                   </tr>
                 );
               })}
@@ -80,12 +82,17 @@ export default function EditorTasas({ plan, setPlan, cat, ambito, idMarca }: Pro
                 <td>
                   <InputEntero valor={t.objetivo} min={0} onChange={(n) => setPlan((p) => ({ ...p, tasas: p.tasas.map((x) => (x.idMarca === t.idMarca ? { ...x, objetivo: n } : x)) }))} />
                 </td>
+                <td>
+                  <BotonMini peligro titulo="Quita la tasa de esta marca: sin tasa propia se da por cumplida" onClick={() => setPlan((p) => ({ ...p, tasas: p.tasas.filter((x) => x.idMarca !== t.idMarca) }))}>
+                    Quitar
+                  </BotonMini>
+                </td>
               </tr>
             ))}
             {falta && idMarca !== undefined && (
               <tr>
                 <td>Marca {nombreMarca(idMarca)}</td>
-                <td colSpan={3}>
+                <td colSpan={4}>
                   <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => nuevaMarca(idMarca)}>
                     + Fijar el objetivo de tasa de esta marca
                   </button>

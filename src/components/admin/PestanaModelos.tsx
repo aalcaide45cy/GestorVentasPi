@@ -21,7 +21,7 @@ interface FilaModelo {
 /** Pestaña «Modelos»: marcas con sistema de comisiones primero y el resto agrupado. */
 export default function PestanaModelos({ marcas, setMarcas }: Props) {
   const { cargando, llamar, ejecutar } = usePeticion();
-  const orden = useOrden("id");
+  const orden = useOrden("orden_acceso_rapido");
   const [marcaNueva, setMarcaNueva] = useState<number | "">("");
   const [nombre, setNombre] = useState("");
   const [accesoRapido, setAccesoRapido] = useState(false);

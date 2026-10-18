@@ -1,0 +1,1 @@
+ALTER TABLE "marcas" ADD COLUMN "color" varchar(50);

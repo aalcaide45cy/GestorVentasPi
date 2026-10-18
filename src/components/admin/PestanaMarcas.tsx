@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { MarcaDto, ModeloDto } from "@/lib/dto";
+import { EtiquetaMarca } from "@/components/etiquetas";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
 
 export type MarcaConModelos = MarcaDto & { modelos: ModeloDto[] };
@@ -18,6 +19,8 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
   const [nombre, setNombre] = useState("");
   const [accesoRapido, setAccesoRapido] = useState(false);
   const [sistemaComisiones, setSistemaComisiones] = useState(false);
+  /** Color de la marca nueva (vacío = sin color: texto normal, sin cápsula). */
+  const [color, setColor] = useState("");
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState("");
 
@@ -31,6 +34,8 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
         return m.acceso_rapido ? 1 : 0;
       case "sistema_comisiones":
         return m.sistema_comisiones ? 1 : 0;
+      case "color":
+        return m.color ?? "";
       case "modelos":
         return m.modelos.length;
       default:
@@ -45,7 +50,7 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
       const n = await llamar<MarcaDto>(
         "/api/admin/catalogos",
         "POST",
-        { tipo: "marca", nombre, acceso_rapido: accesoRapido, sistema_comisiones: sistemaComisiones },
+        { tipo: "marca", nombre, acceso_rapido: accesoRapido, sistema_comisiones: sistemaComisiones, color: color || null },
         "Error al crear la marca",
       );
       setMarcas((prev) => [...prev, { ...n, modelos: [] }]);
@@ -54,8 +59,16 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
       setNombre("");
       setAccesoRapido(false);
       setSistemaComisiones(false);
+      setColor("");
     }
   };
+
+  /** Cambia (o quita) el color de la marca al momento; los demás datos no se tocan. */
+  const cambiarColor = (m: MarcaConModelos, nuevo: string | null) =>
+    ejecutar(async () => {
+      await llamar("/api/admin/catalogos", "PUT", { tipo: "marca", id: m.id_marca, nombre: m.nombre, acceso_rapido: !!m.acceso_rapido, sistema_comisiones: !!m.sistema_comisiones, color: nuevo }, "Error al guardar el color");
+      setMarcas((prev) => prev.map((x) => (x.id_marca === m.id_marca ? { ...x, color: nuevo } : x)));
+    }, nuevo ? `Color de «${m.nombre}» actualizado` : `«${m.nombre}» ya no tiene color`);
 
   const guardarNombre = async (ev: FormEvent) => {
     ev.preventDefault();
@@ -102,6 +115,17 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
       <form onSubmit={crear} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
         <input type="text" className="form-input" placeholder="Nombre de nueva marca... (Ej. Nissan)" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={cargando} required style={{ flex: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label style={{ fontSize: "0.85rem", fontWeight: 600 }}>Color:</label>
+          <input type="color" value={color || "#3b82f6"} onChange={(e) => setColor(e.target.value)} style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer" }} title="Color de la marca: su marca y modelo se enseñan en una cápsula de este color" />
+          {color ? (
+            <button type="button" className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.75rem" }} onClick={() => setColor("")}>
+              Sin color
+            </button>
+          ) : (
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>sin color</span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <input type="checkbox" id="chkMarcaAccesoRapido" checked={accesoRapido} onChange={(e) => setAccesoRapido(e.target.checked)} style={estiloCheck} />
           <label htmlFor="chkMarcaAccesoRapido" style={estiloEtiquetaCheck}>Acceso Rápido</label>
         </div>
@@ -119,6 +143,7 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
           <thead>
             <tr>
               <Cabecera etiqueta="Nombre Marca" campo="nombre" orden={orden} />
+              <Cabecera etiqueta="Color" campo="color" orden={orden} />
               <Cabecera etiqueta="Estado" campo="activo" orden={orden} />
               <Cabecera etiqueta="Acceso Rápido" campo="acceso_rapido" orden={orden} />
               <Cabecera etiqueta="Sist. Comisiones" campo="sistema_comisiones" orden={orden} />
@@ -139,6 +164,21 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
                   ) : (
                     <span style={{ fontWeight: 600, color: m.activo ? "var(--text-primary)" : "var(--text-muted)" }}>{m.nombre}</span>
                   )}
+                </td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    <input type="color" value={m.color ?? "#3b82f6"} onChange={(e) => void cambiarColor(m, e.target.value)} disabled={cargando} style={{ width: "30px", height: "30px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer", opacity: m.color ? 1 : 0.5 }} title="Elige el color de la marca" />
+                    {m.color ? (
+                      <>
+                        <EtiquetaMarca texto={m.nombre} color={m.color} />
+                        <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.72rem" }} onClick={() => void cambiarColor(m, null)} disabled={cargando} title="Quitar el color de esta marca">
+                          Quitar
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>sin color</span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <span className={`badge ${m.activo ? "badge-tienda" : "badge-admin"}`} style={{ fontSize: "0.75rem" }}>
