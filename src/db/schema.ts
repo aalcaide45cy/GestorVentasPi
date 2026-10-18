@@ -222,7 +222,7 @@ export interface ConceptoEspecial {
   titulo: string;
   importe_centimos: number;
   descripcion: string;
-  evento: "afectacion" | "matriculacion" | "cobro";
+  evento: "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro";
   cobrado: boolean;
 }
 

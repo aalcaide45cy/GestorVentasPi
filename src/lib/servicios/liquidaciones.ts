@@ -199,6 +199,7 @@ async function cargarExpedientesDonde(ej: Ejecutor, condicion: SQL | undefined):
     fechaRci: e.fechaRci,
     fechaMatriculacion: e.fechaMatriculacion,
     fechaFacturacion: e.fechaFacturacion,
+    fechaEntrega: e.fechaEntrega,
     fechaCobro: e.fechaCobrado,
     cobradoOtraFecha: e.cobradoOtraFecha,
     puntos: e.puntos,

@@ -185,4 +185,24 @@ describe("tasa de intervención financiera: global, por marca y de usados", () =
     expect(importeDe(r, "extra:Seguro")).toBe(4000);
     expect(importeDe(r, "preference")).toBe(6000);
   });
+
+  it("un concepto especial cuenta en el mes de la fecha del expediente que se elija", () => {
+    const e = coche(1, {
+      fechaExpediente: "2026-04-05",
+      fechaAfectacion: "2026-05-02",
+      fechaRci: "2026-05-20",
+      fechaMatriculacion: "2026-06-15",
+      fechaFacturacion: "2026-07-01",
+      fechaEntrega: "2026-08-10",
+      fechaCobro: "2026-09-03",
+    });
+    const mesDe = { pedido: "2026-04", afectacion: "2026-05", rci: "2026-05", fecha_matriculacion: "2026-06", facturacion: "2026-07", entrega: "2026-08", cobro: "2026-09" } as const;
+    for (const [evento, mes] of Object.entries(mesDe)) {
+      const conc = { ...e, conceptosEspeciales: [{ titulo: "Bonus", importe: 3000, evento: evento as keyof typeof mesDe }] };
+      const r = calcularMes(plan({ fechaInicio: "2026-01-01", fechaFin: "2026-12-31" }), V, mes, [conc]);
+      expect(importeDe(r, "especial"), evento).toBe(3000);
+      const otro = calcularMes(plan({ fechaInicio: "2026-01-01", fechaFin: "2026-12-31" }), V, mes === "2026-04" ? "2026-10" : "2026-04", [conc]);
+      expect(importeDe(otro, "especial"), `${evento} en otro mes`).toBe(0);
+    }
+  });
 });

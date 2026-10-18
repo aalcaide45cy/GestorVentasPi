@@ -9,7 +9,7 @@ export interface ConceptoForm {
   titulo: string;
   importe_centimos: number;
   descripcion: string;
-  evento: "afectacion" | "matriculacion" | "cobro";
+  evento: "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro";
   cobrado: boolean;
 }
 
@@ -34,6 +34,7 @@ export interface ContextoSimulacion {
   fecha_matriculacion: string | null;
   /** En un VN cuenta la facturación (por defecto igual a la matriculación). */
   fecha_facturacion: string | null;
+  fecha_entrega?: string | null;
   fecha_cobrado: string | null;
   cobrado_otra_fecha: boolean;
 }
@@ -121,6 +122,7 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           fecha_rci: contexto.fecha_rci,
           fecha_matriculacion: contexto.fecha_matriculacion,
           fecha_facturacion: contexto.fecha_facturacion,
+          fecha_entrega: contexto.fecha_entrega ?? null,
           fecha_cobrado: contexto.fecha_cobrado,
           cobrado_otra_fecha: contexto.cobrado_otra_fecha,
           puntos: valor.puntos,
@@ -193,9 +195,14 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
               <input className="form-input" style={{ flex: "1 1 200px" }} placeholder="Título (p. ej. Bonus Rappel)" value={c.titulo} onChange={(e) => cambiar({ titulo: e.target.value })} />
               <InputCentesimas valor={c.importe_centimos} sufijo="€" onChange={(v) => cambiar({ importe_centimos: v ?? 0 })} />
               <select className="form-input" style={{ width: "auto" }} value={c.evento} onChange={(e) => cambiar({ evento: e.target.value as ConceptoForm["evento"] })}>
-                <option value="matriculacion">Evento principal (matriculación / cobro)</option>
-                <option value="afectacion">Afectación</option>
-                <option value="cobro">Cobro</option>
+                <option value="matriculacion">Evento principal (el mes en que cuenta el coche)</option>
+                <option value="pedido">Fecha de pedido (expediente)</option>
+                <option value="afectacion">Fecha de afectación</option>
+                <option value="rci">Fecha RCI</option>
+                <option value="fecha_matriculacion">Fecha de matriculación</option>
+                <option value="facturacion">Fecha de facturación</option>
+                <option value="entrega">Fecha de entrega</option>
+                <option value="cobro">Fecha de cobro</option>
               </select>
               <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => set({ conceptos: valor.conceptos.filter((_, j) => j !== i) })}>
                 Quitar

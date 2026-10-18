@@ -194,3 +194,7 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - Conceptos disponibles: Financiación, Preference y **conceptos propios** con cualquier nombre (se guardan como `extra:Nombre`). Así es escalable sin tocar el programa. Las partes nunca superan el importe (el plan no se guarda si lo superan; el motor lo recorta de todas formas).
 - En las tablas de comisiones del desglose y sus modales sale una columna por cada concepto propio, con su total al pie. En «Mi mes» se suman con los bonus. En el cotejo de cobros se cotejan con «bonus». El importe de cada línea no cambia, solo en qué columna se anota.
 - `commission_liquidation_line_items.concepto` pasa a 80 caracteres para admitir los nombres propios.
+
+## Conceptos especiales: mes según cualquier fecha del expediente (v1.0.19)
+- El evento de un concepto especial puede ser cualquier fecha del expediente: pedido, afectación, RCI, matriculación (la real), facturación, entrega o cobro. «Evento principal» sigue siendo el mes en que cuenta el coche (en un VN, la facturación; en un VO, la facturación; si no hay, la matriculación), y es el valor de los conceptos ya creados, que no cambian.
+- El motor y el simulador del expediente reciben ahora la fecha de entrega (solo la usan estos conceptos).

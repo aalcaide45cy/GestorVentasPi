@@ -15,7 +15,11 @@ export type Fecha = string;
 export type Clase = "VN" | "VO";
 export type CategoriaVenta = "CONTADO" | "CREDITO" | "PREFERENCE" | "RENTING";
 export type EventoRegla = "pedido" | "afectacion" | "matriculacion" | "cobro" | "credito" | "preference";
-export type EventoConcepto = "afectacion" | "matriculacion" | "cobro";
+/**
+ * Fecha del expediente que decide en qué mes cuenta un concepto especial: pedido (fecha de expediente), afectación, RCI,
+ * matriculación (la real), facturación, entrega o cobro. «matriculacion» es el evento principal: el mes en que cuenta el coche.
+ */
+export type EventoConcepto = "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro";
 
 export interface ConceptoEspecialMotor {
   titulo: string;
@@ -44,6 +48,8 @@ export interface ExpedienteMotor {
    * la de matriculación, pero se puede cambiar a mano). Sin facturación, cuenta la matriculación.
    */
   fechaFacturacion?: Fecha | null;
+  /** Fecha de entrega del coche al cliente (solo para los conceptos especiales). */
+  fechaEntrega?: Fecha | null;
   /** `fecha_cobrado` del expediente. */
   fechaCobro: Fecha | null;
   cobradoOtraFecha: boolean;

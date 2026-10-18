@@ -21,13 +21,14 @@ export const esquemaSimulacion = z.object({
   fecha_rci: fecha,
   fecha_matriculacion: fecha,
   fecha_facturacion: fecha,
+  fecha_entrega: fecha,
   fecha_cobrado: fecha,
   cobrado_otra_fecha: z.boolean().optional(),
   puntos: entero,
   id_promocion: entero,
   comision_coche_manual: entero,
   comision_financiacion_manual: entero,
-  conceptos_especiales: z.array(z.object({ titulo: z.string(), importe_centimos: z.number().int(), evento: z.enum(["afectacion", "matriculacion", "cobro"]).optional() })).max(100).optional(),
+  conceptos_especiales: z.array(z.object({ titulo: z.string(), importe_centimos: z.number().int(), evento: z.enum(["pedido", "afectacion", "rci", "matriculacion", "fecha_matriculacion", "facturacion", "entrega", "cobro"]).optional() })).max(100).optional(),
 });
 export type EntradaSimulacion = z.infer<typeof esquemaSimulacion>;
 
@@ -54,6 +55,7 @@ export async function simularDesglose(ej: Ejecutor, entrada: EntradaSimulacion) 
     fechaRci: f(entrada.fecha_rci),
     fechaMatriculacion: f(entrada.fecha_matriculacion),
     fechaFacturacion: f(entrada.fecha_facturacion),
+    fechaEntrega: f(entrada.fecha_entrega),
     fechaCobro: f(entrada.fecha_cobrado),
     cobradoOtraFecha: entrada.cobrado_otra_fecha ?? false,
     puntos: entrada.puntos ?? null,

@@ -877,7 +877,7 @@ const conceptoEsp = z.object({
   titulo: z.string().trim().min(1).max(200),
   importe_centimos: z.number().int(),
   descripcion: z.string().max(1000).default(""),
-  evento: z.enum(["afectacion", "matriculacion", "cobro"]),
+  evento: z.enum(["pedido", "afectacion", "rci", "matriculacion", "fecha_matriculacion", "facturacion", "entrega", "cobro"]),
   cobrado: z.boolean().default(false),
 });
 const filaExpediente = z.object({

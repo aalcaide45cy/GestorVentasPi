@@ -849,6 +849,7 @@ function FormularioEditarExpediente({
             fecha_rci: fRci || null,
             fecha_matriculacion: fMat || null,
             fecha_facturacion: fFact || null,
+            fecha_entrega: fEntrega || null,
             fecha_cobrado: cobradoOtraFecha ? fCobrado || null : null,
             cobrado_otra_fecha: cobradoOtraFecha,
           }}

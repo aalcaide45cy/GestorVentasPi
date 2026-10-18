@@ -17,6 +17,7 @@ import type {
   ReglaPreferenceMotor,
   ConceptoId,
   RepartoConcepto,
+  EventoConcepto,
   ResultadoMes,
   TarifaUsadoMotor,
   TasaAmbitoResultado,
@@ -286,8 +287,7 @@ export function calcularMes(
   /* Paso 8.6: conceptos especiales del expediente */
   for (const i of infos) {
     for (const c of i.e.conceptosEspeciales) {
-      const fecha =
-        c.evento === "afectacion" ? i.e.fechaAfectacion : c.evento === "cobro" ? i.e.fechaCobro : c.evento === "matriculacion" || c.evento === undefined ? i.fechaComputo : null;
+      const fecha = fechaDeConcepto(c.evento, i);
       if (mesDe(fecha) !== mes) continue;
       let imp = enteroValido(c.importe);
       let aviso: string | undefined;
@@ -554,6 +554,28 @@ export function idConceptoReparto(texto: string): ConceptoId {
  * Reparte un importe entre conceptos: cada parte del reparto va a su concepto (sin pasarse del importe) y lo que sobra, al concepto habitual.
  * Sin reparto sale una sola línea, igual que antes.
  */
+/** Fecha que decide el mes de un concepto especial según el evento elegido (por defecto, el evento principal del coche). */
+function fechaDeConcepto(evento: EventoConcepto | undefined, i: Info): Fecha | null {
+  switch (evento) {
+    case "pedido":
+      return i.e.fechaExpediente;
+    case "afectacion":
+      return i.e.fechaAfectacion;
+    case "rci":
+      return i.e.fechaRci;
+    case "fecha_matriculacion":
+      return i.e.fechaMatriculacion;
+    case "facturacion":
+      return i.e.fechaFacturacion ?? null;
+    case "entrega":
+      return i.e.fechaEntrega ?? null;
+    case "cobro":
+      return i.e.fechaCobro;
+    default:
+      return i.fechaComputo;
+  }
+}
+
 function repartir(defecto: ConceptoId, descripcion: string, importe: Centimos, reparto: RepartoConcepto[] | undefined, mk: (concepto: ConceptoId, descripcion: string, importe: Centimos) => ConceptoLinea): ConceptoLinea[] {
   const partes = (reparto ?? []).filter((r) => r.importe > 0 && r.concepto.replace(/^extra:/, "").trim() !== "");
   if (partes.length === 0) return [mk(defecto, descripcion, importe)];
