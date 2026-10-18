@@ -105,7 +105,7 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
   }, []);
 
   const eliminarBloque = async (id: number) => {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este bloque de importación de los registros? Esto no deshará las importaciones de la base de datos, solo eliminará el historial del log.")) return;
+    if (!window.confirm("¿Quitar esta línea del historial? Los datos importados se quedan como están (para quitarlos usa «Deshacer importación»).")) return;
     try {
       const res = await fetch(`/api/importaciones?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al eliminar bloque"));
@@ -114,6 +114,27 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
       mostrar("Historial de importación eliminado correctamente");
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error de conexión al eliminar", "error");
+    }
+  };
+
+  /** Deshace de verdad una importación: elimina lo que creó y devuelve lo que cambió a su valor anterior. */
+  const deshacerBloque = async (b: BloqueImportacionDto) => {
+    if (!window.confirm(`¿Deshacer la importación «${b.nombre_archivo}»?
+
+• ${b.creados} expediente(s) creado(s) pasarán a eliminados.
+• ${b.modificados} expediente(s) modificado(s) volverán a los datos que tenían antes (si no se han vuelto a cambiar).
+
+Los clientes que se crearan con ella no se borran. Las comisiones se recalculan solas.`)) return;
+    try {
+      const res = await fetch("/api/importaciones/deshacer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: b.id }) });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se ha podido deshacer la importación"));
+      const { data } = (await res.json()) as { data: { eliminados: number; revertidos: number; conservados: string[] } };
+      setBloques((prev) => prev.filter((x) => x.id !== b.id));
+      if (abierto === b.id) setAbierto(null);
+      mostrar(`Importación deshecha: ${data.eliminados} expediente(s) eliminado(s), ${data.revertidos} dato(s) devuelto(s) a su valor anterior.${data.conservados.length > 0 ? ` ${data.conservados.length} no se tocaron porque se habían cambiado después.` : ""}`);
+      router.refresh();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "Error al deshacer la importación", "error");
     }
   };
 
@@ -281,6 +302,20 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
                       <span className="badge" style={{ backgroundColor: "rgba(255,255,255,0.05)", color: "var(--text-muted)" }}>{b.omitidos} Omitidos</span>
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
+                      {(b.creados > 0 || b.modificados > 0) && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            void deshacerBloque(b);
+                          }}
+                          style={{ padding: "6px 10px", fontSize: "0.8rem", color: "var(--warning)", border: "1px solid rgba(234, 179, 8, 0.35)" }}
+                          title="Elimina los expedientes que creó esta importación y devuelve los datos que cambió a su valor anterior"
+                        >
+                          ↩️ Deshacer importación
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -289,9 +324,9 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
                           void eliminarBloque(b.id);
                         }}
                         style={{ padding: "6px 10px", fontSize: "0.8rem", color: "var(--danger)", background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.1)" }}
-                        title="Eliminar registro"
+                        title="Quita solo esta línea del historial; no deshace nada en los datos"
                       >
-                        🗑️ Eliminar
+                        🗑️ Borrar del historial
                       </button>
                       <span style={{ transform: expandido ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
                     </div>

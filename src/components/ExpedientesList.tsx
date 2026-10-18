@@ -27,6 +27,7 @@ import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, TextoCopiable, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
+import ModalCompletarDatos from "./expedientes/ModalCompletarDatos";
 import ModalContrasteListado from "./expedientes/ModalContrasteListado";
 import { leerListadoVentas, type ResultadoContraste } from "@/lib/contraste-listado";
 import ModalConflictoExcel, { type ConflictoExcel } from "./expedientes/ModalConflictoExcel";
@@ -362,6 +363,7 @@ export default function ExpedientesList({
   }, [filtrosListos, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
 
   const [importandoExcel, setImportandoExcel] = useState(false);
+  const [completando, setCompletando] = useState(false);
   const [contraste, setContraste] = useState<{ archivo: string; resultado: ResultadoContraste } | null>(null);
   const [nombreExcel, setNombreExcel] = useState("");
   const [conflictos, setConflictos] = useState<ConflictoExcel[]>([]);
@@ -994,6 +996,19 @@ export default function ExpedientesList({
                   }}
                 />
               )}
+            </GrupoDatos>
+
+            <GrupoDatos titulo="🧩 Completar datos de expedientes que ya tienes" ayuda="No crea nada: solo rellena huecos o corrige datos.">
+              <OpcionDatos
+                icono="🧩"
+                titulo="Completar datos desde listados"
+                texto="Sube los Excel o CSV del fabricante (Expedientes, Llamadas de calidad…): la app reconoce las columnas, encuentra tus expedientes por bastidor, matrícula o NIF y propone rellenar o corregir. Ves todo antes de aplicar."
+                ayuda="Completa matrícula, bastidor, fechas, NIF, código postal, correo y teléfono de expedientes existentes. No crea expedientes ni modelos y se puede deshacer desde el Log de importaciones."
+                alPulsar={() => {
+                  setMenuDatos(false);
+                  setCompletando(true);
+                }}
+              />
             </GrupoDatos>
 
             <GrupoDatos titulo="🔎 Comprobar sin cambiar nada" ayuda="Para revisar, no modifica ningún expediente.">
@@ -1644,6 +1659,7 @@ export default function ExpedientesList({
         />
       )}
 
+      {completando && <ModalCompletarDatos alCerrar={() => setCompletando(false)} alAplicar={() => router.refresh()} />}
       {contraste && <ModalContrasteListado nombreArchivo={contraste.archivo} resultado={contraste.resultado} alCerrar={() => setContraste(null)} />}
 
       {conflictos.length > 0 && conflictos[indiceConflicto] && (
