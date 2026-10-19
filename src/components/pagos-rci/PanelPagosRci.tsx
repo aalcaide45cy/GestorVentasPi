@@ -162,6 +162,11 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
               </div>
             </details>
           </div>
+          {cuentas.pendiente > 0 && (
+            <div role="note" style={{ padding: "10px 14px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.84rem", lineHeight: 1.5 }}>
+              <b>{cuentas.pendiente} pago(s) pendiente(s) de asociar.</b> Hay dos formas de resolverlos: <b>1)</b> abrirlos y elegir a mano el expediente (te sugiero los que encajan por modelo, fecha y apellidos); o <b>2)</b> subir el Excel de la intranet desde <i>Expedientes › Importar y exportar › Completar datos desde listados</i>: el expediente toma el bastidor y el titular que figura en la intranet y los pagos pendientes se enlazan solos. Si el pago está a nombre de otra persona (por ejemplo, el coche se pidió a nombre del hijo y paga la madre), el nombre definitivo del titular lo da el Excel.
+            </div>
+          )}
           <div className="table-container">
             <table className="table-premium table-compact">
               <thead>
@@ -372,6 +377,9 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
             <section style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <h4 style={{ margin: 0 }}>A qué expediente va</h4>
               {motivoBusqueda && <span style={{ fontSize: "0.8rem", color: "var(--warning)" }}>ℹ {motivoBusqueda}</span>}
+              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.45 }}>
+                Puedes aplicarlo ahora a uno de los expedientes (se fija la fecha RCI y se anota el bastidor) o esperar a subir el Excel de la intranet, que da el titular definitivo y enlaza los pagos pendientes por bastidor.
+              </span>
               {candidatos.map((c) => (
                 <div key={c.id} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.8rem", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "4px 8px" }}>
                   <span style={{ flex: 1 }}>
