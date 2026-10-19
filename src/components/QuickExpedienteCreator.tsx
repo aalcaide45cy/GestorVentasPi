@@ -6,6 +6,7 @@ import { useToast } from "@/components/Toast";
 import type { MarcaDto, ModeloDto, TipoVentaDto, VendedorDto } from "@/lib/dto";
 import type { EleccionRapida } from "@/lib/pedidos-cola";
 import ColaPedidos from "./ColaPedidos";
+import ZonaPagosRci from "./pagos-rci/ZonaPagosRci";
 import { useLeerPedidos, ZonaPedidos } from "./documentos/leerPedidos";
 import { mensajeDeError } from "./expedientes/comun";
 
@@ -317,8 +318,9 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
         </div>
       </div>
 
-      <div style={{ display: "flex" }}>
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-start" }}>
         <ZonaPedidos compacta />
+        <ZonaPagosRci />
       </div>
 
       <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />

@@ -13,7 +13,7 @@ import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
  */
 
 export const MAX_BYTES_ADJUNTO = 500 * 1024 * 1024;
-export const TIPOS_ADJUNTO = ["dni_frente", "dni_reverso", "pedido", "foto_cliente", "otro"] as const;
+export const TIPOS_ADJUNTO = ["dni_frente", "dni_reverso", "pedido", "pago_rci", "foto_cliente", "otro"] as const;
 export type TipoAdjunto = (typeof TIPOS_ADJUNTO)[number];
 export type MimeAdjunto = "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
 

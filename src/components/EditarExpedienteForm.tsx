@@ -1,5 +1,6 @@
 "use client";
 
+import CajaPagoRci from "@/components/pagos-rci/CajaPagoRci";
 import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import ComisionadoExpediente from "@/components/expedientes/ComisionadoExpediente";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
@@ -887,6 +888,7 @@ function FormularioEditarExpediente({
               {campo("Fecha Expediente", fecha(fExp, setFExp))}
               {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
               {campo("Fecha RCI (Financiación)", fecha(fRci, setFRci))}
+              <CajaPagoRci idExpediente={expediente.id_expediente} alAplicado={(f) => setFRci(f)} />
               {campo("Fecha Matriculación", fecha(fMat, cambiarMatriculacion))}
               {campo("Fecha Facturación", fecha(fFact, setFFact))}
               {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
