@@ -135,6 +135,19 @@ describe("pagos de la financiera", () => {
     expect(p.estado).toBe("aplicado");
     expect(await rci(exp.idExpediente)).toBe("2026-10-10");
   });
+  it("al aplicar un pago a un expediente sin bastidor se anota el bastidor del pago (para que el listado lo encuentre) y al deshacer se quita", async () => {
+    const { admin, exp, cli } = await escenario();
+    await db.update(clientes).set({ dni: "99999999R" }).where(eq(clientes.id, cli.id));
+    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());
+    expect(p.estado).toBe("pendiente");
+    const hecho = await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente });
+    expect(hecho.estado).toBe("aplicado");
+    const vin = async () => (await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].vin;
+    expect(await vin()).toBe("UU1DJF00477657076");
+    await deshacerPago(db, admin, p.id);
+    expect(await vin()).toBeNull();
+  });
+
   it("desde la cajita de otro expediente, un pago ya aplicado no se aplica otra vez; uno pendiente sí", async () => {
     const { admin, exp, cli, tipo } = await escenario();
     await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());

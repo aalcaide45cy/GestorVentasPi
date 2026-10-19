@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, marcas, modelos, pagosRci, tipoDeVenta } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { aplicarCompletado, deshacerBloque, esquemaFilaCompletar, previsualizarCompletado } from "./completar-datos";
-import { procesarPago } from "./pagos-rci";
+import { candidatosDePago, procesarPago } from "./pagos-rci";
 
 beforeEach(reiniciarBd);
 
@@ -203,6 +203,11 @@ describe("completar datos desde un listado", () => {
     ].join("\n");
     const pago = await procesarPago(db, admin, { datos: PDF, nombre: "pago.pdf" }, textoPago);
     expect(pago.estado).toBe("pendiente");
+    // En el propio pago también se sugiere el expediente del hijo por pistas (otro titular, mismo coche)
+    const sugeridos = await candidatosDePago(db, admin, pago.id);
+    expect(sugeridos.motivo).toContain("podrían ser el suyo");
+    expect(sugeridos.candidatos[0]).toMatchObject({ id: exp.idExpediente });
+    expect(sugeridos.candidatos[0].motivo).toContain("apellido en común (Hernandez)");
 
     // El listado trae a la madre: ningún dato exacto coincide, pero las pistas señalan el expediente del hijo
     const excel = fila({ cliente: "Ana Isabel HERNANDEZ MARIN", nif: "50449427P", bastidor: "UU1DJF00X76729081", marca: "DACIA", modelo: "Sandero Stepway", fCreado: "2026-04-02", estado: "Archivado", fMatriculacion: "2026-04-20" });

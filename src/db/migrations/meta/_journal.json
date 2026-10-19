@@ -288,6 +288,13 @@
       "when": 1792445300158,
       "tag": "0040_estado_intranet",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792453828986,
+      "tag": "0041_pagos_vin_aplicado",
+      "breakpoints": true
     }
   ]
 }

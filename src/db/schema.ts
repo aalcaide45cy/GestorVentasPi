@@ -987,6 +987,8 @@ export const pagosRci = pgTable(
     idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
     /** Fecha RCI que tenía el expediente antes de aplicar el pago (para poder deshacerlo). */
     fechaRciAnterior: date("fecha_rci_anterior"),
+    /** Al aplicar el pago se copió su bastidor al expediente (que no lo tenía): al deshacer, se quita. */
+    vinAplicado: boolean("vin_aplicado").notNull().default(false),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     resueltoEn: timestamp("resuelto_en", { withTimezone: true }),
   },
