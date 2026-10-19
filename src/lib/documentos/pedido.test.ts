@@ -292,4 +292,9 @@ describe("documentos que no son pedidos", () => {
     const usado = ["DATOS DEL VEH\u00cdCULO", "Marca / Modelo / Versi\u00f3n  DACIA Spring Electric", "N\u00famero de stock  259269", "Kms  56431"].join("\n");
     expect(parsearPedido(usado, catalogo).tipoPedido).toBe("usado");
   });
+
+  it("ignora la E del distintivo pegada a la matr\u00edcula de los pedidos de ocasi\u00f3n", () => {
+    const texto = ["DATOS DEL VEH\u00cdCULO", "Marca / Modelo / Versi\u00f3n  DACIA Jogger", "N\u00famero de stock  259269", "Matr\u00edcula  E5919LZG  Bastidor  UU1RSDCNCN0123456", "Kms  56431"].join("\n");
+    expect(parsearPedido(texto, catalogo).matricula).toBe("5919LZG");
+  });
 });

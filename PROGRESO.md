@@ -323,3 +323,4 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Lectura de pedidos**: reconoce el teléfono cuando viene repetido o con dos números («722203018 / 722203018»), el modelo cuando el OCR escribe «Modeto:» en vez de «Modelo:», y si es nuevo o usado con más señales (Color y Tapicería sin rótulo; número de stock y kilómetros en los de ocasión).
 - **Cola de pedidos**: botón «🔄 Releer» en cada pedido y «Releer lo elegido» para varios a la vez (vuelve a leer el PDF guardado con el lector actual, de tres en tres, y actualiza los datos en la cola sin crear documentos nuevos).
 - **Lectura de pedidos**: si el OCR lee mal la letra del DNI (o la pierde), se calcula con las 8 cifras y se avisa para comprobarlo.
+- **Pedidos de ocasión**: la «E» del distintivo pegada a la matrícula («E5919LZG») se ignora (queda 5919LZG).

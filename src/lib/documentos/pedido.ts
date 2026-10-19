@@ -304,13 +304,15 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   }
 
   // Un pedido de vehículo nuevo no tiene matrícula (la del usado de retoma se trata aparte)
-  const matricula = tipoPedido === "nuevo" ? null : (lineasBusqueda.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
+  // En los pedidos de ocasión la «E» del distintivo ECO va pegada a la matrícula («E5919LZG»): se ignora
+  const sinE = (m: string | null): string | null => (m ? m.replace(/^E(?=\d{4}[A-Z]{3}$)/, "") : m);
+  const matricula = tipoPedido === "nuevo" ? null : sinE(lineasBusqueda.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
 
   let retoma: DatosPedido["retoma"] = null;
   if (lineasRetoma.length > 0) {
     const cuerpo = lineasRetoma.map(sinCorreos);
     const vinRetoma = sinAcentos(cuerpo.join("\n")).match(/(?<![A-Z0-9])([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])/)?.[1] ?? null;
-    const matriculaRetoma = cuerpo.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null;
+    const matriculaRetoma = sinE(cuerpo.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
     const resumen = cuerpo.map((l) => l.replace(/\s{2,}-?[\d.]+,\d{2}\s*€?\s*$/, "").replace(/\s{2,}/g, " ").trim()).filter(Boolean).slice(0, 3).join(" · ").slice(0, 140) || null;
     retoma = { matricula: matriculaRetoma, vin: vinRetoma, texto: resumen };
   }
