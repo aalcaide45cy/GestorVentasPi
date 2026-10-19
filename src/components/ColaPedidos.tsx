@@ -244,7 +244,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
 
       {actual && !actual.idExpediente && (
         <PedidoRapidoModal
-          key={actual.id}
+          key={`${actual.id}-${actual.version ?? 0}`}
           item={actual}
           marcas={marcas}
           tiposVenta={tiposVenta}

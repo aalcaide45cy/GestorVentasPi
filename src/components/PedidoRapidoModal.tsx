@@ -9,7 +9,8 @@ import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
 import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
-import type { EleccionRapida, ItemCola } from "@/lib/pedidos-cola";
+import { actualizarPedidoDeCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
+import type { ResultadoPedido } from "@/lib/servicios/documentos";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import VisorPedido from "./documentos/VisorPedido";
@@ -43,6 +44,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const { mostrar } = useToast();
   const router = useRouter();
   const [verPdf, setVerPdf] = useState(false);
+  const [releyendo, setReleyendo] = useState(false);
   const [masivo, setMasivo] = useState<{ hechos: number; total: number } | null>(null);
   const pedido = item.pedido;
   const eleccion = item.eleccion;
@@ -139,6 +141,20 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       mostrar(textoError(e), "error");
     } finally {
       setMasivo(null);
+    }
+  };
+
+  /** Vuelve a leer el PDF de este pedido con el lector actual; la ventana se rehace con los datos nuevos. */
+  const releer = async () => {
+    setReleyendo(true);
+    try {
+      const { data } = await llamar<ResultadoPedido>("/api/documentos/releer", { method: "POST", cuerpo: { idAdjunto: pedido.adjunto.id, duplicados: permitirDuplicadosAhora() } });
+      actualizarPedidoDeCola(item.id, data);
+      mostrar("Pedido leído otra vez con el lector actual: revisa los datos.");
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setReleyendo(false);
     }
   };
 
@@ -359,6 +375,9 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
             {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => void releer()} disabled={releyendo || trabajando} title="Vuelve a leer el PDF de este pedido con el lector actual (por ejemplo, si no sacó el DNI, el teléfono o el modelo) y rehace esta ventana con los datos nuevos">
+            {releyendo ? "🔄 Releyendo…" : "🔄 Releer"}
           </button>
           <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
             ↩ Cerrar (queda en la cola)
