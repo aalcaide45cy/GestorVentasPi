@@ -6,8 +6,10 @@
 #       powershell -ExecutionPolicy Bypass -File scripts\prueba-interfaz.ps1 -Recrear   -> borra la copia y su base de prueba y la monta de nuevo
 param([switch]$Recrear, [int]$Puerto = 3100)
 $origen = Split-Path -Parent $PSScriptRoot
-$dest = Join-Path $env:TEMP "gv-ui-prueba"
-$registro = Join-Path $env:TEMP "gv-ui-prueba.log"
+# Ruta larga de la carpeta temporal (con la corta, tipo AALCAI~1, el vigilante de archivos de Node se cae)
+$temporal = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "Temp"
+$dest = Join-Path $temporal "gv-ui-prueba"
+$registro = Join-Path $temporal "gv-ui-prueba.log"
 
 function Parar-Servidor {
   Get-NetTCPConnection -LocalPort $Puerto -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
