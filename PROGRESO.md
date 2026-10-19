@@ -318,3 +318,4 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Cola de pedidos**: casillas para elegir pedidos uno a uno o todos y descartar lo elegido.
 - **Pedido leído**: siempre se puede crear marca y modelo nuevos (campos para escribirlos a mano, con aviso de si ya existen) aunque el pedido no diga el modelo; los pedidos de vehículos de ocasión ya se leen la marca y el modelo del resumen («Marca / Modelo / Versión: RENAULT Mégane …»).
 - **Cola de pedidos**: «Columnas y vistas» ya no repite la columna de la casilla; el progreso «leyendo N de M» tras recargar la página cuenta lo que el servidor aún tiene en marcha.
+- **Cola de pedidos**: más columnas (forma de pago, DNI, teléfono, matrícula, duplicado y, ocultas por defecto, email, domicilio, bastidor, entrega, vendedor del pedido, avisos y fichero), configuración de columnas nueva (la guardada repetía la casilla) y botón «➕ Nueva marca y modelo» visible en el pedido leído.

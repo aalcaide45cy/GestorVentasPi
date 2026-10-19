@@ -95,6 +95,8 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     mostrar(`${lista.length} pedido${lista.length === 1 ? "" : "s"} descartado${lista.length === 1 ? "" : "s"} de la cola.`);
   };
 
+  /** Forma de pago de un pedido de la cola: la del botón donde se soltó o la que reconoció la lectura. */
+  const formaDePago = (i: (typeof items)[number]): string => i.eleccion?.tipo.nombre_tipo_venta ?? tiposVenta.find((t) => t.id_tipo_de_venta === i.pedido.datos.idTipoDeVenta)?.nombre_tipo_venta ?? "";
   const columnasCola: ColumnaTabla<(typeof items)[number]>[] = [
     {
       clave: "seleccion",
@@ -117,6 +119,24 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     },
     { clave: "cliente", etiqueta: "Cliente", valor: (i) => i.pedido.datos.cliente ?? "", celda: (i) => i.pedido.datos.cliente ?? <span style={{ color: "var(--text-muted)" }}>—</span> },
     ...columnasVehiculo<(typeof items)[number]>((i) => ({ clase: i.pedido.datos.tipoPedido === "usado" ? "VO" : i.pedido.datos.tipoPedido === "nuevo" ? "VN" : null, marca: i.pedido.datos.marcaPropuesta, modelo: i.pedido.datos.modeloPropuesto ?? i.pedido.datos.modeloTexto }), { sin: ["estado", "tipoPago"] }),
+    {
+      clave: "pago",
+      etiqueta: "Forma de pago",
+      valor: (i) => formaDePago(i),
+      celda: (i) => (formaDePago(i) ? <span className="badge badge-tienda" style={{ fontSize: "0.75rem" }}>{formaDePago(i)}</span> : <span style={{ color: "var(--text-muted)" }}>—</span>),
+      ayuda: "Forma de pago que se propone (la del pedido, o la del botón de acceso rápido donde lo soltaste)",
+    },
+    { clave: "dni", etiqueta: "DNI / NIE", valor: (i) => i.pedido.datos.dni ?? "", celda: (i) => i.pedido.datos.dni ?? "—" },
+    { clave: "telefono", etiqueta: "Teléfono", valor: (i) => i.pedido.datos.telefono ?? "", celda: (i) => i.pedido.datos.telefono ?? "—" },
+    { clave: "email", etiqueta: "Email", valor: (i) => i.pedido.datos.email ?? "", celda: (i) => i.pedido.datos.email ?? "—", oculta: true },
+    { clave: "domicilio", etiqueta: "Domicilio", valor: (i) => [i.pedido.datos.domicilio, i.pedido.datos.poblacion].filter(Boolean).join(", "), celda: (i) => [i.pedido.datos.domicilio, i.pedido.datos.poblacion].filter(Boolean).join(", ") || "—", oculta: true },
+    { clave: "matricula", etiqueta: "Matrícula", valor: (i) => i.pedido.datos.matricula ?? "", celda: (i) => i.pedido.datos.matricula ?? "—" },
+    { clave: "bastidor", etiqueta: "Bastidor (VIN)", valor: (i) => i.pedido.datos.vin ?? "", celda: (i) => i.pedido.datos.vin ?? "—", oculta: true },
+    { clave: "entrega", etiqueta: "F. entrega", valor: (i) => i.pedido.datos.fechaEntrega ?? "", celda: (i) => (i.pedido.datos.fechaEntrega ? formatDate(i.pedido.datos.fechaEntrega) : "—"), oculta: true },
+    { clave: "vendedor", etiqueta: "Vendedor del pedido", valor: (i) => i.pedido.datos.vendedor ?? "", celda: (i) => i.pedido.datos.vendedor ?? "—", oculta: true, ayuda: "Vendedor que figura en el pedido (no el del expediente)" },
+    { clave: "similares", etiqueta: "Duplicado", valor: (i) => (i.pedido.similares ?? []).length, celda: (i) => ((i.pedido.similares ?? []).length > 0 ? <span style={{ color: "var(--warning)" }} title={(i.pedido.similares ?? []).map((x) => `nº ${x.idExpediente}: ${x.motivo}`).join("; ")}>⚠️ ya existe</span> : "—"), ayuda: "Ya hay un expediente que parece este pedido" },
+    { clave: "avisos", etiqueta: "Avisos", valor: (i) => i.pedido.datos.avisos.filter((a) => !a.startsWith("Lectura automática")).length, celda: (i) => i.pedido.datos.avisos.filter((a) => !a.startsWith("Lectura automática")).length || "—", alinear: "right", oculta: true, ayuda: "Avisos de la lectura (modelo dudoso, tipo de venta cambiado…)" },
+    { clave: "archivo", etiqueta: "Fichero", valor: (i) => i.nombre, celda: (i) => <span style={{ fontSize: "0.8rem" }}>{i.nombre}</span>, oculta: true },
     { clave: "fecha", etiqueta: "Fecha", valor: (i) => i.pedido.datos.fechaExpediente ?? "", celda: (i) => (i.pedido.datos.fechaExpediente ? formatDate(i.pedido.datos.fechaExpediente) : "—") },
     { clave: "destino", etiqueta: "Destino", valor: (i) => (i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente") + (i.dni ? " · con DNI" : "") },
     {
@@ -176,7 +196,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
         Los pedidos leídos esperan aquí hasta que los apliques: puedes cerrar la ventana de un pedido y volver a abrirlo cuando quieras.
       </p>
       <TablaDatos<(typeof items)[number]>
-        id="cola-pedidos"
+        id="cola-pedidos-v2"
         columnas={columnasCola}
         filas={items}
         clave={(i) => i.id}

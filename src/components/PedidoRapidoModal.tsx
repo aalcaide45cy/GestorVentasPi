@@ -420,7 +420,14 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Modelo</label>
+              <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                Modelo
+                {!eleccion && (
+                  <button type="button" className={`btn ${usaNuevo ? "btn-primary" : "btn-secondary"}`} style={{ padding: "1px 10px", fontSize: "0.75rem" }} onClick={() => setCrearNuevo(!usaNuevo)} title="Crea una marca y un modelo que no están dados de alta y los asocia a este expediente">
+                    {usaNuevo ? "✓ Marca y modelo nuevos" : "➕ Nueva marca y modelo"}
+                  </button>
+                )}
+              </label>
               <select className="form-select" value={usaNuevo ? "nuevo" : modelo} onChange={(e) => {
                 if (e.target.value === "nuevo") setCrearNuevo(true);
                 else {
