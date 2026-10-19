@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { adjuntos, clientes, expedientes, marcas, modelos, pagosRci, tipoDeVenta } from "@/db/schema";
@@ -290,6 +290,23 @@ export async function procesarPago(ej: Ejecutor, usuario: UsuarioActual, e: Entr
     return leerPago(ej, usuario, fila.id);
   }
   return aplicarPago(ej, usuario, fila.id, { idExpediente: r.exp.id, motivo: r.motivo });
+}
+
+/** Vuelve a buscar el expediente de los pagos pendientes (por ejemplo, tras completar datos con un listado) y aplica los que ya no dejan duda. */
+export async function reintentarPagosPendientes(ej: Ejecutor, usuario: UsuarioActual): Promise<{ revisados: number; enlazados: number }> {
+  const filas = await ej.select().from(pagosRci).where(and(eq(pagosRci.estado, "pendiente"), isNotNull(pagosRci.fechaPago), visible(usuario)));
+  let enlazados = 0;
+  for (const p of filas) {
+    const r = await buscarExpedienteDePago(ej, usuario, { nif: p.nif ?? "", bastidor: p.bastidor ?? "", matricula: p.matricula ?? "", fechaPago: p.fechaPago });
+    if (!r.exp) continue;
+    try {
+      await aplicarPago(ej, usuario, p.id, { idExpediente: r.exp.id, motivo: `${r.motivo} (al volver a buscar)` });
+      enlazados++;
+    } catch {
+      /* sin permiso sobre ese expediente o fecha inválida: sigue pendiente */
+    }
+  }
+  return { revisados: filas.length, enlazados };
 }
 
 export const esquemaAplicarPago = z.object({

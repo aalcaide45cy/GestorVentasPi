@@ -83,7 +83,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
   const [busqueda, setBusqueda] = useState("");
   const [columnas, setColumnas] = useState<Set<Columna>>(new Set(["estadoListado", "documentos", "expediente", "propuestas"]));
   const [detalle, setDetalle] = useState<number | null>(null);
-  const [hecho, setHecho] = useState<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[] } | null>(null);
+  const [hecho, setHecho] = useState<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number } | null>(null);
   const [referencias, setReferencias] = useState<Referencia[]>(["bastidor", "matricula", "nif", "email", "nombre"]);
 
   /** Busca los expedientes de las filas con las referencias elegidas; si hay una selección guardada, la conserva. */
@@ -98,7 +98,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
       for (const p of f.propuestas) {
         const k = claveCampo(f.fila, p.campo);
         // Un anulado en el listado no se marca solo: se decide a mano
-        const porDefecto = (f.estado !== "anulado" || p.campo === "estado_intranet") && (p.tipo === "rellenar" || !p.aviso);
+        const porDefecto = (f.estado !== "anulado" || p.campo === "estado_intranet") && (p.tipo === "rellenar" || !p.aviso || f.coincide === "manual");
         if (previos && f.fila !== reasignada ? previos.has(k) : porDefecto) marcados.add(k);
       }
     }
@@ -289,7 +289,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
     if (!window.confirm(`Se van a cambiar ${elegidos.size} dato(s) en ${cambios.length} expediente(s)${deshabilitar.size > 0 ? ` y deshabilitar ${deshabilitar.size} expediente(s) anulado(s)` : ""}. Quedará en el Log de importaciones y se podrá deshacer. ¿Continuar?`)) return;
     setTrabajando(true);
     try {
-      const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[] }>("/api/expedientes/completar/aplicar", {
+      const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number }>("/api/expedientes/completar/aplicar", {
         method: "POST",
         cuerpo: { archivo: listados.map((l) => l.nombre).join(", ").slice(0, 250), cambios, deshabilitar: [...deshabilitar] },
       });
@@ -372,6 +372,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
           {hecho && (
             <div role="status" style={{ padding: "12px 14px", borderLeft: "4px solid var(--success)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)" }}>
               ✅ Hecho: {hecho.camposCambiados} dato(s) cambiado(s) en {hecho.expedientesCambiados} expediente(s). Está en el <b>Log de importaciones</b>, donde puedes deshacerlo.
+              {(hecho.pagosEnlazados ?? 0) > 0 && <div style={{ marginTop: "4px" }}>💳 Además, {hecho.pagosEnlazados} pago(s) de la financiera que estaban pendientes se han enlazado con su expediente y han fijado su fecha RCI.</div>}
               {hecho.omitidos.length > 0 && (
                 <ul style={{ margin: "6px 0 0", paddingLeft: "18px", fontSize: "0.82rem", color: "var(--warning)" }}>
                   {hecho.omitidos.slice(0, 8).map((o) => (
@@ -475,7 +476,17 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
                                   </div>
                                 </>
                               ) : (
-                                <span style={{ color: f.estado === "ambiguo" ? "var(--warning)" : "var(--text-muted)", fontSize: "0.8rem" }}>{f.candidatos.length > 0 ? `${f.candidatos.length} posible(s): elige a mano` : "—"}</span>
+                                f.candidatos[0]?.probable ? (
+                                  <div style={{ fontSize: "0.78rem" }}>
+                                    <b style={{ color: "var(--success)" }}>Probable:</b> Exp. {f.candidatos[0].id} · {f.candidatos[0].cliente ?? "—"}
+                                    <div style={{ color: "var(--text-muted)" }}>{f.candidatos[0].motivo}</div>
+                                    <button type="button" className="btn btn-primary" style={{ marginTop: "3px", padding: "1px 8px", fontSize: "0.76rem" }} disabled={trabajando} onClick={() => void asignar(f.fila, f.candidatos[0].id)} title="Asociar esta fila del listado con ese expediente y calcular los cambios">
+                                      Elegir este
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: f.estado === "ambiguo" ? "var(--warning)" : "var(--text-muted)", fontSize: "0.8rem" }}>{f.candidatos.length > 0 ? `${f.candidatos.length} posible(s): abre la fila y elige` : "—"}</span>
+                                )
                               )}
                             </td>
                           )}
@@ -636,7 +647,7 @@ function DetalleFila({
                 {fila.candidatos.map((c) => (
                   <div key={c.id} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.8rem", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "4px 8px" }}>
                     <span style={{ flex: 1 }}>
-                      <b>Exp. {c.id}</b> · {c.cliente ?? "—"} · {c.dni ?? "sin NIF"} · {c.vehiculo ?? "—"} · {c.vin ?? c.matricula ?? "sin bastidor"} · {c.fecha ?? ""}
+                      <b>Exp. {c.id}</b> {c.probable && <b style={{ color: "var(--success)" }}>· probable </b>}· {c.cliente ?? "—"} · {c.dni ?? "sin NIF"} · {c.vehiculo ?? "—"} · {c.vin ?? c.matricula ?? "sin bastidor"} · {c.fecha ?? ""}
                       <div style={{ color: "var(--text-muted)" }}>{c.motivo}</div>
                     </span>
                     <button type="button" className="btn btn-primary" style={{ padding: "2px 8px" }} disabled={trabajando} onClick={() => alAsignar(c.id)} title="Asociar esta fila del listado con este expediente">

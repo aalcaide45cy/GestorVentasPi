@@ -94,6 +94,20 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
     }
   };
 
+  const reintentar = async () => {
+    setTrabajando(true);
+    try {
+      const { data } = await llamar<{ revisados: number; enlazados: number }>("/api/pagos-rci/accion", { method: "POST", cuerpo: { accion: "reintentar" } });
+      mostrar(data.enlazados > 0 ? `${data.enlazados} pago(s) enlazado(s) con su expediente.` : `Revisados ${data.revisados} pago(s) pendientes: ninguno encaja todavía.`);
+      await cargar();
+      alCambiar?.();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   const cuentas = useMemo(() => {
     const c: Record<Filtro, number> = { pendiente: 0, aplicado: 0, ignorado: 0, todos: 0 };
     for (const p of pagos ?? []) {
@@ -130,6 +144,9 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
                 {f.texto} ({cuentas[f.id]})
               </button>
             ))}
+            <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.82rem" }} disabled={trabajando || cuentas.pendiente === 0} onClick={() => void reintentar()} title="Vuelve a buscar el expediente de los pagos pendientes: útil después de completar datos con un listado (el expediente ya tiene bastidor o documento nuevo)">
+              ↻ Reintentar pendientes
+            </button>
             <input className="input-premium" type="search" placeholder="Buscar por cliente, documento, bastidor, matrícula, operación…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra los pagos por cualquier dato" />
             <details style={{ fontSize: "0.82rem" }}>
               <summary style={{ cursor: "pointer" }} title="Elige qué columnas ver en la tabla">
