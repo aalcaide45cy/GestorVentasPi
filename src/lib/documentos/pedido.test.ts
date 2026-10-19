@@ -304,4 +304,9 @@ describe("documentos que no son pedidos", () => {
     expect(d.dni).toBe("51266944J");
     expect(d.avisos.some((a) => a.includes("letra del DNI"))).toBe(true);
   });
+
+  it("reconoce el CIF de una empresa como documento del cliente", () => {
+    const texto = ["PEDIDO DE VEHÍCULO NUEVO", "Número Pedido 13958497 - 7441-00", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Instalaciones Moliaga S.I.  AUTOCARPE CONCESIONARIO, S.L.", "B88499868  B83747626", "Calle Jarama, 13  CLAVO, 22-26", "Mejorada Del Campo, Madrid (28840)  Rivas - Vaciamadrid, Madrid (28522)", "638874946  Tel.: 916665058", "RESUMEN", "Modelo:  RENAULT ESPACE FULL HYBRID E-TECH  40.263,55 €"].join("\n");
+    expect(parsearPedido(texto, catalogo).dni).toBe("B88499868");
+  });
 });
