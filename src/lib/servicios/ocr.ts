@@ -321,7 +321,7 @@ function enParalelo<T>(tarea: () => Promise<T>, maxMs: number): Promise<T> {
 
 type TextoLeido = { texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean; cabecera?: string };
 
-export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<TextoLeido> {
+function textoDeDocumentoInterno(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<TextoLeido> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
   if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const tipo = tipoDeFichero(datos);
@@ -360,6 +360,21 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; pa
       throw new HttpError(500, "No se ha podido leer el documento. Prueba con otra imagen.");
     }
   });
+}
+
+/** Lee un documento y anota en el registro del servidor cuánto tardó y con qué motor (para saber qué lecturas pesan). */
+export async function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<TextoLeido> {
+  const inicio = performance.now();
+  const kb = Math.round(datos.length / 1024);
+  try {
+    const r = await textoDeDocumentoInterno(datos, opciones);
+    const seg = ((performance.now() - inicio) / 1000).toFixed(1);
+    console.info(`Lectura de documento: ${seg} s · ${kb} KB · ${r.descartado ? "descartado (no es un pedido)" : r.metodo}${r.metodo === "ocr" ? ` · motor ${ajustesOcr().motor}` : ""}`);
+    return r;
+  } catch (e) {
+    console.error(`Lectura de documento fallida tras ${((performance.now() - inicio) / 1000).toFixed(1)} s (${kb} KB): ${e instanceof Error ? e.message : e}`);
+    throw e;
+  }
 }
 
 /**

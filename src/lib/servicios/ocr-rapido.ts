@@ -61,7 +61,9 @@ async function crearSesiones(proveedor: ProveedorOnnx): Promise<Sesiones> {
   let ultimoError: unknown;
   for (const eps of candidatos) {
     try {
-      const opciones = { executionProviders: eps, graphOptimizationLevel: "all" as const, logSeverityLevel: 3 as const };
+      // En CPU de una Raspberry (ARM64) cada lectura usa 2 hilos: con varias lecturas a la vez, ONNX con todos los núcleos por lectura saturaba el equipo
+      const hilos = proveedor === "cpu" && process.arch === "arm64" ? { intraOpNumThreads: 2, interOpNumThreads: 1 } : {};
+      const opciones = { executionProviders: eps, graphOptimizationLevel: "all" as const, logSeverityLevel: 3 as const, ...hilos };
       const [det, rec] = await Promise.all([ort.InferenceSession.create(rutas.det, opciones), ort.InferenceSession.create(rutas.rec, opciones)]);
       ultimoUsado = eps[0];
       return { det, rec, ort, proveedor, usado: eps[0] };
