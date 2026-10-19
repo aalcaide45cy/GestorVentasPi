@@ -191,17 +191,20 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
     }
   };
 
-  const accionSeguridad = async (u: UsuarioAdminDto, accion: "reset_2fa" | "cerrar_sesiones") => {
+  const accionSeguridad = async (u: UsuarioAdminDto, accion: "reset_2fa" | "reset_password" | "cerrar_sesiones") => {
     const texto =
       accion === "reset_2fa"
         ? `¿Restablecer el doble factor de ${u.nombre}? Se cerrarán sus sesiones y deberá activarlo de nuevo al entrar.`
-        : `¿Cerrar todas las sesiones abiertas de ${u.nombre}?`;
+        : accion === "reset_password"
+          ? `¿Crear una contraseña temporal para ${u.nombre}? Se cerrarán sus sesiones, la contraseña actual dejará de valer y tendrá que cambiarla al entrar.`
+          : `¿Cerrar todas las sesiones abiertas de ${u.nombre}?`;
     if (!window.confirm(texto)) return;
     setActualizando(u.id_usuario);
     try {
       const res = await fetch("/api/admin/usuarios/seguridad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id_usuario: u.id_usuario, accion }) });
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo completar la acción."));
-      const r = (await res.json()) as { message?: string };
+      const r = (await res.json()) as { message?: string; passwordTemporal?: string };
+      if (r.passwordTemporal) setPasswordTemporal({ email: u.login_email, password: r.passwordTemporal });
       if (accion === "reset_2fa") setUsuarios((prev) => prev.map((x) => (x.id_usuario === u.id_usuario ? { ...x, totp_activo: false } : x)));
       mostrar(r.message ?? "Hecho.");
       router.refresh();
@@ -312,6 +315,16 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                 🔑 Reset 2FA
               </button>
             )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void accionSeguridad(u, "reset_password")}
+              disabled={actualizando === u.id_usuario}
+              style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+              title="Crear una contraseña temporal (se muestra una sola vez) para quien la haya olvidado; tendrá que cambiarla al entrar"
+            >
+              🗝️ Contraseña temporal
+            </button>
             <button
               type="button"
               className="btn btn-secondary"

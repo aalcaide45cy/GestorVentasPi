@@ -1,5 +1,11 @@
 /** Arranque del servidor: inicia el planificador de copias automáticas (solo en el runtime de Node). */
 export async function register(): Promise<void> {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    // Lo que sale por console se guarda también en un archivo, visible en Configuración › BBDD › Registro del servidor
+    const { instalarRegistroServidor } = await import("./lib/registro-servidor");
+    instalarRegistroServidor();
+    console.info(`Servidor iniciado (GestorVentas v${process.env.npm_package_version ?? "?"}, Node ${process.version}, ${process.platform}/${process.arch})`);
+  }
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.DISABLE_SCHEDULER !== "true") {
     const { iniciarPlanificador } = await import("./lib/servicios/planificador");
     iniciarPlanificador();
