@@ -4,25 +4,23 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
+import { useDobleConfirmacion } from "@/components/useDobleConfirmacion";
 
 /** «Borrar todo»: deja la base de datos sin datos, como recién instalada (conserva las cuentas de acceso). */
 export default function PanelVaciar({ alTerminar }: { alTerminar?: () => void }) {
   const router = useRouter();
   const { mostrar } = useToast();
-  const [confirmacion, setConfirmacion] = useState("");
   const [otrosUsuarios, setOtrosUsuarios] = useState(false);
   const [porDefecto, setPorDefecto] = useState(true);
   const [trabajando, setTrabajando] = useState(false);
   const [copiaPrevia, setCopiaPrevia] = useState<string | null>(null);
 
   const vaciar = async () => {
-    if (!window.confirm("¿Seguro? Se borrarán TODOS los clientes, expedientes, catálogos, comisiones y adjuntos. Antes se crea una copia de seguridad.")) return;
     setTrabajando(true);
     try {
-      const { data } = await llamar<{ copiaPrevia: string | null }>("/api/admin/vaciar", { method: "POST", cuerpo: { confirmacion, eliminarOtrosUsuarios: otrosUsuarios, catalogosPorDefecto: porDefecto } });
+      const { data } = await llamar<{ copiaPrevia: string | null }>("/api/admin/vaciar", { method: "POST", cuerpo: { confirmacion: "BORRAR TODO", eliminarOtrosUsuarios: otrosUsuarios, catalogosPorDefecto: porDefecto } });
       setCopiaPrevia(data.copiaPrevia);
       alTerminar?.();
-      setConfirmacion("");
       mostrar("Base de datos vaciada.");
       router.refresh();
     } catch (e) {
@@ -31,6 +29,8 @@ export default function PanelVaciar({ alTerminar }: { alTerminar?: () => void })
       setTrabajando(false);
     }
   };
+
+  const doble = useDobleConfirmacion(() => void vaciar());
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px", padding: "18px", border: "1px solid var(--danger)", borderRadius: "var(--radius-sm)" }}>
@@ -51,12 +51,8 @@ export default function PanelVaciar({ alTerminar }: { alTerminar?: () => void })
         </label>
       </div>
       <div style={{ display: "flex", gap: "10px", alignItems: "end", flexWrap: "wrap" }}>
-        <div>
-          <label className="form-label">Escribe BORRAR TODO para confirmar</label>
-          <input className="form-input" value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} title="Medida de seguridad contra borrados accidentales" />
-        </div>
-        <button type="button" className="btn btn-primary" disabled={trabajando || confirmacion !== "BORRAR TODO"} onClick={() => void vaciar()} style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)" }} title="Crea una copia de seguridad y después borra todos los datos">
-          {trabajando ? "Borrando…" : "Borrar todos los datos"}
+        <button type="button" className="btn btn-primary" disabled={trabajando} onClick={doble.pulsar} style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)", ...(doble.armado ? { outline: "3px solid var(--danger)" } : {}) }} title="Crea una copia de seguridad y después borra todos los datos. Hay que pulsar dos veces.">
+          {trabajando ? "Borrando…" : doble.armado ? "⚠️ ¿Seguro? Se borran TODOS los datos. Pulsa otra vez" : "Borrar todos los datos"}
         </button>
       </div>
       {copiaPrevia && <div style={{ fontSize: "0.88rem", color: "var(--success)" }}>✅ Hecho. Copia previa guardada como {copiaPrevia}; puedes restaurarla desde «Copias de seguridad».</div>}

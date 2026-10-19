@@ -6,6 +6,7 @@ import path from "node:path";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
+import { identidadEquipo, type IdentidadEquipo } from "@/lib/equipo";
 import { memoriaMacOs } from "@/lib/memoria-macos";
 import { consultasLentas, resumenPeticiones } from "@/lib/rendimiento-registro";
 import { ajustesOcr } from "@/lib/servicios/ocr-ajustes";
@@ -239,7 +240,30 @@ export interface InfoBd {
   tablasGrandes: { tabla: string; mb: number; filasMuertas: number }[];
 }
 
+/** Espera a una consulta, pero no más de `ms`: el diagnóstico no puede quedarse colgado si la base de datos está bloqueada o saturada. */
+function conLimite<T>(consulta: Promise<T>, ms: number, alAgotarse: T): Promise<T> {
+  return new Promise((resolver, rechazar) => {
+    const t = setTimeout(() => resolver(alAgotarse), ms);
+    consulta.then(
+      (v) => {
+        clearTimeout(t);
+        resolver(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        rechazar(e);
+      },
+    );
+  });
+}
+
+const LIMITE_BD_MS = 5000;
+
 async function infoBd(): Promise<InfoBd | { error: string }> {
+  return conLimite(infoBdSinLimite(), LIMITE_BD_MS, { error: `La base de datos no ha respondido en ${LIMITE_BD_MS / 1000} s: está muy ocupada o bloqueada.` });
+}
+
+async function infoBdSinLimite(): Promise<InfoBd | { error: string }> {
   try {
     const t0 = performance.now();
     await db.execute(sql`select 1`);
@@ -288,6 +312,8 @@ export interface Recursos {
   nivel: "ok" | "aviso" | "alto";
   /** Qué medidor da el aviso, en una frase. */
   motivo: string | null;
+  /** Qué equipo es: nombre, tipo (AMD, Intel, Apple, Raspberry) y detalle. */
+  equipo: IdentidadEquipo;
 }
 
 const GR = globalThis as unknown as { __recursosRapidos?: Interno };
@@ -320,7 +346,7 @@ export function recursosRapidos(): Recursos {
   else if ((tempC ?? 0) >= 70) marcar("aviso", `Temperatura ${tempC} °C`);
   if ((d.ioPct ?? 0) >= 90) marcar("alto", `Disco al ${d.ioPct} %`);
   else if ((d.ioPct ?? 0) >= 70) marcar("aviso", `Disco al ${d.ioPct} %`);
-  return { cpu, memoriaUsadaPct: usada, memoriaLibreMb: m.libreMb, memoriaTotalMb: m.totalMb, swapMb: m.swapUsadoMb, tempC, discoLeidoMBs: d.leidoMBs, discoEscritoMBs: d.escritoMBs, discoPct: d.ioPct, nivel, motivo };
+  return { cpu, memoriaUsadaPct: usada, memoriaLibreMb: m.libreMb, memoriaTotalMb: m.totalMb, swapMb: m.swapUsadoMb, tempC, discoLeidoMBs: d.leidoMBs, discoEscritoMBs: d.escritoMBs, discoPct: d.ioPct, nivel, motivo, equipo: identidadEquipo() };
 }
 
 /* ------------------------------------------------------------------ */
@@ -334,7 +360,7 @@ export interface Hallazgo {
 
 export interface Instantanea {
   generadaEn: number;
-  equipo: { plataforma: string; arquitectura: string; nucleos: number; modelo: string | null; nodo: string; arrancadoHaceMin: number; tiempoServidorMin: number };
+  equipo: { plataforma: string; arquitectura: string; nucleos: number; modelo: string | null; nodo: string; arrancadoHaceMin: number; tiempoServidorMin: number; identidad: IdentidadEquipo };
   muestra: Muestra;
   memoria: ReturnType<typeof memoria>;
   disco: ReturnType<typeof disco> & { libreGb: number | null; totalGb: number | null; carpeta: string };
@@ -376,7 +402,11 @@ export async function instantanea(): Promise<Instantanea> {
   const bd = await infoBd();
   let lecturas: Instantanea["lecturas"] = null;
   try {
-    const filas = (await db.execute(sql`select estado, count(*)::int as n from lecturas_pedidos where estado in ('pendiente', 'leyendo') group by estado`)).rows as { estado: string; n: number }[];
+    const filas = await conLimite(
+      db.execute(sql`select estado, count(*)::int as n from lecturas_pedidos where estado in ('pendiente', 'leyendo') group by estado`).then((r) => r.rows as { estado: string; n: number }[]),
+      LIMITE_BD_MS,
+      [] as { estado: string; n: number }[],
+    );
     const a = ajustesOcr();
     lecturas = { pendientes: filas.find((f) => f.estado === "pendiente")?.n ?? 0, leyendo: filas.find((f) => f.estado === "leyendo")?.n ?? 0, motor: a.motor, simultaneas: a.simultaneas };
   } catch {
@@ -386,7 +416,7 @@ export async function instantanea(): Promise<Instantanea> {
   const proceso = { rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024), heapMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024), cpuPct: cpuProceso(i) };
   const base: Omit<Instantanea, "hallazgos"> = {
     generadaEn: Date.now(),
-    equipo: { plataforma: process.platform, arquitectura: process.arch, nucleos: os.availableParallelism(), modelo, nodo: process.version, arrancadoHaceMin: Math.round(os.uptime() / 60), tiempoServidorMin: Math.round(process.uptime() / 60) },
+    equipo: { plataforma: process.platform, arquitectura: process.arch, nucleos: os.availableParallelism(), modelo, nodo: process.version, arrancadoHaceMin: Math.round(os.uptime() / 60), tiempoServidorMin: Math.round(process.uptime() / 60), identidad: identidadEquipo() },
     muestra,
     memoria: m,
     disco: { ...d, libreGb, totalGb, carpeta },
@@ -558,7 +588,7 @@ export function informeTexto(s: Instantanea, registroReciente: string[]): string
   const L: string[] = [];
   const b = (x: boolean | null | undefined) => (x ? "sí" : "no");
   L.push(`INFORME DE RENDIMIENTO · ${new Date(s.generadaEn).toLocaleString("es-ES")}`);
-  L.push(`Equipo: ${s.equipo.modelo ?? "—"} · ${s.equipo.plataforma}/${s.equipo.arquitectura} · ${s.equipo.nucleos} núcleos · Node ${s.equipo.nodo} · encendido hace ${s.equipo.arrancadoHaceMin} min · servidor arrancado hace ${s.equipo.tiempoServidorMin} min`);
+  L.push(`Equipo: ${s.equipo.identidad.nombre || "(sin nombre)"} [${s.equipo.identidad.tipo}] · ${s.equipo.identidad.detalle} · ${s.equipo.modelo ?? "—"} · ${s.equipo.plataforma}/${s.equipo.arquitectura} · ${s.equipo.nucleos} núcleos · Node ${s.equipo.nodo} · encendido hace ${s.equipo.arrancadoHaceMin} min · servidor arrancado hace ${s.equipo.tiempoServidorMin} min`);
   L.push("");
   L.push("== Qué parece estar pasando ==");
   for (const h of s.hallazgos) L.push(`[${h.nivel.toUpperCase()}] ${h.texto}`);

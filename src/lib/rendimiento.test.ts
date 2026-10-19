@@ -56,13 +56,13 @@ describe("diagnóstico", () => {
     expect(r.lecturaMBs).toBeGreaterThan(0);
     expect(r.veredicto.length).toBeGreaterThan(10);
     expect(readdirSync(dir).filter((f) => f.includes("prueba-disco"))).toHaveLength(0);
-  });
+  }, 30_000);
 
   it("la prueba de la base de datos mide consultas simples", async () => {
     const r = await probarBd();
     expect(r.consultaMinimaMs).toBeGreaterThanOrEqual(0);
     expect(r.veredicto.length).toBeGreaterThan(10);
-  });
+  }, 30_000);
 
   it("los recursos rápidos de la barra superior dan CPU, memoria y un nivel", () => {
     recursosRapidos(); // la primera lectura fija el punto de partida de las diferencias

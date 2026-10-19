@@ -181,24 +181,11 @@ async function detectar(s: Sesiones, img: Buffer, ancho: number, alto: number, l
   return cajasDelMapa(mapa, an, al, ancho / an, alto / al, ancho, alto);
 }
 
-async function reconocerCaja(s: Sesiones, img: Buffer, caja: Caja): Promise<LineaRapida | null> {
-  const left = Math.floor(caja.x0);
-  const top = Math.floor(caja.y0);
-  const width = Math.max(1, Math.ceil(caja.x1) - left);
-  const height = Math.max(1, Math.ceil(caja.y1) - top);
-  const ancho = Math.min(3200, Math.max(16, Math.ceil((ALTO_REC * width) / height / 8) * 8));
-  const { data } = await sharp(img, { failOn: "none" }).removeAlpha().extract({ left, top, width, height }).resize(ancho, ALTO_REC, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
-  const plano = ancho * ALTO_REC;
-  const entrada = new Float32Array(3 * plano);
-  for (let i = 0; i < plano; i++) {
-    entrada[i] = (data[i * 3 + 2] / 255 - 0.5) / 0.5;
-    entrada[plano + i] = (data[i * 3 + 1] / 255 - 0.5) / 0.5;
-    entrada[2 * plano + i] = (data[i * 3] / 255 - 0.5) / 0.5;
-  }
-  const salida = await s.rec.run({ [s.rec.inputNames[0]]: new s.ort.Tensor("float32", entrada, [1, 3, ALTO_REC, ancho]) });
-  const t = salida[s.rec.outputNames[0]];
-  const [, pasos, clases] = t.dims as number[];
-  const v = t.data as Float32Array;
+/** Cuántos recortes de texto se leen de una vez: menos llamadas al modelo (clave en GPU, donde cada llamada cuesta) y mejor uso de la CPU. */
+const LOTE_REC = Number(process.env.OCR_LOTE_REC) || 8;
+
+/** Texto (CTC) de la salida del reconocedor para un elemento del lote. */
+function decodificar(v: Float32Array, desde: number, pasos: number, clases: number): LineaRapida | null {
   const dic = cargarDiccionario();
   let texto = "";
   let previo = 0;
@@ -207,8 +194,9 @@ async function reconocerCaja(s: Sesiones, img: Buffer, caja: Caja): Promise<Line
   for (let k = 0; k < pasos; k++) {
     let mejor = 0;
     let pm = -Infinity;
+    const base = desde + k * clases;
     for (let c = 0; c < clases; c++) {
-      const x = v[k * clases + c];
+      const x = v[base + c];
       if (x > pm) {
         pm = x;
         mejor = c;
@@ -223,6 +211,55 @@ async function reconocerCaja(s: Sesiones, img: Buffer, caja: Caja): Promise<Line
   }
   texto = texto.trim();
   return texto ? { texto, confianza: Math.round((n ? suma / n : 0) * 100) } : null;
+}
+
+/**
+ * Lee todos los recortes de una página. Se ordenan por anchura y se leen de ocho en ocho, rellenando hasta la anchura del más ancho del
+ * lote (múltiplo de 32, para que en GPU haya pocas formas distintas): así una página son unas pocas llamadas al modelo, no una por texto.
+ */
+async function reconocerCajas(s: Sesiones, img: Buffer, cajas: Caja[]): Promise<(LineaRapida | null)[]> {
+  const resultado: (LineaRapida | null)[] = new Array(cajas.length).fill(null);
+  const recortes = await Promise.all(
+    cajas.map(async (caja, indice) => {
+      const left = Math.floor(caja.x0);
+      const top = Math.floor(caja.y0);
+      const width = Math.max(1, Math.ceil(caja.x1) - left);
+      const height = Math.max(1, Math.ceil(caja.y1) - top);
+      const ancho = Math.min(3200, Math.max(16, Math.ceil((ALTO_REC * width) / height / 8) * 8));
+      const { data } = await sharp(img, { failOn: "none" }).removeAlpha().extract({ left, top, width, height }).resize(ancho, ALTO_REC, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
+      return { indice, ancho, data };
+    }),
+  );
+  recortes.sort((a, b) => a.ancho - b.ancho);
+  for (let k = 0; k < recortes.length; k += LOTE_REC) {
+    const lote = recortes.slice(k, k + LOTE_REC);
+    const anchoLote = Math.min(3200, Math.ceil(Math.max(...lote.map((r) => r.ancho)) / 32) * 32);
+    const plano = anchoLote * ALTO_REC;
+    // Lo que sobra a la derecha de un recorte queda a cero (el color medio tras normalizar)
+    const entrada = new Float32Array(lote.length * 3 * plano);
+    lote.forEach((r, e) => {
+      const base = e * 3 * plano;
+      for (let y = 0; y < ALTO_REC; y++) {
+        for (let x = 0; x < r.ancho; x++) {
+          const o = (y * r.ancho + x) * 3;
+          const d = y * anchoLote + x;
+          entrada[base + d] = (r.data[o + 2] / 255 - 0.5) / 0.5;
+          entrada[base + plano + d] = (r.data[o + 1] / 255 - 0.5) / 0.5;
+          entrada[base + 2 * plano + d] = (r.data[o] / 255 - 0.5) / 0.5;
+        }
+      }
+    });
+    const salida = await s.rec.run({ [s.rec.inputNames[0]]: new s.ort.Tensor("float32", entrada, [lote.length, 3, ALTO_REC, anchoLote]) });
+    const t = salida[s.rec.outputNames[0]];
+    const [, pasos, clases] = t.dims as number[];
+    const v = t.data as Float32Array;
+    lote.forEach((r, e) => {
+      // Solo los pasos que corresponden al recorte (el resto es el relleno)
+      const utiles = Math.min(pasos, Math.ceil((r.ancho / anchoLote) * pasos) + 1);
+      resultado[r.indice] = decodificar(v, e * pasos * clases, utiles, clases);
+    });
+  }
+  return resultado;
 }
 
 export interface OpcionesRapido {
@@ -246,11 +283,12 @@ const parteDudosa = (l: Leida[]): number => {
 
 async function leerImagen(s: Sesiones, img: Buffer, ancho: number, alto: number, lado: number, confianzaMinima?: number): Promise<Leida[]> {
   const cajas = await detectar(s, img, ancho, alto, lado);
+  const lecturas = await reconocerCajas(s, img, cajas);
   const leidas: Leida[] = [];
-  for (const caja of cajas) {
-    const r = await reconocerCaja(s, img, caja);
+  cajas.forEach((caja, i) => {
+    const r = lecturas[i];
     if (r && (confianzaMinima === undefined || r.confianza >= confianzaMinima)) leidas.push({ caja, ...r });
-  }
+  });
   return leidas;
 }
 

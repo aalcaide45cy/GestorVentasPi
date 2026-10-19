@@ -56,6 +56,7 @@ export default function PanelRendimiento() {
   const [probando, setProbando] = useState<"disco" | "bd" | null>(null);
   const [disco, setDisco] = useState<PruebaDisco | null>(null);
   const [bd, setBd] = useState<PruebaBd | null>(null);
+  const [nombreEquipo, setNombreEquipo] = useState<string | null>(null);
   const vivo = useRef(true);
 
   const leer = useCallback(async () => {
@@ -95,6 +96,17 @@ export default function PanelRendimiento() {
       mostrar(textoError(e), "error");
     } finally {
       setProbando(null);
+    }
+  };
+
+  const guardarNombre = async (nombre: string) => {
+    try {
+      await llamar("/api/admin/recursos", { method: "PUT", cuerpo: { nombre } });
+      mostrar(nombre.trim() ? "Nombre del equipo guardado." : "Vuelve a usarse el nombre detectado del equipo.");
+      setNombreEquipo(null);
+      void leer();
+    } catch (e) {
+      mostrar(textoError(e), "error");
     }
   };
 
@@ -142,8 +154,19 @@ export default function PanelRendimiento() {
           Actualizar solo
         </label>
         <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-          {s.equipo.modelo ?? `${s.equipo.plataforma}/${s.equipo.arquitectura}`} · {s.equipo.nucleos} núcleos · encendido hace {s.equipo.arrancadoHaceMin} min
+          {s.equipo.identidad.nombre ? <b>{s.equipo.identidad.nombre} · </b> : null}
+          {s.equipo.identidad.tipo} · {s.equipo.modelo ?? `${s.equipo.plataforma}/${s.equipo.arquitectura}`} · {s.equipo.nucleos} núcleos · encendido hace {s.equipo.arrancadoHaceMin} min
         </span>
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", fontSize: "0.85rem" }}>
+        <label htmlFor="nombre-equipo" style={{ color: "var(--text-secondary)" }} title="Es el nombre que sale en la cajita de la barra superior. Si lo dejas vacío se usa el nombre detectado del equipo.">
+          Nombre de este equipo ({s.equipo.identidad.tipo}):
+        </label>
+        <input id="nombre-equipo" className="form-input" maxLength={60} placeholder={s.equipo.identidad.nombre || "Ej.: Raspberry de la tienda"} value={nombreEquipo ?? s.equipo.identidad.nombre} onChange={(e) => setNombreEquipo(e.target.value)} style={{ padding: "4px 10px", fontSize: "0.85rem", minWidth: "220px" }} />
+        <button type="button" className="btn btn-secondary" style={{ padding: "4px 12px", fontSize: "0.82rem" }} disabled={nombreEquipo === null} onClick={() => void guardarNombre(nombreEquipo ?? "")}>
+          Guardar nombre
+        </button>
       </div>
 
       <div className="glass-panel" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px", border: "1px solid var(--border-light)" }}>

@@ -9,9 +9,11 @@ import type { LecturaDto } from "@/lib/servicios/lecturas-pedidos";
  * Qué ha pasado con los documentos subidos para leer: cuántos faltan, cuántos no eran pedidos y cuántos dieron error (con
  * «Reintentar»). Así ningún documento desaparece sin que se sepa.
  */
+const SIN_MARCHA: never[] = [];
+
 export default function EstadoLecturas() {
   const r = useSyncExternalStore(suscribirResumenLecturas, leerResumenLecturas, () => null);
-  const enMarcha = useSyncExternalStore(suscribirResumenLecturas, leerEnMarcha, () => []);
+  const enMarcha = useSyncExternalStore(suscribirResumenLecturas, leerEnMarcha, () => SIN_MARCHA);
   const [verMarcha, setVerMarcha] = useState(false);
   const [lista, setLista] = useState<LecturaDto[] | null>(null);
   const [ocupado, setOcupado] = useState(false);

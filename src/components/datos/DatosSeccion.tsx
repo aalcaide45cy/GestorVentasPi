@@ -8,6 +8,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { ContenidoSeccion, InfoSeccion, Informe, Modo, ParteContenido, Seccion } from "@/lib/servicios/intercambio";
 import type { CopiaInternaDto } from "@/lib/servicios/copias-seccion";
+import { TEXTO_SEGUNDO_CLIC, useDobleConfirmacion } from "@/components/useDobleConfirmacion";
 
 /**
  * Piezas reutilizables para exportar, importar y guardar copias internas de una sección de datos.
@@ -279,7 +280,7 @@ export function ModalExportar({ seccion, planes, idsIniciales, alCerrar }: { sec
 /* Importar: archivo → vista previa → confirmación → aplicar           */
 /* ------------------------------------------------------------------ */
 
-function VistaPrevia({ informe, modo, palabra, hayCambios, confirmacion, setConfirmacion, textoAntes }: { informe: Informe; modo: Modo; palabra: string; hayCambios: boolean; confirmacion: string; setConfirmacion: (v: string) => void; textoAntes: string }) {
+function VistaPrevia({ informe, modo, hayCambios, textoAntes }: { informe: Informe; modo: Modo; hayCambios: boolean; textoAntes: string }) {
   const fila = (etiqueta: string, valor: number, color?: string, ayuda?: string) => (
     <div key={etiqueta} title={ayuda} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "0.88rem" }}>
       <span style={{ color: "var(--text-secondary)" }}>{etiqueta}</span>
@@ -333,12 +334,7 @@ function VistaPrevia({ informe, modo, palabra, hayCambios, confirmacion, setConf
         </div>
       )}
       {hayCambios ? (
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">
-            Para aplicar, escribe <b>{palabra}</b>. {textoAntes}
-          </label>
-          <input className="form-input" value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} placeholder={palabra} style={{ maxWidth: "220px" }} />
-        </div>
+        <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{textoAntes} Al aplicar se te pedirá confirmar dos veces.</div>
       ) : (
         <div style={{ color: "var(--text-muted)" }}>No hay nada que cambiar con esta opción.</div>
       )}
@@ -371,7 +367,7 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
   const [informe, setInforme] = useState<Informe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
-  const [confirmacion, setConfirmacion] = useState("");
+  // El servidor sigue pidiendo la palabra de confirmación: se manda sola, porque la verificación es el doble clic del botón
   const palabra = modo === "sustituir" ? "SUSTITUIR" : "IMPORTAR";
 
   const previsualizar = async (p: unknown, m: Modo) => {
@@ -394,7 +390,6 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
     if (!archivo) return;
     setError(null);
     setInforme(null);
-    setConfirmacion("");
     try {
       const p = JSON.parse(await archivo.text()) as unknown;
       setPaquete(p);
@@ -408,7 +403,6 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
 
   const cambiarModo = (m: Modo) => {
     setModo(m);
-    setConfirmacion("");
     if (paquete) void previsualizar(paquete, m);
   };
 
@@ -417,7 +411,7 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
     setTrabajando(true);
     setError(null);
     try {
-      const { extra } = await llamar("/api/admin/datos/importar", { method: "POST", cuerpo: { paquete, modo, aplicar: true, seccion: seccion.seccion, confirmacion } });
+      const { extra } = await llamar("/api/admin/datos/importar", { method: "POST", cuerpo: { paquete, modo, aplicar: true, seccion: seccion.seccion, confirmacion: palabra } });
       const r = extra.informe as Informe;
       const copia = extra.copia as { nombre: string; creadaAhora: boolean } | null;
       mostrar(
@@ -434,7 +428,8 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
   };
 
   const hayCambios = !!informe && informe.nuevos + informe.actualizados + informe.eliminados > 0;
-  const puedeAplicar = hayCambios && confirmacion.trim() === palabra && !trabajando;
+  const puedeAplicar = hayCambios && !trabajando;
+  const doble = useDobleConfirmacion(() => void aplicar());
 
   return (
     <Modal
@@ -445,8 +440,8 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
           <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>
             Cancelar
           </button>
-          <button type="button" className="btn btn-primary" disabled={!puedeAplicar} onClick={() => void aplicar()} title={hayCambios ? "Aplica los cambios que ves en la vista previa. Antes se guardan copias del estado actual." : "Elige un archivo con cambios para poder aplicarlos."}>
-            {trabajando ? "Trabajando…" : "Sí, aplicar importación"}
+          <button type="button" className="btn btn-primary" disabled={!puedeAplicar} onClick={doble.pulsar} style={doble.armado ? { background: "var(--danger)", borderColor: "var(--danger)" } : undefined} title={hayCambios ? "Aplica los cambios que ves en la vista previa. Antes se guardan copias del estado actual. Hay que pulsar dos veces." : "Elige un archivo con cambios para poder aplicarlos."}>
+            {trabajando ? "Trabajando…" : doble.armado ? TEXTO_SEGUNDO_CLIC : "Sí, aplicar importación"}
           </button>
         </>
       }
@@ -469,7 +464,7 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
             🛑 {error}
           </div>
         )}
-        {informe && <VistaPrevia informe={informe} modo={modo} palabra={palabra} hayCambios={hayCambios} confirmacion={confirmacion} setConfirmacion={setConfirmacion} textoAntes="Antes se guardarán una copia interna de esta sección y una copia de seguridad del estado actual." />}
+        {informe && <VistaPrevia informe={informe} modo={modo} hayCambios={hayCambios} textoAntes="Antes se guardarán una copia interna de esta sección y una copia de seguridad del estado actual." />}
       </div>
     </Modal>
   );
@@ -737,7 +732,6 @@ function ModalRestaurar({ copia, seccion, alCerrar, alTerminar }: { copia: Copia
   const [informe, setInforme] = useState<Informe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(true);
-  const [confirmacion, setConfirmacion] = useState("");
   const palabra = modo === "sustituir" ? "SUSTITUIR" : "RESTAURAR";
 
   const previsualizar = useCallback(
@@ -778,7 +772,7 @@ function ModalRestaurar({ copia, seccion, alCerrar, alTerminar }: { copia: Copia
     setTrabajando(true);
     setError(null);
     try {
-      const r = await llamar("/api/admin/datos/copias/restaurar", { method: "POST", cuerpo: { id: copia.id, modo, aplicar: true, confirmacion } });
+      const r = await llamar("/api/admin/datos/copias/restaurar", { method: "POST", cuerpo: { id: copia.id, modo, aplicar: true, confirmacion: palabra } });
       const inf = r.extra.informe as Informe;
       mostrar(`✅ Copia restaurada: ${numero(inf.nuevos)} nuevos, ${numero(inf.actualizados)} actualizados${inf.eliminados ? `, ${numero(inf.eliminados)} eliminados` : ""}. Antes se guardó una copia interna del estado anterior.`);
       router.refresh();
@@ -791,6 +785,7 @@ function ModalRestaurar({ copia, seccion, alCerrar, alTerminar }: { copia: Copia
   };
 
   const hayCambios = !!informe && informe.nuevos + informe.actualizados + informe.eliminados > 0;
+  const doble = useDobleConfirmacion(() => void aplicar());
   return (
     <Modal
       titulo={`↩️ Restaurar «${copia.nombre}»`}
@@ -801,8 +796,8 @@ function ModalRestaurar({ copia, seccion, alCerrar, alTerminar }: { copia: Copia
           <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>
             Cancelar
           </button>
-          <button type="button" className="btn btn-primary" disabled={!hayCambios || confirmacion.trim() !== palabra || trabajando} onClick={() => void aplicar()}>
-            {trabajando ? "Trabajando…" : "Sí, restaurar esta copia"}
+          <button type="button" className="btn btn-primary" disabled={!hayCambios || trabajando} onClick={doble.pulsar} style={doble.armado ? { background: "var(--danger)", borderColor: "var(--danger)" } : undefined}>
+            {trabajando ? "Trabajando…" : doble.armado ? TEXTO_SEGUNDO_CLIC : "Sí, restaurar esta copia"}
           </button>
         </>
       }
@@ -816,8 +811,7 @@ function ModalRestaurar({ copia, seccion, alCerrar, alTerminar }: { copia: Copia
           modo={modo}
           alCambiar={(m) => {
             setModo(m);
-            setConfirmacion("");
-            void previsualizar(m);
+                    void previsualizar(m);
           }}
           bloqueado={trabajando}
         />
@@ -827,7 +821,7 @@ function ModalRestaurar({ copia, seccion, alCerrar, alTerminar }: { copia: Copia
             🛑 {error}
           </div>
         )}
-        {informe && <VistaPrevia informe={informe} modo={modo} palabra={palabra} hayCambios={hayCambios} confirmacion={confirmacion} setConfirmacion={setConfirmacion} textoAntes="Antes se guardarán una copia interna del estado actual y, si hace falta, una copia de seguridad completa." />}
+        {informe && <VistaPrevia informe={informe} modo={modo} hayCambios={hayCambios} textoAntes="Antes se guardarán una copia interna del estado actual y, si hace falta, una copia de seguridad completa." />}
       </div>
     </Modal>
   );

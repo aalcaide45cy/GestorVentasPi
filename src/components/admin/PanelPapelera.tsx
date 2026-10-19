@@ -9,6 +9,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { tamanoLegible } from "@/components/datos/DatosSeccion";
 import type { Categoria, DocumentoDeFila, FilaPapelera, InfoCategoria, ResultadoCompactado, ResultadoPurga } from "@/lib/servicios/papelera";
+import { TEXTO_SEGUNDO_CLIC, useDobleConfirmacion } from "@/components/useDobleConfirmacion";
 
 interface Resumen {
   categorias: InfoCategoria[];
@@ -32,10 +33,10 @@ const TEXTOS_PURGA: Record<Categoria, string> = {
 const botonChico = { padding: "6px 12px", fontSize: "0.82rem" } as const;
 const tamano = (b: number): string => (b <= 0 ? "—" : tamanoLegible(b));
 
-/** Cuadro que pide escribir una palabra para confirmar un borrado de verdad. */
-function ModalConfirmarPurga({ titulo, texto, palabra, boton, trabajando, alConfirmar, alCancelar, extra }: { titulo: string; texto: string; palabra: string; boton: string; trabajando: boolean; alConfirmar: () => void; alCancelar: () => void; extra?: React.ReactNode }) {
-  const [escrito, setEscrito] = useState("");
-  const listo = escrito.trim().toUpperCase() === palabra;
+/** Cuadro de doble verificación (dos pulsaciones del botón) para confirmar un borrado de verdad. */
+function ModalConfirmarPurga({ titulo, texto, boton, trabajando, alConfirmar, alCancelar, extra }: { titulo: string; texto: string; boton: string; trabajando: boolean; alConfirmar: () => void; alCancelar: () => void; extra?: React.ReactNode }) {
+  // Doble verificación sin escribir nada: el primer clic arma el botón y el segundo confirma
+  const doble = useDobleConfirmacion(alConfirmar);
   return (
     <Modal
       titulo={titulo}
@@ -46,8 +47,8 @@ function ModalConfirmarPurga({ titulo, texto, palabra, boton, trabajando, alConf
           <button type="button" className="btn btn-secondary" onClick={alCancelar} disabled={trabajando}>
             Cancelar
           </button>
-          <button type="button" className="btn btn-danger" onClick={alConfirmar} disabled={!listo || trabajando}>
-            {trabajando ? "Purgando… (se hace antes una copia de seguridad, puede tardar)" : boton}
+          <button type="button" className="btn btn-danger" onClick={doble.pulsar} disabled={trabajando} style={doble.armado ? { outline: "3px solid var(--danger)" } : undefined}>
+            {trabajando ? "Purgando… (se hace antes una copia de seguridad, puede tardar)" : doble.armado ? TEXTO_SEGUNDO_CLIC : boton}
           </button>
         </>
       }
@@ -55,9 +56,8 @@ function ModalConfirmarPurga({ titulo, texto, palabra, boton, trabajando, alConf
       <p style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.5 }}>{texto}</p>
       {extra}
       <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-        Antes de borrar nada se guarda una <b>copia de seguridad completa</b> (la verás en «Copias de seguridad»), así que se puede restaurar. Para confirmar, escribe <b>{palabra}</b>:
+        Antes de borrar nada se guarda una <b>copia de seguridad completa</b> (la verás en «Copias de seguridad»), así que se puede restaurar. Para confirmar, pulsa el botón dos veces.
       </p>
-      <input className="form-input" autoFocus value={escrito} onChange={(e) => setEscrito(e.target.value)} placeholder={palabra} disabled={trabajando} />
     </Modal>
   );
 }
@@ -245,7 +245,6 @@ export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, a
         <ModalConfirmarPurga
           titulo={`🗑️ Purgar ${ids.length.toLocaleString("es-ES")} elegidos de «${titulo}»`}
           texto={`Se borran de verdad y no se pueden recuperar salvo restaurando la copia previa. ${alPurga ?? TEXTOS_PURGA[categoria]}`}
-          palabra="PURGAR"
           boton="Purgar de verdad"
           trabajando={trabajando}
           alConfirmar={() => void purgar()}
@@ -412,7 +411,6 @@ export default function PanelPapelera() {
         <ModalConfirmarPurga
           titulo={`🗑️ Purgar «${purga.info.titulo}»`}
           texto={`${purga.ids ? `Vas a purgar las ${purga.ids.length.toLocaleString("es-ES")} filas que has elegido` : purga.dias !== null ? `Vas a purgar lo anterior a ${purga.dias} días` : `Vas a purgar todo lo que se pueda de esta categoría (${purga.info.cantidad.toLocaleString("es-ES")})`}. Se borran de verdad y no se pueden recuperar salvo restaurando la copia previa. ${purga.info.alPurgar}`}
-          palabra="PURGAR"
           boton="Purgar de verdad"
           trabajando={trabajando}
           alConfirmar={() => void ejecutarPurga()}
@@ -423,7 +421,6 @@ export default function PanelPapelera() {
         <ModalConfirmarPurga
           titulo="🔥 Purgar a fondo"
           texto={`Se van a borrar de verdad ${datos.categorias.filter((c) => ["expedientes", "clientes", "catalogo", "lecturas"].includes(c.categoria)).reduce((a, c) => a + c.cantidad, 0).toLocaleString("es-ES")} elementos entre expedientes, clientes, catálogos y lecturas eliminados${sinVincular ? ", más los documentos sin vincular" : ""}${conservarHistorial ? "" : " y todo el historial de deshacer"}${vaciarAuditoria ? ", y se vaciará el registro de auditoría" : ""}, y la base se compactará.`}
-          palabra="PURGAR A FONDO"
           boton="Purgar a fondo"
           trabajando={trabajando}
           alConfirmar={() => void ejecutarAFondo()}

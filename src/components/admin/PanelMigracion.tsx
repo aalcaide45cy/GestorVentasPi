@@ -6,6 +6,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { SECCIONES_AL_ANADIR, SECCIONES_INFO, SECCIONES_V1, type SeccionV1 } from "@/lib/migracion-secciones";
 import type { CopiaV1, InformeMigracion, ResultadoMigracion } from "@/lib/servicios/migracion-v1";
+import { TEXTO_SEGUNDO_CLIC, useDobleConfirmacion } from "@/components/useDobleConfirmacion";
 
 /** Marca una parte junto con las que necesita, o la desmarca junto con las que dependen de ella. */
 function alternarSeccion(actual: SeccionV1[], clave: SeccionV1, activar: boolean): SeccionV1[] {
@@ -37,7 +38,6 @@ export default function PanelMigracion({ alTerminar }: { alTerminar?: () => void
   const [secciones, setSecciones] = useState<SeccionV1[]>([...SECCIONES_AL_ANADIR]);
   const [modo, setModo] = useState<"anadir" | "sustituir">("anadir");
   const [copiaPrevia, setCopiaPrevia] = useState<string | null>(null);
-  const [confirmacion, setConfirmacion] = useState("");
   const [trabajando, setTrabajando] = useState(false);
 
   const leer = async (f: File | null) => {
@@ -64,11 +64,10 @@ export default function PanelMigracion({ alTerminar }: { alTerminar?: () => void
     if (!copia) return;
     setTrabajando(true);
     try {
-      const { data } = await llamar<ResultadoMigracion>("/api/admin/migracion", { method: "POST", cuerpo: { accion: "convertir", copia, confirmacion, secciones, modo } });
+      const { data } = await llamar<ResultadoMigracion>("/api/admin/migracion", { method: "POST", cuerpo: { accion: "convertir", copia, confirmacion: "CONVERTIR", secciones, modo } });
       setResultado(data);
       setCopiaPrevia((data as ResultadoMigracion & { copiaPrevia?: string }).copiaPrevia ?? null);
       alTerminar?.();
-      setConfirmacion("");
       mostrar("Conversión terminada.");
       router.refresh();
     } catch (e) {
@@ -77,6 +76,8 @@ export default function PanelMigracion({ alTerminar }: { alTerminar?: () => void
       setTrabajando(false);
     }
   };
+
+  const doble = useDobleConfirmacion(() => void convertir());
 
   const filasDe = (tablas: string[]): number => (informe ? informe.tablas.filter((t) => tablas.includes(t.nombre)).reduce((suma, t) => suma + t.filas, 0) : 0);
 
@@ -185,12 +186,8 @@ export default function PanelMigracion({ alTerminar }: { alTerminar?: () => void
           )}
 
           <div style={{ display: "flex", gap: "10px", alignItems: "end", flexWrap: "wrap" }}>
-            <div>
-              <label className="form-label">Escribe CONVERTIR para confirmar{modo === "sustituir" ? " (borra los datos actuales)" : ""}</label>
-              <input className="form-input" value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} title="Medida de seguridad: la conversión sustituye los datos actuales" />
-            </div>
-            <button type="button" className="btn btn-primary" disabled={trabajando || confirmacion !== "CONVERTIR" || secciones.length === 0} onClick={() => void convertir()} title={modo === "anadir" ? "Añade lo nuevo sin borrar nada" : "Sustituye los datos actuales por las partes marcadas"}>
-              {trabajando ? "Convirtiendo…" : `Convertir ${secciones.length} de ${SECCIONES_V1.length} partes`}
+            <button type="button" className="btn btn-primary" disabled={trabajando || secciones.length === 0} onClick={doble.pulsar} style={doble.armado ? { background: "var(--danger)", borderColor: "var(--danger)" } : undefined} title={(modo === "anadir" ? "Añade lo nuevo sin borrar nada" : "Sustituye los datos actuales por las partes marcadas (borra los actuales)") + ". Hay que pulsar dos veces."}>
+              {trabajando ? "Convirtiendo…" : doble.armado ? TEXTO_SEGUNDO_CLIC : `Convertir ${secciones.length} de ${SECCIONES_V1.length} partes`}
             </button>
           </div>
         </div>

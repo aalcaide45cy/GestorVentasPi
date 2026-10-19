@@ -43,4 +43,19 @@ describe("registro del servidor", () => {
     expect((await leerRegistro({ texto: "AVISO DE PRUEBA" })).entradas).toHaveLength(1);
     expect((await leerRegistro({ lineas: 2 })).entradas).toHaveLength(2);
   });
+
+  it("recoge también lo que sale directamente por la salida estándar y de errores (por ejemplo, lo que escribe Next), sin ruido de peticiones ni repeticiones", async () => {
+    // Lo que escribe console ya se recogió con su nivel: la salida estándar no lo repite
+    const antes = (await leerRegistro({ nivel: "todo", lineas: 5000 })).entradas.length;
+    process.stdout.write("Mensaje directo del servidor\n");
+    process.stdout.write(" GET /api/documentos/lecturas 200 in 17ms (next.js: 2ms)\n");
+    process.stdout.write("\u001b[31mLinea con color\u001b[0m\n");
+    process.stderr.write("fallo directo por stderr\n");
+    await esperar(300);
+    const nuevas = (await leerRegistro({ nivel: "todo", lineas: 5000 })).entradas.slice(antes);
+    expect(nuevas).toHaveLength(3);
+    expect(nuevas[0]).toMatch(/\[INFO\] Mensaje directo del servidor$/);
+    expect(nuevas[1]).toMatch(/\[INFO\] Linea con color$/);
+    expect(nuevas[2]).toMatch(/\[ERROR\] fallo directo por stderr$/);
+  });
 });

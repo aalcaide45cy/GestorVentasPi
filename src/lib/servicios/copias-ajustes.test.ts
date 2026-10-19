@@ -1,10 +1,20 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { copiasSeguridad } from "@/db/schema";
 import { AJUSTES_POR_DEFECTO, avisoEspacioCopias, guardarAjustesCopias, leerAjustesCopias } from "./copias";
 import { tocaSubirAutomatica } from "./drive";
 import { reiniciarBd } from "../../../tests/ayudas";
 
+// Una carpeta de copias vacía propia: contar las copias que haya en la del equipo (decenas, en uso real) falsearía el aviso
+let dir = "";
+beforeAll(() => {
+  dir = mkdtempSync(path.join(os.tmpdir(), "gv-aviso-"));
+  process.env.BACKUP_DIR = dir;
+});
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 beforeEach(reiniciarBd);
 
 const copia = (nombre: string, tamano: number, extra: Partial<typeof copiasSeguridad.$inferInsert> = {}) => db.insert(copiasSeguridad).values({ nombre, tipo: "auto", tamano, sha256: nombre.padEnd(64, "0"), ...extra });
