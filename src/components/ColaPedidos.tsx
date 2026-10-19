@@ -141,7 +141,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     { clave: "destino", etiqueta: "Destino", valor: (i) => (i.idExpediente ? `Completar expediente #${i.idExpediente}` : i.eleccion ? `Nuevo: ${i.eleccion.nombreModelo} · ${i.eleccion.tipo.nombre_tipo_venta}` : "Nuevo expediente") + (i.dni ? " · con DNI" : "") },
     {
       clave: "acciones",
-      etiqueta: "",
+      etiqueta: "Acciones",
       valor: () => "",
       celda: (i) => (
         <span style={{ display: "inline-flex", gap: "6px" }}>

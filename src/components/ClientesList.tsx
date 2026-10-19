@@ -54,7 +54,7 @@ const columnasVentas: ColumnaTabla<ExpedienteDto>[] = [
   { clave: "fecha", etiqueta: "Fecha", valor: (e) => e.fecha_expediente ?? "", celda: (e) => (e.fecha_expediente ? formatDate(e.fecha_expediente) : "N/D") },
   {
     clave: "editar",
-    etiqueta: "",
+    etiqueta: "Editar",
     valor: () => "",
     celda: (e) => (
       <a href={`/dashboard/expedientes/editar/${e.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>

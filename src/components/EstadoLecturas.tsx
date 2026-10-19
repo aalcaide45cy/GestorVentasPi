@@ -33,7 +33,7 @@ export default function EstadoLecturas() {
     { clave: "fecha", etiqueta: "Subido", valor: (l) => l.creadaEn, celda: (l) => new Date(l.creadaEn).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }), ayuda: "Cuándo se subió" },
     {
       clave: "acciones",
-      etiqueta: "",
+      etiqueta: "Acciones",
       valor: () => "",
       celda: (l) => (
         <span style={{ display: "inline-flex", gap: "6px" }}>

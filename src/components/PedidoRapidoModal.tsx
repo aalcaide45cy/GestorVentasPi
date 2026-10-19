@@ -62,6 +62,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const sinModelo = !eleccion && d.idModelo === null && !!d.modeloTexto;
   // El servidor ya trae la marca y el modelo limpios del pedido (sin acabado, motor ni códigos)
   const sugerido = { marca: d.marcaPropuesta ?? "", modelo: d.modeloPropuesto ?? "" };
+  // Nuevo (VN) o usado (VO): lo que reconoció la lectura, que se puede cambiar (o elegir si no se pudo reconocer)
+  const [tipoVehiculo, setTipoVehiculo] = useState<"nuevo" | "usado" | null>(d.tipoPedido);
   const [crearNuevo, setCrearNuevo] = useState(sinModelo);
   const [confirmando, setConfirmando] = useState(false);
   const [descartando, setDescartando] = useState(false);
@@ -121,7 +123,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const falta = !eleccion && tipoFinal === null;
   const puedeCrear = cliente !== null && !falta && !trabajando && (!usaNuevo || datosNuevoOk);
   // Pedido de un vehículo de ocasión vendido: el expediente es de usados
-  const estadoNombre = eleccion?.estadoNombre ?? (d.tipoPedido === "usado" ? "usado" : undefined);
+  const estadoNombre = eleccion?.estadoNombre ?? (tipoVehiculo === "usado" ? "usado" : undefined);
 
   // Crea de una vez todos los pedidos de la cola que no ofrecen duda ni están duplicados (aunque «permitir duplicados» esté apagado)
   const crearTodos = async () => {
@@ -347,16 +349,23 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       }
       ancho={verPdf ? "1500px" : "700px"}
       pie={
-        <>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "28px", flexWrap: "wrap", width: "100%" }}>
+          {/* Izquierda y aparte: lo que borra el pedido de la cola */}
+          <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
+            🗑 Descartar este pedido
+          </button>
+          <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {/* Mirar y salir */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
             {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
           </button>
-          <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
-            Cancelar
-          </button>
           <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
-            Cerrar (queda en la cola)
+            ↩ Cerrar (queda en la cola)
           </button>
+          </div>
+          {/* Crear */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", paddingLeft: "20px", borderLeft: "1px solid var(--border-light)" }}>
           {total > 1 && (
             <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
               {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
@@ -365,7 +374,9 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
             {trabajando ? "Creando…" : "Crear expediente"}
           </button>
-        </>
+          </div>
+          </div>
+        </div>
       }
     >
       <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
@@ -418,6 +429,16 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             Se creará el expediente de <strong>{eleccion.nombreModelo}</strong> con pago <strong>{eleccion.tipo.nombre_tipo_venta}</strong>.
           </div>
         ) : (
+          <>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <span className="form-label" style={{ margin: 0 }}>Vehículo</span>
+            {([["nuevo", "VN · Nuevo"], ["usado", "VO · Usado"]] as const).map(([clave, texto]) => (
+              <button key={clave} type="button" className={`btn ${tipoVehiculo === clave ? "btn-primary" : "btn-secondary"}`} style={{ padding: "4px 14px", fontSize: "0.82rem" }} onClick={() => setTipoVehiculo(clave)} title={clave === "nuevo" ? "El expediente se crea como vehículo nuevo (VN)" : "El expediente se crea como vehículo usado (VO)"}>
+                {texto}
+              </button>
+            ))}
+            {tipoVehiculo === null && <span style={{ fontSize: "0.8rem", color: "var(--warning)" }}>⚠️ No se ha reconocido si es nuevo o usado: elígelo (si no eliges, se crea como nuevo).</span>}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
@@ -456,6 +477,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
               </select>
             </div>
           </div>
+          </>
         )}
 
         {usaNuevo && (
