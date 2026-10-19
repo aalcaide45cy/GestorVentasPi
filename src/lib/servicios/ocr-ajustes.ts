@@ -6,9 +6,9 @@ import { ajustes } from "@/db/schema";
 import type { ProveedorOnnx } from "./ocr-rapido";
 
 /** Motor de lectura de texto (OCR) y número de lecturas a la vez, a elegir en Configuración. */
-export type MotorOcr = "tesseract" | "rapido-cpu" | "rapido-gpu";
+export type MotorOcr = "tesseract" | "rapido-cpu" | "rapido-gpu" | "vision";
 
-export const MOTORES: MotorOcr[] = ["tesseract", "rapido-cpu", "rapido-gpu"];
+export const MOTORES: MotorOcr[] = ["tesseract", "rapido-cpu", "rapido-gpu", "vision"];
 
 export interface AjustesOcr {
   motor: MotorOcr;
@@ -22,7 +22,8 @@ const CLAVE_SIMULTANEAS = "ocr_simultaneas";
 const VIGENCIA_MS = 5000;
 
 /** Por defecto RapidOCR en CPU: lee mejor que Tesseract y va bien tanto en la Raspberry como en un PC (si falla, se usa Tesseract). */
-const DEFECTO: AjustesOcr = { motor: "rapido-cpu", simultaneas: 0 };
+// En macOS el de Apple Vision (si no se puede usar, se cae solo a RapidOCR).
+const DEFECTO: AjustesOcr = { motor: process.platform === "darwin" ? "vision" : "rapido-cpu", simultaneas: 0 };
 
 const G = globalThis as unknown as { __ajustesOcr?: { valor: AjustesOcr; leidoEn: number } };
 
@@ -66,6 +67,8 @@ export interface EquipoOcr {
   /** Nombre de la tarjeta NVIDIA si hay una utilizable (nvidia-smi la ve), o null. */
   nvidia: string | null;
   esRaspberry: boolean;
+  /** La aplicación corre directamente en macOS (Apple Vision solo existe ahí). */
+  macos: boolean;
 }
 
 let equipoCache: Promise<EquipoOcr> | null = null;
@@ -92,12 +95,13 @@ export function equipoOcr(): Promise<EquipoOcr> {
     memoriaGb: Math.round((os.totalmem() / 1024 ** 3) * 10) / 10,
     nvidia,
     esRaspberry: process.arch === "arm64" && process.platform === "linux" && os.totalmem() < 17 * 1024 ** 3,
+    macos: process.platform === "darwin",
   }));
   return equipoCache;
 }
 
 /** Motor que se recomienda para este equipo. */
-export const motorRecomendado = (e: EquipoOcr): MotorOcr => (e.nvidia ? "rapido-gpu" : "rapido-cpu");
+export const motorRecomendado = (e: EquipoOcr): MotorOcr => (e.macos ? "vision" : e.nvidia ? "rapido-gpu" : "rapido-cpu");
 
 /** Para pruebas: quita lo guardado en memoria. */
 export function olvidarAjustesOcr(): void {

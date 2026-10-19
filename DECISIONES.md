@@ -350,3 +350,9 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] Se mantiene el comando `crear-admin` (lo usa el instalador de la Raspberry, que crea el administrador al instalar), y se añade la pantalla para instalaciones sin usuarios (Mac, PC): el instalador de Raspberry no cambia.
 - [D] El «código de primer arranque» es necesario porque una instalación nueva accesible por URL (Tailscale Funnel, Cloudflare) estaría abierta a que cualquiera cree el administrador antes que el propietario. El código solo se ve con acceso al equipo (registro del servidor o archivo de la carpeta de copias, permisos 0600). Se genera una vez, sobrevive a reinicios y se borra al crear el primer usuario.
 - [D] La cuenta nace sin doble factor y con `debeCambiarPassword = false` (la contraseña la eligió la persona); el layout del panel y `/cuenta/activar-2fa` obligan a activar el 2FA antes de usar nada, como con cualquier alta.
+
+## Apple Vision en macOS (sin publicar)
+- [D] Node no puede llamar a Vision directamente (no hay un módulo nativo incluido ni conviene añadir uno por una sola plataforma), así que se usa un programa de Swift de una sola pasada compilado con `swiftc`, sin dependencias, que se ejecuta una vez por página. El coste de arrancar un proceso por página es pequeño frente al reconocimiento.
+- [D] `usesLanguageCorrection = false`: la corrección por diccionario estropea DNI, matrículas y bastidores, que son lo que más importa en un pedido; se usan los idiomas es-ES y en-US.
+- [I] No verificado en un Mac real: puede haber que ajustar el Swift a la versión del SDK. Mientras tanto el respaldo a RapidOCR hace que nunca se deje de leer.
+- [D] Solo se ofrece cuando `process.platform === "darwin"`: en Docker (Linux) o Windows no tiene sentido y el servidor lo rechaza.

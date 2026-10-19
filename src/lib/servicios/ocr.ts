@@ -4,7 +4,8 @@ import sharp from "sharp";
 import { HttpError } from "@/lib/auth/sesion";
 import { cabeceraDeOtroDocumento } from "@/lib/documentos/pedido";
 import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
-import { ajustesOcr, cargarAjustesOcr, proveedorDe } from "./ocr-ajustes";
+import { ajustesOcr, cargarAjustesOcr } from "./ocr-ajustes";
+import { ocrImagenesVision } from "./ocr-vision";
 import { ocrImagenesRapido } from "./ocr-rapido";
 
 /**
@@ -77,20 +78,37 @@ function unirPalabrasConColumnas(palabras: { text: string; confidence: number; b
   return validas.map((w, i) => (i === 0 ? w.text : `${w.bbox.x0 - validas[i - 1].bbox.x1 > alto * 1.5 ? "  " : " "}${w.text}`)).join("");
 }
 
-let avisadoFalloRapido = false;
+const avisadoFallo = new Set<string>();
 
-export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico"; confianzaMinima?: number; columnas?: boolean; motorElegido?: boolean } = {}): Promise<LineaOcr[]> {
+function avisarFalloUnaVez(motor: string, e: unknown): void {
+  if (avisadoFallo.has(motor)) return;
+  avisadoFallo.add(motor);
+  console.error(`${motor} no está disponible, se usa el siguiente motor:`, e instanceof Error ? e.message : e);
+}
+
+type OpcionesOcr = { lista?: string; psm?: "bloque" | "disperso" | "automatico"; confianzaMinima?: number; columnas?: boolean; motorElegido?: boolean };
+
+/**
+ * Motores a probar, en orden, para el motor elegido en Configuración: Apple Vision (solo macOS) → RapidOCR → Tesseract. Cada uno
+ * es el respaldo del anterior: si falla (no está instalado, no hay GPU, error al compilar…) se pasa al siguiente.
+ */
+export function cadenaDeMotores(motor: ReturnType<typeof ajustesOcr>["motor"]): ("vision" | "rapido-cpu" | "rapido-gpu")[] {
+  if (motor === "vision") return ["vision", "rapido-cpu"];
+  if (motor === "rapido-gpu") return ["rapido-gpu"];
+  if (motor === "rapido-cpu") return ["rapido-cpu"];
+  return [];
+}
+
+export async function ocrImagenes(imagenes: Buffer[], opciones: OpcionesOcr = {}): Promise<LineaOcr[]> {
   // Motor elegido en Configuración, solo para leer pedidos (la rejilla de comisiones está afinada para Tesseract). Con lista de
   // caracteres permitidos (lecturas muy concretas) también se usa Tesseract.
-  const proveedor = opciones.motorElegido ? proveedorDe(ajustesOcr().motor) : null;
-  if (proveedor && !opciones.lista) {
-    try {
-      return await ocrImagenesRapido(imagenes, { proveedor, columnas: opciones.columnas, confianzaMinima: opciones.confianzaMinima });
-    } catch (e) {
-      // Si RapidOCR no puede arrancar (modelos ausentes, sin GPU…) se lee con Tesseract para no dejar de leer
-      if (!avisadoFalloRapido) {
-        avisadoFalloRapido = true;
-        console.error("RapidOCR no está disponible, se usa Tesseract:", e instanceof Error ? e.message : e);
+  if (opciones.motorElegido && !opciones.lista) {
+    for (const motor of cadenaDeMotores(ajustesOcr().motor)) {
+      try {
+        if (motor === "vision") return await ocrImagenesVision(imagenes, { columnas: opciones.columnas, confianzaMinima: opciones.confianzaMinima });
+        return await ocrImagenesRapido(imagenes, { proveedor: motor === "rapido-gpu" ? "gpu" : "cpu", columnas: opciones.columnas, confianzaMinima: opciones.confianzaMinima });
+      } catch (e) {
+        avisarFalloUnaVez(motor === "vision" ? "Apple Vision" : "RapidOCR", e);
       }
     }
   }

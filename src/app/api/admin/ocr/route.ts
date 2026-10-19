@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { requireSession } from "@/lib/auth/sesion";
-import { leerJson, manejar } from "@/lib/http";
+import { errorJson, leerJson, manejar } from "@/lib/http";
 import { despertarLectores } from "@/lib/servicios/lecturas-pedidos";
 import { MAXIMO_SIMULTANEAS, MOTORES, cargarAjustesOcr, equipoOcr, guardarAjustesOcr, motorRecomendado, proveedorDe, type EquipoOcr, type MotorOcr } from "@/lib/servicios/ocr-ajustes";
 import { probarRapido } from "@/lib/servicios/ocr-rapido";
+import { esMacOs, visionDisponible } from "@/lib/servicios/ocr-vision";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -51,6 +52,18 @@ function opciones(equipo: EquipoOcr): OpcionMotorDto[] {
       detalle: equipo.nvidia ? "Usa la tarjeta gráfica para leer mucho más rápido (en Windows con DirectML, en Linux con CUDA). Si la GPU no se puede usar, se lee con la CPU." : "Para PC con tarjeta NVIDIA. En este equipo no se ha detectado ninguna: si la eliges, se leerá con la CPU.",
       recomendado: rec === "rapido-gpu",
     },
+    // Apple Vision solo se ofrece cuando la aplicación corre directamente en macOS
+    ...(equipo.macos
+      ? [
+          {
+            id: "vision" as const,
+            nombre: "Apple Vision",
+            equipo: "Mac con chip Apple (M1 o posterior), recomendado en Mac",
+            detalle: "El reconocimiento de texto del propio macOS (el de «Texto en vivo»): usa el Neural Engine del Mac y suele leer muy bien documentos impresos. La primera vez compila un programa pequeño (necesita las herramientas de Xcode: «xcode-select --install»). Si falla, se lee con RapidOCR.",
+            recomendado: rec === "vision",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -67,9 +80,12 @@ export const GET = manejar(async () => {
 
 const esquema = z.object({ motor: z.enum(MOTORES as [MotorOcr, ...MotorOcr[]]).optional(), simultaneas: z.number().int().min(0).max(MAXIMO_SIMULTANEAS).optional() });
 
+const errorVisionFueraDeMac = "Apple Vision solo está disponible cuando la aplicación corre directamente en macOS.";
+
 export const PUT = manejar(async (req: Request) => {
   await requireSession("administrador");
   const e = await leerJson(req, esquema);
+  if (e.motor === "vision" && !esMacOs()) return errorJson(400, errorVisionFueraDeMac);
   await guardarAjustesOcr(db, e);
   despertarLectores();
   return NextResponse.json({ success: true, data: await dto() });
@@ -79,6 +95,10 @@ export const PUT = manejar(async (req: Request) => {
 export const POST = manejar(async (req: Request) => {
   await requireSession("administrador");
   const e = await leerJson(req, z.object({ motor: z.enum(MOTORES as [MotorOcr, ...MotorOcr[]]) }));
+  if (e.motor === "vision") {
+    const v = await visionDisponible();
+    return NextResponse.json({ success: true, data: v.ok ? { ok: true, usado: "vision" } : v });
+  }
   const proveedor = proveedorDe(e.motor);
   if (!proveedor) return NextResponse.json({ success: true, data: { ok: true, usado: "tesseract" } });
   return NextResponse.json({ success: true, data: await probarRapido(proveedor) });

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import type { InferenceSession } from "onnxruntime-node";
+import { agruparCajas } from "./ocr-lineas";
 
 /**
  * Motor «RapidOCR»: los modelos PP-OCRv5 de PaddleOCR (detección de texto + reconocimiento con alfabeto latino, que incluye
@@ -266,27 +267,7 @@ export async function ocrImagenesRapido(imagenes: Buffer[], opciones: OpcionesRa
       const fina = await leerImagen(s, img, meta.width, meta.height, LADO_DETECCION_FINO, opciones.confianzaMinima);
       if (parteDudosa(fina) < parteDudosa(leidas)) leidas = fina;
     }
-    // Agrupar en filas: mismo centro vertical (dentro de media altura)
-    leidas.sort((a, b) => (a.caja.y0 + a.caja.y1) / 2 - (b.caja.y0 + b.caja.y1) / 2);
-    const filas: (typeof leidas)[] = [];
-    for (const l of leidas) {
-      const cy = (l.caja.y0 + l.caja.y1) / 2;
-      const fila = filas.find((f) => {
-        const ref = f[0].caja;
-        const alto = Math.min(ref.y1 - ref.y0, l.caja.y1 - l.caja.y0);
-        return Math.abs((ref.y0 + ref.y1) / 2 - cy) <= alto * 0.5;
-      });
-      if (fila) fila.push(l);
-      else filas.push([l]);
-    }
-    filas.sort((a, b) => a[0].caja.y0 - b[0].caja.y0);
-    for (const f of filas) {
-      f.sort((a, b) => a.caja.x0 - b.caja.x0);
-      const alto = Math.max(...f.map((x) => x.caja.y1 - x.caja.y0));
-      const texto = f.map((x, i) => (i === 0 ? x.texto : `${opciones.columnas && x.caja.x0 - f[i - 1].caja.x1 > alto * 1.2 ? "  " : " "}${x.texto}`)).join("");
-      const conf = Math.round(f.reduce((a, x) => a + x.confianza, 0) / f.length);
-      lineas.push({ texto: texto.replace(/ {3,}/g, "  ").trim(), confianza: conf });
-    }
+    lineas.push(...agruparCajas(leidas.map((l) => ({ ...l.caja, texto: l.texto, confianza: l.confianza })), opciones.columnas));
   }
   return lineas;
 }
