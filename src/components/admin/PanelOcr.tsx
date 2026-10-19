@@ -46,7 +46,7 @@ export default function PanelOcr() {
     setProbando(true);
     try {
       const { data } = await llamar<{ ok: boolean; usado?: string; motivo?: string }>("/api/admin/ocr", { method: "POST", cuerpo: { motor: a.motor } });
-      mostrar(data.ok ? `Funciona en este equipo (usa: ${data.usado === "cpu" ? "CPU" : data.usado === "dml" ? "GPU con DirectML" : data.usado === "cuda" ? "GPU con CUDA" : data.usado}).` : `No se puede usar en este equipo: ${data.motivo ?? "sin motivo"}`, data.ok ? undefined : "error");
+      mostrar(data.ok ? `Funciona en este equipo (usa: ${data.usado === "cpu" ? "CPU" : data.usado === "dml" ? "GPU con DirectML" : data.usado === "cuda" ? "GPU con CUDA" : data.usado === "vision" ? "Apple Vision" : data.usado}).` : `No se puede usar en este equipo: ${data.motivo ?? "sin motivo"}`, data.ok ? undefined : "error");
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {
@@ -68,7 +68,7 @@ export default function PanelOcr() {
       </p>
       <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "18px", backgroundColor: "rgba(255, 255, 255, 0.01)" }}>
         <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }} title="Datos del equipo donde corre la aplicación, con los que se recomienda el motor">
-          Este equipo: {equipo.plataforma === "win32" ? "Windows" : equipo.plataforma === "linux" ? "Linux" : equipo.plataforma} · {equipo.arquitectura === "arm64" ? "ARM64" : equipo.arquitectura === "x64" ? "AMD64" : equipo.arquitectura}
+          Este equipo: {equipo.plataforma === "win32" ? "Windows" : equipo.plataforma === "linux" ? "Linux" : equipo.plataforma === "darwin" ? "macOS" : equipo.plataforma} · {equipo.arquitectura === "arm64" ? "ARM64" : equipo.arquitectura === "x64" ? "AMD64" : equipo.arquitectura}
           {equipo.esRaspberry ? " (Raspberry Pi)" : ""} · {equipo.nucleos} núcleos · {equipo.memoriaGb} GB de memoria · {equipo.nvidia ? `GPU NVIDIA ${equipo.nvidia}` : "sin GPU NVIDIA detectada"}
         </div>
 

@@ -5,7 +5,7 @@ import os from "node:os";
 import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, type Ejecutor } from "@/db";
-import { clientes, expedientes, lecturasPedidos, usuarios } from "@/db/schema";
+import { adjuntos, clientes, expedientes, lecturasPedidos, usuarios } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { parsearPedido } from "@/lib/documentos/pedido";
@@ -60,6 +60,8 @@ export interface ResumenLecturas {
   /** Cuántas lecturas se hacen a la vez ahora y el máximo que admite este equipo. */
   lectores: number;
   maximo: number;
+  /** Lectura manual: lo subido espera a que el usuario pulse «Iniciar lectura». */
+  manual: boolean;
 }
 
 /**
@@ -244,6 +246,8 @@ async function limpiarHistorial(ej: Ejecutor, forzar = false): Promise<void> {
 
 /** Los subidos de un lote que quedó a medias (se cerró la página) empiezan a leerse pasado un minuto y medio sin novedades. */
 async function promoverAbandonadas(ej: Ejecutor, idUsuario?: number): Promise<void> {
+  // En lectura manual lo subido espera hasta que el usuario pulse «Iniciar lectura»: nada empieza solo
+  if ((await cargarAjustesOcr(ej)).lecturaManual) return;
   const usuariosConLote = idUsuario !== undefined ? [idUsuario] : (await ej.selectDistinct({ id: lecturasPedidos.idUsuario }).from(lecturasPedidos).where(eq(lecturasPedidos.estado, "subiendo"))).flatMap((u) => (u.id === null ? [] : [u.id]));
   for (const id of usuariosConLote) {
     // La subconsulta no depende de la fila (se calcula una vez), para que con decenas de miles de ficheros siga siendo instantánea
@@ -259,7 +263,13 @@ async function promoverAbandonadas(ej: Ejecutor, idUsuario?: number): Promise<vo
  * Resumen (contado en la base, valga cuantos haya) y lista corta: por defecto los pedidos ya leídos que aún no se han recogido
  * (de 60 en 60); con `otros`, los ignorados, con error y cancelados (los 500 últimos).
  */
-export async function listarLecturas(ej: Ejecutor, idUsuario: number, opciones: { otros?: boolean } = {}): Promise<{ resumen: ResumenLecturas; lecturas: LecturaDto[] }> {
+export interface LecturaEnMarcha {
+  id: number;
+  nombre: string;
+  estado: "subiendo" | "pendiente" | "leyendo";
+}
+
+export async function listarLecturas(ej: Ejecutor, idUsuario: number, opciones: { otros?: boolean } = {}): Promise<{ resumen: ResumenLecturas; lecturas: LecturaDto[]; enMarcha: LecturaEnMarcha[] }> {
   await reanudarLecturas();
   await promoverAbandonadas(ej, idUsuario);
   despertarLectores();
@@ -274,8 +284,16 @@ export async function listarLecturas(ej: Ejecutor, idUsuario: number, opciones: 
     .where(and(suyas, opciones.otros ? inArray(lecturasPedidos.estado, ["descartado", "error", "cancelado"]) : eq(lecturasPedidos.estado, "pedido")))
     .orderBy(opciones.otros ? desc(lecturasPedidos.id) : lecturasPedidos.id)
     .limit(opciones.otros ? 500 : 60);
+  // Lo que se está subiendo, esperando o leyendo (los 100 primeros), para poder cancelar cada uno
+  const enMarcha = await ej
+    .select({ id: lecturasPedidos.id, nombre: lecturasPedidos.nombre, estado: lecturasPedidos.estado })
+    .from(lecturasPedidos)
+    .where(and(suyas, inArray(lecturasPedidos.estado, ["subiendo", "pendiente", "leyendo"])))
+    .orderBy(lecturasPedidos.id)
+    .limit(100);
   return {
-    resumen: { subiendo: n("subiendo"), pendientes: n("pendiente"), leyendo: n("leyendo"), pedidos: n("pedido"), descartados: n("descartado"), errores: n("error"), lectores: limiteActual(), maximo: lectoresPermitidos() },
+    enMarcha: enMarcha as LecturaEnMarcha[],
+    resumen: { subiendo: n("subiendo"), pendientes: n("pendiente"), leyendo: n("leyendo"), pedidos: n("pedido"), descartados: n("descartado"), errores: n("error"), lectores: limiteActual(), maximo: lectoresPermitidos(), manual: (await cargarAjustesOcr(ej)).lecturaManual },
     lecturas: filas.map((f) => ({
       id: f.id,
       nombre: f.nombre,
@@ -290,6 +308,8 @@ export async function listarLecturas(ej: Ejecutor, idUsuario: number, opciones: 
 
 export const esquemaAccionLecturas = z.object({
   accion: z.enum(["recoger", "limpiar", "reintentar", "cancelar", "rescatar", "resolver", "iniciar"]),
+  /** Solo en «iniciar»: lo manda el navegador al terminar de subir; en lectura manual no hace nada (la lectura la inicia el usuario). */
+  automatico: z.boolean().optional(),
   ids: z.array(z.number().int().positive()).max(5000).optional(),
   /** Solo en «resolver»: qué se hizo con el pedido y con qué expediente. */
   resolucion: z.enum(["creado", "completado", "quitado"]).optional(),
@@ -301,7 +321,8 @@ export const esquemaAccionLecturas = z.object({
  * - limpiar: oculta los descartados y cancelados de la lista.
  * - reintentar: vuelve a poner en pendiente los que dieron error.
  * - iniciar: termina la subida de un lote: lo subido empieza a leerse (hasta entonces no se lee nada).
- * - cancelar: los que aún no han empezado se cancelan (los que se están leyendo terminan).
+ * - cancelar: se cancelan los que se están subiendo, los que esperan y los que se están leyendo: el lector acaba la hoja en la que está,
+ *   pero tira el resultado y borra el documento que hubiera guardado (nada queda a medias). Con `ids`, solo esos.
  * - rescatar: un descartado o con error pasa a la cola de pedidos para rellenarlo a mano mirando el PDF.
  * - resolver: deja anotado en el registro qué se hizo con el pedido (expediente creado o completado, o quitado de la cola).
  */
@@ -338,17 +359,19 @@ export async function accionLecturas(ej: Ejecutor, idUsuario: number, e: z.infer
       return r.length;
     }
     case "iniciar": {
-      const r = await ej.update(lecturasPedidos).set({ estado: "pendiente" }).where(and(suyas, eq(lecturasPedidos.estado, "subiendo"))).returning({ id: lecturasPedidos.id });
+      if (e.automatico && (await cargarAjustesOcr(ej)).lecturaManual) return 0;
+      const r = await ej.update(lecturasPedidos).set({ estado: "pendiente" }).where(and(suyas, eq(lecturasPedidos.estado, "subiendo"), deLaLista)).returning({ id: lecturasPedidos.id });
       despertarLectores();
       return r.length;
     }
     case "cancelar": {
-      const aCancelar = await ej.select({ ruta: lecturasPedidos.ruta }).from(lecturasPedidos).where(and(suyas, inArray(lecturasPedidos.estado, ["subiendo", "pendiente"]), deLaLista));
+      const enMarcha = inArray(lecturasPedidos.estado, ["subiendo", "pendiente", "leyendo"]);
+      const aCancelar = await ej.select({ ruta: lecturasPedidos.ruta }).from(lecturasPedidos).where(and(suyas, enMarcha, deLaLista));
       await borrarFicheros(aCancelar.map((x) => x.ruta));
       const r = await ej
         .update(lecturasPedidos)
         .set({ estado: "cancelado", datos: null, ruta: null, terminadaEn: ahora })
-        .where(and(suyas, inArray(lecturasPedidos.estado, ["subiendo", "pendiente"]), deLaLista))
+        .where(and(suyas, enMarcha, deLaLista))
         .returning({ id: lecturasPedidos.id });
       return r.length;
     }
@@ -359,7 +382,7 @@ export async function accionLecturas(ej: Ejecutor, idUsuario: number, e: z.infer
 /* Lectores                                                            */
 /* ------------------------------------------------------------------ */
 
-interface FilaReservada {
+export interface FilaReservada {
   id: number;
   id_usuario: number | null;
   nombre: string;
@@ -377,25 +400,42 @@ async function reservar(ej: Ejecutor): Promise<FilaReservada | null> {
   return (r.rows[0] as unknown as FilaReservada | undefined) ?? null;
 }
 
-async function procesar(ej: Ejecutor, fila: FilaReservada): Promise<void> {
+/** ¿Sigue la lectura en marcha? (Si el usuario la canceló, su fila ya no está «leyendo».) */
+async function sigueLeyendo(ej: Ejecutor, id: number): Promise<boolean> {
+  const [f] = await ej.select({ e: lecturasPedidos.estado }).from(lecturasPedidos).where(eq(lecturasPedidos.id, id));
+  return f?.e === "leyendo";
+}
+
+export async function procesar(ej: Ejecutor, fila: FilaReservada): Promise<void> {
   const ahora = () => new Date();
   try {
     if ((!fila.ruta && !fila.datos) || fila.id_usuario === null) throw new HttpError(500, "El fichero ya no está guardado: vuelve a subirlo.");
     const datos = fila.ruta ? await leerFichero(fila.ruta).catch(() => { throw new HttpError(500, "El fichero ya no está guardado: vuelve a subirlo."); }) : descifrarBuffer(Buffer.from(fila.datos as Buffer));
+    // Cancelada justo después de reservarla: ni se empieza a leer
+    if (!(await sigueLeyendo(ej, fila.id))) return;
     const r = await leerPedido(ej, fila.id_usuario, fila.nombre, datos, fila.permitir_duplicados, { paralelo: true });
-    await ej.update(lecturasPedidos).set({ estado: "pedido", resultado: r, datos: null, ruta: null, error: null, terminadaEn: ahora() }).where(eq(lecturasPedidos.id, fila.id));
+    const guardada = await ej
+      .update(lecturasPedidos)
+      .set({ estado: "pedido", resultado: r, datos: null, ruta: null, error: null, terminadaEn: ahora() })
+      .where(and(eq(lecturasPedidos.id, fila.id), eq(lecturasPedidos.estado, "leyendo")))
+      .returning({ id: lecturasPedidos.id });
+    if (guardada.length === 0) {
+      // Se canceló mientras se leía: el documento que se guardó al leerlo no debe quedar como un pedido a medias
+      await ej.delete(adjuntos).where(eq(adjuntos.id, r.adjunto.id)).catch(() => undefined);
+      return;
+    }
     await borrarFicheros([fila.ruta]);
   } catch (e) {
     const mensaje = e instanceof Error ? e.message : "No se ha podido leer";
     if (e instanceof NoEsPedidoError) {
       // No es un pedido: no se guarda nada del documento, solo el principio de lo que se leyó para poder ver por qué en el registro
-      await ej.update(lecturasPedidos).set({ estado: "descartado", datos: null, ruta: null, error: `No es un pedido${e.cabecera ? `: «${e.cabecera}»` : ""}`, terminadaEn: ahora() }).where(eq(lecturasPedidos.id, fila.id));
+      await ej.update(lecturasPedidos).set({ estado: "descartado", datos: null, ruta: null, error: `No es un pedido${e.cabecera ? `: «${e.cabecera}»` : ""}`, terminadaEn: ahora() }).where(and(eq(lecturasPedidos.id, fila.id), eq(lecturasPedidos.estado, "leyendo")));
       await borrarFicheros([fila.ruta]);
     } else {
       console.error(`Lectura de pedido ${fila.id} fallida:`, mensaje);
-      await ej.update(lecturasPedidos).set({ estado: "error", error: mensaje, terminadaEn: ahora() }).where(eq(lecturasPedidos.id, fila.id));
-      // Un fallo de lectura no hace desaparecer el pedido: pasa a la cola para rellenarlo a mano mirando el PDF
-      if (fila.id_usuario !== null) await rescatarLectura(ej, fila.id_usuario, fila.id).catch(() => undefined);
+      const falla = await ej.update(lecturasPedidos).set({ estado: "error", error: mensaje, terminadaEn: ahora() }).where(and(eq(lecturasPedidos.id, fila.id), eq(lecturasPedidos.estado, "leyendo"))).returning({ id: lecturasPedidos.id });
+      // Un fallo de lectura no hace desaparecer el pedido: pasa a la cola para rellenarlo a mano mirando el PDF (salvo si se canceló)
+      if (falla.length > 0 && fila.id_usuario !== null) await rescatarLectura(ej, fila.id_usuario, fila.id).catch(() => undefined);
     }
   }
 }
@@ -514,7 +554,8 @@ export async function registroLecturas(ej: Ejecutor, idUsuario: number, esAdmin:
 /** Pone a trabajar a los lectores que falten (no espera a que terminen). */
 export function despertarLectores(): void {
   // Los ajustes de Configuración (lecturas a la vez, motor) se refrescan antes de poner a trabajar a los lectores
-  void cargarAjustesOcr().finally(() => void bucle());
+  void cargarAjustesOcr().catch(() => undefined);
+  void bucle();
 }
 
 /** Tras un reinicio del servidor, lo que estaba leyéndose vuelve a pendiente. Se hace una vez por arranque. */

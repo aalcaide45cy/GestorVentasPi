@@ -14,7 +14,7 @@ const MAX_LINEA = 6000;
 const NIVELES = ["log", "info", "warn", "error", "debug"] as const;
 export type NivelRegistro = "todo" | "avisos" | "errores";
 
-const G = globalThis as unknown as { __registroServidor?: boolean; __registroBytes?: number; __registroCola?: Promise<void> };
+const G = globalThis as unknown as { __registroServidor?: boolean; __registroBytes?: number; __registroCola?: Promise<void>; __registroEnConsola?: boolean };
 
 export const rutaRegistro = (): string => path.join(/*turbopackIgnore: true*/ carpetaCopias(), ".servidor.log");
 
@@ -32,19 +32,50 @@ async function escribir(texto: string): Promise<void> {
   }
 }
 
-/** Empieza a guardar en el archivo lo que sale por `console` (una sola vez por proceso). */
+/** Pone una línea en cola para escribirla (en el mismo orden en que se produjo). */
+function anotar(nivel: string, texto: string): void {
+  let t = texto;
+  if (t.length > MAX_LINEA) t = `${t.slice(0, MAX_LINEA)}… (recortado)`;
+  const linea = `${new Date().toISOString()} [${nivel}] ${t}\n`;
+  G.__registroCola = (G.__registroCola ?? Promise.resolve()).then(() => escribir(linea));
+}
+
+/** Líneas que Next escribe por cada petición («GET /api/… 200 in 12ms»): meterlas llenaría el registro de ruido. */
+const RUIDO = /^\s*(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) \/\S*\s+\d{3}\b|^\s*$|^\s*[○✓◐●]\s/;
+const ANSI = /\u001b\[[0-9;]*m/g;
+
+/**
+ * Empieza a guardar en el archivo lo que escribe el servidor (una sola vez por proceso). Se engancha a `console` (con su nivel exacto) y,
+ * además, a la salida estándar y de errores: así también queda anotado lo que no pasa por el `console` que se parchó (Next puede
+ * sustituirlo, sobre todo en desarrollo) y lo que escribe el propio Next. Lo que ya recogió `console` no se repite.
+ */
 export function instalarRegistroServidor(): void {
   if (G.__registroServidor) return;
   G.__registroServidor = true;
   for (const nivel of NIVELES) {
     const original = console[nivel].bind(console);
     console[nivel] = (...args: unknown[]) => {
-      original(...args);
-      let texto = format(...args);
-      if (texto.length > MAX_LINEA) texto = `${texto.slice(0, MAX_LINEA)}… (recortado)`;
-      // En cola, para que las entradas queden en el mismo orden en que se produjeron
-      const linea = `${new Date().toISOString()} [${nivel === "log" ? "INFO" : nivel.toUpperCase()}] ${texto}\n`;
-      G.__registroCola = (G.__registroCola ?? Promise.resolve()).then(() => escribir(linea));
+      G.__registroEnConsola = true;
+      try {
+        original(...args);
+      } finally {
+        G.__registroEnConsola = false;
+      }
+      anotar(nivel === "log" ? "INFO" : nivel.toUpperCase(), format(...args));
+    };
+  }
+  for (const [flujo, nivel] of [[process.stdout, "INFO"], [process.stderr, "ERROR"]] as const) {
+    const escribirOriginal = flujo.write.bind(flujo) as (...a: unknown[]) => boolean;
+    (flujo as unknown as { write: (...a: unknown[]) => boolean }).write = (chunk: unknown, ...resto: unknown[]) => {
+      try {
+        if (!G.__registroEnConsola) {
+          const texto = (typeof chunk === "string" ? chunk : Buffer.isBuffer(chunk) || chunk instanceof Uint8Array ? Buffer.from(chunk).toString("utf8") : "").replace(ANSI, "");
+          for (const l of texto.split(/\r?\n/)) if (l.trim() !== "" && !RUIDO.test(l)) anotar(nivel, l);
+        }
+      } catch {
+        /* anotar nunca debe romper la salida */
+      }
+      return escribirOriginal(chunk, ...resto);
     };
   }
 }

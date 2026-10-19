@@ -8,6 +8,10 @@ export async function register(): Promise<void> {
     // Mide el equipo cada 30 s (CPU, memoria, temperatura, disco…) para la pestaña «Rendimiento» y avisa en el registro si algo va mal
     const { iniciarMuestreo } = await import("./lib/rendimiento");
     iniciarMuestreo();
+    // Una instalación sin usuarios deja a la vista el código con el que crear al primer administrador
+    const { db } = await import("./db");
+    const { anunciarPrimerArranque } = await import("./lib/servicios/primer-arranque");
+    void anunciarPrimerArranque(db);
   }
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.DISABLE_SCHEDULER !== "true") {
     const { iniciarPlanificador } = await import("./lib/servicios/planificador");

@@ -345,3 +345,21 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] El diagnóstico lee de /proc y /sys (CPU, memoria, `get_throttled`, PSI, `diskstats`, temperatura) y de la propia base de datos (`pg_stat_activity`, `pg_stat_database`): no instala nada ni cambia ajustes. En Windows salen menos datos (no hay /proc). `get_throttled` solo existe en Raspberry Pi OS con el firmware visible desde el contenedor; si no se ve, la pantalla lo dice («sin datos»).
 - [D] Las medidas de peticiones y consultas no guardan parámetros, cuerpos ni cabeceras: solo método, ruta (con los identificadores agrupados) y texto SQL con marcadores. Las consultas lentas se detectan desde el propio cliente de la base de datos (sin necesidad de `pg_stat_statements`).
 - [I] El motivo concreto de la lentitud de la Raspberry no se ha podido medir desde el PC de desarrollo. Hasta tener datos reales se limitan por precaución las lecturas simultáneas (2) y los hilos de ONNX (2) en ARM64; el informe de la pestaña dirá qué recurso se agota de verdad.
+
+## Pantalla de primer arranque (v1.2.7)
+- [D] Se mantiene el comando `crear-admin` (lo usa el instalador de la Raspberry, que crea el administrador al instalar), y se añade la pantalla para instalaciones sin usuarios (Mac, PC): el instalador de Raspberry no cambia.
+- [D] El «código de primer arranque» es necesario porque una instalación nueva accesible por URL (Tailscale Funnel, Cloudflare) estaría abierta a que cualquiera cree el administrador antes que el propietario. El código solo se ve con acceso al equipo (registro del servidor o archivo de la carpeta de copias, permisos 0600). Se genera una vez, sobrevive a reinicios y se borra al crear el primer usuario.
+- [D] La cuenta nace sin doble factor y con `debeCambiarPassword = false` (la contraseña la eligió la persona); el layout del panel y `/cuenta/activar-2fa` obligan a activar el 2FA antes de usar nada, como con cualquier alta.
+
+## Apple Vision en macOS (v1.2.7)
+- [D] Node no puede llamar a Vision directamente (no hay un módulo nativo incluido ni conviene añadir uno por una sola plataforma), así que se usa un programa de Swift de una sola pasada compilado con `swiftc`, sin dependencias, que se ejecuta una vez por página. El coste de arrancar un proceso por página es pequeño frente al reconocimiento.
+- [D] `usesLanguageCorrection = false`: la corrección por diccionario estropea DNI, matrículas y bastidores, que son lo que más importa en un pedido; se usan los idiomas es-ES y en-US.
+- [I] No verificado en un Mac real: puede haber que ajustar el Swift a la versión del SDK. Mientras tanto el respaldo a RapidOCR hace que nunca se deje de leer.
+- [D] Solo se ofrece cuando `process.platform === "darwin"`: en Docker (Linux) o Windows no tiene sentido y el servidor lo rechaza.
+
+## Cancelar, lectura manual y motor en el dashboard (v1.2.7)
+- [D] Cancelar una lectura que ya está en marcha no interrumpe el OCR (Tesseract y ONNX no se pueden abortar a mitad de hoja): se marca la fila como cancelada, el lector termina su hoja, comprueba con una actualización condicionada (`where estado = 'leyendo'`) que sigue vigente y, si no, borra el adjunto que se había guardado. Así nunca queda un pedido a medias y la fila no se pisa.
+- [D] La lectura es manual por defecto porque el propietario lo pidió («que no empiece sola»). Se guarda como ajuste global (`lectura_manual`) y se puede volver a automática desde el dashboard. Las pruebas de siempre del servidor usan el modo automático.
+- [D] «Eliminar todo lo subido» actúa sobre la tanda en curso (los ids de lo subido en esa sesión del navegador); si se cancela desde la lista de lo que falta, sobre todo lo que esté en marcha del usuario.
+- [D] Confirmar con doble clic en vez de escribir una palabra (petición del propietario). El servidor mantiene las constantes como comprobación de que la petición es deliberada.
+- [D] Lote de reconocimiento de OCR = 8 (`OCR_LOTE_REC`): se verificó sin diferencias de campos frente a lote 1 y es más rápido, sobre todo en GPU.

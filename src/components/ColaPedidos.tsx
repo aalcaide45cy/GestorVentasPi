@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/date-utils";
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
 import type { ResultadoPedido } from "@/lib/servicios/documentos";
 import { MAXIMO_COLA, abrirDeCola, actualizarPedidoDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola, type ItemCola } from "@/lib/pedidos-cola";
-import { anotarResolucion, cancelarLecturas } from "@/lib/lecturas-pedidos-cliente";
+import { anotarResolucion, solicitarCancelacion } from "@/lib/lecturas-pedidos-cliente";
 import EstadoLecturas from "./EstadoLecturas";
 import PedidoRapidoModal from "./PedidoRapidoModal";
 import RellenarDesdePedidoModal from "./RellenarDesdePedidoModal";
@@ -214,7 +214,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <h3 style={{ fontSize: "1.05rem" }}>
           📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length} de {MAXIMO_COLA})</span>
-          {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…<button type="button" className="btn btn-secondary" style={{ marginLeft: "8px", padding: "1px 8px", fontSize: "0.78rem" }} onClick={() => void cancelarLecturas()}>✖ Cancelar lectura</button></span>}
+          {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…<button type="button" className="btn btn-secondary" style={{ marginLeft: "8px", padding: "1px 8px", fontSize: "0.78rem" }} onClick={solicitarCancelacion}>✖ Cancelar lectura</button></span>}
         </h3>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => setMarcados(elegidos.length === items.length ? [] : items.map((i) => i.id))} title="Elige todos los pedidos de la cola, o quita la elección si ya están todos elegidos">

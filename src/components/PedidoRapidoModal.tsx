@@ -587,7 +587,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           )}
         </div>
       </div>
-      {verPdf && <VisorPedido idAdjunto={pedido.adjunto.id} nombre={item.nombre} />}
+      {verPdf && <VisorPedido idAdjunto={pedido.adjunto.id} nombre={item.nombre} alRecargado={(adjunto) => actualizarPedidoDeCola(item.id, { ...pedido, adjunto })} />}
       </div>
     </Modal>
   );

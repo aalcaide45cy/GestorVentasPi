@@ -1,6 +1,6 @@
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
-import { abrirDeCola, anadirACola, fijarLectura, huecosEnCola, leerCola, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
-import type { LecturaDto, ResumenLecturas } from "@/lib/servicios/lecturas-pedidos";
+import { abrirDeCola, anadirACola, fijarLectura, huecosEnCola, leerCola, quitarDeCola, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
+import type { LecturaDto, LecturaEnMarcha, ResumenLecturas } from "@/lib/servicios/lecturas-pedidos";
 
 /**
  * Lectura de pedidos en lote desde el navegador: los ficheros se suben al servidor (que los guarda al momento y los lee en
@@ -22,8 +22,11 @@ export function registrarAvisos(f: Aviso): void {
 }
 
 let resumen: ResumenLecturas | null = null;
+let enMarcha: LecturaEnMarcha[] = [];
 const oyentes = new Set<() => void>();
 export const leerResumenLecturas = (): ResumenLecturas | null => resumen;
+/** Lo que se está subiendo, esperando o leyendo (para cancelar cada pedido). */
+export const leerEnMarcha = (): LecturaEnMarcha[] => enMarcha;
 export function suscribirResumenLecturas(cb: () => void): () => void {
   oyentes.add(cb);
   return () => oyentes.delete(cb);
@@ -55,6 +58,25 @@ function avisarAntesDeSalir(e: BeforeUnloadEvent): void {
   e.returnValue = "";
 }
 
+/** Diálogo «¿Cancelar?» (lo pintan las pantallas con el overlay de subida, que está siempre montado). */
+let dialogoCancelar = false;
+const oyentesDialogo = new Set<() => void>();
+export const leerDialogoCancelar = (): boolean => dialogoCancelar;
+export function suscribirDialogoCancelar(cb: () => void): () => void {
+  oyentesDialogo.add(cb);
+  return () => oyentesDialogo.delete(cb);
+}
+function fijarDialogoCancelar(v: boolean): void {
+  dialogoCancelar = v;
+  oyentesDialogo.forEach((o) => o());
+}
+/** Cualquier botón «Cancelar» de subida o lectura abre este diálogo, donde se elige qué hacer con lo ya subido. */
+export const solicitarCancelacion = (): void => fijarDialogoCancelar(true);
+export const cerrarDialogoCancelar = (): void => fijarDialogoCancelar(false);
+
+/** Ids (de la lista de lecturas del servidor) de lo subido en la tanda en curso: lo que «Eliminar lo subido» borra. */
+let idsTanda: number[] = [];
+
 /** Para saber cuánto falta de la tanda en curso. */
 let subidosEnTanda = 0;
 let subiendo = 0;
@@ -82,8 +104,9 @@ async function consultar(): Promise<boolean> {
   if (subiendo > 0) return true;
   consultando = true;
   try {
-    const { resumen: r, lecturas } = await pedir<{ resumen: ResumenLecturas; lecturas: LecturaDto[] }>("/api/documentos/lecturas");
+    const { resumen: r, lecturas, enMarcha: marcha } = await pedir<{ resumen: ResumenLecturas; lecturas: LecturaDto[]; enMarcha?: LecturaEnMarcha[] }>("/api/documentos/lecturas");
     resumen = r;
+    enMarcha = marcha ?? [];
     const listos = lecturas.filter((l) => l.estado === "pedido" && l.resultado);
     const recogidos: number[] = [];
     for (const l of listos) {
@@ -114,7 +137,8 @@ async function consultar(): Promise<boolean> {
     }
     if (recogidos.length > 0) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "recoger", ids: recogidos }) });
 
-    const trabajando = r.pendientes + r.leyendo + r.subiendo;
+    // En lectura manual, lo subido que espera a «Iniciar lectura» no cuenta como trabajo en marcha
+    const trabajando = r.pendientes + r.leyendo + (r.manual ? 0 : r.subiendo);
     // Al recargar la página se pierde la cuenta de la tanda (vive en memoria): el total no puede ser menor que lo que el servidor aún tiene en marcha
     if (subidosEnTanda < trabajando + recogidosEnTanda) subidosEnTanda = trabajando + recogidosEnTanda;
     if (trabajando > 0 || subiendo > 0) fijarLectura({ hechos: Math.max(0, subidosEnTanda - trabajando - subiendo), total: Math.max(subidosEnTanda, 1) });
@@ -158,6 +182,7 @@ export async function recogerPendientes(): Promise<void> {
 /** Sube los ficheros al servidor (varios a la vez) y deja el resto en manos de los lectores. */
 export async function subirPedidos(ficheros: File[], destino: Destino): Promise<void> {
   cancelada = false;
+  if (subiendo === 0 && subida === null) idsTanda = [];
   abrirElPrimero = true;
   subidosEnTanda += ficheros.length;
   iniciarSondeo();
@@ -171,7 +196,8 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
     const q = new URLSearchParams({ nombre: f.name, lote: "1" });
     if (permitirDuplicadosAhora()) q.set("duplicados", "permitir");
     if (dest.eleccion || dest.idExpediente || dest.dni) q.set("destino", JSON.stringify(dest));
-    await pedir(`/api/documentos/lecturas?${q.toString()}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, signal: senal });
+    const r = await pedir<{ id?: number }>(`/api/documentos/lecturas?${q.toString()}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, signal: senal });
+    if (typeof r?.id === "number") idsTanda.push(r.id);
   };
   const subir = async () => {
     while (siguiente < ficheros.length && !cancelada && !detenida) {
@@ -210,24 +236,77 @@ export async function subirPedidos(ficheros: File[], destino: Destino): Promise<
   try {
     await Promise.all(Array.from({ length: Math.min(6, ficheros.length) }, subir));
     // Terminada la subida (y solo entonces) empieza la lectura de todo lo subido
-    if (!cancelada) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "iniciar" }) }).catch(() => undefined);
+    // (en lectura manual el servidor no hace nada: la lectura la inicia el usuario con «Iniciar lectura»)
+    if (!cancelada) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "iniciar", automatico: true }) }).catch(() => undefined);
   } finally {
     fijarSubida(null);
   }
   iniciarSondeo();
 }
-/** Corta las subidas en curso y cancela lo que aún no ha empezado a leerse (lo que ya se está leyendo termina). */
-export async function cancelarLecturas(): Promise<void> {
+/**
+ * Para la subida en curso (corta las peticiones que van) y decide qué pasa con lo ya subido:
+ * - `eliminar: true`: se borra todo lo subido en esta tanda (lo que esperaba, lo que se estaba leyendo, y lo ya leído que aún está en la
+ *   cola de pedidos, con sus documentos). No queda nada a medias.
+ * - `eliminar: false`: se deja lo subido tal cual (en lectura manual espera a «Iniciar lectura»; si no, se lee como siempre).
+ */
+export async function cancelarLecturas(opciones: { eliminar?: boolean } = {}): Promise<void> {
+  const eliminar = opciones.eliminar ?? true;
   cancelada = true;
   controladores.forEach((c) => c.abort());
   fijarSubida(null);
+  fijarDialogoCancelar(false);
+  if (!eliminar) {
+    avisar("Subida parada. Lo que ya estaba subido se queda subido.");
+    subidosEnTanda = 0;
+    await consultar();
+    return;
+  }
+  const ids = [...idsTanda];
   try {
-    await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "cancelar" }) });
+    // Con ids, solo lo de esta tanda; sin ellos (cancelar desde la lista de lo que falta), todo lo que esté en marcha
+    await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "cancelar", ...(ids.length > 0 ? { ids } : {}) }) });
   } catch {
     /* si no hay conexión, lo pendiente sigue y se puede cancelar luego */
   }
-  avisar("Lectura cancelada: lo que ya estaba leído se queda en la cola.");
+  // Lo ya leído de esta tanda que está en la cola de pedidos también se quita (y sus documentos se marcan como eliminados)
+  const deLaTanda = new Set(ids);
+  let quitados = 0;
+  for (const item of leerCola().items) {
+    if (item.idLectura === undefined || !deLaTanda.has(item.idLectura)) continue;
+    for (const id of [item.pedido.adjunto.id, ...(item.dni?.adjuntos ?? [])]) void fetch(`/api/adjuntos?id=${id}`, { method: "DELETE", credentials: "same-origin" }).catch(() => undefined);
+    anotarResolucion(item.idLectura, "quitado");
+    quitarDeCola(item.id);
+    quitados++;
+  }
+  idsTanda = [];
+  avisar(`Cancelado y eliminado lo subido en esta tanda${quitados > 0 ? ` (también ${quitados} ya leído${quitados === 1 ? "" : "s"} de la cola)` : ""}. No ha quedado ningún documento a medias.`);
   subidosEnTanda = 0;
+  await consultar();
+}
+
+/** Empieza a leer lo que está subido y esperando (en lectura manual, el botón «Iniciar lectura»). */
+export async function iniciarLectura(): Promise<void> {
+  try {
+    await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "iniciar" }) });
+  } catch {
+    avisar("No se pudo iniciar la lectura: inténtalo de nuevo.", "error");
+    return;
+  }
+  await consultar();
+  iniciarSondeo();
+}
+
+/**
+ * Cancela solo estos pedidos (que se estén subiendo, esperando o leyendo): el servidor los deja como «cancelados», borra sus ficheros y,
+ * si ya se estaban leyendo, tira el resultado. Lo demás de la tanda sigue.
+ */
+export async function cancelarPedidos(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "cancelar", ids }) });
+  } catch {
+    avisar("No se pudo cancelar ahora mismo: inténtalo de nuevo.", "error");
+  }
   await consultar();
 }
 

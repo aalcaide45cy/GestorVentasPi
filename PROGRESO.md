@@ -371,3 +371,47 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Registro del servidor más completo**: además de los errores, se anotan las peticiones que tardan más de 2 s o fallan (ruta, sin datos), las consultas a la base de datos de más de 0,5 s (texto SQL sin parámetros), cuánto tarda cada lectura de documento y con qué motor, y el arranque del servidor con su versión y plataforma.
 - **Raspberry**: las lecturas de pedidos a la vez pasan a un máximo de 2 por defecto en ARM64 (se puede cambiar en Sistema) y ONNX Runtime usa 2 hilos por lectura en CPU ARM64, para que leer pedidos no sature el equipo.
 - Pruebas: 524 en verde (nuevas: rendimiento, registro de lo lento y recursos rápidos).
+
+## Versión 1.2.7 (19/10/2026)
+
+Incluye todo lo que sigue (primer arranque, Apple Vision, RAM de macOS, cancelar y lectura manual, nombre y tipo de equipo).
+
+### Primer arranque: crear el administrador desde la pantalla
+
+- Una instalación nueva, sin ningún usuario, ya no necesita el comando `crear-admin`: `/login` redirige a `/primer-arranque`, una pantalla para crear al administrador (nombre, correo, contraseña con ojo y el «código de primer arranque»). Después sigue el flujo de siempre: se crea una sesión parcial y se obliga a activar el doble factor (`/cuenta/activar-2fa`).
+- Protecciones: solo existe mientras no haya **ningún** usuario (se comprueba otra vez dentro de la transacción con un bloqueo de la base de datos, así dos peticiones a la vez crean un único administrador); hace falta el **código de primer arranque** (XXXX-XXXX), que solo se ve en el equipo (línea «PRIMER ARRANQUE» en el registro del servidor y archivo `.primer-arranque.txt` de la carpeta de copias) para que nadie que alcance la dirección antes que el propietario se quede con la instalación; intentos fallidos limitados por IP (5 y bloqueo progresivo); al crearse el primero, el código se borra y la pantalla redirige siempre a `/login`. Rutas: `/primer-arranque`, `POST /api/auth/primer-administrador`; servicio `src/lib/servicios/primer-arranque.ts`.
+- Pruebas: 7 nuevas (creación, código incorrecto y bloqueo, usuarios existentes, validaciones, concurrencia, anuncio en el registro).
+
+### Apple Vision como motor de OCR en macOS
+
+- Nuevo motor «Apple Vision» en Configuración › BBDD › Sistema › Lectura de pedidos, **solo cuando la aplicación corre directamente en macOS** (no aparece en Docker, Windows ni Linux, y la API rechaza elegirlo fuera de macOS). En un Mac es el recomendado (★) y el que se usa por defecto. Usa el reconocimiento de texto del propio sistema (Neural Engine en los chips M).
+- Cómo funciona: `herramientas/ocr-vision.swift` es un programa de Swift (Vision) que la aplicación **compila sola la primera vez** con `swiftc` (hace falta `xcode-select --install`) y guarda en `backups/.herramientas/ocr-vision-<huella>`; se ejecuta una vez por página y devuelve las cajas de texto, que se unen en líneas con el mismo agrupador que RapidOCR (`ocr-lineas.ts`).
+- Respaldo automático: Apple Vision → RapidOCR (CPU) → Tesseract. Si Vision no compila o falla, se avisa una vez en el registro del servidor y se sigue con el siguiente.
+- «Probar este motor» comprueba que el programa se puede compilar y ejecutar.
+- Pruebas: 10 nuevas con un programa falso en lugar de Vision (lectura de la salida, agrupación, respaldo, motor no usado en la rejilla de comisiones). **No se ha probado en un Mac real**: el código de Swift no se ha compilado todavía.
+- **Medidor de memoria en macOS** (cajita de la barra superior y pestaña Rendimiento): en un Mac salía siempre casi lleno porque `os.freemem()` solo cuenta las páginas libres del todo y macOS usa la RAM como caché. Ahora se calcula como Monitor de Actividad con `vm_stat` (usada = páginas anónimas − purgables + cableadas + comprimidas; el resto es disponible; si faltan las anónimas, libres + inactivas + especulativas + purgables) y el swap con `sysctl vm.swapusage`. Linux (`MemAvailable`) y Windows (`os.freemem()`) no cambian. Código en `src/lib/memoria-macos.ts` con pruebas sobre una salida de `vm_stat` de ejemplo; **sin probar en un Mac real**.
+
+### Cancelar la subida y la lectura de pedidos, lectura manual y motor en el dashboard
+
+- **Cancelar sin dejar nada a medias**: el overlay de subida tiene «✖ Cancelar subida» y todos los demás botones «Cancelar» de lectura abren el mismo diálogo. Con la subida en marcha pregunta **🗑 Eliminar todo lo subido** (borra lo subido de esa tanda: lo que esperaba, lo que se estaba leyendo y lo ya leído que siga en la cola de pedidos, con sus documentos) o **📌 Dejarlo subido** (solo para la subida; lo subido espera) o seguir. Cancelar también para lo que **se está leyendo**: el lector termina su hoja pero tira el resultado y borra el documento que hubiera guardado.
+- **Cancelar un pedido suelto**: «Ver lo que falta» en el estado de lecturas lista lo subido, en espera y leyéndose, con «✖ Cancelar» en cada uno.
+- **Lectura manual** (por defecto): tras subir los pedidos no se lee nada hasta pulsar **▶ Iniciar lectura** (en el estado de lecturas y junto a la zona de arrastrar). Se puede volver a la lectura automática desmarcando «Lectura manual» (ajuste `lectura_manual`). En manual, el aviso automático del navegador al terminar de subir no hace nada y el servidor no pone a leer solo lo abandonado.
+- **Motor de OCR en el dashboard**: junto a la zona de arrastrar, los administradores tienen el desplegable del motor (Tesseract, RapidOCR CPU o GPU, Apple Vision en Mac) y la casilla «Lectura manual», sin ir a Configuración.
+- Pruebas: nuevas del servidor (lista de lo que falta, cancelar por ids y todo, cancelar durante la lectura, lectura manual) y del cliente (qué se cancela en cada opción).
+
+### Nombre y tipo de equipo en la cajita de recursos
+
+- A la izquierda de CPU, la cajita de la barra superior dice **qué equipo es**: 💻 AMD (un PC con procesador AMD, como el del propietario), 💻 Intel, 🍎 Apple (Mac con chip Apple «silicon»), 🍓 Raspberry (o un Linux ARM64 sin más datos, que en Docker es lo que se ve en la Raspberry) o 🖥️ otro, junto al **nombre del equipo**. El detalle (modelo, procesador, núcleos y sistema) sale al pasar el ratón y en la ventana de rendimiento, cuyo título lleva el nombre y el tipo.
+- El nombre sale del equipo; dentro de Docker `os.hostname()` es el identificador del contenedor, así que se prefiere `/host/hostname` (el `/etc/hostname` de la Raspberry, montado en solo lectura en `docker-compose.yml` del instalador) o la variable `NOMBRE_EQUIPO`. Además se puede **poner un nombre a mano** en la ventana de rendimiento («Nombre de este equipo», ajuste `nombre_equipo`), que es lo que funciona en las instalaciones ya hechas, cuyo compose no se actualiza solo.
+- Pruebas: 5 nuevas (tipo de equipo y nombre).
+
+### Visor del pedido: volver a cargar el archivo
+
+- El visor del pedido leído comprueba si el archivo sigue guardado. Si se purgó (Configuración › BBDD › Papelera), en vez de salir en blanco dice «El archivo de este pedido ya no está guardado» y ofrece **📎 Volver a cargar el archivo** (también visible siempre junto a «Abrir en otra pestaña»): se elige otra vez el PDF o la foto, se sube como documento del pedido y el pedido de la cola pasa a usarlo (así se guarda con el expediente al crearlo). Si el nombre del archivo no coincide con el del pedido leído, pregunta antes.
+- El diagnóstico de rendimiento ya no se queda colgado si la base de datos está bloqueada: espera como mucho 5 s y lo dice.
+
+### Sin escribir palabras para confirmar, registro del servidor y OCR en lotes
+
+- **Confirmaciones sin palabra escrita**: ningún modal pide ya escribir IMPORTAR, SUSTITUIR, RESTAURAR, PURGAR, BORRAR TODO o CONVERTIR. El botón se arma con el primer clic («Pulsa otra vez para confirmar») y se ejecuta con el segundo, en 7 s; si no, se desarma. El servidor sigue recibiendo la constante, así que la API no cambia.
+- **Registro del servidor**: ahora recoge también lo que sale directamente por la salida estándar y de errores (Next en desarrollo no pasa por el `console` parcheado), sin las líneas de petición ni los códigos de color.
+- **OCR RapidOCR en lotes**: los recortes de texto se leen de ocho en ocho (`OCR_LOTE_REC` para cambiarlo). En una RTX 4090 con DirectML una página pasó de 6,0 s a 1,55 s (en CPU de 3,8 s a 2,2 s en dos páginas). Comparado con lectura de uno en uno sobre 12 documentos: 0 campos distintos. El resto del proceso (renderizar el PDF, recortar, agrupar) sigue en CPU, por eso la GPU no hace volar la lectura.

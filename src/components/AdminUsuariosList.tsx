@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/date-utils";
 import type { UsuarioAdminDto } from "@/lib/dto";
 import type { ResumenBorradoTotal } from "@/lib/servicios/usuarios";
 import { mensajeDeError } from "./expedientes/comun";
+import { TEXTO_SEGUNDO_CLIC, useDobleConfirmacion } from "@/components/useDobleConfirmacion";
 
 interface Props {
   usuariosIniciales: UsuarioAdminDto[];
@@ -35,7 +36,6 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const [formulario, setFormulario] = useState<"crear" | "editar" | null>(null);
   const [seleccionado, setSeleccionado] = useState<UsuarioAdminDto | null>(null);
   const [aEliminar, setAEliminar] = useState<UsuarioAdminDto | null>(null);
-  const [textoConfirmar, setTextoConfirmar] = useState("");
   // Borrar también todo lo del usuario (expedientes, liquidaciones…): sirve para quitar usuarios de prueba
   const [conTodoId, setConTodoId] = useState<number | null>(null);
   const [detrasDe, setDetrasDe] = useState<{ id: number; datos: ResumenBorradoTotal } | null>(null);
@@ -230,6 +230,11 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
     }
   };
 
+  // Doble verificación sin escribir ninguna palabra: el primer clic arma el botón y el segundo elimina
+  const dobleEliminar = useDobleConfirmacion(() => {
+    if (aEliminar) void eliminar(aEliminar.id_usuario);
+  });
+
   const columnasUsuarios: ColumnaTabla<UsuarioAdminDto>[] = [
     { clave: "usuario", etiqueta: "Usuario", valor: (u) => u.nombre ?? "", celda: (u) => (
         <>
@@ -340,7 +345,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
               className="btn btn-secondary"
               onClick={() => {
                 setAEliminar(u);
-                setTextoConfirmar("");
+                dobleEliminar.desarmar();
               }}
               disabled={actualizando === u.id_usuario}
               style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
@@ -478,18 +483,19 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
               <button
                 type="button"
                 className="btn"
-                onClick={() => void eliminar(aEliminar.id_usuario)}
-                disabled={actualizando !== null || textoConfirmar !== "ELIMINAR"}
+                onClick={dobleEliminar.pulsar}
+                disabled={actualizando !== null}
                 style={{
-                  backgroundColor: textoConfirmar === "ELIMINAR" ? "var(--danger)" : "var(--border-light)",
+                  backgroundColor: "var(--danger)",
                   color: "white",
-                  cursor: textoConfirmar === "ELIMINAR" ? "pointer" : "not-allowed",
+                  cursor: "pointer",
+                  ...(dobleEliminar.armado ? { outline: "3px solid var(--danger)", outlineOffset: "2px" } : {}),
                   border: "none",
                   borderRadius: "var(--radius-sm)",
                   padding: "10px 20px",
                 }}
               >
-                {actualizando !== null ? "Eliminando..." : "Eliminar Usuario"}
+                {actualizando !== null ? "Eliminando..." : dobleEliminar.armado ? TEXTO_SEGUNDO_CLIC : "Eliminar Usuario"}
               </button>
             </>
           }
@@ -519,12 +525,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
               </label>
             </div>
           )}
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">
-              Escribe <strong>ELIMINAR</strong> para confirmar:
-            </label>
-            <input type="text" className="form-input" placeholder="ELIMINAR" value={textoConfirmar} onChange={(e) => setTextoConfirmar(e.target.value)} style={{ textTransform: "uppercase" }} />
-          </div>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>Para eliminar, pulsa el botón dos veces.</p>
         </Modal>
       )}
     </div>

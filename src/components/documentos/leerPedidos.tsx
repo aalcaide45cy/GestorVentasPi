@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
-import { cancelarLecturas, recogerPendientes, registrarAvisos, subirPedidos } from "@/lib/lecturas-pedidos-cliente";
+import { recogerPendientes, registrarAvisos, solicitarCancelacion, subirPedidos } from "@/lib/lecturas-pedidos-cliente";
+import ControlesLectura from "./ControlesLectura";
 import { clasificarFichero, leerDniDeFichero } from "./BotonLeerDocumento";
 import { textoError } from "@/components/comisiones/api";
 import { MAXIMO_COLA, huecosEnCola, leerLectura, suscribirLectura, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
@@ -64,7 +65,7 @@ export function useLeerPedidos() {
   };
   return {
     leer,
-    cancelar: () => void cancelarLecturas(),
+    cancelar: solicitarCancelacion,
     leyendo: subiendo || lectura !== null,
     subiendo,
     textoProgreso: lectura ? (lectura.total > 1 ? `Leyendo ${Math.min(lectura.hechos + 1, lectura.total)} de ${lectura.total}…` : "Leyendo…") : "Subiendo…",
@@ -111,6 +112,7 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
           </button>
         </div>
       )}
+      <ControlesLectura />
       <OpcionVentanaPedido />
     </div>
   );

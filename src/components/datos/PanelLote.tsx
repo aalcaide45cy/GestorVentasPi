@@ -8,6 +8,7 @@ import { ICONOS, botonChico, numero } from "@/components/datos/DatosSeccion";
 import { INFO_SECCIONES, SECCIONES, type Modo, type Seccion } from "@/lib/secciones-info";
 import type { Informe } from "@/lib/servicios/intercambio";
 import type { ResultadoLote, ResumenSeccionLote } from "@/lib/servicios/intercambio-lote";
+import { TEXTO_SEGUNDO_CLIC, useDobleConfirmacion } from "@/components/useDobleConfirmacion";
 
 /** Qué secciones se marcan al exportar todo: «Clientes y expedientes» ya incluye a «Clientes» y «Expedientes» por separado. */
 const DE_TODO: Seccion[] = SECCIONES.filter((s) => s !== "clientes" && s !== "expedientes");
@@ -99,14 +100,12 @@ function ModalLote({ alCerrar, alTerminar }: { alCerrar: () => void; alTerminar:
   const [resultado, setResultado] = useState<ResultadoLote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState<"leer" | "cotejar" | "aplicar" | null>(null);
-  const [confirmacion, setConfirmacion] = useState("");
 
   const elecciones = useMemo(() => (resumen?.secciones ?? []).filter((s) => s.importable && marcadas[s.seccion]).map((s) => ({ seccion: s.seccion, modo: modos[s.seccion] ?? s.modoSugerido ?? "anadir" })), [resumen, marcadas, modos]);
   const palabra = elecciones.some((e) => e.modo === "sustituir") ? "SUSTITUIR" : "IMPORTAR";
 
   const invalidar = () => {
     setResultado(null);
-    setConfirmacion("");
   };
 
   const elegirArchivo = async (ev: ChangeEvent<HTMLInputElement>) => {
@@ -152,7 +151,7 @@ function ModalLote({ alCerrar, alTerminar }: { alCerrar: () => void; alTerminar:
     setError(null);
     setTrabajando("aplicar");
     try {
-      const { extra } = await llamar("/api/admin/datos/lote", { method: "POST", cuerpo: { accion: "aplicar", paquete, elecciones, confirmacion } });
+      const { extra } = await llamar("/api/admin/datos/lote", { method: "POST", cuerpo: { accion: "aplicar", paquete, elecciones, confirmacion: palabra } });
       const r = extra.resultado as ResultadoLote;
       const copia = extra.copia as { nombre: string } | null;
       const total = r.informes.reduce((a, i) => ({ nuevos: a.nuevos + i.nuevos, actualizados: a.actualizados + i.actualizados, eliminados: a.eliminados + i.eliminados }), { nuevos: 0, actualizados: 0, eliminados: 0 });
@@ -168,7 +167,8 @@ function ModalLote({ alCerrar, alTerminar }: { alCerrar: () => void; alTerminar:
   };
 
   const hayCambios = !!resultado && resultado.informes.some((i) => i.nuevos + i.actualizados + i.eliminados > 0);
-  const puedeAplicar = hayCambios && resultado?.fallos.length === 0 && confirmacion.trim() === palabra && trabajando === null;
+  const puedeAplicar = hayCambios && resultado?.fallos.length === 0 && trabajando === null;
+  const doble = useDobleConfirmacion(() => void aplicar());
   const informePor = new Map((resultado?.informes ?? []).map((i) => [i.seccion, i]));
   const falloPor = new Map((resultado?.fallos ?? []).map((f) => [f.seccion, f.motivo]));
 
@@ -184,8 +184,8 @@ function ModalLote({ alCerrar, alTerminar }: { alCerrar: () => void; alTerminar:
           <button type="button" className="btn btn-secondary" disabled={!resumen || elecciones.length === 0 || trabajando !== null} onClick={() => void cotejar()} title="Calcula exactamente qué crearía, actualizaría u omitiría cada sección elegida, sin cambiar nada.">
             {trabajando === "cotejar" ? "Cotejando…" : "🔍 Cotejar lo elegido"}
           </button>
-          <button type="button" className="btn btn-primary" disabled={!puedeAplicar} onClick={() => void aplicar()} title={hayCambios ? "Aplica todo lo cotejado de una vez: si algo falla no queda nada a medias. Antes se guardan una copia de seguridad y una copia interna de cada sección." : "Primero coteja lo elegido."}>
-            {trabajando === "aplicar" ? "Importando…" : "Sí, importar lo elegido"}
+          <button type="button" className="btn btn-primary" disabled={!puedeAplicar} onClick={doble.pulsar} style={doble.armado ? { background: "var(--danger)", borderColor: "var(--danger)" } : undefined} title={hayCambios ? "Aplica todo lo cotejado de una vez: si algo falla no queda nada a medias. Antes se guardan una copia de seguridad y una copia interna de cada sección. Hay que pulsar dos veces." : "Primero coteja lo elegido."}>
+            {trabajando === "aplicar" ? "Importando…" : doble.armado ? TEXTO_SEGUNDO_CLIC : "Sí, importar lo elegido"}
           </button>
         </>
       }
@@ -274,9 +274,8 @@ function ModalLote({ alCerrar, alTerminar }: { alCerrar: () => void; alTerminar:
               <>
                 <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                   Antes de aplicar se guardan una copia de seguridad nueva y una copia interna de cada sección elegida. {palabra === "SUSTITUIR" && <b style={{ color: "var(--danger)" }}>Alguna sección está en «Sustituir»: eliminará lo que no esté en el archivo. </b>}
-                  Para confirmar, escribe <b>{palabra}</b>:
+                  Al pulsar «Sí, importar lo elegido» se te pedirá confirmar una segunda vez.
                 </div>
-                <input className="form-input" value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} placeholder={palabra} style={{ maxWidth: "220px" }} />
               </>
             )}
           </div>

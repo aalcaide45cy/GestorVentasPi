@@ -6,6 +6,7 @@ import PanelRendimiento from "@/components/admin/PanelRendimiento";
 import type { Recursos } from "@/lib/rendimiento";
 
 const COLORES = { ok: "var(--border-light)", aviso: "var(--warning)", alto: "var(--danger)" } as const;
+const ICONO_EQUIPO = { AMD: "💻", Intel: "💻", Apple: "🍎", Raspberry: "🍓", Otro: "🖥️" } as const;
 const mbs = (n: number | null): string => (n === null ? "—" : n.toFixed(n >= 10 ? 0 : 1).replace(".", ","));
 
 /**
@@ -47,7 +48,7 @@ export default function IndicadorRecursos() {
         onClick={() => setAbierto(true)}
         title={
           r
-            ? `Uso del equipo ahora mismo. ${r.motivo ? `⚠️ ${r.motivo}. ` : ""}CPU ${r.cpu} % · memoria ${r.memoriaUsadaPct} % (${r.memoriaLibreMb} MB libres de ${r.memoriaTotalMb}) · disco: lee ${mbs(r.discoLeidoMBs)} MB/s, escribe ${mbs(r.discoEscritoMBs)} MB/s${r.tempC !== null ? ` · ${r.tempC} °C` : ""}. Pulsa para ver el detalle y por qué va lento.`
+            ? `${r.equipo.nombre ? `${r.equipo.nombre} (${r.equipo.tipo})` : r.equipo.tipo}: uso ahora mismo. ${r.motivo ? `⚠️ ${r.motivo}. ` : ""}CPU ${r.cpu} % · memoria ${r.memoriaUsadaPct} % (${r.memoriaLibreMb} MB libres de ${r.memoriaTotalMb}) · disco: lee ${mbs(r.discoLeidoMBs)} MB/s, escribe ${mbs(r.discoEscritoMBs)} MB/s${r.tempC !== null ? ` · ${r.tempC} °C` : ""}. Pulsa para ver el detalle y por qué va lento.`
             : "Uso del equipo: pulsa para ver el detalle"
         }
         style={{
@@ -67,6 +68,14 @@ export default function IndicadorRecursos() {
         }}
       >
         <span aria-hidden="true">{r?.nivel === "alto" ? "🔴" : r?.nivel === "aviso" ? "🟠" : "🩺"}</span>
+        {r && (
+          <span title={`${r.equipo.nombre ? `${r.equipo.nombre} · ` : ""}${r.equipo.detalle}`} style={{ display: "flex", gap: "6px", alignItems: "baseline", paddingRight: "12px", borderRight: "1px solid var(--border-light)" }}>
+            <b>
+              {ICONO_EQUIPO[r.equipo.tipo]} {r.equipo.tipo}
+            </b>
+            {r.equipo.nombre && <span style={{ color: "var(--text-muted)", maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis" }}>{r.equipo.nombre}</span>}
+          </span>
+        )}
         <span>
           CPU <b>{r ? `${r.cpu}%` : "…"}</b>
         </span>
@@ -84,7 +93,7 @@ export default function IndicadorRecursos() {
       </button>
       {abierto && (
         <Modal
-          titulo="🩺 Rendimiento del equipo"
+          titulo={`🩺 Rendimiento${r ? ` de ${r.equipo.nombre || r.equipo.tipo} (${r.equipo.tipo})` : " del equipo"}`}
           ancho="min(1100px, 96vw)"
           pie={
             <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={() => setAbierto(false)}>

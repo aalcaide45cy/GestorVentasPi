@@ -50,6 +50,8 @@ services:
       - ./backups:/backups
       # Carpeta compartida con el sistema: el botón «Apagar equipo» deja aquí un archivo que un servicio del sistema atiende
       - ./control:/control
+      # Nombre del equipo (el de la Raspberry, no el del contenedor) para la cajita de recursos de la barra superior
+      - /etc/hostname:/host/hostname:ro
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
