@@ -11,6 +11,8 @@ import {
   activarTotp,
   bloqueadoHasta,
   cambiarPassword,
+  cambiarPasswordConCodigo,
+  recuperarPassword,
   clavesLimite,
   contarSesionesActivas,
   iniciarLogin,
@@ -233,6 +235,67 @@ describe("contrasena temporal de un administrador", () => {
     expect(await iniciarLogin(db, { email: u.loginEmail, password: PASSWORD, ip: null })).toEqual({ estado: "credenciales" });
     expect(await iniciarLogin(db, { email: u.loginEmail, password: temporal, ip: null })).toMatchObject({ estado: "ok" });
     expect(await estado(resetearPassword(db, 99999))).toBe(404);
+  });
+});
+
+describe("recuperar la contrasena con el autenticador", () => {
+  const NUEVA = "otra-clave-larga-2";
+
+  it("con el codigo del autenticador se cambia la contrasena sin saber la actual y se cierran las sesiones", async () => {
+    const u = await crearUsuario();
+    const ahora = new Date();
+    await activar2fa(u.idUsuario, new Date(ahora.getTime() - 120_000));
+    await crearSesionBd(u.idUsuario);
+    await db.update(usuarios).set({ debeCambiarPassword: true }).where(eq(usuarios.idUsuario, u.idUsuario));
+    const r = await recuperarPassword(db, { email: u.loginEmail.toUpperCase(), codigo: await codigoDe(u.idUsuario, ahora), nueva: NUEVA, ip: "9.9.9.9" }, ahora);
+    expect(r).toEqual({ estado: "ok" });
+    const [fila] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, u.idUsuario));
+    expect(fila.debeCambiarPassword).toBe(false);
+    expect(await contarSesionesActivas(db, u.idUsuario)).toBe(0);
+    expect(await iniciarLogin(db, { email: u.loginEmail, password: PASSWORD, ip: null })).toEqual({ estado: "credenciales" });
+    expect(await iniciarLogin(db, { email: u.loginEmail, password: NUEVA, ip: null })).toMatchObject({ estado: "ok" });
+  });
+
+  it("tambien vale un codigo de recuperacion (una sola vez) y avisa de cuantos quedan", async () => {
+    const u = await crearUsuario();
+    const [c1] = await activar2fa(u.idUsuario);
+    expect(await recuperarPassword(db, { email: u.loginEmail, codigo: c1, nueva: NUEVA, ip: null })).toEqual({ estado: "ok", quedanCodigos: 9 });
+    expect(await recuperarPassword(db, { email: u.loginEmail, codigo: c1, nueva: "una-clave-nueva-33", ip: null })).toEqual({ estado: "incorrecto" });
+  });
+
+  it("no revela si el correo existe, esta suspendido o no tiene doble factor: siempre el mismo resultado", async () => {
+    const sin2fa = await crearUsuario();
+    const suspendido = await crearUsuario({ bloqueado: true });
+    await activar2fa(suspendido.idUsuario);
+    for (const email of ["nadie@prueba.test", sin2fa.loginEmail, suspendido.loginEmail]) {
+      expect(await recuperarPassword(db, { email, codigo: "123456", nueva: NUEVA, ip: "8.8.8.8" })).toEqual({ estado: "incorrecto" });
+    }
+  });
+
+  it("valida la contrasena nueva antes de gastar el codigo y limita los intentos", async () => {
+    const u = await crearUsuario();
+    const ahora = new Date();
+    await activar2fa(u.idUsuario, new Date(ahora.getTime() - 120_000));
+    const codigo = await codigoDe(u.idUsuario, ahora);
+    await expect(recuperarPassword(db, { email: u.loginEmail, codigo, nueva: "corta", ip: null }, ahora)).rejects.toMatchObject({ status: 400 });
+    // El codigo sigue valiendo: no se gasto con la contrasena rechazada
+    for (let i = 0; i < 5; i++) expect((await recuperarPassword(db, { email: u.loginEmail, codigo: "000000", nueva: NUEVA, ip: "7.7.7.7" }, ahora)).estado).toBe("incorrecto");
+    expect((await recuperarPassword(db, { email: u.loginEmail, codigo, nueva: NUEVA, ip: "7.7.7.7" }, ahora)).estado).toBe("bloqueado");
+    // Desde otra IP, el limite por usuario tambien frena
+    expect((await recuperarPassword(db, { email: u.loginEmail, codigo, nueva: NUEVA, ip: "6.6.6.6" }, ahora)).estado).toBe("bloqueado");
+  });
+
+  it("con la sesion abierta, el codigo del autenticador sustituye a la contrasena actual", async () => {
+    const u = await crearUsuario();
+    const ahora = new Date();
+    await activar2fa(u.idUsuario, new Date(ahora.getTime() - 120_000));
+    const actual = await crearSesionBd(u.idUsuario);
+    await crearSesionBd(u.idUsuario);
+    expect(await cambiarPasswordConCodigo(db, u.idUsuario, "000000", NUEVA, actual.id, null)).toEqual({ estado: "incorrecto" });
+    expect(await cambiarPasswordConCodigo(db, u.idUsuario, await codigoDe(u.idUsuario, ahora), NUEVA, actual.id, null)).toEqual({ estado: "ok" });
+    // Se conserva la sesion desde la que se pidio y se cierran las demas
+    expect(await contarSesionesActivas(db, u.idUsuario)).toBe(1);
+    expect(await iniciarLogin(db, { email: u.loginEmail, password: NUEVA, ip: null })).toMatchObject({ estado: "ok" });
   });
 });
 

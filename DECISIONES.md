@@ -331,3 +331,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 ## Recuperar la contraseña sin correo (v1.2.4)
 - [D] Se mantiene que no haya «recuperar por correo» (la aplicación no envía correos ni tiene servidor de correo). Las vías son: otro administrador (botón «Contraseña temporal» en Configuración › Usuarios, que ya existía para el 2FA) o el script de emergencia con acceso al equipo. La contraseña temporal solo se devuelve en la respuesta de esa petición y no se guarda ni se audita.
 - [D] La ayuda de la pantalla de login es un texto fijo con los comandos de los scripts: no revela nada del equipo ni de los usuarios.
+
+## Recuperar la contraseña con el doble factor (v1.2.5)
+- [D] La recuperación se apoya en el doble factor que ya es obligatorio (código del autenticador o de recuperación) en vez de en un enlace por correo: la aplicación no envía correos y un servidor de correo exigiría credenciales de una cuenta de envío del propietario (y con el correo comprometido caería también la cuenta). El enlace por correo queda como posible extra si se quiere.
+- [D] Seguridad: mismo error para correo inexistente, cuenta suspendida, sin doble factor o código incorrecto; límite de intentos por IP+correo (progresivo, hasta 24 h) y por usuario entre todas las IP; el TOTP usado no se acepta dos veces (el existente); se cierran todas las sesiones al cambiar. Quien no tiene el autenticador ni códigos de recuperación sigue con las vías anteriores (administrador o script).
+- [D] Con la sesión abierta, el código del autenticador sustituye a la contraseña actual en «Cambiar contraseña» (se sigue exigiendo algo que solo tiene el dueño: la contraseña o el móvil; quien solo tenga la sesión abierta sin ninguna de las dos no puede cambiarla).

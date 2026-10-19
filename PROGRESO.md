@@ -353,3 +353,10 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Contraseña olvidada**: en Configuración › Usuarios hay un botón «🗝️ Contraseña temporal» para cada usuario (solo administradores): crea una contraseña nueva que se ve una sola vez, obliga a cambiarla al entrar, quita bloqueos por intentos y cierra sus sesiones (`POST /api/admin/usuarios/seguridad` con `accion: reset_password`, queda en la auditoría sin la contraseña).
 - **Pantalla de login**: bajo el formulario hay una ayuda desplegable «¿Has olvidado la contraseña o el doble factor?» que explica qué hacer: otro administrador desde Configuración › Usuarios o, si es el único, `./scripts/reset-password.sh` y `./scripts/reset-2fa.sh` en la carpeta de instalación.
 - Pruebas: 512 en verde.
+
+## Versión 1.2.5 (19/10/2026)
+
+- **«¿Has olvidado la contraseña?» en el login**: correo + código de 6 cifras del autenticador (o un código de recuperación) + contraseña nueva, sin necesitar la antigua (`POST /api/auth/recuperar-password`). Cierra todas las sesiones del usuario y quita bloqueos por intentos. No revela si un correo existe, está suspendido o no tiene doble factor (mismo error para todo), y limita los intentos por IP y correo y, además, por usuario entre todas las IP. Si no se tiene el autenticador, la propia pantalla explica la salida (otro administrador o los scripts).
+- **Cambiar contraseña con la sesión abierta sin saber la actual**: en «Cambiar contraseña» hay un enlace «No recuerdo la contraseña actual: usar el código del autenticador»; vale también tras una contraseña temporal. Se conserva la sesión desde la que se pide y se cierran las demás.
+- La contraseña nueva se valida antes de gastar el código del autenticador, así un error de formato no obliga a esperar al código siguiente.
+- Pruebas: 517 en verde (nuevas: recuperación y cambio con código, sin revelar usuarios, límites).

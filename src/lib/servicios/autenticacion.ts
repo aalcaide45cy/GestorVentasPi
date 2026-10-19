@@ -124,6 +124,65 @@ export async function cambiarPassword(
   });
 }
 
+export type ResultadoRecuperacion = { estado: "ok"; quedanCodigos?: number } | { estado: "incorrecto" } | { estado: "bloqueado"; hasta: Date };
+
+/** Guarda la contraseña nueva (sin obligar a cambiarla otra vez), quita bloqueos y cierra las sesiones salvo la indicada. */
+async function guardarPasswordNueva(ej: Ejecutor, idUsuario: number, nueva: string, sesionActualId: string | null): Promise<void> {
+  const passwordHash = await hashPassword(nueva);
+  await ej.transaction(async (tx) => {
+    await tx.update(usuarios).set({ passwordHash, debeCambiarPassword: false, intentosFallidos: 0, bloqueadoHasta: null }).where(eq(usuarios.idUsuario, idUsuario));
+    await revocarSesiones(tx, idUsuario, sesionActualId);
+  });
+}
+
+/**
+ * Cambia la contraseña con la sesión abierta pidiendo el código del autenticador (o uno de recuperación) en lugar de la contraseña
+ * actual: sirve a quien tiene la sesión abierta pero no recuerda la contraseña. La contraseña nueva se valida antes de gastar el código.
+ */
+export async function cambiarPasswordConCodigo(ej: Ejecutor, idUsuario: number, codigo: string, nueva: string, sesionActualId: string | null, ip: string | null): Promise<ResultadoRecuperacion> {
+  const error = validarPassword(nueva);
+  if (error) throw new HttpError(400, error);
+  const r = await verificarSegundoFactor(ej, idUsuario, codigo, ip);
+  if (r.estado !== "ok") return r;
+  await guardarPasswordNueva(ej, idUsuario, nueva, sesionActualId);
+  return { estado: "ok", ...(r.conRecuperacion ? { quedanCodigos: r.quedanCodigos } : {}) };
+}
+
+/**
+ * «He olvidado la contraseña» desde el inicio de sesión: correo + código del autenticador (o de recuperación) + contraseña nueva.
+ * Sin correo electrónico de por medio. Mismo resultado para un usuario que no existe, suspendido o sin doble factor (no se
+ * revela cuáles existen), con límite de intentos por IP y correo y otro por usuario entre todas las IP. Cierra todas sus sesiones.
+ */
+export async function recuperarPassword(ej: Ejecutor, entrada: { email: string; codigo: string; nueva: string; ip: string | null }, ahora = new Date()): Promise<ResultadoRecuperacion> {
+  const error = validarPassword(entrada.nueva);
+  if (error) throw new HttpError(400, error);
+  const email = entrada.email.trim().toLowerCase();
+  const clavesA = clavesLimite(entrada.ip, `recuperar:${email}`);
+  const hastaA = await bloqueadoHasta(ej, clavesA, ahora);
+  if (hastaA) return { estado: "bloqueado", hasta: hastaA };
+
+  const [u] = await ej.select().from(usuarios).where(eq(usuarios.loginEmail, email));
+  if (!u || u.bloqueado || !u.totpActivo || !u.totpSecretoCifrado) {
+    await registrarIntento(ej, clavesA, false, ahora);
+    return { estado: "incorrecto" };
+  }
+  const claveUsuario = [huellaClave(`recuperar-usuario|${u.idUsuario}`)];
+  const hastaU = await bloqueadoHasta(ej, claveUsuario, ahora);
+  if (hastaU) return { estado: "bloqueado", hasta: hastaU };
+
+  const r = await verificarSegundoFactor(ej, u.idUsuario, entrada.codigo, entrada.ip, ahora);
+  if (r.estado === "bloqueado") return r;
+  if (r.estado === "incorrecto") {
+    // La clave de solo IP ya la cuenta `verificarSegundoFactor`: no se cuenta dos veces
+    await registrarIntento(ej, [clavesA[0], ...claveUsuario], false, ahora);
+    return { estado: "incorrecto" };
+  }
+  await guardarPasswordNueva(ej, u.idUsuario, entrada.nueva, null);
+  await olvidarFallos(ej, clavesA[0]);
+  await olvidarFallos(ej, claveUsuario[0]);
+  return { estado: "ok", ...(r.conRecuperacion ? { quedanCodigos: r.quedanCodigos } : {}) };
+}
+
 /** Revoca todas las sesiones del usuario, salvo (opcionalmente) la indicada. */
 export async function revocarSesiones(ej: Ejecutor, idUsuario: number, excepto: string | null = null): Promise<number> {
   const filas = await ej
