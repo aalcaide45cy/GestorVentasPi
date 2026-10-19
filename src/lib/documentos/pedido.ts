@@ -190,7 +190,7 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   if (iNif > 0) e.dni = col[iNif].replace(/\s/g, "").toUpperCase();
   const iCP = col.findIndex((c) => /\(\d{5}\)/.test(c));
   if (iNif > 0 && iCP > iNif) e.domicilio = [...col.slice(iNif + 1, iCP), col[iCP]].join(", ");
-  const tel = col.slice(iCP + 1).find((c) => /^\+?\d[\d\s]{7,13}$/.test(c));
+  const tel = col.slice(iCP + 1).flatMap((c) => c.split(/\s*[\/;]\s*/)).find((c) => /^\+?\d[\d\s]{7,13}$/.test(c.trim()));
   e.telefono = tel ? tel.replace(/\s/g, "") : null;
   const mail = col.slice(iCP + 1).find((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c));
   // El OCR suele perder la «@» (y a veces la deja como «Q»): «luisimarino gmail.com»
@@ -200,8 +200,8 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   const iVend = datos.findIndex((l, i) => i > 0 && /@|[a-z]Q[a-z]+\.(?:es|com)\b/.test(l) && /\d{9}/.test(l));
   if (iVend > 0) e.vendedor = primeraColumna(datos[iVend - 1]) || null;
 
-  const modelo = lineas.find((l) => /^Modelo:/i.test(l.trim()));
-  if (modelo) e.modeloLinea = modelo.replace(/^Modelo:\s*/i, "").replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "").replace(/\s{2,}/g, " ").trim();
+  const modelo = lineas.find((l) => /^Mode[lti1]o\s*:/i.test(l.trim()));
+  if (modelo) e.modeloLinea = modelo.replace(/^Mode[lti1]o\s*:\s*/i, "").replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "").replace(/\s{2,}/g, " ").trim();
   // Los pedidos de vehículos de ocasión no traen «Modelo:»: el vehículo va en el resumen, «Marca / Modelo / Versión: RENAULT Mégane S.T. … >[2535JXC]  12.620,00 €»
   else {
     const resumen = lineas.find((l) => /^Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:/i.test(l.trim()));
@@ -271,8 +271,8 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   const sinRetoma = separarRetoma(lineas).principales;
   const cabecera = sinAcentos(texto.slice(0, 1500));
   // Un pedido escaneado puede perder el rótulo «USADO»: se reconoce también por «Renew», «Uso anterior» o el régimen R.E.B.U.
-  const señalesUsado = /PEDIDO\s+DE\s+VEHICULO\s+RENEW|\bUSO\s+ANTERIOR\b|REGIMEN\s+R\.?\s?E\.?\s?B\.?\s?U|VEHICULOS?\s+DE\s+OCASION/.test(sinAcentos(texto.slice(0, 6000)));
-  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : /^Modelo:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a:/im.test(texto.slice(0, 4000)) ? "nuevo" : null; // sin rótulo, la hoja con «Modelo / Color / Tapicería» es la de un coche nuevo
+  const señalesUsado = /PEDIDO\s+DE\s+VEHICULO\s+RENEW|\bUSO\s+ANTERIOR\b|REGIMEN\s+R\.?\s?E\.?\s?B\.?\s?U|VEHICULOS?\s+DE\s+OCASION|\bNUMERO\s+DE\s+STOCK\b|^KMS\b/m.test(sinAcentos(texto.slice(0, 6000)));
+  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : /^Mode[lti1]o\s*:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a\s*:/im.test(texto.slice(0, 4000)) ? "nuevo" : /^Color\s*:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a\s*:/im.test(texto.slice(0, 4000)) ? "nuevo" : null; // sin rótulo, la hoja con «Modelo / Color / Tapicería» es la de un coche nuevo
   const mayus = sinAcentos(sinRetoma.join("\n"));
   const avisos: string[] = [];
   const estructura = leerEstructuraRenault(lineas);

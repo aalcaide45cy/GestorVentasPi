@@ -285,4 +285,13 @@ describe("documentos que no son pedidos", () => {
       expect(parsearPedido(t, catalogo).esPedido).toBe(true);
     }
   });
+
+  it("reconoce si es nuevo o usado aunque el OCR lea mal «Modelo:» y sin rótulo de cabecera", () => {
+    const nuevo = ["Número Pedido 13893450", "RESUMEN", "Modeto:  DACIA DUSTER Extreme Eco-G 120PD  18.443,30 €", "Color:  Sandstone HNV  454,55 €", "Tapicería:  Tapicería TEP Micro Cloud"].join("
+");
+    expect(parsearPedido(nuevo, catalogo).tipoPedido).toBe("nuevo");
+    const usado = ["DATOS DEL VEHÍCULO", "Marca / Modelo / Versión  DACIA Spring Electric", "Número de stock  259269", "Kms  56431"].join("
+");
+    expect(parsearPedido(usado, catalogo).tipoPedido).toBe("usado");
+  });
 });
