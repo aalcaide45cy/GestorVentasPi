@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import BarraHistorial from "@/components/BarraHistorial";
@@ -92,6 +92,55 @@ function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, acti
         </span>
       )}
     </Link>
+  );
+}
+
+/**
+ * Reiniciar el servidor, reiniciar o apagar el equipo y forzar la actualización (solo administrador): agrupados en un solo botón
+ * plegable, para que el pie del menú no ocupe media pantalla (en monitores de 1080p con la barra del navegador no cabía).
+ */
+function GrupoSistema({ colapsado }: { colapsado: boolean }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="glass-panel-interactive"
+        aria-expanded={abierto}
+        title="Reiniciar el servidor, reiniciar o apagar el equipo y forzar la actualización"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: colapsado ? "center" : "flex-start",
+          gap: "12px",
+          padding: "12px 16px",
+          borderRadius: "var(--radius-sm)",
+          fontSize: "0.95rem",
+          fontWeight: 500,
+          color: "var(--text-secondary)",
+          background: "rgba(255, 255, 255, 0.01)",
+          border: "1px solid transparent",
+          width: "100%",
+          cursor: "pointer",
+        }}
+      >
+        <svg {...iconoProps}>
+          <rect x="2" y="3" width="20" height="8" rx="2" />
+          <rect x="2" y="13" width="20" height="8" rx="2" />
+          <line x1="6" y1="7" x2="6.01" y2="7" />
+          <line x1="6" y1="17" x2="6.01" y2="17" />
+        </svg>
+        {!colapsado && <span style={{ flex: 1, textAlign: "left" }}>Equipo y servidor</span>}
+        {!colapsado && <span aria-hidden="true">{abierto ? "▴" : "▾"}</span>}
+      </button>
+      {abierto && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <BotonReiniciarServidor colapsado={colapsado} />
+          <BotonApagar colapsado={colapsado} />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -430,7 +479,6 @@ export default function Sidebar({ user, version }: SidebarProps) {
       {/* Pie */}
       <div className="sidebar-pie" style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
         <BarraHistorial colapsado={isCollapsed} />
-        {isAdmin && <BotonReiniciarServidor colapsado={isCollapsed} />}
         <button
           onClick={cerrarSesion}
           className="glass-panel-interactive"
@@ -470,7 +518,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
           {!isCollapsed && <span>Cerrar sesión</span>}
         </button>
 
-        {isAdmin && <BotonApagar colapsado={isCollapsed} />}
+        {isAdmin && <GrupoSistema colapsado={isCollapsed} />}
 
         <div
           style={{

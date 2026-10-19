@@ -15,6 +15,7 @@ import { guardarPreferencia } from "@/lib/preferencias";
 import type { Categoria } from "@/lib/servicios/papelera";
 import PanelActualizar from "./PanelActualizar";
 import PanelOcr from "./PanelOcr";
+import PanelRegistro from "./PanelRegistro";
 import PanelMigracion from "./PanelMigracion";
 import PanelVaciar from "./PanelVaciar";
 import { estiloPanel } from "./utilidades";
@@ -161,6 +162,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
           { clave: "datos", etiqueta: "📦 Exportar e importar", ayuda: "Exportar, importar y guardar copias internas de cada sección de datos" },
           { clave: "copias", etiqueta: "💾 Copias de seguridad", ayuda: "Copias completas .dump, descarga, restauración y Google Drive" },
           { clave: "sistema", etiqueta: "⚙️ Sistema", ayuda: "Actualizar la aplicación y opciones de interfaz" },
+          { clave: "registro", etiqueta: "📜 Registro del servidor", ayuda: "Lo que anota el programa (errores, avisos, restauraciones) para verlo, copiarlo o descargarlo" },
           { clave: "peligro", etiqueta: "🧨 Migración y borrado", ayuda: "Traer datos de la aplicación antigua o borrar todos los datos" },
         ]}
       >
@@ -264,6 +266,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
               </div>
               </>
             )}
+            {pestana === "registro" && <PanelRegistro />}
             {pestana === "peligro" && (
               <>
               <PanelMigracion alTerminar={() => setVersionCopias((n) => n + 1)} />

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PanelAcceso from "@/components/auth/PanelAcceso";
+import CampoSecreto from "@/components/CampoSecreto";
 import { mensajeDeError } from "@/components/expedientes/comun";
 
 /** Cambio de contraseña (obligatorio tras un alta o un restablecimiento). Mínimo 12 caracteres. */
@@ -51,7 +52,7 @@ export default function CambiarPassword({ obligatorio }: { obligatorio: boolean 
         ) : (
           <div className="form-group">
             <label className="form-label" htmlFor="actual">{obligatorio ? "Contraseña temporal" : "Contraseña actual"}</label>
-            <input id="actual" className="form-input" type="password" autoComplete="current-password" autoFocus required value={actual} onChange={(e) => setActual(e.target.value)} />
+            <CampoSecreto id="actual" autoComplete="current-password" autoFocus required value={actual} onChange={(e) => setActual(e.target.value)} />
           </div>
         )}
         <button
@@ -66,11 +67,11 @@ export default function CambiarPassword({ obligatorio }: { obligatorio: boolean 
         </button>
         <div className="form-group">
           <label className="form-label" htmlFor="nueva">Nueva contraseña (mínimo 12 caracteres)</label>
-          <input id="nueva" className="form-input" type="password" autoComplete="new-password" minLength={12} required value={nueva} onChange={(e) => setNueva(e.target.value)} />
+          <CampoSecreto id="nueva" autoComplete="new-password" minLength={12} required value={nueva} onChange={(e) => setNueva(e.target.value)} />
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="repetida">Repite la nueva contraseña</label>
-          <input id="repetida" className="form-input" type="password" autoComplete="new-password" minLength={12} required value={repetida} onChange={(e) => setRepetida(e.target.value)} />
+          <CampoSecreto id="repetida" autoComplete="new-password" minLength={12} required value={repetida} onChange={(e) => setRepetida(e.target.value)} />
         </div>
         {error && (
           <p role="alert" style={{ color: "var(--danger)", fontSize: "0.9rem", marginBottom: "16px" }}>

@@ -696,7 +696,12 @@ async function pgRestore(ruta: string): Promise<void> {
   const c = conexion();
   const cmd = [...comando("PG_RESTORE_CMD", "pg_restore"), "--clean", "--if-exists", "--no-owner", "--no-privileges", "--single-transaction", ...argsConexion(c), "-d", c.bd];
   const r = await ejecutar(cmd, { stdin: ruta });
-  if (r.codigo !== 0) throw new HttpError(500, `pg_restore ha fallado: ${r.stderr.trim().split("\n").pop() || `código ${r.codigo}`}`);
+  if (r.codigo !== 0) {
+    // El detalle completo va al registro del servidor (Configuración › BBDD › Registro); en el mensaje, las últimas líneas
+    console.error(`pg_restore ha fallado (código ${r.codigo}):\n${r.stderr.trim().slice(-4000)}`);
+    const ultimas = r.stderr.trim().split("\n").filter((l) => l.trim() !== "").slice(-3).join(" | ");
+    throw new HttpError(500, `pg_restore ha fallado: ${ultimas || `código ${r.codigo}`}`);
+  }
 }
 
 /** Pasos posteriores a restaurar: migraciones pendientes y vaciado de sesiones. */
@@ -819,12 +824,15 @@ export async function iniciarRestauracion(ej: Ejecutor, idAdmin: number, entrada
   const motivo = await motivoCopiaInvalida(ruta);
   if (motivo) throw new HttpError(400, `La copia no se puede restaurar: ${motivo}`);
   const inicio = new Date().toISOString();
+  console.info(`Restauración de la copia ${path.basename(ruta)} iniciada`);
   await guardarEstadoRestauracion({ estado: "en_curso", fase: "Empezando", mensaje: null, inicio, fin: null });
   void restaurarCopiaCompleta(ej, idAdmin, entrada, (fase) => void guardarEstadoRestauracion({ estado: "en_curso", fase, mensaje: null, inicio, fin: null }))
+    .then(() => console.info(`Restauración de la copia ${path.basename(ruta)} terminada`))
     .then(() => guardarEstadoRestauracion({ estado: "terminada", fase: "Terminada", mensaje: "Copia restaurada. Tendrás que volver a iniciar sesión.", inicio, fin: new Date().toISOString() }))
     .catch((e: unknown) => {
-      console.error("Restauración fallida:", e instanceof Error ? e.message : e);
-      return guardarEstadoRestauracion({ estado: "fallida", fase: "Fallida", mensaje: e instanceof HttpError ? e.message : "La restauración ha fallado (el detalle está en el registro del servidor).", inicio, fin: new Date().toISOString() });
+      console.error("Restauración fallida:", e instanceof Error ? (e.stack ?? e.message) : e);
+      // El mensaje completo solo lo ve un administrador (`/api/salud` lo filtra para el resto): puede traer nombres de tablas o consultas
+      return guardarEstadoRestauracion({ estado: "fallida", fase: "Fallida", mensaje: e instanceof Error ? e.message : "Error desconocido al restaurar", inicio, fin: new Date().toISOString() });
     });
 }
 

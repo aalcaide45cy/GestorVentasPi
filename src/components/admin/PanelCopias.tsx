@@ -222,7 +222,7 @@ export default function PanelCopias() {
           const e = j.restauracion;
           if (e?.estado === "en_curso") setFaseRestauracion(e.fase);
           else if (e?.estado === "terminada") break;
-          else if (e?.estado === "fallida") throw new Error(e.mensaje ?? "La restauración ha fallado.");
+          else if (e?.estado === "fallida") throw new Error(`${e.mensaje ?? "La restauración ha fallado."} Mira el detalle en Configuración › BBDD › Registro del servidor.`);
         } catch (err) {
           // Mientras restaura, el servidor puede dejar de responder unos segundos: se sigue preguntando
           if (err instanceof Error && !(err instanceof TypeError) && !(err instanceof SyntaxError)) throw err;

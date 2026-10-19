@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PanelAcceso from "@/components/auth/PanelAcceso";
+import CampoSecreto from "@/components/CampoSecreto";
 import { mensajeDeError } from "@/components/expedientes/comun";
 
 type Paso = "password" | "codigo" | "suspendida" | "recuperar";
@@ -145,11 +146,11 @@ export default function LoginForm() {
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="rec-nueva">Nueva contraseña (mínimo 12 caracteres)</label>
-            <input id="rec-nueva" className="form-input" type="password" autoComplete="new-password" minLength={12} required value={nueva} onChange={(e) => setNueva(e.target.value)} />
+            <CampoSecreto id="rec-nueva" autoComplete="new-password" minLength={12} required value={nueva} onChange={(e) => setNueva(e.target.value)} />
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="rec-repetida">Repite la nueva contraseña</label>
-            <input id="rec-repetida" className="form-input" type="password" autoComplete="new-password" minLength={12} required value={repetida} onChange={(e) => setRepetida(e.target.value)} />
+            <CampoSecreto id="rec-repetida" autoComplete="new-password" minLength={12} required value={repetida} onChange={(e) => setRepetida(e.target.value)} />
           </div>
           {error && (
             <p role="alert" style={{ color: "var(--danger)", fontSize: "0.9rem", marginBottom: "16px" }}>
@@ -265,7 +266,7 @@ export default function LoginForm() {
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="password">Contraseña</label>
-          <input id="password" className="form-input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <CampoSecreto id="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
         {aviso && (
           <p role="status" style={{ color: "var(--success)", fontSize: "0.9rem", marginBottom: "16px" }}>
