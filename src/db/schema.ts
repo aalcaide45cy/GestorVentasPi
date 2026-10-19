@@ -250,6 +250,8 @@ export const expedientes = pgTable(
     fechaExpediente: date("fecha_expediente"),
     fechaAfectacion: date("fecha_afectacion"),
     fechaMatriculacion: date("fecha_matriculacion"),
+    /** Fecha en que se matriculó por primera vez el vehículo (en un usado, la de hace años). Solo informativa: no cuenta para las comisiones. */
+    fechaPrimeraMatriculacion: date("fecha_primera_matriculacion"),
     fechaEntrega: date("fecha_entrega"),
     fechaRci: date("fecha_rci"),
     fechaFacturacion: date("fecha_facturacion"),
