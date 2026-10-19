@@ -286,12 +286,10 @@ describe("documentos que no son pedidos", () => {
     }
   });
 
-  it("reconoce si es nuevo o usado aunque el OCR lea mal «Modelo:» y sin rótulo de cabecera", () => {
-    const nuevo = ["Número Pedido 13893450", "RESUMEN", "Modeto:  DACIA DUSTER Extreme Eco-G 120PD  18.443,30 €", "Color:  Sandstone HNV  454,55 €", "Tapicería:  Tapicería TEP Micro Cloud"].join("
-");
+  it("reconoce si es nuevo o usado aunque el OCR lea mal \u00abModelo:\u00bb y sin r\u00f3tulo de cabecera", () => {
+    const nuevo = ["N\u00famero Pedido 13893450", "RESUMEN", "Modeto:  DACIA DUSTER Extreme Eco-G 120PD  18.443,30 \u20ac", "Color:  Sandstone HNV  454,55 \u20ac", "Tapicer\u00eda:  Tapicer\u00eda TEP Micro Cloud"].join("\n");
     expect(parsearPedido(nuevo, catalogo).tipoPedido).toBe("nuevo");
-    const usado = ["DATOS DEL VEHÍCULO", "Marca / Modelo / Versión  DACIA Spring Electric", "Número de stock  259269", "Kms  56431"].join("
-");
+    const usado = ["DATOS DEL VEH\u00cdCULO", "Marca / Modelo / Versi\u00f3n  DACIA Spring Electric", "N\u00famero de stock  259269", "Kms  56431"].join("\n");
     expect(parsearPedido(usado, catalogo).tipoPedido).toBe("usado");
   });
 });
