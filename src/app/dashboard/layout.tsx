@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
+import IndicadorRecursos from "@/components/IndicadorRecursos";
 import BotonMenuMovil from "@/components/BotonMenuMovil";
 import AyudaBotones from "@/components/AyudaBotones";
 import LaboratorioComisiones from "@/components/LaboratorioComisiones";
@@ -110,6 +111,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             }}
           >
             <BotonMenuMovil />
+            {esAdministrador(normalizarRol(user.rol)) && <IndicadorRecursos />}
             <Suspense fallback={null}>
               <GlobalSearch />
             </Suspense>

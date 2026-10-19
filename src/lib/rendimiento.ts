@@ -268,6 +268,59 @@ async function infoBd(): Promise<InfoBd | { error: string }> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Recursos rápidos (el indicador de la barra superior)                */
+/* ------------------------------------------------------------------ */
+
+export interface Recursos {
+  cpu: number;
+  memoriaUsadaPct: number;
+  memoriaLibreMb: number;
+  memoriaTotalMb: number;
+  swapMb: number;
+  tempC: number | null;
+  discoLeidoMBs: number | null;
+  discoEscritoMBs: number | null;
+  discoPct: number | null;
+  /** «ok», «aviso» o «alto»: el peor de los medidores. */
+  nivel: "ok" | "aviso" | "alto";
+  /** Qué medidor da el aviso, en una frase. */
+  motivo: string | null;
+}
+
+const GR = globalThis as unknown as { __recursosRapidos?: Interno };
+
+/**
+ * Lectura barata para el indicador fijo de la barra superior (se pide cada pocos segundos): CPU, memoria, temperatura y lectura y
+ * escritura del disco. Lleva su propio estado, para que las diferencias se calculen entre sus propias peticiones.
+ */
+export function recursosRapidos(): Recursos {
+  const i = (GR.__recursosRapidos ??= { historial: [], cpuAnterior: null, discoAnterior: null, cpuProcAnterior: null, lag: null, temporizador: null, avisado: new Map() });
+  const m = memoria();
+  const d = disco(i);
+  const cpu = usoCpu(i);
+  const tempC = temperatura();
+  const usada = 100 - Math.round((m.libreMb / Math.max(1, m.totalMb)) * 100);
+  let nivel: Recursos["nivel"] = "ok";
+  let motivo: string | null = null;
+  const marcar = (n: "aviso" | "alto", t: string) => {
+    if (nivel === "alto" || (nivel === "aviso" && n === "aviso")) return;
+    nivel = n;
+    motivo = t;
+  };
+  const lim = limitacion();
+  if (lim && lim.ahora.length > 0) marcar("alto", `Limitando la velocidad: ${lim.ahora[0]}`);
+  if (cpu >= 90) marcar("alto", `CPU al ${cpu} %`);
+  else if (cpu >= 70) marcar("aviso", `CPU al ${cpu} %`);
+  if (usada >= 90 || m.swapUsadoMb >= 300) marcar("alto", m.swapUsadoMb >= 300 ? `Usando ${m.swapUsadoMb} MB de swap (disco como memoria)` : `Memoria al ${usada} %`);
+  else if (usada >= 80) marcar("aviso", `Memoria al ${usada} %`);
+  if ((tempC ?? 0) >= 80) marcar("alto", `Temperatura ${tempC} °C`);
+  else if ((tempC ?? 0) >= 70) marcar("aviso", `Temperatura ${tempC} °C`);
+  if ((d.ioPct ?? 0) >= 90) marcar("alto", `Disco al ${d.ioPct} %`);
+  else if ((d.ioPct ?? 0) >= 70) marcar("aviso", `Disco al ${d.ioPct} %`);
+  return { cpu, memoriaUsadaPct: usada, memoriaLibreMb: m.libreMb, memoriaTotalMb: m.totalMb, swapMb: m.swapUsadoMb, tempC, discoLeidoMBs: d.leidoMBs, discoEscritoMBs: d.escritoMBs, discoPct: d.ioPct, nivel, motivo };
+}
+
+/* ------------------------------------------------------------------ */
 /* Instantánea                                                         */
 /* ------------------------------------------------------------------ */
 

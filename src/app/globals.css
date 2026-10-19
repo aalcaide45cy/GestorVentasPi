@@ -539,6 +539,15 @@ tr.fila-aviso > td:last-child {
     justify-content: space-between !important;
     gap: 10px;
   }
+  .indicador-recursos {
+    margin-right: 0 !important;
+    padding: 6px 8px !important;
+    gap: 8px !important;
+  }
+  .indicador-recursos .indicador-disco,
+  .indicador-recursos .indicador-temp {
+    display: none;
+  }
   .boton-menu-movil {
     display: inline-flex;
     align-items: center;
