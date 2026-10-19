@@ -13,7 +13,7 @@ import { conRecalculo } from "./liquidaciones";
  * elige qué aplicar. Todo queda en el log de importaciones y se puede deshacer.
  */
 
-export const CAMPOS_COMPLETAR = ["vin", "matricula", "fecha_expediente", "fecha_afectacion", "fecha_matriculacion", "fecha_primera_matriculacion", "fecha_entrega", "fecha_facturacion", "dni", "codigo_postal", "email", "telefono"] as const;
+export const CAMPOS_COMPLETAR = ["vin", "matricula", "fecha_expediente", "fecha_afectacion", "fecha_matriculacion", "fecha_primera_matriculacion", "fecha_entrega", "fecha_facturacion", "estado_intranet", "dni", "codigo_postal", "email", "telefono"] as const;
 export type CampoCompletar = (typeof CAMPOS_COMPLETAR)[number];
 
 /** Etiquetas del log de importaciones (las mismas que usa la importación de Excel, para poder deshacer ambas). */
@@ -26,6 +26,7 @@ export const ETIQUETA_CAMPO: Record<CampoCompletar, string> = {
   fecha_primera_matriculacion: "Primera matriculación",
   fecha_entrega: "Fecha Entrega",
   fecha_facturacion: "Fecha Facturación",
+  estado_intranet: "Estado en la intranet",
   dni: "DNI/NIF",
   codigo_postal: "Código postal",
   email: "Email",
@@ -149,6 +150,7 @@ interface ExpedienteCargado {
   fechaEntrega: string | null;
   fechaFacturacion: string | null;
   deshabilitado: boolean;
+  estadoIntranet: string | null;
   clase: string;
   marca: string;
   modelo: string;
@@ -174,6 +176,7 @@ async function cargarExpedientes(ej: Ejecutor, usuario: UsuarioActual): Promise<
       fechaEntrega: expedientes.fechaEntrega,
       fechaFacturacion: expedientes.fechaFacturacion,
       deshabilitado: expedientes.deshabilitado,
+      estadoIntranet: expedientes.estadoIntranet,
       clase: estadoVehiculo.clase,
       marca: marcas.nombre,
       modelo: modelos.nombreModelo,
@@ -377,6 +380,9 @@ export async function previsualizarCompletado(
     proponer("fecha_entrega", exp.fechaEntrega, f.fEntrega);
     if (!esVo) proponer("fecha_facturacion", exp.fechaFacturacion, f.fFactura, "Cambia el mes en que cuenta el coche para las comisiones");
     // El documento solo se corrige si de verdad es otro: «03217951K» y «3217951K» son el mismo
+    // El estado del listado queda guardado para poder filtrar y revisar a mano (anulados, archivados…)
+    const estadoListado = f.estado.trim().slice(0, 40);
+    if (estadoListado && (exp.estadoIntranet ?? "").toLowerCase() !== estadoListado.toLowerCase()) proponer("estado_intranet", exp.estadoIntranet, estadoListado);
     proponer("dni", exp.dni, f.nif || null);
     proponer("codigo_postal", exp.codigoPostal, f.codigoPostal || null);
     if (f.email && exp.idCliente !== null && !(idx.correosDe.get(exp.idCliente)?.has(f.email.toLowerCase()) ?? false)) props.push({ campo: "email", etiqueta: ETIQUETA_CAMPO.email, actual: null, nuevo: f.email, tipo: "rellenar", aviso: "Se añade como correo del cliente" });
@@ -438,7 +444,7 @@ export const esquemaAplicarCompletado = z.object({
 });
 export type EntradaAplicarCompletado = z.input<typeof esquemaAplicarCompletado>;
 
-const COLUMNA_EXPEDIENTE: Partial<Record<CampoCompletar, "vin" | "matricula" | "fechaExpediente" | "fechaAfectacion" | "fechaMatriculacion" | "fechaPrimeraMatriculacion" | "fechaEntrega" | "fechaFacturacion">> = {
+const COLUMNA_EXPEDIENTE: Partial<Record<CampoCompletar, "vin" | "matricula" | "fechaExpediente" | "fechaAfectacion" | "fechaMatriculacion" | "fechaPrimeraMatriculacion" | "fechaEntrega" | "fechaFacturacion" | "estadoIntranet">> = {
   vin: "vin",
   matricula: "matricula",
   fecha_expediente: "fechaExpediente",
@@ -447,6 +453,7 @@ const COLUMNA_EXPEDIENTE: Partial<Record<CampoCompletar, "vin" | "matricula" | "
   fecha_primera_matriculacion: "fechaPrimeraMatriculacion",
   fecha_entrega: "fechaEntrega",
   fecha_facturacion: "fechaFacturacion",
+  estado_intranet: "estadoIntranet",
 };
 
 /** Aplica solo lo que la persona ha elegido, recalcula las comisiones afectadas y lo deja en el log de importaciones. */

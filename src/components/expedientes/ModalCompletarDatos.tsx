@@ -98,7 +98,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
       for (const p of f.propuestas) {
         const k = claveCampo(f.fila, p.campo);
         // Un anulado en el listado no se marca solo: se decide a mano
-        const porDefecto = f.estado !== "anulado" && (p.tipo === "rellenar" || !p.aviso);
+        const porDefecto = (f.estado !== "anulado" || p.campo === "estado_intranet") && (p.tipo === "rellenar" || !p.aviso);
         if (previos && f.fila !== reasignada ? previos.has(k) : porDefecto) marcados.add(k);
       }
     }

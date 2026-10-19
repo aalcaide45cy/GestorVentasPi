@@ -415,3 +415,21 @@ Incluye todo lo que sigue (primer arranque, Apple Vision, RAM de macOS, cancelar
 - **Confirmaciones sin palabra escrita**: ningún modal pide ya escribir IMPORTAR, SUSTITUIR, RESTAURAR, PURGAR, BORRAR TODO o CONVERTIR. El botón se arma con el primer clic («Pulsa otra vez para confirmar») y se ejecuta con el segundo, en 7 s; si no, se desarma. El servidor sigue recibiendo la constante, así que la API no cambia.
 - **Registro del servidor**: ahora recoge también lo que sale directamente por la salida estándar y de errores (Next en desarrollo no pasa por el `console` parcheado), sin las líneas de petición ni los códigos de color.
 - **OCR RapidOCR en lotes**: los recortes de texto se leen de ocho en ocho (`OCR_LOTE_REC` para cambiarlo). En una RTX 4090 con DirectML una página pasó de 6,0 s a 1,55 s (en CPU de 3,8 s a 2,2 s en dos páginas). Comparado con lectura de uno en uno sobre 12 documentos: 0 campos distintos. El resto del proceso (renderizar el PDF, recortar, agrupar) sigue en CPU, por eso la GPU no hace volar la lectura.
+
+## Versión 1.3.0 (19/10/2026) — Cotejo avanzado: listados, pagos de RCI y revisión de anulados
+
+### Completar datos desde listados (los Excel de la intranet, VN y VO)
+- **Documentos comparados sin errores tontos**: el NIF/DNI/CIF se compara sin ceros a la izquierda, espacios ni guiones (`03217951K` = `3217951K`) y, si no hay coincidencia, se sugieren los documentos que difieren en un carácter (error típico de lectura). La matrícula se guarda como `1234ABC`: se quita la fecha entre paréntesis y una «E» inicial.
+- **Pedidos repetidos del mismo cliente**: se afina por correo, marca, modelo, expediente sin bastidor y fecha más cercana; si sigue habiendo duda, la fila queda «Dudosa» con los expedientes candidatos.
+- **VO**: la fecha del paréntesis y «Fecha matriculación» (la del coche, años atrás) se guarda en un campo nuevo, «Primera matriculación», que no cuenta para las comisiones. Los VN siguen rellenando la matriculación y la facturación.
+- **Estado de la intranet**: «Archivado», «Anulado», «Matriculación»… se guarda en cada expediente (columna nueva «Estado intranet» en la lista de Expedientes, con filtro, y en la columna Estado del Cotejo de pagos), para revisar a mano lo anulado y lo archivado.
+- **Modal de revisión**: filtros (con cambios, sin cambios, sin expediente, dudosos, anulados, archivados, todas) con contadores, buscador, columnas elegibles, y por fila un botón **Abrir** con el **PDF del pedido** a un lado y, al otro, lo del listado, el expediente asociado, los datos que se guardarán (**editables**), los candidatos para elegir a mano y un buscador de expedientes. Un anulado en el listado no se marca solo (salvo su estado) y se puede **deshabilitar** el expediente, todo deshacible desde el Log de importaciones. Las fechas mal escritas se rechazan.
+- Dos listados (VN y VO) pueden traer el mismo número de fila: ahora se renumeran para que no choquen.
+
+### Pagos de la financiera (RCI / Mobilize)
+- Nueva zona **«Arrastra aquí los pagos de RCI»** junto a la de pedidos (y botón «Cargar pagos RCI» y «Cargar carpeta»): solo coge el «Detalle de la liquidación de pago»; todo lo demás se ignora y queda en una lista para revisarlo. La zona de pedidos ya descartaba estos PDF.
+- La **fecha de pago es la fecha RCI** del expediente. Se busca el expediente por bastidor (VN) o bastidor/matrícula (VO), comprobando el NIF del adquiriente (no el de la persona que representa a la financiera) y, si solo hay documento, por el cliente cuando tiene un único expediente que pueda llevar el pago. Si el documento contradice, hay varios, no hay expediente o ya tiene otra fecha RCI, queda **pendiente**: modal con el PDF, datos editables, candidatos y buscador. Nunca crea expedientes.
+- Lista de pagos con filtros (pendientes, aplicados, ignorados), buscador, columnas elegibles y «Deshacer»; el PDF pasa a los documentos del expediente (tipo «Pago de la financiera»).
+- **Cajita «Subir el pago de RCI»** en la ficha del expediente, junto a la fecha RCI: lee el PDF y la rellena; avisa si el documento no es el del cliente.
+- Tabla nueva `pagos_rci` y columnas `fecha_primera_matriculacion` y `estado_intranet` en expedientes (migraciones 0038 a 0040, solo añaden).
+- Las cabeceras de la tabla de Expedientes tienen ahora ayuda al pasar el ratón.

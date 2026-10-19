@@ -363,3 +363,7 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] «Eliminar todo lo subido» actúa sobre la tanda en curso (los ids de lo subido en esa sesión del navegador); si se cancela desde la lista de lo que falta, sobre todo lo que esté en marcha del usuario.
 - [D] Confirmar con doble clic en vez de escribir una palabra (petición del propietario). El servidor mantiene las constantes como comprobación de que la petición es deliberada.
 - [D] Lote de reconocimiento de OCR = 8 (`OCR_LOTE_REC`): se verificó sin diferencias de campos frente a lote 1 y es más rápido, sobre todo en GPU.
+- [D] 1.3.0: la fecha de matriculación de un VO (la del coche, de años atrás) se guarda aparte en `fecha_primera_matriculacion` y no en `fecha_matriculacion`, porque esa última es la que cuenta para comisionar cuando un VO no tiene fecha de facturación.
+- [D] 1.3.0: el estado de la intranet se guarda como texto en `expedientes.estado_intranet` (no cambia el estado del vehículo de la app) para filtrar anulados y archivados.
+- [D] 1.3.0: un pago de RCI se aplica solo cuando el expediente se identifica sin duda (bastidor o matrícula sin contradicción de documento, o el único expediente del cliente que puede llevarlo); si no, queda pendiente. Todo se puede deshacer.
+- [D] 1.3.0: «Deshabilitar» expedientes anulados en el listado es opcional y por fila, no automático.

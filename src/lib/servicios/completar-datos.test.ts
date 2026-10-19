@@ -112,6 +112,20 @@ describe("completar datos desde un listado", () => {
     expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].deshabilitado).toBe(false);
   });
 
+  it("guarda el estado de la intranet (Archivado, Anulado…) para poder filtrar y revisar a mano, y se deshace", async () => {
+    const { admin, exp } = await escenario();
+    const r = await previsualizarCompletado(db, admin, [fila({ bastidor: "UU1DJF00477657076", estado: "Archivado" })]);
+    expect(r.filas[0].propuestas.find((p) => p.campo === "estado_intranet")).toMatchObject({ nuevo: "Archivado", tipo: "rellenar" });
+    expect(r.resumen.archivadas).toBe(1);
+    await aplicarCompletado(db, admin, { archivo: "a.xlsx", cambios: [{ id_expediente: exp.idExpediente, campos: [{ campo: "estado_intranet", valor: "Archivado" }] }] });
+    expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].estadoIntranet).toBe("Archivado");
+    // Con el mismo estado ya no se propone
+    expect((await previsualizarCompletado(db, admin, [fila({ bastidor: "UU1DJF00477657076", estado: "archivado" })])).filas[0].propuestas).toHaveLength(0);
+    const [bloque] = await db.select().from(importacionesBloques);
+    await deshacerBloque(db, admin, bloque.id);
+    expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].estadoIntranet).toBeNull();
+  });
+
   it("rechaza una fecha escrita mal en lugar de guardarla", async () => {
     const { admin, exp } = await escenario();
     const r = await aplicarCompletado(db, admin, { archivo: "a", cambios: [{ id_expediente: exp.idExpediente, campos: [{ campo: "fecha_entrega", valor: "15/10/2026" }] }] });

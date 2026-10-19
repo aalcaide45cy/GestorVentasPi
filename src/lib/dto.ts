@@ -131,6 +131,10 @@ export interface ExpedienteDto {
   bonus_manuales: string[];
   /** Deshabilitado: no cuenta en las comisiones ni en la tasa mientras lo esté. */
   deshabilitado: boolean;
+  /** Estado en la intranet del fabricante (Archivado, Anulado…), si se ha importado de sus listados. */
+  estado_intranet: string | null;
+  /** Primera matriculación del vehículo (en un usado, años atrás); no cuenta para las comisiones. */
+  fecha_primera_matriculacion: string | null;
   cliente: ClienteDto | null;
   modelo: ModeloDto | null;
   tipoDeVenta: TipoVentaDto | null;

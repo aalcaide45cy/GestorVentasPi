@@ -281,6 +281,13 @@
       "when": 1792444951437,
       "tag": "0039_pagos_rci",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792445300158,
+      "tag": "0040_estado_intranet",
+      "breakpoints": true
     }
   ]
 }

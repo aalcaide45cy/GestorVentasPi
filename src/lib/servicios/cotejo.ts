@@ -78,7 +78,8 @@ export async function datosCotejo(ej: Ejecutor, idUsuario: number): Promise<Dato
     f_afectacion: e.fecha_afectacion,
     f_matriculacion: e.fecha_matriculacion,
     f_entrega: e.fecha_entrega,
-    estado: e.estadoVehiculo?.nombre_estado_vehiculo ?? "",
+    // Si se importó el listado de la intranet, su estado (Anulado, Archivado…) permite revisar a mano lo que no se paga
+    estado: e.estado_intranet ?? e.estadoVehiculo?.nombre_estado_vehiculo ?? "",
     usado: e.estadoVehiculo?.clase === "VO",
   }));
 

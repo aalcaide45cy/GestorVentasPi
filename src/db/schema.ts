@@ -252,6 +252,8 @@ export const expedientes = pgTable(
     fechaMatriculacion: date("fecha_matriculacion"),
     /** Fecha en que se matriculó por primera vez el vehículo (en un usado, la de hace años). Solo informativa: no cuenta para las comisiones. */
     fechaPrimeraMatriculacion: date("fecha_primera_matriculacion"),
+    /** Estado del expediente en la intranet del fabricante (Archivado, Anulado, Matriculación…), tal como viene en sus listados. */
+    estadoIntranet: varchar("estado_intranet", { length: 40 }),
     fechaEntrega: date("fecha_entrega"),
     fechaRci: date("fecha_rci"),
     fechaFacturacion: date("fecha_facturacion"),

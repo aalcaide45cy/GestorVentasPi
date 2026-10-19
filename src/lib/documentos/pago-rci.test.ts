@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { esPagoRci, parsearPagoRci } from "./pago-rci";
+import { parsearPedido } from "./pedido";
 
 // Texto tal como sale del PDF de la financiera
 const PAGO = `Nº: 202600072629
@@ -80,5 +81,11 @@ IMPORTE NOMINAL DEL PRÉSTAMO  8.567,76  euros`;
     expect(p).toMatchObject({ numeroOperacion: "202600060654", fechaPago: "2026-08-17", nif: "02247312M", bastidor: "UU1DJF00868900901", matricula: "3881LYM", marca: "DACIA", importeNominalCent: 856776 });
     expect(p?.modelo).toContain("JOGGER");
     expect(p?.faltan).toEqual([]);
+  });
+});
+
+describe("separación entre pedidos y pagos", () => {
+  it("la lectura de pedidos no toma un pago de la financiera por un pedido (se ignora)", () => {
+    expect(parsearPedido(PAGO, { modelos: [], tiposVenta: [], aliasModelos: [], marcas: ["Dacia", "Renault"] }).esPedido).toBe(false);
   });
 });
