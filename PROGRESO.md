@@ -437,4 +437,5 @@ Incluye todo lo que sigue (primer arranque, Apple Vision, RAM de macOS, cancelar
 ## Versión 1.3.1 (20/10/2026)
 - Corregido: subir desde la cajita de un expediente un pago de RCI que ya estaba aplicado a otro expediente le ponía su fecha por error; ahora avisa y no lo toca (un pago pendiente sí se aplica al expediente elegido, sin duplicarse).
 - En el modal de listados, «Quitar asociación manual» solo sale cuando la asociación se eligió a mano.
+- Panel de «Acceso rápido»: las zonas de pedidos y de pagos de RCI van en dos tarjetas iguales con su título, y el **motor de lectura (OCR)** pasa a una barra común debajo que dice que vale para pedidos y pagos (antes parecía que solo era de los pedidos). «Lectura manual» y «Ventana solo si falta marca o modelo» siguen en la tarjeta de pedidos.
 - Probado en el navegador con una copia de prueba aparte: login con doble factor, modal de listados con los Excel de VN y VO (350 filas, 26 anulados, 307 archivados), zona y lista de pagos de RCI con los dos PDF reales (aplicados por documento y por matrícula, con y sin ceros en el NIF) y cajita del expediente.
