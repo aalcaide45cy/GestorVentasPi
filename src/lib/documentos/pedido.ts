@@ -202,6 +202,17 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
 
   const modelo = lineas.find((l) => /^Modelo:/i.test(l.trim()));
   if (modelo) e.modeloLinea = modelo.replace(/^Modelo:\s*/i, "").replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "").replace(/\s{2,}/g, " ").trim();
+  // Los pedidos de vehículos de ocasión no traen «Modelo:»: el vehículo va en el resumen, «Marca / Modelo / Versión: RENAULT Mégane S.T. … >[2535JXC]  12.620,00 €»
+  else {
+    const resumen = lineas.find((l) => /^Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:/i.test(l.trim()));
+    const texto = resumen
+      ?.replace(/^Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:\s*/i, "")
+      .replace(/\s*>\s*\[.*$/, "")
+      .replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (texto) e.modeloLinea = texto;
+  }
 
   const plazo = lineas.find((l) => /^Plazo\s+de\s+Entrega/i.test(l.trim()));
   if (plazo) {

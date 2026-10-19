@@ -71,7 +71,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const marcaExistente = marcas.find((m) => quitar(m.nombre) === quitar(marcaNueva));
   const modeloExistente = marcaExistente?.modelos.find((x) => quitar(x.nombre_modelo) === quitar(modeloNuevo));
   const datosNuevoOk = marcaNueva.trim() !== "" && modeloNuevo.trim() !== "";
-  const usaNuevo = sinModelo && crearNuevo;
+  // Crear marca y modelo nuevos se puede elegir siempre (también si el pedido no dijo cuál es el modelo): se escriben a mano
+  const usaNuevo = !eleccion && crearNuevo;
 
   const valores: Record<Dato, string | null> = {
     dni: d.dni,
@@ -298,7 +299,13 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <div style={{ fontSize: "0.9rem" }}>
-            El pedido dice <strong>«{d.modeloTexto}»</strong> y eso no está en tus catálogos. Revisa cómo se va a llamar antes de crearlo:
+            {d.modeloTexto ? (
+              <>
+                El pedido dice <strong>«{d.modeloTexto}»</strong> y eso no está en tus catálogos. Revisa cómo se va a llamar antes de crearlo:
+              </>
+            ) : (
+              "Escribe la marca y el modelo que se van a crear (si ya existen, se usan los que hay):"
+            )}
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Marca</label>
@@ -422,7 +429,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
                 }
               }}>
                 <option value="">Sin modelo</option>
-                {sinModelo && <option value="nuevo">➕ Crear «{d.modeloTexto}» como marca y modelo nuevos</option>}
+                {!eleccion && <option value="nuevo">{d.modeloTexto ? `➕ Crear «${d.modeloTexto}» como marca y modelo nuevos` : "➕ Crear una marca y un modelo nuevos…"}</option>}
                 {modelosPlanos.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.texto}
@@ -440,6 +447,26 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+        )}
+
+        {usaNuevo && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "10px 12px", border: "1px solid var(--primary)", borderRadius: "var(--radius-sm)", background: "var(--bg-surface-tint)" }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Marca nueva</label>
+              <input className="form-input" value={marcaNueva} onChange={(e) => setMarcaNueva(e.target.value)} list="marcas-existentes-pedido" placeholder="Ej. Renault" />
+              <datalist id="marcas-existentes-pedido">
+                {marcas.map((m) => (
+                  <option key={m.id_marca} value={m.nombre} />
+                ))}
+              </datalist>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{marcaNueva.trim() === "" ? "Escribe la marca." : marcaExistente ? `La marca ${marcaExistente.nombre} ya existe: se usará esa.` : "Marca nueva: se creará."}</span>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Modelo nuevo</label>
+              <input className="form-input" value={modeloNuevo} onChange={(e) => setModeloNuevo(e.target.value)} placeholder="Ej. Mégane" />
+              <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{modeloNuevo.trim() === "" ? "Escribe el modelo." : modeloExistente ? "Ese modelo ya existe en esa marca: se usará." : "Modelo nuevo: se creará."}</span>
             </div>
           </div>
         )}

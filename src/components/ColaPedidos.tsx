@@ -97,7 +97,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
 
   const columnasCola: ColumnaTabla<(typeof items)[number]>[] = [
     {
-      clave: "marca",
+      clave: "seleccion",
       etiqueta: "✔",
       valor: (i) => (elegidos.includes(i.id) ? 1 : 0),
       celda: (i) => <input type="checkbox" checked={elegidos.includes(i.id)} onChange={(e) => alternarMarca(i.id, e.target.checked)} style={{ accentColor: "var(--primary)", cursor: "pointer" }} title="Elige este pedido para descartarlo junto con otros" />,

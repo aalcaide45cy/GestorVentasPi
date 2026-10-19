@@ -115,6 +115,8 @@ async function consultar(): Promise<boolean> {
     if (recogidos.length > 0) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "recoger", ids: recogidos }) });
 
     const trabajando = r.pendientes + r.leyendo + r.subiendo;
+    // Al recargar la página se pierde la cuenta de la tanda (vive en memoria): el total no puede ser menor que lo que el servidor aún tiene en marcha
+    if (subidosEnTanda < trabajando + recogidosEnTanda) subidosEnTanda = trabajando + recogidosEnTanda;
     if (trabajando > 0 || subiendo > 0) fijarLectura({ hechos: Math.max(0, subidosEnTanda - trabajando - subiendo), total: Math.max(subidosEnTanda, 1) });
     else {
       fijarLectura(null);
