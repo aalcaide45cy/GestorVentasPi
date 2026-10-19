@@ -6,6 +6,7 @@ import path from "node:path";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
+import { memoriaMacOs } from "@/lib/memoria-macos";
 import { consultasLentas, resumenPeticiones } from "@/lib/rendimiento-registro";
 import { ajustesOcr } from "@/lib/servicios/ocr-ajustes";
 
@@ -74,9 +75,11 @@ function memoria(): { totalMb: number; libreMb: number; swapTotalMb: number; swa
     return m ? Number(m[1]) : null;
   };
   const total = kb("MemTotal") ?? os.totalmem() / 1024;
-  const libre = kb("MemAvailable") ?? os.freemem() / 1024;
-  const swapTotal = kb("SwapTotal") ?? 0;
-  const swapLibre = kb("SwapFree") ?? 0;
+  // En macOS `os.freemem()` solo cuenta las páginas libres del todo y la caché de archivos cuenta como usada: se calcula como Monitor de Actividad
+  const mac = memoriaMacOs(os.totalmem());
+  const libre = mac ? mac.disponibleBytes / 1024 : (kb("MemAvailable") ?? os.freemem() / 1024);
+  const swapTotal = mac ? mac.swapTotalBytes / 1024 : (kb("SwapTotal") ?? 0);
+  const swapLibre = mac ? (mac.swapTotalBytes - mac.swapUsadoBytes) / 1024 : (kb("SwapFree") ?? 0);
   // Dentro de un contenedor, lo que cuenta es el límite del propio contenedor (si lo tiene)
   const usoC = leer("/sys/fs/cgroup/memory.current") ?? leer("/sys/fs/cgroup/memory/memory.usage_in_bytes");
   const limC = (leer("/sys/fs/cgroup/memory.max") ?? leer("/sys/fs/cgroup/memory/memory.limit_in_bytes"))?.trim();
