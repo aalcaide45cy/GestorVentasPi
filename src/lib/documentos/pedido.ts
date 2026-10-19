@@ -192,7 +192,7 @@ export function repararNif(nif: string): string | null {
 }
 
 function leerEstructuraRenault(lineas: string[]): Estructura | null {
-  const iCliente = lineas.findIndex((l) => /^[^A-Za-z0-9]*CLIENTE\b/.test(l.trim()) && /ESTABLECIMIENTO/i.test(l));
+  const iCliente = lineas.findIndex((l) => /^[^A-Za-z0-9]*CL[IiLl1|]ENTE\b/.test(l.trim()) && /ESTABLECIMIENTO/i.test(l));
   if (iCliente < 0) return null;
   const bloque = lineas.slice(iCliente + 1);
   const iResumen = bloque.findIndex((l) => /^RESUMEN\b/.test(l.trim()));

@@ -8,7 +8,8 @@ ARG NODE_VERSION=22-bookworm-slim
 FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# ONNX Runtime intentaria bajar las librerias CUDA (opcionales) al instalar; no hacen falta (el motor cae a CPU)
+RUN npm ci --no-audit --no-fund --onnxruntime-node-install=skip
 
 # ---------- 2. Compilación ----------
 FROM node:${NODE_VERSION} AS build
