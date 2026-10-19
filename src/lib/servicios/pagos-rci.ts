@@ -259,14 +259,21 @@ export async function procesarPago(ej: Ejecutor, usuario: UsuarioActual, e: Entr
     const f = await insertarPago(ej, usuario, e.nombre, adj.id, "ignorado", "No es un pago de la financiera (no se ha tocado ningún expediente)", null);
     return leerPago(ej, usuario, f.id);
   }
+  let fila: typeof pagosRci.$inferSelect | null = null;
   if (leido.numeroOperacion) {
-    const [repetido] = await ej.select({ id: pagosRci.id }).from(pagosRci).where(and(eq(pagosRci.numeroOperacion, leido.numeroOperacion), inArray(pagosRci.estado, ["aplicado", "pendiente"]), visible(usuario)));
+    const [repetido] = await ej.select().from(pagosRci).where(and(eq(pagosRci.numeroOperacion, leido.numeroOperacion), inArray(pagosRci.estado, ["aplicado", "pendiente"]), visible(usuario)));
     if (repetido) {
       await ej.delete(adjuntos).where(eq(adjuntos.id, adj.id));
-      return { ...(await leerPago(ej, usuario, repetido.id)), duplicado: true };
+      const previo = await leerPago(ej, usuario, repetido.id);
+      if (!e.idExpediente || repetido.estado === "aplicado") {
+        // Desde la cajita de un expediente: un pago ya aplicado a otro no se vuelve a aplicar sin deshacerlo antes
+        if (e.idExpediente && previo.idExpediente !== e.idExpediente) throw new HttpError(422, `Este pago ya está aplicado al expediente ${previo.idExpediente} (${previo.clienteExpediente ?? "—"}). Si quieres cambiarlo, deshazlo antes en «Pagos de RCI».`);
+        return { ...previo, duplicado: true };
+      }
+      fila = repetido;
     }
   }
-  const fila = await insertarPago(ej, usuario, e.nombre, adj.id, "pendiente", leido.faltan.length > 0 ? `No se ha podido leer: ${leido.faltan.join(", ")}` : null, leido);
+  fila ??= await insertarPago(ej, usuario, e.nombre, adj.id, "pendiente", leido.faltan.length > 0 ? `No se ha podido leer: ${leido.faltan.join(", ")}` : null, leido);
 
   if (e.idExpediente) {
     const [c] = await cargarCandidatos(ej, usuario, sql`${expedientes.idExpediente} = ${e.idExpediente}`);

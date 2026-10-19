@@ -135,4 +135,18 @@ describe("pagos de la financiera", () => {
     expect(p.estado).toBe("aplicado");
     expect(await rci(exp.idExpediente)).toBe("2026-10-10");
   });
+  it("desde la cajita de otro expediente, un pago ya aplicado no se aplica otra vez; uno pendiente sí", async () => {
+    const { admin, exp, cli, tipo } = await escenario();
+    await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());
+    const [otro] = await db.insert(expedientes).values({ idUsuario: admin.idUsuario, idCliente: cli.id, idTipoDeVenta: tipo.idTipoDeVenta }).returning();
+    await expect(procesarPago(db, admin, { datos: PDF, nombre: "a.pdf", idExpediente: otro.idExpediente, forzar: true }, pagoTexto())).rejects.toThrow("ya está aplicado al expediente");
+    expect(await rci(otro.idExpediente)).toBeNull();
+    // Un pago que quedó pendiente se aplica al expediente elegido y no se duplica
+    const pendiente = await procesarPago(db, admin, { datos: PDF, nombre: "b.pdf" }, pagoTexto({ op: "202600000009", nif: "11111111H", vin: "" }));
+    expect(pendiente.estado).toBe("pendiente");
+    const hecho = await procesarPago(db, admin, { datos: PDF, nombre: "b.pdf", idExpediente: otro.idExpediente, forzar: true }, pagoTexto({ op: "202600000009", nif: "11111111H", vin: "" }));
+    expect(hecho.id).toBe(pendiente.id);
+    expect(hecho.estado).toBe("aplicado");
+    expect(exp.idExpediente).not.toBe(otro.idExpediente);
+  });
 });

@@ -620,9 +620,11 @@ function DetalleFila({
                 {dato("NIF", fila.dniApp)}
                 {dato("Vehículo", `${fila.claseApp ?? ""} ${fila.vehiculoApp ?? ""}`.trim())}
                 {dato("Encontrado por", fila.coincide)}
-                <button type="button" className="btn btn-secondary" style={{ marginTop: "6px", padding: "2px 8px", fontSize: "0.78rem" }} disabled={trabajando} onClick={() => alAsignar(null)} title="Olvida la asociación elegida a mano y vuelve a buscar solo con los datos">
+                {fila.coincide === "manual" && (
+                  <button type="button" className="btn btn-secondary" style={{ marginTop: "6px", padding: "2px 8px", fontSize: "0.78rem" }} disabled={trabajando} onClick={() => alAsignar(null)} title="Olvida la asociación elegida a mano y vuelve a buscar solo con los datos">
                   Quitar asociación manual
                 </button>
+                )}
               </>
             ) : (
               <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{fila.motivo ?? "Sin expediente asociado."}</span>
