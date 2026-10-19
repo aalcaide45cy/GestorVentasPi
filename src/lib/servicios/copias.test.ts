@@ -23,6 +23,11 @@ import {
   motivoCopiaInvalida,
   restaurarCopiaCompleta,
   sha256DeFichero,
+  anadirTrozoSubida,
+  bytesDeSubida,
+  iniciarRestauracion,
+  leerEstadoRestauracion,
+  terminarSubida,
 } from "./copias";
 
 /** Las pruebas que usan pg_dump/pg_restore se ejecutan con el cliente del contenedor de desarrollo si no hay uno local. */
@@ -109,6 +114,36 @@ describe("ajustes", () => {
     await guardarAjustesCopias(db, { automatica: false, hora: "04:15", retDiarias: 7, retSemanales: 2, retMensuales: 3, driveAutomatica: true });
     expect((await leerAjustesCopias(db)).hora).toBe("04:15");
     await expect(guardarAjustesCopias(db, { automatica: true, hora: "25:99", retDiarias: 7, retSemanales: 2, retMensuales: 3, driveAutomatica: false })).rejects.toThrow();
+  });
+});
+
+const flujo = (b: Buffer) => new Blob([new Uint8Array(b)]).stream();
+const ID_SUBIDA = "0123456789abcdef0123456789abcdef";
+
+describe("subida por trozos (sin PostgreSQL)", () => {
+  it("añade los trozos en orden, avisa si no encajan y no duplica un trozo repetido", async () => {
+    const id = "a".repeat(32);
+    expect(await bytesDeSubida(id)).toBe(0);
+    expect(await anadirTrozoSubida(id, 0, flujo(Buffer.from("hola ")))).toBe(5);
+    // Un trozo que empieza donde no toca (por ejemplo, repetido tras perder la respuesta) no se añade
+    await expect(anadirTrozoSubida(id, 0, flujo(Buffer.from("hola ")))).rejects.toMatchObject({ status: 409 });
+    expect(await anadirTrozoSubida(id, 5, flujo(Buffer.from("mundo")))).toBe(10);
+    expect(await bytesDeSubida(id)).toBe(10);
+    expect(readFileSync(path.join(dir, `.subida-${id}.parcial`), "utf8")).toBe("hola mundo");
+    // Un trozo vacío no cambia nada
+    expect(await anadirTrozoSubida(id, 10, null)).toBe(10);
+  });
+
+  it("rechaza identificadores raros y cierres incompletos o sin fichero", async () => {
+    await expect(bytesDeSubida("../../etc/passwd")).rejects.toMatchObject({ status: 400 });
+    await expect(terminarSubida(db, ID_SUBIDA, "copia.dump", 10, 1)).rejects.toMatchObject({ status: 404 });
+    await anadirTrozoSubida(ID_SUBIDA, 0, flujo(Buffer.from("1234")));
+    await expect(terminarSubida(db, ID_SUBIDA, "copia.dump", 10, 1)).rejects.toMatchObject({ status: 409 });
+    await expect(terminarSubida(db, ID_SUBIDA, "copia.txt", 4, 1)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("no hay restauración registrada al empezar", async () => {
+    expect(await leerEstadoRestauracion()).toBeNull();
   });
 });
 
@@ -200,5 +235,34 @@ describe.skipIf(!hayPg)("copias completas con PostgreSQL", () => {
     expect(nombre).toMatch(/_auto\.dump$/);
     expect(await copiaAutomaticaSiToca(db)).toBeNull(); // ya hay una de hoy
     expect((await estadoCopias(db)).avisoAntigua).toBe(false);
+  });
+  it("sube una copia por trozos, la valida y la registra", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const origen = await crearCopia(db, "manual", admin.idUsuario);
+    const bytes = readFileSync(path.join(dir, origen.nombre));
+    const id = "b".repeat(32);
+    let desde = 0;
+    while (desde < bytes.length) {
+      const hasta = Math.min(bytes.length, desde + 4096);
+      desde = await anadirTrozoSubida(id, desde, flujo(bytes.subarray(desde, hasta)));
+    }
+    const subida = await terminarSubida(db, id, "mi-copia.dump", bytes.length, admin.idUsuario);
+    expect(subida).toMatchObject({ tipo: "manual", tamano: bytes.length, sha256: origen.sha256 });
+    expect(existsSync(path.join(dir, `.subida-${id}.parcial`))).toBe(false);
+    expect(await motivoCopiaInvalida(path.join(dir, subida.nombre))).toBeNull();
+  });
+
+  it("restaura en segundo plano: responde enseguida y el estado pasa a terminada", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    await db.insert(marcas).values({ nombre: "Marca original" });
+    const copia = await crearCopia(db, "manual", admin.idUsuario);
+    await db.insert(marcas).values({ nombre: "Marca posterior" });
+    await iniciarRestauracion(db, admin.idUsuario, { id: copia.id });
+    expect(["en_curso", "terminada"]).toContain((await leerEstadoRestauracion())?.estado);
+    // Una segunda restauración mientras hay una en curso se rechaza
+    if ((await leerEstadoRestauracion())?.estado === "en_curso") await expect(iniciarRestauracion(db, admin.idUsuario, { id: copia.id })).rejects.toMatchObject({ status: 409 });
+    for (let i = 0; i < 300 && (await leerEstadoRestauracion())?.estado === "en_curso"; i++) await new Promise((r) => setTimeout(r, 200));
+    expect(await leerEstadoRestauracion()).toMatchObject({ estado: "terminada" });
+    expect((await db.select().from(marcas)).map((m) => m.nombre)).toEqual(["Marca original"]);
   });
 });

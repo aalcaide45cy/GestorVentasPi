@@ -206,7 +206,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
         </svg>
       </button>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "40px" }}>
+      <div className="sidebar-superior" style={{ display: "flex", flexDirection: "column", gap: "40px" }}>
         {/* Cabecera: logo y tema */}
         <div
           style={{
@@ -428,7 +428,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
       </div>
 
       {/* Pie */}
-      <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div className="sidebar-pie" style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
         <BarraHistorial colapsado={isCollapsed} />
         {isAdmin && <BotonReiniciarServidor colapsado={isCollapsed} />}
         <button

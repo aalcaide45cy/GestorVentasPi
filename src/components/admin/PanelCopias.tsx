@@ -11,6 +11,7 @@ import { useCarga } from "@/components/comisiones/useCarga";
 import ModalDetalleCopia from "./DetalleCopia";
 import type { AjustesCopias, CopiaDto, EstadoCopias } from "@/lib/servicios/copias";
 import type { EstadoDrive, InicioDispositivo, SondeoDispositivo } from "@/lib/servicios/drive";
+import { subirPorTrozos } from "@/lib/subir-trozos";
 
 interface Datos {
   copias: CopiaDto[];
@@ -61,6 +62,8 @@ export default function PanelCopias() {
   const { datos, recargar } = useCarga<Datos>("/api/admin/copias", VACIO);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [restaurar, setRestaurar] = useState<CopiaDto | null>(null);
+  const [progresoSubida, setProgresoSubida] = useState<string | null>(null);
+  const [faseRestauracion, setFaseRestauracion] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<CopiaDto | null>(null);
   const [marcadas, setMarcadas] = useState<number[]>([]);
   const [form, setForm] = useState({ claveOrigen: "" });
@@ -191,8 +194,12 @@ export default function PanelCopias() {
   const subirFichero = (f: File | null) => {
     if (!f) return;
     void accion("subir", async () => {
-      const r = await fetch("/api/admin/copias/subir", { method: "POST", headers: { "x-nombre-fichero": encodeURIComponent(f.name), "Content-Type": "application/octet-stream" }, body: f });
-      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { message?: string }).message ?? "No se pudo subir el fichero");
+      // Por trozos de 32 MB: una copia de un giga no depende de una sola conexión larga (los túneles y los navegadores las cortan)
+      try {
+        await subirPorTrozos(f, { url: "/api/admin/copias/subir/trozo", alProgreso: (hechos, total) => setProgresoSubida(`Subiendo ${tamanoLegible(hechos)} de ${tamanoLegible(total)} (${Math.round((hechos / Math.max(1, total)) * 100)} %)…`) });
+      } finally {
+        setProgresoSubida(null);
+      }
       return "Fichero subido. Ya aparece en la lista; pulsa «Restaurar» para usarlo.";
     });
   };
@@ -200,12 +207,34 @@ export default function PanelCopias() {
   const confirmarRestaurar = () =>
     accion("restaurar", async () => {
       if (!restaurar) return;
+      // La restauración sigue en el servidor (en una Raspberry con una copia grande son varios minutos) y aquí se pregunta cómo va:
+      // una sola petición tan larga se cortaba por el camino («Load failed»)
       await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, claveOrigen: form.claveOrigen.trim() || undefined } });
+      const inicio = Date.now();
+      let fallosSeguidos = 0;
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 3000));
+        if (Date.now() - inicio > 4 * 60 * 60 * 1000) throw new Error("La restauración tarda demasiado. Mira el estado en esta pestaña más tarde.");
+        try {
+          const r = await fetch("/api/salud", { cache: "no-store", credentials: "same-origin" });
+          const j = (await r.json()) as { restauracion?: { estado: string; fase: string; mensaje: string | null } | null };
+          fallosSeguidos = 0;
+          const e = j.restauracion;
+          if (e?.estado === "en_curso") setFaseRestauracion(e.fase);
+          else if (e?.estado === "terminada") break;
+          else if (e?.estado === "fallida") throw new Error(e.mensaje ?? "La restauración ha fallado.");
+        } catch (err) {
+          // Mientras restaura, el servidor puede dejar de responder unos segundos: se sigue preguntando
+          if (err instanceof Error && !(err instanceof TypeError) && !(err instanceof SyntaxError)) throw err;
+          if (++fallosSeguidos > 200) throw new Error("No se puede comprobar la restauración: el servidor no responde.");
+        }
+      }
+      setFaseRestauracion(null);
       setRestaurar(null);
       setForm({ claveOrigen: "" });
       mostrar("Copia restaurada. Vuelve a iniciar sesión.");
       setTimeout(() => router.push("/login"), 1500);
-    });
+    }).finally(() => setFaseRestauracion(null));
 
   const fijarClave = () =>
     accion("clave", async () => {
@@ -437,9 +466,10 @@ export default function PanelCopias() {
           </button>
         )}
         <label className="btn btn-secondary" style={{ cursor: "pointer" }} title="Sube al servidor un archivo .dump que tengas guardado (por ejemplo descargado de otra instalación). Se comprueba que sea válido; después podrás restaurarlo desde la lista.">
-          Subir un .dump…
-          <input type="file" accept=".dump" style={{ display: "none" }} onChange={(e) => subirFichero(e.target.files?.[0] ?? null)} />
+          {trabajando === "subir" ? "Subiendo…" : "Subir un .dump…"}
+          <input type="file" accept=".dump" style={{ display: "none" }} disabled={trabajando !== null} onChange={(e) => { subirFichero(e.target.files?.[0] ?? null); e.target.value = ""; }} />
         </label>
+        {progresoSubida && <span style={{ color: "var(--primary)", fontSize: "0.85rem" }}>{progresoSubida}</span>}
         <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
           {estado?.ultima ? `Última copia: ${fechaLegible(estado.ultima.creadaEn)} · ${tamanoLegible(estado.ultima.tamano)}${estado.ultima.enDrive ? " · en Drive" : ""}` : "Todavía no hay copias."}
         </span>
@@ -676,6 +706,11 @@ export default function PanelCopias() {
             </>
           }
         >
+          {trabajando === "restaurar" && (
+            <p style={{ color: "var(--primary)", lineHeight: 1.6, margin: "0 0 10px" }}>
+              ⏳ {faseRestauracion ?? "Empezando"}… Con una copia grande puede tardar varios minutos (en una Raspberry, más). No cierres esta ventana: al terminar te llevará al inicio de sesión.
+            </p>
+          )}
           <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
             Se sustituirán <b>todos los datos actuales</b> por los de <code>{restaurar.nombre}</code>. Antes se hará una copia previa automática (con una nota que lo explica) y, al terminar, todas las sesiones se cerrarán. ¿Seguro?
           </p>
