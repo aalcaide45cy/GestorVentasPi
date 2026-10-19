@@ -125,7 +125,7 @@ export default function PanelOcr() {
             </button>
           </div>
           <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-            {a.simultaneas === 0 ? `Ahora mismo: automático (sube poco a poco mientras el equipo vaya sobrado, hasta ${equipo.esRaspberry ? "2 o 3 en una Raspberry" : "6 por defecto"}).` : `Ahora mismo: ${a.simultaneas} a la vez, fijo.`} En la Raspberry conviene 1 o 2; en un PC potente, más. Pon 0 para automático (máximo {a.maximoSimultaneas}).
+            {a.simultaneas === 0 ? `Ahora mismo: automático (sube poco a poco mientras el equipo vaya sobrado, hasta ${equipo.esRaspberry ? "2 en una Raspberry" : "6 por defecto"}).` : `Ahora mismo: ${a.simultaneas} a la vez, fijo.`} En la Raspberry conviene 1 o 2; en un PC potente, más. Pon 0 para automático (máximo {a.maximoSimultaneas}).
           </span>
         </div>
       </div>

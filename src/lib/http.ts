@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
 import { HttpError } from "@/lib/auth/sesion";
 import { conContextoHistorial, etiquetaDeAccion } from "@/lib/historial/contexto";
+import { registrarPeticion } from "@/lib/rendimiento-registro";
 
 /** Respuesta de error con el formato del original: `{ message }`. */
 export function errorJson(status: number, message: string): NextResponse {
@@ -55,11 +56,22 @@ export function manejar<A extends unknown[]>(
     // Las peticiones que cambian datos llevan un grupo propio para el historial de deshacer y rehacer
     const req = args[0] instanceof Request ? args[0] : null;
     const cambia = req !== null && !["GET", "HEAD", "OPTIONS"].includes(req.method);
+    // Se mide cuánto tarda cada petición para la pestaña «Rendimiento» y para anotar en el registro las lentas y las que fallan
+    const inicio = performance.now();
+    let respuesta: NextResponse;
     try {
-      return cambia ? await conContextoHistorial(etiquetaDeAccion(req.method, new URL(req.url).pathname), () => fn(...args)) : await fn(...args);
+      respuesta = cambia ? await conContextoHistorial(etiquetaDeAccion(req.method, new URL(req.url).pathname), () => fn(...args)) : await fn(...args);
     } catch (e) {
-      return responderError(e);
+      respuesta = responderError(e);
     }
+    if (req) {
+      try {
+        registrarPeticion(req.method, new URL(req.url).pathname, respuesta.status, performance.now() - inicio);
+      } catch {
+        /* medir nunca debe romper una petición */
+      }
+    }
+    return respuesta;
   };
 }
 

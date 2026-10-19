@@ -5,6 +5,9 @@ export async function register(): Promise<void> {
     const { instalarRegistroServidor } = await import("./lib/registro-servidor");
     instalarRegistroServidor();
     console.info(`Servidor iniciado (GestorVentas v${process.env.npm_package_version ?? "?"}, Node ${process.version}, ${process.platform}/${process.arch})`);
+    // Mide el equipo cada 30 s (CPU, memoria, temperatura, disco…) para la pestaña «Rendimiento» y avisa en el registro si algo va mal
+    const { iniciarMuestreo } = await import("./lib/rendimiento");
+    iniciarMuestreo();
   }
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.DISABLE_SCHEDULER !== "true") {
     const { iniciarPlanificador } = await import("./lib/servicios/planificador");

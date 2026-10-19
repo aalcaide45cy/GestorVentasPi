@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { contextoHistorial } from "@/lib/historial/contexto";
+import { registrarConsulta } from "@/lib/rendimiento-registro";
 import * as relations from "./relations";
 import * as schema from "./schema";
 
@@ -19,6 +20,30 @@ export const pool: Pool = globalConPool.__pgPool ?? crearPool();
 if (process.env.NODE_ENV !== "production") globalConPool.__pgPool = pool;
 
 export const db = drizzle(pool, { schema: esquemaCompleto });
+
+/*
+ * Consultas lentas: cada conexión mide lo que tardan sus consultas y las que pasan del umbral se anotan (texto SQL, sin parámetros) en la
+ * pestaña «Rendimiento» y en el registro del servidor. Se engancha una sola vez por conexión, al crearla.
+ */
+type ClienteMedido = { query: (...args: unknown[]) => unknown; __medido?: boolean };
+pool.on("connect", (cliente) => {
+  const c = cliente as unknown as ClienteMedido;
+  if (c.__medido) return;
+  c.__medido = true;
+  const original = c.query.bind(c);
+  c.query = (...args: unknown[]) => {
+    const inicio = performance.now();
+    const texto = typeof args[0] === "string" ? args[0] : ((args[0] as { text?: string } | null)?.text ?? "");
+    const resultado = original(...args);
+    if (resultado && typeof (resultado as Promise<unknown>).then === "function") {
+      (resultado as Promise<unknown>).then(
+        () => registrarConsulta(performance.now() - inicio, texto),
+        () => registrarConsulta(performance.now() - inicio, texto),
+      );
+    }
+    return resultado;
+  };
+});
 export type Db = typeof db;
 
 /*

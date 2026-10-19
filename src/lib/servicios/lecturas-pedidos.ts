@@ -72,10 +72,12 @@ export function lectoresPermitidos(): number {
   if (Number.isInteger(fijo) && fijo > 0) return Math.min(fijo, 32);
   const elegido = ajustesOcr().simultaneas;
   if (elegido > 0) return Math.min(elegido, 32);
-  // Por defecto, hasta 6 a la vez: leer miles de pedidos va sobrado de rápido sin forzar el equipo
+  // Por defecto, hasta 6 a la vez (2 en una Raspberry, que además de leer atiende la aplicación y la base de datos): leer miles de
+  // pedidos va sobrado de rápido sin forzar el equipo. Se puede cambiar en Configuración › BBDD › Sistema.
+  const enRaspberry = process.arch === "arm64" && process.platform === "linux";
   const porNucleos = Math.floor(os.availableParallelism() * 0.75);
   const porMemoria = Math.floor(os.totalmem() / (1.5 * 1024 ** 3));
-  return Math.max(1, Math.min(MAXIMO_POR_DEFECTO, porNucleos, porMemoria));
+  return Math.max(1, Math.min(enRaspberry ? 2 : MAXIMO_POR_DEFECTO, porNucleos, porMemoria));
 }
 
 /** ¿Se fijó el número de lectores a mano (`LECTORES_PEDIDOS`)? Entonces no se ajusta solo. */
