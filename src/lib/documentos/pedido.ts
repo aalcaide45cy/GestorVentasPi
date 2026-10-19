@@ -192,7 +192,8 @@ export function repararNif(nif: string): string | null {
 }
 
 function leerEstructuraRenault(lineas: string[]): Estructura | null {
-  const iCliente = lineas.findIndex((l) => /^[^A-Za-z0-9]*CL[IiLl1|]ENTE\b/.test(l.trim()) && /ESTABLECIMIENTO/i.test(l));
+  // «CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT» en una línea; en un escaneo flojo puede salir «CLIENTE» solo, con el establecimiento en la línea de al lado
+  const iCliente = lineas.findIndex((l, i) => /^[^A-Za-z0-9]*CL[IiLl1|]ENTE\b/.test(l.trim()) && lineas.slice(Math.max(0, i - 2), i + 3).some((x) => /ESTABLECIMIENTO/i.test(x)));
   if (iCliente < 0) return null;
   const bloque = lineas.slice(iCliente + 1);
   const iResumen = bloque.findIndex((l) => /^RESUMEN\b/.test(l.trim()));
@@ -217,7 +218,7 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   // Columna izquierda de cada línea del bloque del cliente
   const col = datos.map(primeraColumna);
   // El OCR lee a veces la «D.» del tratamiento como «E.» («Sr. E. Mario Muñoz»)
-  e.cliente = col[0] ? col[0].replace(/^(Sra?\.?)\s+E\.\s+/i, "$1 D. ").replace(HONORIFICO, "").trim() || null : null;
+  e.cliente = col[0] ? col[0].replace(/^(Sra?\.?)\s+E\.\s+/i, "$1 D. ").replace(/^[A-Za-z](?=Do[ñn]a\b|Don\b)/, "").replace(HONORIFICO, "").trim() || null : null;
   let iNif = col.findIndex((c, i) => i > 0 && /^([A-Z]?\d{7,8}[A-Z]|[A-HJNP-SUVW]\d{7}[0-9A-J])$/i.test(c.replace(/\s/g, "")));
   if (iNif > 0) e.dni = col[iNif].replace(/\s/g, "").toUpperCase();
   else {
@@ -255,6 +256,8 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
     if (texto) e.modeloLinea = texto.replace(/^(\S+)\s+\1\b/i, "$1");
   }
 
+  // Si la linea del modelo solo trae el importe (el nombre se perdio en el escaneo), no hay modelo
+  if (e.modeloLinea && !/[A-Za-z]{3}/.test(e.modeloLinea.normalize("NFD").replace(/[̀-ͯ]/g, ""))) e.modeloLinea = null;
   const plazo = lineas.find((l) => /^Plazo\s+de\s+Entrega/i.test(l.trim()));
   if (plazo) {
     const fs = fechasEnTexto(plazo);
