@@ -285,4 +285,28 @@ describe("documentos que no son pedidos", () => {
       expect(parsearPedido(t, catalogo).esPedido).toBe(true);
     }
   });
+
+  it("reconoce si es nuevo o usado aunque el OCR lea mal \u00abModelo:\u00bb y sin r\u00f3tulo de cabecera", () => {
+    const nuevo = ["N\u00famero Pedido 13893450", "RESUMEN", "Modeto:  DACIA DUSTER Extreme Eco-G 120PD  18.443,30 \u20ac", "Color:  Sandstone HNV  454,55 \u20ac", "Tapicer\u00eda:  Tapicer\u00eda TEP Micro Cloud"].join("\n");
+    expect(parsearPedido(nuevo, catalogo).tipoPedido).toBe("nuevo");
+    const usado = ["DATOS DEL VEH\u00cdCULO", "Marca / Modelo / Versi\u00f3n  DACIA Spring Electric", "N\u00famero de stock  259269", "Kms  56431"].join("\n");
+    expect(parsearPedido(usado, catalogo).tipoPedido).toBe("usado");
+  });
+
+  it("ignora la E del distintivo pegada a la matr\u00edcula de los pedidos de ocasi\u00f3n", () => {
+    const texto = ["DATOS DEL VEH\u00cdCULO", "Marca / Modelo / Versi\u00f3n  DACIA Jogger", "N\u00famero de stock  259269", "Matr\u00edcula  E5919LZG  Bastidor  UU1RSDCNCN0123456", "Kms  56431"].join("\n");
+    expect(parsearPedido(texto, catalogo).matricula).toBe("5919LZG");
+  });
+
+  it("calcula la letra del DNI cuando el OCR la lee como un simbolo", () => {
+    const texto = ["PEDIDO DE VEH\u00cdCULO NUEVO", "N\u00famero Pedido 13958497 - 7441-00", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Sr. Don Miguel Angel Brito Canache  AUTOCARPE CONCESIONARIO, S.L.", "51266944)  B83747626", "Plaza Blimea, 5, 4, C  CLAVO, 22-26", "Rivas - Vaciamadrid, Madrid (28523)  Rivas - Vaciamadrid, Madrid (28522)", "638874946  Tel.: 916665058", "RESUMEN", "Modelo:  RENAULT ESPACE FULL HYBRID E-TECH  40.263,55 \u20ac"].join("\n");
+    const d = parsearPedido(texto, catalogo);
+    expect(d.dni).toBe("51266944J");
+    expect(d.avisos.some((a) => a.includes("letra del DNI"))).toBe(true);
+  });
+
+  it("reconoce el CIF de una empresa como documento del cliente", () => {
+    const texto = ["PEDIDO DE VEHÍCULO NUEVO", "Número Pedido 13958497 - 7441-00", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Instalaciones Moliaga S.I.  AUTOCARPE CONCESIONARIO, S.L.", "B88499868  B83747626", "Calle Jarama, 13  CLAVO, 22-26", "Mejorada Del Campo, Madrid (28840)  Rivas - Vaciamadrid, Madrid (28522)", "638874946  Tel.: 916665058", "RESUMEN", "Modelo:  RENAULT ESPACE FULL HYBRID E-TECH  40.263,55 €"].join("\n");
+    expect(parsearPedido(texto, catalogo).dni).toBe("B88499868");
+  });
 });

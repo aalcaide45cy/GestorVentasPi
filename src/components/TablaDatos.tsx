@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { usePreferencia } from "@/lib/preferencias";
 import PanelColumnas from "@/components/expedientes/PanelColumnas";
 
@@ -49,11 +49,13 @@ interface Props<T> {
   compacta?: boolean;
   /** Orden con el que se abre la tabla (por una columna y en un sentido). */
   ordenInicial?: { clave: string; asc: boolean };
+  /** Avisa de las filas que se ven (con la búsqueda y el orden aplicados), por ejemplo para elegir un rango con Mayús. */
+  alVerFilas?: (filas: T[]) => void;
 }
 
 const sinAcentos = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial }: Props<T>) {
+export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial, alVerFilas }: Props<T>) {
   const relleno = compacta ? "5px 6px" : "6px 8px";
   const defecto = useMemo<Config>(() => ({ orden: columnas.map((c) => c.clave), visibles: Object.fromEntries(columnas.map((c) => [c.clave, !c.oculta])) }), [columnas]);
   const [guardado, fijar] = usePreferencia(`tabla-${id}`);
@@ -102,6 +104,10 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
     }
     return lista;
   }, [filas, texto, orden, columnas, textoExtra]);
+
+  useEffect(() => {
+    alVerFilas?.(visibles);
+  }, [visibles, alVerFilas]);
 
   const pieFila = pie ? pie(visibles) : null;
 

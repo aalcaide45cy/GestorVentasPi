@@ -178,7 +178,7 @@ Los clientes que se crearan con ella no se borran. Las comisiones se recalculan 
     ...columnasBaseRegistros,
     {
       clave: "corregir",
-      etiqueta: "",
+      etiqueta: "Corregir",
       valor: () => "",
       celda: (r) =>
         r.id_expediente ? (

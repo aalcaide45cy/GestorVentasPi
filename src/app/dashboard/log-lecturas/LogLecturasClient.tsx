@@ -107,7 +107,7 @@ export default function LogLecturasClient() {
     { clave: "avisos", etiqueta: "Avisos de la lectura", valor: (f) => f.avisos.join(" · "), celda: (f) => <span style={{ whiteSpace: "normal", fontSize: "0.8rem" }}>{f.avisos.join(" · ") || "—"}</span>, oculta: true },
     {
       clave: "acciones",
-      etiqueta: "",
+      etiqueta: "Acciones",
       valor: () => "",
       celda: (f) => (
         <span style={{ display: "inline-flex", gap: "6px" }}>

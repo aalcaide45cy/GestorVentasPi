@@ -99,12 +99,25 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
   };
 
   const [abierta, setAbierta] = useState<CategoriaAnomalia | null>(null);
-  const columnasAnomalia: ColumnaTabla<FilaAnomalia>[] = [
-    { clave: "texto", etiqueta: "Qué es", valor: (f) => f.texto, celda: (f) => <b>{f.texto}</b> },
-    { clave: "detalle", etiqueta: "Por qué se señala", valor: (f) => f.detalle, celda: (f) => <span style={{ whiteSpace: "normal" }}>{f.detalle}</span> },
+  /** «AAAA-MM-DD» → «DD/MM/AAAA». */
+  const fechaLegible = (v: string | number | null | undefined): string => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split("-").reverse().join("/") : v === null || v === undefined || v === "" ? "—" : String(v));
+  /** Las columnas de la tabla de una categoría: las de siempre y las que trae cada una (matrícula, fechas, vendedor…), que se gestionan con «Columnas y vistas». */
+  const columnasDe = (c: CategoriaAnomalia): ColumnaTabla<FilaAnomalia>[] => [
+    { clave: "texto", etiqueta: "Qué es", valor: (f) => f.texto, celda: (f) => <b>{f.texto}</b>, ayuda: "Qué se ha encontrado" },
+    { clave: "detalle", etiqueta: "Por qué se señala", valor: (f) => f.detalle, celda: (f) => <span style={{ whiteSpace: "normal" }}>{f.detalle}</span>, ayuda: "Por qué aparece en esta lista" },
+    ...(c.columnas ?? []).map(
+      (col): ColumnaTabla<FilaAnomalia> => ({
+        clave: col.clave,
+        etiqueta: col.etiqueta,
+        ayuda: col.ayuda,
+        valor: (f) => f.extra?.[col.clave] ?? "",
+        celda: (f) => (col.tipo === "fecha" ? fechaLegible(f.extra?.[col.clave]) : col.tipo === "numero" ? (f.extra?.[col.clave] ?? "—") : <span style={{ whiteSpace: "normal" }}>{f.extra?.[col.clave] ?? "—"}</span>),
+        alinear: col.tipo === "numero" ? "right" : undefined,
+      }),
+    ),
     {
       clave: "enlace",
-      etiqueta: "",
+      etiqueta: "Abrir",
       valor: () => "",
       celda: (f) =>
         f.enlace ? (
@@ -112,6 +125,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
             Abrir ↗
           </a>
         ) : null,
+      ayuda: "Abre el expediente o el cliente en otra pestaña",
     },
   ];
   const abrirCategoria = (c: CategoriaAnomalia) => {
@@ -193,7 +207,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
       {abierta && (
                 <Modal
                   titulo={`${abierta.titulo} (${abierta.cantidad})`}
-                  ancho="900px"
+                  ancho="min(1500px, 96vw)"
                   pie={
                     <button type="button" className="btn btn-secondary" onClick={() => setAbierta(null)}>
                       Cerrar
@@ -204,7 +218,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
                     {abierta.explicacion}
                     {abierta.cantidad > abierta.filas.length ? ` Se muestran las primeras ${abierta.filas.length}.` : ""}
                   </p>
-                  <TablaDatos<FilaAnomalia> id={`bbdd-${abierta.id}`} columnas={columnasAnomalia} filas={abierta.filas} clave={(f) => `${abierta.id}-${f.id}-${f.detalle}`} placeholder="Buscar…" />
+                  <TablaDatos<FilaAnomalia> id={`bbdd-${abierta.id}`} columnas={columnasDe(abierta)} filas={abierta.filas} clave={(f) => `${abierta.id}-${f.id}-${f.detalle}`} compacta placeholder="Buscar…" />
                 </Modal>
               )}
               </>

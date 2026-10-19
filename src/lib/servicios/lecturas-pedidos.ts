@@ -191,7 +191,7 @@ export async function borrarTodosLosFicheros(): Promise<void> {
 
 export async function encolarLectura(ej: Ejecutor, idUsuario: number, nombre: string, datos: Buffer, destino: DestinoLectura | null, permitirDuplicados: boolean, retener = false): Promise<{ id: number; estado: EstadoLectura }> {
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
-  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   if (!tipoDeFichero(datos)) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (JPG, PNG, WebP).");
   const nombreLimpio = nombre.replace(/[\\/\0]/g, "_").slice(0, 200) || "pedido";
   const huella = createHash("sha256").update(datos).digest("hex");
@@ -310,7 +310,7 @@ export async function accionLecturas(ej: Ejecutor, idUsuario: number, e: z.infer
       return r.length;
     }
     case "limpiar": {
-      const r = await ej.update(lecturasPedidos).set({ recogidaEn: ahora }).where(and(suyas, inArray(lecturasPedidos.estado, ["descartado", "cancelado"]), deLaLista)).returning({ id: lecturasPedidos.id });
+      const r = await ej.update(lecturasPedidos).set({ recogidaEn: ahora }).where(and(suyas, inArray(lecturasPedidos.estado, e.ids && e.ids.length > 0 ? ["descartado", "cancelado", "error"] : ["descartado", "cancelado"]), deLaLista)).returning({ id: lecturasPedidos.id });
       return r.length;
     }
     case "reintentar": {

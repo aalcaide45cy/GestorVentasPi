@@ -5,7 +5,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { adjuntos, adjuntosDatos, clientes, expedientes, marcas, tiendas, validacionesComision } from "@/db/schema";
+import { adjuntos, adjuntosDatos, auditoria, clientes, expedientes, marcas, tiendas, validacionesComision } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
@@ -75,7 +75,7 @@ describe("papelera: lo que sigue guardado tras eliminar", () => {
     const { admin, vigente, borrado, docVigente } = await escenario();
     // Sin la palabra de confirmación no se hace nada
     await expect(purgar(db, admin.idUsuario, { categoria: "expedientes", todo: true, confirmacion: "sí" })).rejects.toThrow(/PURGAR/);
-    const r = await purgarAFondo(db, admin.idUsuario, { accion: "a_fondo", confirmacion: "purgar a fondo", incluirSinVincular: false, conservarHistorial: true });
+    const r = await purgarAFondo(db, admin.idUsuario, { accion: "a_fondo", confirmacion: "purgar a fondo", incluirSinVincular: false, conservarHistorial: true, vaciarAuditoria: false });
     expect(r.copiaPrevia).toMatch(/previa/);
     expect(r.purgados).toBe(2); // el expediente y el cliente; el documento y la marca de pagado se van con el expediente
     // Lo eliminado ya no está: ni el expediente, ni su cliente, ni su documento, ni su marca de pagado
@@ -101,5 +101,15 @@ describe("papelera: lo que sigue guardado tras eliminar", () => {
     expect(r).toMatchObject({ purgados: 1, bloqueados: 1 });
     expect(await db.select().from(marcas).where(eq(marcas.idMarca, libre.idMarca))).toHaveLength(0);
     expect(await db.select().from(tiendas).where(eq(tiendas.idTienda, usada.idTienda))).toHaveLength(1);
+  });
+
+  it.skipIf(!hayPg)("en auditoría, historial y lecturas se puede purgar lo elegido fila a fila (antes pedía los días)", { timeout: 120_000 }, async () => {
+    const admin = await crearUsuarioPrueba("administrador", "Admin");
+    const filas = await db.insert(auditoria).values([{ accion: "a" }, { accion: "b" }, { accion: "c" }]).returning();
+    const r = await purgar(db, admin.idUsuario, { categoria: "auditoria", ids: [String(filas[0].id), String(filas[1].id)], confirmacion: "PURGAR" });
+    expect(r.purgados).toBe(2);
+    expect((await db.select().from(auditoria)).map((x) => x.accion)).toEqual(["c"]);
+    // Sin elegir nada, ni todo, ni días, no se hace nada
+    await expect(purgar(db, admin.idUsuario, { categoria: "auditoria", confirmacion: "PURGAR" })).rejects.toThrow(/nada elegido/);
   });
 });

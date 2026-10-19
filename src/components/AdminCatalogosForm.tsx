@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Seccion } from "@/lib/servicios/intercambio";
 import type { EstadoVehiculoDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
+import { usePreferencia } from "@/lib/preferencias";
 import { BotonesDatosSeccion } from "./datos/DatosSeccion";
 import PestanaBbdd from "./admin/PestanaBbdd";
 import PestanaEstados from "./admin/PestanaEstados";
@@ -46,7 +47,10 @@ export default function AdminCatalogosForm({
   tiendaPredeterminadaIdInicial,
   mostrarBotonesCsv,
 }: Props) {
-  const [pestana, setPestana] = useState<Pestana>("marcas");
+  // La pestaña abierta se recuerda: al recargar la página no vuelve a «Marcas»
+  const [pestanaGuardada, setPestanaGuardada] = usePreferencia("config-pestana");
+  const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaGuardada) ? (pestanaGuardada as Pestana) : "marcas";
+  const setPestana = (p: Pestana) => setPestanaGuardada(p);
   const [marcas, setMarcas] = useState(marcasIniciales);
   const [tipos, setTipos] = useState(tiposVentaIniciales);
   const [estados, setEstados] = useState(estadosIniciales);

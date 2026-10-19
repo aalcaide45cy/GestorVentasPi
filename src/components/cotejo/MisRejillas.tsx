@@ -113,7 +113,7 @@ export default function MisRejillas({ esAdministrador }: { esAdministrador: bool
     { clave: "guardada", etiqueta: "Guardada", valor: (r) => r.creadaEn, celda: (r) => fechaHora(r.creadaEn) },
     {
       clave: "acciones",
-      etiqueta: "",
+      etiqueta: "Acciones",
       valor: () => "",
       celda: (r) => (
         <span style={{ display: "inline-flex", gap: "6px" }}>

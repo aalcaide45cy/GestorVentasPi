@@ -9,7 +9,8 @@ import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
 import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
-import type { EleccionRapida, ItemCola } from "@/lib/pedidos-cola";
+import { actualizarPedidoDeCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
+import type { ResultadoPedido } from "@/lib/servicios/documentos";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
 import { vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import VisorPedido from "./documentos/VisorPedido";
@@ -32,6 +33,9 @@ interface Props {
   alDescartar: () => void;
 }
 
+/** Si el visor del PDF estaba abierto en el último pedido (sobrevive a la recarga de la ventana al releer). */
+let pdfAbierto = false;
+
 type ClienteElegido = number | "nuevo" | "ninguno" | null;
 type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "fecha" | "entrega" | "matricula";
 
@@ -42,7 +46,10 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
 export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
   const { mostrar } = useToast();
   const router = useRouter();
-  const [verPdf, setVerPdf] = useState(false);
+  // Se recuerda entre lecturas: «Releer» rehace la ventana y el visor no debe esconderse
+  const [verPdf, setVerPdfEstado] = useState(pdfAbierto);
+  const setVerPdf = (f: (v: boolean) => boolean) => setVerPdfEstado((v) => (pdfAbierto = f(v)));
+  const [releyendo, setReleyendo] = useState(false);
   const [masivo, setMasivo] = useState<{ hechos: number; total: number } | null>(null);
   const pedido = item.pedido;
   const eleccion = item.eleccion;
@@ -62,6 +69,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const sinModelo = !eleccion && d.idModelo === null && !!d.modeloTexto;
   // El servidor ya trae la marca y el modelo limpios del pedido (sin acabado, motor ni códigos)
   const sugerido = { marca: d.marcaPropuesta ?? "", modelo: d.modeloPropuesto ?? "" };
+  // Nuevo (VN) o usado (VO): lo que reconoció la lectura, que se puede cambiar (o elegir si no se pudo reconocer)
+  const [tipoVehiculo, setTipoVehiculo] = useState<"nuevo" | "usado" | null>(d.tipoPedido);
   const [crearNuevo, setCrearNuevo] = useState(sinModelo);
   const [confirmando, setConfirmando] = useState(false);
   const [descartando, setDescartando] = useState(false);
@@ -71,7 +80,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const marcaExistente = marcas.find((m) => quitar(m.nombre) === quitar(marcaNueva));
   const modeloExistente = marcaExistente?.modelos.find((x) => quitar(x.nombre_modelo) === quitar(modeloNuevo));
   const datosNuevoOk = marcaNueva.trim() !== "" && modeloNuevo.trim() !== "";
-  const usaNuevo = sinModelo && crearNuevo;
+  // Crear marca y modelo nuevos se puede elegir siempre (también si el pedido no dijo cuál es el modelo): se escriben a mano
+  const usaNuevo = !eleccion && crearNuevo;
 
   const valores: Record<Dato, string | null> = {
     dni: d.dni,
@@ -120,7 +130,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const falta = !eleccion && tipoFinal === null;
   const puedeCrear = cliente !== null && !falta && !trabajando && (!usaNuevo || datosNuevoOk);
   // Pedido de un vehículo de ocasión vendido: el expediente es de usados
-  const estadoNombre = eleccion?.estadoNombre ?? (d.tipoPedido === "usado" ? "usado" : undefined);
+  const estadoNombre = eleccion?.estadoNombre ?? (tipoVehiculo === "usado" ? "usado" : undefined);
 
   // Crea de una vez todos los pedidos de la cola que no ofrecen duda ni están duplicados (aunque «permitir duplicados» esté apagado)
   const crearTodos = async () => {
@@ -136,6 +146,20 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       mostrar(textoError(e), "error");
     } finally {
       setMasivo(null);
+    }
+  };
+
+  /** Vuelve a leer el PDF de este pedido con el lector actual; la ventana se rehace con los datos nuevos. */
+  const releer = async () => {
+    setReleyendo(true);
+    try {
+      const { data } = await llamar<ResultadoPedido>("/api/documentos/releer", { method: "POST", cuerpo: { idAdjunto: pedido.adjunto.id, duplicados: permitirDuplicadosAhora() } });
+      actualizarPedidoDeCola(item.id, data);
+      mostrar("Pedido leído otra vez con el lector actual: revisa los datos.");
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setReleyendo(false);
     }
   };
 
@@ -298,7 +322,13 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <div style={{ fontSize: "0.9rem" }}>
-            El pedido dice <strong>«{d.modeloTexto}»</strong> y eso no está en tus catálogos. Revisa cómo se va a llamar antes de crearlo:
+            {d.modeloTexto ? (
+              <>
+                El pedido dice <strong>«{d.modeloTexto}»</strong> y eso no está en tus catálogos. Revisa cómo se va a llamar antes de crearlo:
+              </>
+            ) : (
+              "Escribe la marca y el modelo que se van a crear (si ya existen, se usan los que hay):"
+            )}
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Marca</label>
@@ -340,16 +370,26 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       }
       ancho={verPdf ? "1500px" : "700px"}
       pie={
-        <>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "28px", flexWrap: "wrap", width: "100%" }}>
+          {/* Izquierda y aparte: lo que borra el pedido de la cola */}
+          <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
+            🗑 Descartar este pedido
+          </button>
+          <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {/* Mirar y salir */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
             {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
           </button>
-          <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
-            Cancelar
+          <button type="button" className="btn btn-secondary" onClick={() => void releer()} disabled={releyendo || trabajando} title="Vuelve a leer el PDF de este pedido con el lector actual (por ejemplo, si no sacó el DNI, el teléfono o el modelo) y rehace esta ventana con los datos nuevos">
+            {releyendo ? "🔄 Releyendo…" : "🔄 Releer"}
           </button>
           <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
-            Cerrar (queda en la cola)
+            ↩ Cerrar (queda en la cola)
           </button>
+          </div>
+          {/* Crear */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", paddingLeft: "20px", borderLeft: "1px solid var(--border-light)" }}>
           {total > 1 && (
             <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
               {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
@@ -358,7 +398,9 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
             {trabajando ? "Creando…" : "Crear expediente"}
           </button>
-        </>
+          </div>
+          </div>
+        </div>
       }
     >
       <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
@@ -411,9 +453,26 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             Se creará el expediente de <strong>{eleccion.nombreModelo}</strong> con pago <strong>{eleccion.tipo.nombre_tipo_venta}</strong>.
           </div>
         ) : (
+          <>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <span className="form-label" style={{ margin: 0 }}>Vehículo</span>
+            {([["nuevo", "VN · Nuevo"], ["usado", "VO · Usado"]] as const).map(([clave, texto]) => (
+              <button key={clave} type="button" className={`btn ${tipoVehiculo === clave ? "btn-primary" : "btn-secondary"}`} style={{ padding: "4px 14px", fontSize: "0.82rem" }} onClick={() => setTipoVehiculo(clave)} title={clave === "nuevo" ? "El expediente se crea como vehículo nuevo (VN)" : "El expediente se crea como vehículo usado (VO)"}>
+                {texto}
+              </button>
+            ))}
+            {tipoVehiculo === null && <span style={{ fontSize: "0.8rem", color: "var(--warning)" }}>⚠️ No se ha reconocido si es nuevo o usado: elígelo (si no eliges, se crea como nuevo).</span>}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Modelo</label>
+              <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                Modelo
+                {!eleccion && (
+                  <button type="button" className={`btn ${usaNuevo ? "btn-primary" : "btn-secondary"}`} style={{ padding: "1px 10px", fontSize: "0.75rem" }} onClick={() => setCrearNuevo(!usaNuevo)} title="Crea una marca y un modelo que no están dados de alta y los asocia a este expediente">
+                    {usaNuevo ? "✓ Marca y modelo nuevos" : "➕ Nueva marca y modelo"}
+                  </button>
+                )}
+              </label>
               <select className="form-select" value={usaNuevo ? "nuevo" : modelo} onChange={(e) => {
                 if (e.target.value === "nuevo") setCrearNuevo(true);
                 else {
@@ -422,7 +481,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
                 }
               }}>
                 <option value="">Sin modelo</option>
-                {sinModelo && <option value="nuevo">➕ Crear «{d.modeloTexto}» como marca y modelo nuevos</option>}
+                {!eleccion && <option value="nuevo">{d.modeloTexto ? `➕ Crear «${d.modeloTexto}» como marca y modelo nuevos` : "➕ Crear una marca y un modelo nuevos…"}</option>}
                 {modelosPlanos.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.texto}
@@ -440,6 +499,27 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+          </>
+        )}
+
+        {usaNuevo && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "10px 12px", border: "1px solid var(--primary)", borderRadius: "var(--radius-sm)", background: "var(--bg-surface-tint)" }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Marca nueva</label>
+              <input className="form-input" value={marcaNueva} onChange={(e) => setMarcaNueva(e.target.value)} list="marcas-existentes-pedido" placeholder="Ej. Renault" />
+              <datalist id="marcas-existentes-pedido">
+                {marcas.map((m) => (
+                  <option key={m.id_marca} value={m.nombre} />
+                ))}
+              </datalist>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{marcaNueva.trim() === "" ? "Escribe la marca." : marcaExistente ? `La marca ${marcaExistente.nombre} ya existe: se usará esa.` : "Marca nueva: se creará."}</span>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Modelo nuevo</label>
+              <input className="form-input" value={modeloNuevo} onChange={(e) => setModeloNuevo(e.target.value)} placeholder="Ej. Mégane" />
+              <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{modeloNuevo.trim() === "" ? "Escribe el modelo." : modeloExistente ? "Ese modelo ya existe en esa marca: se usará." : "Modelo nuevo: se creará."}</span>
             </div>
           </div>
         )}

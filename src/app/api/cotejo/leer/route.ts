@@ -14,10 +14,10 @@ export const maxDuration = 300;
 export const POST = manejar(async (req: Request) => {
   await requireSession("no_invitado");
   const largo = Number(req.headers.get("content-length") ?? 0);
-  if (largo > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (largo > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const datos = Buffer.from(await req.arrayBuffer());
   if (datos.length === 0) throw new HttpError(400, "El fichero está vacío.");
-  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 15 MB).");
+  if (datos.length > MAX_BYTES_OCR) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const paginas = await leerMatriculasDeFichero(datos);
   return NextResponse.json({ success: true, data: { paginas } });
 });

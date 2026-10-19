@@ -31,6 +31,8 @@ export interface ItemCola {
   idExpediente: number | null;
   /** DNI soltado junto con el pedido: se une al expediente al crearlo o completarlo. */
   dni?: DniAsociado | null;
+  /** Cuántas veces se ha vuelto a leer el pedido (para que su ventana se rehaga con los datos nuevos). */
+  version?: number;
   /** Lectura del servidor de la que viene (para anotar en el registro qué se hizo con el pedido). */
   idLectura?: number;
 }
@@ -106,6 +108,12 @@ export function anadirACola(nuevos: Omit<ItemCola, "id" | "leidoEn">[]): ItemCol
   const items = nuevos.map((n) => ({ ...n, id: `p${Date.now().toString(36)}${(contador++).toString(36)}`, leidoEn: new Date().toISOString() }));
   emitir({ ...estado, items: [...estado.items, ...items].slice(-MAXIMO) });
   return items;
+}
+
+/** Cambia la lectura de un pedido que ya está en la cola (al releerlo), conservando su destino, su elección y su DNI. */
+export function actualizarPedidoDeCola(id: string, pedido: ResultadoPedido): void {
+  cargar();
+  emitir({ ...estado, items: estado.items.map((i) => (i.id === id ? { ...i, pedido, version: (i.version ?? 0) + 1 } : i)) });
 }
 
 export function quitarDeCola(id: string): void {

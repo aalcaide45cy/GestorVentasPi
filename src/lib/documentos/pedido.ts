@@ -145,6 +145,8 @@ interface Estructura {
   fecha: string | null;
   plazo: { desde: string; hasta: string } | null;
   modeloLinea: string | null;
+  /** El OCR no leyó bien la letra del DNI y se ha calculado con sus 8 cifras. */
+  dniCalculado?: boolean;
 }
 
 /** Pedido de Renault/Dacia: bloque «CLIENTE» a la izquierda, establecimiento a la derecha, «RESUMEN» con el modelo. */
@@ -186,11 +188,20 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   // Columna izquierda de cada línea del bloque del cliente
   const col = datos.map(primeraColumna);
   e.cliente = col[0] ? col[0].replace(HONORIFICO, "").trim() || null : null;
-  const iNif = col.findIndex((c, i) => i > 0 && /^[A-Z]?\d{7,8}[A-Z]$/i.test(c.replace(/\s/g, "")));
+  let iNif = col.findIndex((c, i) => i > 0 && /^([A-Z]?\d{7,8}[A-Z]|[A-HJNP-SUVW]\d{7}[0-9A-J])$/i.test(c.replace(/\s/g, "")));
   if (iNif > 0) e.dni = col[iNif].replace(/\s/g, "").toUpperCase();
+  else {
+    // En un escaneo, la letra del DNI se lee a veces como una cifra («472321760» por «47232176Q») o se pierde: con las 8 cifras se calcula la letra
+    iNif = col.findIndex((c, i) => i > 0 && i <= 3 && /^\d{8}([^A-Za-z\d]|\d)?$/.test(c.replace(/\s/g, "")));
+    if (iNif > 0) {
+      const base = col[iNif].replace(/\s/g, "").slice(0, 8);
+      e.dni = base + "TRWAGMYFPDXBNJZSQVHLCKE"[Number(base) % 23];
+      e.dniCalculado = true;
+    }
+  }
   const iCP = col.findIndex((c) => /\(\d{5}\)/.test(c));
   if (iNif > 0 && iCP > iNif) e.domicilio = [...col.slice(iNif + 1, iCP), col[iCP]].join(", ");
-  const tel = col.slice(iCP + 1).find((c) => /^\+?\d[\d\s]{7,13}$/.test(c));
+  const tel = col.slice(iCP + 1).flatMap((c) => c.split(/\s*[\/;]\s*/)).find((c) => /^\+?\d[\d\s]{7,13}$/.test(c.trim()));
   e.telefono = tel ? tel.replace(/\s/g, "") : null;
   const mail = col.slice(iCP + 1).find((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c));
   // El OCR suele perder la «@» (y a veces la deja como «Q»): «luisimarino gmail.com»
@@ -200,8 +211,19 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   const iVend = datos.findIndex((l, i) => i > 0 && /@|[a-z]Q[a-z]+\.(?:es|com)\b/.test(l) && /\d{9}/.test(l));
   if (iVend > 0) e.vendedor = primeraColumna(datos[iVend - 1]) || null;
 
-  const modelo = lineas.find((l) => /^Modelo:/i.test(l.trim()));
-  if (modelo) e.modeloLinea = modelo.replace(/^Modelo:\s*/i, "").replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "").replace(/\s{2,}/g, " ").trim();
+  const modelo = lineas.find((l) => /^Mode[lti1]o\s*:/i.test(l.trim()));
+  if (modelo) e.modeloLinea = modelo.replace(/^Mode[lti1]o\s*:\s*/i, "").replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "").replace(/\s{2,}/g, " ").trim();
+  // Los pedidos de vehículos de ocasión no traen «Modelo:»: el vehículo va en el resumen, «Marca / Modelo / Versión: RENAULT Mégane S.T. … >[2535JXC]  12.620,00 €»
+  else {
+    const resumen = lineas.find((l) => /^Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:/i.test(l.trim()));
+    const texto = resumen
+      ?.replace(/^Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:\s*/i, "")
+      .replace(/\s*>\s*\[.*$/, "")
+      .replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (texto) e.modeloLinea = texto;
+  }
 
   const plazo = lineas.find((l) => /^Plazo\s+de\s+Entrega/i.test(l.trim()));
   if (plazo) {
@@ -260,8 +282,8 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   const sinRetoma = separarRetoma(lineas).principales;
   const cabecera = sinAcentos(texto.slice(0, 1500));
   // Un pedido escaneado puede perder el rótulo «USADO»: se reconoce también por «Renew», «Uso anterior» o el régimen R.E.B.U.
-  const señalesUsado = /PEDIDO\s+DE\s+VEHICULO\s+RENEW|\bUSO\s+ANTERIOR\b|REGIMEN\s+R\.?\s?E\.?\s?B\.?\s?U|VEHICULOS?\s+DE\s+OCASION/.test(sinAcentos(texto.slice(0, 6000)));
-  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : /^Modelo:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a:/im.test(texto.slice(0, 4000)) ? "nuevo" : null; // sin rótulo, la hoja con «Modelo / Color / Tapicería» es la de un coche nuevo
+  const señalesUsado = /PEDIDO\s+DE\s+VEHICULO\s+RENEW|\bUSO\s+ANTERIOR\b|REGIMEN\s+R\.?\s?E\.?\s?B\.?\s?U|VEHICULOS?\s+DE\s+OCASION|\bNUMERO\s+DE\s+STOCK\b|^KMS\b/m.test(sinAcentos(texto.slice(0, 6000)));
+  const tipoPedido: DatosPedido["tipoPedido"] = /PEDIDO\s+DE\s+VEHICULO\s+NUEVO/.test(cabecera) ? "nuevo" : /PEDIDO\s+DE\s+VEHICULO\s+(?:USADO|DE\s+OCASION)/.test(cabecera) || señalesUsado ? "usado" : /^Mode[lti1]o\s*:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a\s*:/im.test(texto.slice(0, 4000)) ? "nuevo" : /^Color\s*:/im.test(texto.slice(0, 4000)) && /^Tapicer[ií]a\s*:/im.test(texto.slice(0, 4000)) ? "nuevo" : null; // sin rótulo, la hoja con «Modelo / Color / Tapicería» es la de un coche nuevo
   const mayus = sinAcentos(sinRetoma.join("\n"));
   const avisos: string[] = [];
   const estructura = leerEstructuraRenault(lineas);
@@ -282,18 +304,21 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   }
 
   // Un pedido de vehículo nuevo no tiene matrícula (la del usado de retoma se trata aparte)
-  const matricula = tipoPedido === "nuevo" ? null : (lineasBusqueda.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
+  // En los pedidos de ocasión la «E» del distintivo ECO va pegada a la matrícula («E5919LZG»): se ignora
+  const sinE = (m: string | null): string | null => (m ? m.replace(/^E(?=\d{4}[A-Z]{3}$)/, "") : m);
+  const matricula = tipoPedido === "nuevo" ? null : sinE(lineasBusqueda.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
 
   let retoma: DatosPedido["retoma"] = null;
   if (lineasRetoma.length > 0) {
     const cuerpo = lineasRetoma.map(sinCorreos);
     const vinRetoma = sinAcentos(cuerpo.join("\n")).match(/(?<![A-Z0-9])([A-HJ-NPR-Z0-9]{17})(?![A-Z0-9])/)?.[1] ?? null;
-    const matriculaRetoma = cuerpo.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null;
+    const matriculaRetoma = sinE(cuerpo.flatMap((l) => matriculasEnTexto(sinBastidores(l)))[0] ?? null);
     const resumen = cuerpo.map((l) => l.replace(/\s{2,}-?[\d.]+,\d{2}\s*€?\s*$/, "").replace(/\s{2,}/g, " ").trim()).filter(Boolean).slice(0, 3).join(" · ").slice(0, 140) || null;
     retoma = { matricula: matriculaRetoma, vin: vinRetoma, texto: resumen };
   }
 
   let dni = estructura?.dni ?? null;
+  if (dni && estructura?.dniCalculado) avisos.push(`El OCR no leyó bien la letra del DNI: se ha calculado (${dni}) con sus 8 cifras. Compruébalo con el pedido.`);
   if (dni && !validarDni(dni) && !/^[A-Z]\d{8}$|^[A-Z]\d{7}[A-Z0-9]$/.test(dni)) dni = buscarDniEnTexto(dni)?.dni ?? dni;
   if (!dni) dni = buscarDniEnTexto(mayus)?.dni ?? null;
 
