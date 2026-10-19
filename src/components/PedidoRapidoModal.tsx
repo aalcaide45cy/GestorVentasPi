@@ -6,7 +6,6 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
-import { formatDate } from "@/lib/date-utils";
 import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
 import { actualizarPedidoDeCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
@@ -54,6 +53,20 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const pedido = item.pedido;
   const eleccion = item.eleccion;
   const d = pedido.datos;
+  // Lo que ha leído el OCR se puede corregir antes de crear (el OCR se equivoca con letras y cifras parecidas)
+  const [ed, setEd] = useState({
+    cliente: d.cliente ?? "",
+    dni: d.dni ?? "",
+    telefono: d.telefono ?? "",
+    email: d.email ?? "",
+    domicilio: d.domicilio ?? "",
+    poblacion: [d.codigoPostal, d.poblacion].filter(Boolean).join(" "),
+    vin: d.vin ?? "",
+    matricula: d.matricula ?? "",
+    fecha: d.fechaExpediente ?? "",
+    entrega: d.fechaEntrega ?? "",
+  });
+  const nulo = (t: string): string | null => (t.trim() === "" ? null : t.trim());
   const [coincidencias, setCoincidencias] = useState<CoincidenciaCliente[] | null>(null);
   const [cliente, setCliente] = useState<ClienteElegido>(null);
   const [modelo, setModelo] = useState<number | "">(d.idModelo ?? "");
@@ -84,16 +97,21 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const usaNuevo = !eleccion && crearNuevo;
 
   const valores: Record<Dato, string | null> = {
-    dni: d.dni,
-    telefono: d.telefono,
-    email: d.email,
-    domicilio: d.domicilio,
-    poblacion: [d.codigoPostal, d.poblacion].filter(Boolean).join(" ") || null,
-    vin: d.vin,
-    fecha: d.fechaExpediente,
-    entrega: d.fechaEntrega,
-    matricula: d.matricula,
+    dni: nulo(ed.dni)?.replace(/\s/g, "").toUpperCase() ?? null,
+    telefono: nulo(ed.telefono),
+    email: nulo(ed.email),
+    domicilio: nulo(ed.domicilio),
+    poblacion: nulo(ed.poblacion),
+    vin: nulo(ed.vin)?.replace(/\s/g, "").toUpperCase() ?? null,
+    fecha: nulo(ed.fecha),
+    entrega: nulo(ed.entrega),
+    matricula: nulo(ed.matricula)?.replace(/[\s-]/g, "").toUpperCase() ?? null,
   };
+  // «28530 Morata De Tajuña» → código postal y población
+  const cpYPoblacion = ((): { cp: string | null; poblacion: string | null } => {
+    const m = (valores.poblacion ?? "").match(/^(\d{5})\s+(.*)$/);
+    return m ? { cp: m[1], poblacion: nulo(m[2]) } : { cp: null, poblacion: valores.poblacion };
+  })();
   const etiquetas: Record<Dato, string> = { dni: "DNI / NIE", telefono: "Teléfono", email: "Email", domicilio: "Domicilio", poblacion: "Población", vin: "Bastidor", fecha: "Fecha del pedido", entrega: "Fecha de entrega", matricula: "Matrícula" };
   const grupos: { titulo: string; campos: Dato[] }[] = [
     { titulo: "Datos del cliente", campos: ["dni", "telefono", "email", "domicilio", "poblacion"] },
@@ -102,27 +120,33 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const [usar, setUsar] = useState<Record<Dato, boolean>>(() => Object.fromEntries((Object.keys(valores) as Dato[]).map((k) => [k, !!valores[k]])) as Record<Dato, boolean>);
   const activo = (k: Dato) => usar[k] && !!valores[k];
 
+  const nombreEditado = nulo(ed.cliente);
+  const dniEditado = valores.dni;
   useEffect(() => {
     let vivo = true;
-    llamar<CoincidenciaCliente[]>("/api/clientes/coincidencias", { method: "POST", cuerpo: { dni: d.dni, nombre: d.cliente } })
+    const espera = setTimeout(() => {
+    llamar<CoincidenciaCliente[]>("/api/clientes/coincidencias", { method: "POST", cuerpo: { dni: dniEditado, nombre: nombreEditado } })
       .then((r) => {
         if (!vivo) return;
         setCoincidencias(r.data);
         // Un único cliente con el mismo DNI: se propone asociarlo directamente
         if (r.data.length === 1 && r.data[0].porDni) setCliente(r.data[0].id);
-        else if (r.data.length === 0) setCliente(d.cliente ? "nuevo" : "ninguno");
+        else if (r.data.length === 0) setCliente(nombreEditado ? "nuevo" : "ninguno");
+        else setCliente((c) => (typeof c === "number" && r.data.some((x) => x.id === c) ? c : null));
       })
       .catch((e: unknown) => {
         if (!vivo) return;
         mostrar(textoError(e), "error");
         setFalloCoincidencias(true);
         setCoincidencias([]);
-        setCliente(d.cliente ? "nuevo" : "ninguno");
+        setCliente(nombreEditado ? "nuevo" : "ninguno");
       });
+    }, 450);
     return () => {
       vivo = false;
+      clearTimeout(espera);
     };
-  }, [d.dni, d.cliente, mostrar]);
+  }, [dniEditado, nombreEditado, mostrar]);
 
   const modelosPlanos = marcas.flatMap((m) => m.modelos.map((x) => ({ id: x.id_modelo, texto: `${m.nombre} ${x.nombre_modelo}` })));
   const idModeloFinal = eleccion ? eleccion.idModelo : modelo === "" ? null : modelo;
@@ -172,7 +196,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       if (!permitirDuplicadosAhora()) {
         const { data: yaHay } = await llamar<{ idExpediente: number; motivo: string }[]>("/api/documentos/similares", {
           method: "POST",
-          cuerpo: { vin: d.vin, matricula: d.matricula, dni: d.dni, cliente: d.cliente, fechaExpediente: d.fechaExpediente, idModelo: idModeloFinal },
+          cuerpo: { vin: valores.vin, matricula: valores.matricula, dni: valores.dni, cliente: nombreEditado, fechaExpediente: valores.fecha, idModelo: idModeloFinal },
         }).catch(() => ({ data: [] as { idExpediente: number; motivo: string }[] }));
         if (yaHay.length > 0) {
           mostrar(`No se ha creado: ya existe el expediente nº ${yaHay[0].idExpediente} (${yaHay[0].motivo}). Ábrelo desde Expedientes si quieres completarlo.`, "error");
@@ -194,14 +218,14 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
         const { data } = await llamar<{ id: number }>("/api/clientes", {
           method: "POST",
           cuerpo: {
-            nombre: d.cliente,
-            dni: activo("dni") ? d.dni : null,
-            domicilio: activo("domicilio") ? d.domicilio : null,
-            poblacion: activo("poblacion") ? d.poblacion : null,
-            codigo_postal: activo("poblacion") ? d.codigoPostal : null,
+            nombre: nombreEditado,
+            dni: activo("dni") ? valores.dni : null,
+            domicilio: activo("domicilio") ? valores.domicilio : null,
+            poblacion: activo("poblacion") ? cpYPoblacion.poblacion : null,
+            codigo_postal: activo("poblacion") ? cpYPoblacion.cp : null,
             fecha_de_nacimiento: item.dni?.fechaNacimiento ?? undefined,
-            emails: activo("email") && d.email ? [{ email: d.email, tipo: "Principal" }] : [],
-            telefonos: activo("telefono") && d.telefono ? [{ telefono: d.telefono, tipo: "Principal" }] : [],
+            emails: activo("email") && valores.email ? [{ email: valores.email, tipo: "Principal" }] : [],
+            telefonos: activo("telefono") && valores.telefono ? [{ telefono: valores.telefono, tipo: "Principal" }] : [],
           },
         });
         idCliente = data.id;
@@ -216,10 +240,10 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             id_tipo_de_venta: tipoFinal,
             estado_nombre: estadoNombre,
             id_usuario: vendedorId,
-            vin: activo("vin") ? d.vin : undefined,
-            matricula: activo("matricula") ? d.matricula : undefined,
-            fecha_expediente: activo("fecha") ? d.fechaExpediente : undefined,
-            fecha_entrega: activo("entrega") ? d.fechaEntrega : undefined,
+            vin: activo("vin") ? (valores.vin ?? undefined) : undefined,
+            matricula: activo("matricula") ? (valores.matricula ?? undefined) : undefined,
+            fecha_expediente: activo("fecha") ? (valores.fecha ?? undefined) : undefined,
+            fecha_entrega: activo("entrega") ? (valores.entrega ?? undefined) : undefined,
           },
         },
       });
@@ -234,7 +258,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       const tipoTexto = eleccion ? eleccion.tipo.nombre_tipo_venta : (tiposVenta.find((t) => t.id_tipo_de_venta === tipoFinal)?.nombre_tipo_venta ?? "");
       const resumen = [modeloTexto, tipoTexto].filter(Boolean).join(" · ");
       alTerminar(
-        `${cliente === "nuevo" ? `Expediente creado con el cliente nuevo ${d.cliente}` : idCliente ? "Expediente creado y asociado al cliente" : "Expediente creado sin cliente"}${resumen ? ` (${resumen})` : ""}.`,
+        `${cliente === "nuevo" ? `Expediente creado con el cliente nuevo ${nombreEditado ?? ""}` : idCliente ? "Expediente creado y asociado al cliente" : "Expediente creado sin cliente"}${resumen ? ` (${resumen})` : ""}.`,
         creado.id_expediente,
       );
     } catch (e) {
@@ -250,7 +274,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
     (pedido.similares ?? []).length === 0 && // no parece duplicado
     !falloCoincidencias &&
     coincidencias !== null &&
-    (coincidencias.length === 0 ? !!d.cliente && cliente === "nuevo" : coincidencias.length === 1 && coincidencias[0].porDni && typeof cliente === "number"); // cliente claro
+    (coincidencias.length === 0 ? !!nombreEditado && cliente === "nuevo" : coincidencias.length === 1 && coincidencias[0].porDni && typeof cliente === "number"); // cliente claro
   useEffect(() => {
     if (!automatico || intentoAuto !== "pendiente" || coincidencias === null || cliente === null) return;
     if (sinDuda && !trabajando) {
@@ -276,7 +300,13 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
     </label>
   );
 
-  const textoDato = (k: Dato) => (valores[k] ? (k === "fecha" || k === "entrega" ? formatDate(valores[k] as string) : (valores[k] as string)) : null);
+  const campoEd: Record<Dato, keyof typeof ed> = { dni: "dni", telefono: "telefono", email: "email", domicilio: "domicilio", poblacion: "poblacion", vin: "vin", fecha: "fecha", entrega: "entrega", matricula: "matricula" };
+  const cambiarDato = (k: Dato, v: string) => {
+    setEd((p) => ({ ...p, [campoEd[k]]: v }));
+    // Al escribir un dato que faltaba, se marca para aplicarlo
+    if (!valores[k] && v.trim() !== "") setUsar((p) => ({ ...p, [k]: true }));
+  };
+  const estiloCampo = { flex: 1, minWidth: 0, padding: "3px 8px", fontSize: "0.88rem", fontWeight: 600 } as const;
 
   if (ocultar) return null;
 
@@ -422,17 +452,27 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
         <div className="glass-panel" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
           <div style={{ display: "flex", gap: "8px", fontSize: "0.9rem" }}>
             <span style={{ color: "var(--text-muted)", minWidth: "130px" }}>Cliente</span>
-            <strong style={{ wordBreak: "break-word" }}>{d.cliente || "—"}</strong>
+            <input className="form-input" value={ed.cliente} onChange={(e) => setEd((p) => ({ ...p, cliente: e.target.value }))} placeholder="Nombre del cliente" title="Nombre del cliente tal como lo leyó el OCR: puedes corregirlo" style={estiloCampo} />
           </div>
           {grupos.map((g) => (
             <div key={g.titulo} style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "6px" }}>
               <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{g.titulo} · marca lo que quieres aplicar</span>
               {g.campos.map((k) => (
-                <label key={k} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.88rem", opacity: valores[k] ? 1 : 0.5, cursor: valores[k] ? "pointer" : "default" }}>
-                  <input type="checkbox" disabled={!valores[k]} checked={activo(k)} onChange={(e) => setUsar((p) => ({ ...p, [k]: e.target.checked }))} style={{ accentColor: "var(--primary)" }} />
-                  <span style={{ color: "var(--text-muted)", minWidth: "120px" }}>{etiquetas[k]}</span>
-                  <strong style={{ wordBreak: "break-word" }}>{textoDato(k) ?? "—"}</strong>
-                </label>
+                <div key={k} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.88rem", opacity: valores[k] || usar[k] ? 1 : 0.7 }}>
+                  <input type="checkbox" id={`dato-${k}`} disabled={!valores[k]} checked={activo(k)} onChange={(e) => setUsar((p) => ({ ...p, [k]: e.target.checked }))} title="Aplicar este dato al crear" style={{ accentColor: "var(--primary)" }} />
+                  <label htmlFor={`dato-${k}`} style={{ color: "var(--text-muted)", minWidth: "120px", cursor: "pointer" }}>
+                    {etiquetas[k]}
+                  </label>
+                  <input
+                    className="form-input"
+                    type={k === "fecha" || k === "entrega" ? "date" : "text"}
+                    value={ed[campoEd[k]]}
+                    onChange={(e) => cambiarDato(k, e.target.value)}
+                    placeholder="—"
+                    title={`${etiquetas[k]}: lo que leyó el OCR. Puedes corregirlo o escribirlo si falta`}
+                    style={estiloCampo}
+                  />
+                </div>
               ))}
             </div>
           ))}
@@ -530,9 +570,9 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           ) : coincidencias.length === 0 ? (
             <>
               <div style={{ padding: "10px 12px", borderLeft: "4px solid var(--warning)", background: "var(--bg-surface-tint)", fontSize: "0.9rem" }}>
-                ⚠️ <strong>{d.cliente ?? "El cliente del pedido"}</strong> no está creado todavía. ¿Quieres crearlo?
+                ⚠️ <strong>{nombreEditado ?? "El cliente del pedido"}</strong> no está creado todavía. ¿Quieres crearlo?
               </div>
-              {d.cliente && opcion("nuevo", "Sí, crear el cliente con los datos marcados del pedido", "Se le pone tu tienda predeterminada y se asigna al expediente.")}
+              {nombreEditado && opcion("nuevo", "Sí, crear el cliente con los datos marcados del pedido", "Se le pone tu tienda predeterminada y se asigna al expediente.")}
               {opcion("ninguno", "No, crear el expediente sin cliente")}
             </>
           ) : (
@@ -541,7 +581,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
                 {coincidencias.length === 1 ? "Ya existe un cliente que coincide. ¿Quieres asociarlo al expediente?" : `Hay ${coincidencias.length} clientes que podrían ser él. Elige cuál es:`}
               </div>
               {coincidencias.map((c) => opcion(c.id, `${c.nombre ?? "(sin nombre)"}${c.dni ? ` · ${c.dni}` : ""}`, c.porDni ? "Mismo DNI/NIE" : "Mismo nombre (sin coincidir el DNI)"))}
-              {d.cliente && opcion("nuevo", "Ninguno: crear un cliente nuevo con los datos del pedido", d.dni && coincidencias.some((c) => c.porDni) ? "Ojo: ya hay un cliente con ese DNI, no se podrá crear otro igual." : undefined)}
+              {nombreEditado && opcion("nuevo", "Ninguno: crear un cliente nuevo con los datos del pedido", valores.dni && coincidencias.some((c) => c.porDni) ? "Ojo: ya hay un cliente con ese DNI, no se podrá crear otro igual." : undefined)}
               {opcion("ninguno", "Crear el expediente sin cliente")}
             </>
           )}

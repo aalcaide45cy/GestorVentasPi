@@ -39,7 +39,7 @@ const carpetaModelos = (): string => process.env.OCR_MODELOS_DIR ?? path.join(/*
 
 let diccionario: string[] | null = null;
 function cargarDiccionario(): string[] {
-  if (!diccionario) diccionario = [...fs.readFileSync(path.join(carpetaModelos(), "diccionario-latin.txt"), "utf8").split("\n"), " "];
+  if (!diccionario) diccionario = [...fs.readFileSync(path.join(carpetaModelos(), "diccionario-latin.txt"), "utf8").split(/\r?\n/), " "];
   return diccionario;
 }
 
