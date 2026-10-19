@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { ICONOS, ModalContenido, ModalCopiasInternas, ModalExportar, ModalImportar, botonChico, cuantos, tamanoLegible, type DatosPanel, type SeccionDatos } from "@/components/datos/DatosSeccion";
+import PanelLote from "@/components/datos/PanelLote";
 import { INFO_SECCIONES, SECCIONES, type Seccion } from "@/lib/secciones-info";
 
 /** Las cajitas salen al instante con lo que no depende de la base de datos; los recuentos (-1 = «…») llegan después. */
@@ -65,6 +66,8 @@ export default function PanelDatos({ alIrACopias }: { alIrACopias?: () => void }
           <BotonesBackup deshabilitado={false} />
         </div>
       </div>
+
+      <PanelLote alTerminar={refrescar} />
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setModal({ tipo: "copias", seccion: null })} title="Mira, busca, restaura, descarga o borra las copias internas de todas las secciones.">
