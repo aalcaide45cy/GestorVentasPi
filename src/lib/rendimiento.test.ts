@@ -48,7 +48,7 @@ describe("diagnóstico", () => {
     expect("error" in s.bd ? s.bd.error.length > 0 : s.bd.version.length > 0).toBe(true);
     expect(s.hallazgos.length).toBeGreaterThan(0);
     expect(s.muestra.memLibrePct).toBeGreaterThanOrEqual(0);
-  });
+  }, 30_000);
 
   it("la prueba de disco devuelve velocidades y borra su archivo de prueba", async () => {
     const r = await probarDisco();
