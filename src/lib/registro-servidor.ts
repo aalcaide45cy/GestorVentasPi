@@ -40,8 +40,12 @@ function anotar(nivel: string, texto: string): void {
   G.__registroCola = (G.__registroCola ?? Promise.resolve()).then(() => escribir(linea));
 }
 
-/** Líneas que Next escribe por cada petición («GET /api/… 200 in 12ms»): meterlas llenaría el registro de ruido. */
-const RUIDO = /^\s*(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) \/\S*\s+\d{3}\b|^\s*$|^\s*[○✓◐●]\s/;
+/**
+ * Líneas que Next escribe por cada petición («GET /api/… 200 in 12ms») o al compilar («✓ Compiled in 3ms»): meterlas llenaría el registro de ruido.
+ * Las de compilar, además, en desarrollo provocarían un bucle: el archivo del registro está dentro del proyecto, Next ve que cambia, vuelve a
+ * compilar, lo anota y recarga la página otra vez.
+ */
+const RUIDO = /^\s*(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) \/\S*\s+\d{3}\b|^\s*$|^\s*[○✓◐●⚠⨯]\s|^\s*(?:Compiled|Compiling|Ready in|Starting|Restarting|Fast Refresh)\b/;
 const ANSI = /\u001b\[[0-9;]*m/g;
 
 /**
