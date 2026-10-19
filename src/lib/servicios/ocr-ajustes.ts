@@ -14,16 +14,20 @@ export interface AjustesOcr {
   motor: MotorOcr;
   /** Lecturas de pedidos a la vez: 0 = automático (se ajusta solo según CPU y memoria). */
   simultaneas: number;
+  /** Lectura manual: tras subir los pedidos no se lee nada hasta que el usuario pulsa «Iniciar lectura». */
+  lecturaManual: boolean;
 }
 
 export const MAXIMO_SIMULTANEAS = 32;
 const CLAVE_MOTOR = "ocr_motor";
 const CLAVE_SIMULTANEAS = "ocr_simultaneas";
+const CLAVE_MANUAL = "lectura_manual";
 const VIGENCIA_MS = 5000;
 
 /** Por defecto RapidOCR en CPU: lee mejor que Tesseract y va bien tanto en la Raspberry como en un PC (si falla, se usa Tesseract). */
 // En macOS el de Apple Vision (si no se puede usar, se cae solo a RapidOCR).
-const DEFECTO: AjustesOcr = { motor: process.platform === "darwin" ? "vision" : "rapido-cpu", simultaneas: 0 };
+// La lectura es manual por defecto: el usuario pulsa «Iniciar lectura» cuando ha terminado de subir.
+const DEFECTO: AjustesOcr = { motor: process.platform === "darwin" ? "vision" : "rapido-cpu", simultaneas: 0, lecturaManual: true };
 
 const G = globalThis as unknown as { __ajustesOcr?: { valor: AjustesOcr; leidoEn: number } };
 
@@ -37,11 +41,12 @@ export async function cargarAjustesOcr(ej: Ejecutor = db, forzar = false): Promi
   const c = G.__ajustesOcr;
   if (!forzar && c && Date.now() - c.leidoEn < VIGENCIA_MS) return c.valor;
   try {
-    const filas = await ej.select().from(ajustes).where(inArray(ajustes.clave, [CLAVE_MOTOR, CLAVE_SIMULTANEAS]));
+    const filas = await ej.select().from(ajustes).where(inArray(ajustes.clave, [CLAVE_MOTOR, CLAVE_SIMULTANEAS, CLAVE_MANUAL]));
     const mapa = new Map(filas.map((f) => [f.clave, f.valor]));
     const motor = mapa.get(CLAVE_MOTOR);
     const n = Number(mapa.get(CLAVE_SIMULTANEAS));
-    const valor: AjustesOcr = { motor: esMotor(motor) ? motor : DEFECTO.motor, simultaneas: Number.isInteger(n) && n >= 0 && n <= MAXIMO_SIMULTANEAS ? n : 0 };
+    const manual = mapa.get(CLAVE_MANUAL);
+    const valor: AjustesOcr = { motor: esMotor(motor) ? motor : DEFECTO.motor, simultaneas: Number.isInteger(n) && n >= 0 && n <= MAXIMO_SIMULTANEAS ? n : 0, lecturaManual: manual === undefined ? DEFECTO.lecturaManual : manual === "true" };
     G.__ajustesOcr = { valor, leidoEn: Date.now() };
     return valor;
   } catch {
@@ -53,6 +58,7 @@ export async function guardarAjustesOcr(ej: Ejecutor, cambios: Partial<AjustesOc
   const filas: { clave: string; valor: string }[] = [];
   if (cambios.motor !== undefined) filas.push({ clave: CLAVE_MOTOR, valor: cambios.motor });
   if (cambios.simultaneas !== undefined) filas.push({ clave: CLAVE_SIMULTANEAS, valor: String(cambios.simultaneas) });
+  if (cambios.lecturaManual !== undefined) filas.push({ clave: CLAVE_MANUAL, valor: String(cambios.lecturaManual) });
   for (const f of filas) await ej.insert(ajustes).values(f).onConflictDoUpdate({ target: ajustes.clave, set: { valor: f.valor } });
   return cargarAjustesOcr(ej, true);
 }

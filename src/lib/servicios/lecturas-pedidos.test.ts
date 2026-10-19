@@ -8,7 +8,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { lecturasPedidos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { accionLecturas, ajustarLectores, encolarLectura, listarLecturas, reanudarLecturas, registroLecturas } from "./lecturas-pedidos";
+import { adjuntos } from "@/db/schema";
+import { cifrarBuffer } from "@/lib/auth/cifrado";
+import { accionLecturas, ajustarLectores, encolarLectura, listarLecturas, procesar, reanudarLecturas, registroLecturas } from "./lecturas-pedidos";
+import { guardarAjustesOcr, olvidarAjustesOcr } from "./ocr-ajustes";
 
 const ficherosEnEspera = () => (existsSync(process.env.LECTURAS_DIR as string) ? readdirSync(process.env.LECTURAS_DIR as string) : []);
 
@@ -17,6 +20,11 @@ beforeEach(async () => {
   process.env.LECTORES_PEDIDOS = "3";
   delete (globalThis as Record<string, unknown>).__lectoresPedidos;
   await reiniciarBd();
+  // Las pruebas de siempre son con lectura automática; la manual (la de por defecto) se prueba aparte
+  olvidarAjustesOcr();
+  await guardarAjustesOcr(db, { lecturaManual: false });
+  // «Retomar lo que quedó a medias» ocurre una vez al arrancar el servidor, no en cada consulta: aquí se hace al principio de cada prueba
+  await reanudarLecturas();
 });
 
 const hoja = (lineas: string[], ruido = 0) =>
@@ -104,6 +112,7 @@ describe("lecturas de pedidos en paralelo", () => {
     const u = await crearUsuarioPrueba("vendedor");
     const pedido = await hoja(["PEDIDO DE VEHICULO NUEVO", "RENAULT RETAIL GROUP", "CLIENTE Sr. D. Ana Lopez   ESTABLECIMIENTO"], 5);
     const { cifrarBuffer } = await import("@/lib/auth/cifrado");
+    delete (globalThis as Record<string, unknown>).__lectoresPedidos; // como si el servidor acabara de arrancar
     const [f] = await db.insert(lecturasPedidos).values({ idUsuario: u.idUsuario, nombre: "a medias.png", tamano: pedido.length, huella: "x".repeat(64), datos: cifrarBuffer(pedido), estado: "leyendo" }).returning();
     await reanudarLecturas();
     const { lecturas } = await esperarFin(u.idUsuario);
@@ -140,6 +149,68 @@ describe("lecturas de pedidos en paralelo", () => {
     const r = registro.find((x) => x.id === a.id);
     expect(r).toMatchObject({ estado: "pedido", resolucion: "quitado" });
     expect(r?.error).toBeTruthy();
+  }, 120_000);
+});
+
+const pedidoPrueba = (variante: number) => hoja(["PEDIDO DE VEHICULO NUEVO", "RENAULT RETAIL GROUP", "CLIENTE Sr. D. Eva Ruiz   ESTABLECIMIENTO"], variante);
+
+describe("lectura manual: nada se lee hasta «Iniciar lectura»", () => {
+  it("lo subido espera sin pasar a leerse, aunque pase el rato; el aviso automático del navegador no la inicia, el botón sí", async () => {
+    await guardarAjustesOcr(db, { lecturaManual: true });
+    const u = await crearUsuarioPrueba("vendedor");
+    const a = await encolarLectura(db, u.idUsuario, "uno.png", await pedidoPrueba(41), null, false, true);
+    // Pasado más de un minuto y medio: en automático ya se habría puesto a leer solo
+    await db.update(lecturasPedidos).set({ creadaEn: new Date(Date.now() - 10 * 60 * 1000) }).where(eq(lecturasPedidos.id, a.id));
+    await new Promise((r) => setTimeout(r, 800));
+    const { resumen } = await listarLecturas(db, u.idUsuario);
+    expect(resumen).toMatchObject({ manual: true, subiendo: 1, pendientes: 0, leyendo: 0 });
+
+    // El «iniciar» que manda el navegador al terminar de subir no hace nada en lectura manual
+    expect(await accionLecturas(db, u.idUsuario, { accion: "iniciar", automatico: true })).toBe(0);
+    expect((await listarLecturas(db, u.idUsuario)).resumen.subiendo).toBe(1);
+
+    // El botón «Iniciar lectura» sí empieza (y se puede iniciar solo algunos con ids)
+    expect(await accionLecturas(db, u.idUsuario, { accion: "iniciar" })).toBe(1);
+    const fin = await esperarFin(u.idUsuario);
+    expect(fin.lecturas.find((l) => l.id === a.id)?.estado).toBe("pedido");
+    expect(fin.resumen.manual).toBe(true);
+  }, 120_000);
+});
+
+describe("cancelar subida y lectura sin dejar nada a medias", () => {
+  it("la lista «lo que falta» trae lo subido, en espera y leyéndose, y se puede cancelar un pedido suelto", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const mk = (nombre: string, estado: string, h: string) => db.insert(lecturasPedidos).values({ idUsuario: u.idUsuario, nombre, tamano: 1, huella: h.repeat(64).slice(0, 64), estado, datos: cifrarBuffer(Buffer.from("x")) }).returning();
+    const [s1] = await mk("subido.pdf", "subiendo", "a");
+    // (una fila «pendiente» la cogería enseguida un lector: se prueba con «subiendo», que espera igual)
+    const [p1] = await mk("espera.pdf", "subiendo", "b");
+    const [l1] = await mk("leyendo.pdf", "leyendo", "c");
+    const { enMarcha } = await listarLecturas(db, u.idUsuario);
+    expect(enMarcha.map((x) => [x.nombre, x.estado])).toEqual([["subido.pdf", "subiendo"], ["espera.pdf", "subiendo"], ["leyendo.pdf", "leyendo"]]);
+
+    // Solo ese pedido: los demás siguen
+    expect(await accionLecturas(db, u.idUsuario, { accion: "cancelar", ids: [p1.id] })).toBe(1);
+    expect((await listarLecturas(db, u.idUsuario)).enMarcha.map((x) => x.id)).toEqual([s1.id, l1.id]);
+    // Sin ids: todo lo que esté en marcha, también lo que se estaba leyendo
+    expect(await accionLecturas(db, u.idUsuario, { accion: "cancelar" })).toBe(2);
+    const { enMarcha: vacia } = await listarLecturas(db, u.idUsuario);
+    expect(vacia).toHaveLength(0);
+    const filas = await db.select().from(lecturasPedidos).where(eq(lecturasPedidos.idUsuario, u.idUsuario));
+    expect(filas.every((f) => f.estado === "cancelado" && f.datos === null && f.ruta === null)).toBe(true);
+  });
+
+  it("si se cancela mientras se está leyendo, se tira el resultado y no queda ningún documento guardado", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const pedido = await pedidoPrueba(57);
+    const [f] = await db.insert(lecturasPedidos).values({ idUsuario: u.idUsuario, nombre: "se cancela.png", tamano: pedido.length, huella: "z".repeat(64), datos: cifrarBuffer(pedido), estado: "leyendo" }).returning();
+    const leyendo = procesar(db, { id: f.id, id_usuario: u.idUsuario, nombre: "se cancela.png", datos: cifrarBuffer(pedido), ruta: null, permitir_duplicados: false });
+    // Se cancela con la lectura ya en marcha
+    await new Promise((r) => setTimeout(r, 150));
+    expect(await accionLecturas(db, u.idUsuario, { accion: "cancelar", ids: [f.id] })).toBe(1);
+    await leyendo;
+    const [despues] = await db.select().from(lecturasPedidos).where(eq(lecturasPedidos.id, f.id));
+    expect(despues).toMatchObject({ estado: "cancelado", resultado: null });
+    expect(await db.select().from(adjuntos)).toHaveLength(0);
   }, 120_000);
 });
 

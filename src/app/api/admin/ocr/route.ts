@@ -23,6 +23,7 @@ export interface OpcionMotorDto {
 export interface AjustesOcrDto {
   motor: MotorOcr;
   simultaneas: number;
+  lecturaManual: boolean;
   maximoSimultaneas: number;
   equipo: EquipoOcr;
   opciones: OpcionMotorDto[];
@@ -69,7 +70,7 @@ function opciones(equipo: EquipoOcr): OpcionMotorDto[] {
 
 async function dto(): Promise<AjustesOcrDto> {
   const [a, equipo] = await Promise.all([cargarAjustesOcr(db, true), equipoOcr()]);
-  return { motor: a.motor, simultaneas: a.simultaneas, maximoSimultaneas: MAXIMO_SIMULTANEAS, equipo, opciones: opciones(equipo) };
+  return { motor: a.motor, simultaneas: a.simultaneas, lecturaManual: a.lecturaManual, maximoSimultaneas: MAXIMO_SIMULTANEAS, equipo, opciones: opciones(equipo) };
 }
 
 /** Motor de lectura de pedidos elegido, lecturas a la vez y datos del equipo para recomendar. */
@@ -78,7 +79,7 @@ export const GET = manejar(async () => {
   return NextResponse.json({ success: true, data: await dto() });
 });
 
-const esquema = z.object({ motor: z.enum(MOTORES as [MotorOcr, ...MotorOcr[]]).optional(), simultaneas: z.number().int().min(0).max(MAXIMO_SIMULTANEAS).optional() });
+const esquema = z.object({ motor: z.enum(MOTORES as [MotorOcr, ...MotorOcr[]]).optional(), simultaneas: z.number().int().min(0).max(MAXIMO_SIMULTANEAS).optional(), lecturaManual: z.boolean().optional() });
 
 const errorVisionFueraDeMac = "Apple Vision solo está disponible cuando la aplicación corre directamente en macOS.";
 

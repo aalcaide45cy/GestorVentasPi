@@ -356,3 +356,8 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] `usesLanguageCorrection = false`: la corrección por diccionario estropea DNI, matrículas y bastidores, que son lo que más importa en un pedido; se usan los idiomas es-ES y en-US.
 - [I] No verificado en un Mac real: puede haber que ajustar el Swift a la versión del SDK. Mientras tanto el respaldo a RapidOCR hace que nunca se deje de leer.
 - [D] Solo se ofrece cuando `process.platform === "darwin"`: en Docker (Linux) o Windows no tiene sentido y el servidor lo rechaza.
+
+## Cancelar, lectura manual y motor en el dashboard (sin publicar)
+- [D] Cancelar una lectura que ya está en marcha no interrumpe el OCR (Tesseract y ONNX no se pueden abortar a mitad de hoja): se marca la fila como cancelada, el lector termina su hoja, comprueba con una actualización condicionada (`where estado = 'leyendo'`) que sigue vigente y, si no, borra el adjunto que se había guardado. Así nunca queda un pedido a medias y la fila no se pisa.
+- [D] La lectura es manual por defecto porque el propietario lo pidió («que no empiece sola»). Se guarda como ajuste global (`lectura_manual`) y se puede volver a automática desde el dashboard. Las pruebas de siempre del servidor usan el modo automático.
+- [D] «Eliminar todo lo subido» actúa sobre la tanda en curso (los ids de lo subido en esa sesión del navegador); si se cancela desde la lista de lo que falta, sobre todo lo que esté en marcha del usuario.

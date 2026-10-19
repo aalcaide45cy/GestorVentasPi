@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { accionSobreLecturas, cancelarLecturas, leerResumenLecturas, listarNoPedidos, suscribirResumenLecturas } from "@/lib/lecturas-pedidos-cliente";
+import { accionSobreLecturas, cancelarPedidos, iniciarLectura, leerEnMarcha, leerResumenLecturas, listarNoPedidos, solicitarCancelacion, suscribirResumenLecturas } from "@/lib/lecturas-pedidos-cliente";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { LecturaDto } from "@/lib/servicios/lecturas-pedidos";
 
@@ -11,6 +11,8 @@ import type { LecturaDto } from "@/lib/servicios/lecturas-pedidos";
  */
 export default function EstadoLecturas() {
   const r = useSyncExternalStore(suscribirResumenLecturas, leerResumenLecturas, () => null);
+  const enMarcha = useSyncExternalStore(suscribirResumenLecturas, leerEnMarcha, () => []);
+  const [verMarcha, setVerMarcha] = useState(false);
   const [lista, setLista] = useState<LecturaDto[] | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [filtro, setFiltro] = useState<"todos" | "error" | "descartado" | "cancelado">("todos");
@@ -54,7 +56,11 @@ export default function EstadoLecturas() {
   return (
     <div className="glass-panel" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.85rem" }}>
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-        {r.subiendo > 0 && <span style={{ color: "var(--primary)", fontWeight: 600 }}>📤 {r.subiendo} subidos, esperando a que termine la carga para empezar a leerlos</span>}
+        {r.subiendo > 0 && (
+          <span style={{ color: "var(--primary)", fontWeight: 600 }}>
+            📤 {r.subiendo} subidos, {r.manual ? "esperando a que pulses «Iniciar lectura»" : "esperando a que termine la carga para empezar a leerlos"}
+          </span>
+        )}
         {r.pendientes + r.leyendo > 0 && (
           <span style={{ color: "var(--primary)", fontWeight: 600 }}>
             ⏳ {r.leyendo} leyéndose y {r.pendientes} en espera ({r.lectores} lecturas a la vez, hasta {r.maximo} si el equipo aguanta)
@@ -63,9 +69,19 @@ export default function EstadoLecturas() {
         {r.descartados > 0 && <span>🗑️ {r.descartados} no eran pedidos o estaban repetidos (ignorados)</span>}
         {r.errores > 0 && <span style={{ color: "var(--danger)" }}>⚠️ {r.errores} con error</span>}
         <span style={{ marginLeft: "auto", display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          {r.pendientes + r.subiendo > 0 && (
-            <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px" }} disabled={ocupado} onClick={() => void ejecutar(cancelarLecturas)}>
-              ✖ Cancelar lo pendiente
+          {r.manual && r.subiendo > 0 && (
+            <button type="button" className="btn btn-primary" style={{ padding: "2px 12px" }} disabled={ocupado} onClick={() => void ejecutar(iniciarLectura)} title="Empieza a leer todos los pedidos subidos que esperan">
+              ▶ Iniciar lectura ({r.subiendo})
+            </button>
+          )}
+          {r.pendientes + r.subiendo + r.leyendo > 0 && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px" }} disabled={ocupado} onClick={solicitarCancelacion} title="Pregunta y cancela la subida y la lectura de todo lo que falta, sin dejar documentos a medias. Lo que ya estaba leído se queda en la cola.">
+              ✖ Cancelar subida y lectura
+            </button>
+          )}
+          {r.pendientes + r.subiendo + r.leyendo > 0 && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px" }} onClick={() => setVerMarcha((v) => !v)} title="Lista de lo que se está subiendo o leyendo, para cancelar pedidos sueltos">
+              {verMarcha ? "Ocultar lista" : "Ver lo que falta"}
             </button>
           )}
           {r.errores > 0 && (
@@ -85,6 +101,25 @@ export default function EstadoLecturas() {
           )}
         </span>
       </div>
+      {verMarcha && enMarcha.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "260px", overflowY: "auto" }}>
+          <span style={{ color: "var(--text-secondary)" }}>
+            Lo que falta ({r.subiendo + r.pendientes + r.leyendo}
+            {r.subiendo + r.pendientes + r.leyendo > enMarcha.length ? `, se ven los primeros ${enMarcha.length}` : ""}):
+          </span>
+          {enMarcha.map((l) => (
+            <div key={l.id} style={{ display: "flex", gap: "10px", alignItems: "center", justifyContent: "space-between", padding: "2px 0", borderBottom: "1px solid var(--border-light)" }}>
+              <span style={{ wordBreak: "break-all" }}>
+                {l.estado === "leyendo" ? "📖" : l.estado === "subiendo" ? "📤" : "⏳"} {l.nombre}
+                <span style={{ color: "var(--text-muted)", marginLeft: "8px" }}>{l.estado === "leyendo" ? "leyéndose" : l.estado === "subiendo" ? "subido, esperando" : "en espera"}</span>
+              </span>
+              <button type="button" className="btn btn-secondary" style={{ padding: "1px 8px", flexShrink: 0 }} disabled={ocupado} onClick={() => void ejecutar(() => cancelarPedidos([l.id]))} title="Cancela solo este pedido: no se lee y no queda ningún documento a medias">
+                ✖ Cancelar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       {lista && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
