@@ -2,7 +2,7 @@
 
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { columnasVehiculo } from "./etiquetas";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
@@ -81,10 +81,24 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     abrirDeCola(siguiente && siguiente.id !== actual.id ? siguiente.id : null);
   };
 
+  /** Pedidos tal como se ven en la tabla (con el orden y la búsqueda) y último pedido marcado: para elegir un rango con Mayús. */
+  const vistos = useRef<string[]>([]);
+  const ultimoMarcado = useRef<string | null>(null);
+  const verFilas = useCallback((filas: ItemCola[]) => {
+    vistos.current = filas.map((f) => f.id);
+  }, []);
+
   if (items.length === 0) return <EstadoLecturas />;
 
   const elegidos = marcados.filter((id) => items.some((i) => i.id === id));
-  const alternarMarca = (id: string, v: boolean) => setMarcados((m) => (v ? [...m.filter((x) => x !== id), id] : m.filter((x) => x !== id)));
+  const alternarMarca = (id: string, v: boolean, conMayus = false) => {
+    const desde = ultimoMarcado.current ? vistos.current.indexOf(ultimoMarcado.current) : -1;
+    const hasta = vistos.current.indexOf(id);
+    // Mayús + clic: todos los pedidos entre el último que marcaste y este quedan igual que este
+    const rango = conMayus && desde >= 0 && hasta >= 0 ? vistos.current.slice(Math.min(desde, hasta), Math.max(desde, hasta) + 1) : [id];
+    setMarcados((m) => (v ? [...m.filter((x) => !rango.includes(x)), ...rango] : m.filter((x) => !rango.includes(x))));
+    ultimoMarcado.current = id;
+  };
   /** Descarta de golpe los pedidos elegidos de la cola (sus ficheros se marcan como eliminados). */
   const descartarElegidos = () => {
     const lista = items.filter((i) => elegidos.includes(i.id));
@@ -134,8 +148,8 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       clave: "seleccion",
       etiqueta: "✔",
       valor: (i) => (elegidos.includes(i.id) ? 1 : 0),
-      celda: (i) => <input type="checkbox" checked={elegidos.includes(i.id)} onChange={(e) => alternarMarca(i.id, e.target.checked)} style={{ accentColor: "var(--primary)", cursor: "pointer" }} title="Elige este pedido para descartarlo junto con otros" />,
-      ayuda: "Elige pedidos para descartarlos de golpe",
+      celda: (i) => <input type="checkbox" checked={elegidos.includes(i.id)} onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }} onChange={(e) => alternarMarca(i.id, e.target.checked, (e.nativeEvent as MouseEvent).shiftKey === true)} style={{ accentColor: "var(--primary)", cursor: "pointer" }} title="Elige este pedido. Con Mayús pulsada, elige de golpe todos los que hay entre el último que marcaste y este" />,
+      ayuda: "Elige pedidos para releerlos o descartarlos de golpe. Marca uno, y con Mayús pulsada marca otro más arriba o más abajo: se eligen todos los de en medio",
     },
     {
       clave: "pedido",
@@ -235,6 +249,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
       </p>
       <TablaDatos<(typeof items)[number]>
         id="cola-pedidos-v2"
+        alVerFilas={verFilas}
         columnas={columnasCola}
         filas={items}
         clave={(i) => i.id}

@@ -192,7 +192,7 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   if (iNif > 0) e.dni = col[iNif].replace(/\s/g, "").toUpperCase();
   else {
     // En un escaneo, la letra del DNI se lee a veces como una cifra («472321760» por «47232176Q») o se pierde: con las 8 cifras se calcula la letra
-    iNif = col.findIndex((c, i) => i > 0 && i <= 3 && /^\d{8,9}$/.test(c.replace(/\s/g, "")));
+    iNif = col.findIndex((c, i) => i > 0 && i <= 3 && /^\d{8}([^A-Za-z\d]|\d)?$/.test(c.replace(/\s/g, "")));
     if (iNif > 0) {
       const base = col[iNif].replace(/\s/g, "").slice(0, 8);
       e.dni = base + "TRWAGMYFPDXBNJZSQVHLCKE"[Number(base) % 23];

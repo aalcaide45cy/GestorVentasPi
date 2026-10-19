@@ -33,6 +33,9 @@ interface Props {
   alDescartar: () => void;
 }
 
+/** Si el visor del PDF estaba abierto en el último pedido (sobrevive a la recarga de la ventana al releer). */
+let pdfAbierto = false;
+
 type ClienteElegido = number | "nuevo" | "ninguno" | null;
 type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "fecha" | "entrega" | "matricula";
 
@@ -43,7 +46,9 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
 export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
   const { mostrar } = useToast();
   const router = useRouter();
-  const [verPdf, setVerPdf] = useState(false);
+  // Se recuerda entre lecturas: «Releer» rehace la ventana y el visor no debe esconderse
+  const [verPdf, setVerPdfEstado] = useState(pdfAbierto);
+  const setVerPdf = (f: (v: boolean) => boolean) => setVerPdfEstado((v) => (pdfAbierto = f(v)));
   const [releyendo, setReleyendo] = useState(false);
   const [masivo, setMasivo] = useState<{ hechos: number; total: number } | null>(null);
   const pedido = item.pedido;

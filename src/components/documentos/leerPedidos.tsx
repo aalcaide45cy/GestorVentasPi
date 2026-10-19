@@ -32,10 +32,8 @@ export function useLeerPedidos() {
 
   const leer = async (ficheros: File[], destino: Destino = {}) => {
     if (ficheros.length === 0) return;
-    if (huecosEnCola() === 0) {
-      mostrar(`La cola está llena (${MAXIMO_COLA} pedidos). Procesa o descarta alguno antes de añadir más.`, "error");
-      return;
-    }
+    // Con la cola llena los pedidos se suben igualmente: se leen en el servidor y pasan a la cola según vaya quedando hueco
+    if (huecosEnCola() < ficheros.length) mostrar(`La cola está llena (${MAXIMO_COLA} pedidos): se suben y se leen igualmente, y pasarán a la cola según vayas procesando o descartando.`);
     setSubiendo(true);
     try {
       let aSubir = ficheros;

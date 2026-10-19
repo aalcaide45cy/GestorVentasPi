@@ -297,4 +297,11 @@ describe("documentos que no son pedidos", () => {
     const texto = ["DATOS DEL VEH\u00cdCULO", "Marca / Modelo / Versi\u00f3n  DACIA Jogger", "N\u00famero de stock  259269", "Matr\u00edcula  E5919LZG  Bastidor  UU1RSDCNCN0123456", "Kms  56431"].join("\n");
     expect(parsearPedido(texto, catalogo).matricula).toBe("5919LZG");
   });
+
+  it("calcula la letra del DNI cuando el OCR la lee como un simbolo", () => {
+    const texto = ["PEDIDO DE VEH\u00cdCULO NUEVO", "N\u00famero Pedido 13958497 - 7441-00", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Sr. Don Miguel Angel Brito Canache  AUTOCARPE CONCESIONARIO, S.L.", "51266944)  B83747626", "Plaza Blimea, 5, 4, C  CLAVO, 22-26", "Rivas - Vaciamadrid, Madrid (28523)  Rivas - Vaciamadrid, Madrid (28522)", "638874946  Tel.: 916665058", "RESUMEN", "Modelo:  RENAULT ESPACE FULL HYBRID E-TECH  40.263,55 \u20ac"].join("\n");
+    const d = parsearPedido(texto, catalogo);
+    expect(d.dni).toBe("51266944J");
+    expect(d.avisos.some((a) => a.includes("letra del DNI"))).toBe(true);
+  });
 });

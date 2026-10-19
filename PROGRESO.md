@@ -325,3 +325,4 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Lectura de pedidos**: si el OCR lee mal la letra del DNI (o la pierde), se calcula con las 8 cifras y se avisa para comprobarlo.
 - **Pedidos de ocasión**: la «E» del distintivo pegada a la matrícula («E5919LZG») se ignora (queda 5919LZG).
 - **Pedido leído**: botón «🔄 Releer» en la propia ventana del pedido (rehace la ventana con los datos nuevos).
+- **Cola de pedidos**: con Mayús pulsada se eligen de golpe todos los pedidos entre el último marcado y el que pulsas (respeta el orden y la búsqueda de la tabla); con la cola llena se pueden seguir cargando pedidos (se leen en el servidor y pasan a la cola según haya hueco); «Releer» desde la ventana del pedido ya no esconde el visor del PDF; si el OCR lee la letra del DNI como un símbolo («51266944)») se calcula con las 8 cifras.
