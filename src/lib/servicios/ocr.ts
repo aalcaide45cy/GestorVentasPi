@@ -4,6 +4,8 @@ import sharp from "sharp";
 import { HttpError } from "@/lib/auth/sesion";
 import { cabeceraDeOtroDocumento } from "@/lib/documentos/pedido";
 import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
+import { ajustesOcr, cargarAjustesOcr, proveedorDe } from "./ocr-ajustes";
+import { ocrImagenesRapido } from "./ocr-rapido";
 
 /**
  * Reconocimiento (OCR) local de la rejilla en PDF o imagen. Todo se ejecuta en el propio equipo (Tesseract compilado a
@@ -75,7 +77,23 @@ function unirPalabrasConColumnas(palabras: { text: string; confidence: number; b
   return validas.map((w, i) => (i === 0 ? w.text : `${w.bbox.x0 - validas[i - 1].bbox.x1 > alto * 1.5 ? "  " : " "}${w.text}`)).join("");
 }
 
-export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico"; confianzaMinima?: number; columnas?: boolean } = {}): Promise<LineaOcr[]> {
+let avisadoFalloRapido = false;
+
+export async function ocrImagenes(imagenes: Buffer[], opciones: { lista?: string; psm?: "bloque" | "disperso" | "automatico"; confianzaMinima?: number; columnas?: boolean; motorElegido?: boolean } = {}): Promise<LineaOcr[]> {
+  // Motor elegido en Configuración, solo para leer pedidos (la rejilla de comisiones está afinada para Tesseract). Con lista de
+  // caracteres permitidos (lecturas muy concretas) también se usa Tesseract.
+  const proveedor = opciones.motorElegido ? proveedorDe(ajustesOcr().motor) : null;
+  if (proveedor && !opciones.lista) {
+    try {
+      return await ocrImagenesRapido(imagenes, { proveedor, columnas: opciones.columnas, confianzaMinima: opciones.confianzaMinima });
+    } catch (e) {
+      // Si RapidOCR no puede arrancar (modelos ausentes, sin GPU…) se lee con Tesseract para no dejar de leer
+      if (!avisadoFalloRapido) {
+        avisadoFalloRapido = true;
+        console.error("RapidOCR no está disponible, se usa Tesseract:", e instanceof Error ? e.message : e);
+      }
+    }
+  }
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("spa", 1, { langPath: carpetaIdioma(), gzip: true, cacheMethod: "none" });
   try {
@@ -132,9 +150,9 @@ const calidad = (lineas: LineaOcr[]): number => lineas.filter((l) => l.confianza
  * OCR de páginas que pueden venir giradas (un escáner o el móvil las dejan de lado o del revés): si el texto leído es
  * pobre, se prueban los otros tres giros y se queda el que más texto fiable da.
  */
-export async function ocrOrientado(imagenes: Buffer[], opciones: { ignorarManuscrito?: boolean; columnas?: boolean } = {}): Promise<LineaOcr[]> {
+export async function ocrOrientado(imagenes: Buffer[], opciones: { ignorarManuscrito?: boolean; columnas?: boolean; motorElegido?: boolean } = {}): Promise<LineaOcr[]> {
   const todas: LineaOcr[] = [];
-  const ocr = { ...(opciones.ignorarManuscrito ? { confianzaMinima: CONFIANZA_IMPRESO } : {}), ...(opciones.columnas ? { columnas: true } : {}) };
+  const ocr = { ...(opciones.ignorarManuscrito ? { confianzaMinima: CONFIANZA_IMPRESO } : {}), ...(opciones.columnas ? { columnas: true } : {}), ...(opciones.motorElegido ? { motorElegido: true } : {}) };
   for (const bruta of imagenes) {
     const img = opciones.ignorarManuscrito ? await quitarTintaBoli(bruta) : bruta;
     let mejor = await ocrImagenes([img], ocr);
@@ -260,6 +278,7 @@ export function reconocerRejilla(datos: Buffer, opciones: { forzarOcr?: boolean 
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {
+    await cargarAjustesOcr();
     try {
       if (tipo === "pdf") return await leerPdf(datos, opciones.forzarOcr ?? false);
       const lineas = await ocrOrientado([datos], { ignorarManuscrito: true });
@@ -282,7 +301,7 @@ async function pareceAjenoAlPedido(primeraPagina: Buffer): Promise<{ ajeno: bool
   const meta = await sharp(primeraPagina, { failOn: "none" }).metadata();
   if (!meta.width || !meta.height) return { ajeno: false, cabecera: "" };
   const arriba = await sharp(primeraPagina, { failOn: "none" }).extract({ left: 0, top: 0, width: meta.width, height: Math.max(1, Math.round(meta.height * 0.34)) }).png().toBuffer();
-  const texto = (await ocrOrientado([arriba], { columnas: true })).map((l) => l.texto).join(" ");
+  const texto = (await ocrOrientado([arriba], { columnas: true, motorElegido: true })).map((l) => l.texto).join(" ");
   const limpio = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   const cabecera = limpio.replace(/\s+/g, " ").trim().slice(0, 160);
   // Hoja de prueba, Anexo VO, oferta…: se descarta sin leer más
@@ -309,13 +328,14 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; pa
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   const ejecutar = (t: () => Promise<TextoLeido>) => (opciones.paralelo ? enParalelo(t, MAX_MS_PEDIDO) : enCola(t, MAX_MS_PEDIDO));
   return ejecutar(async () => {
+    await cargarAjustesOcr();
     try {
       if (tipo === "imagen") {
         if (opciones.cribar) {
           const c = await pareceAjenoAlPedido(datos);
           if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
         }
-        return { texto: (await ocrOrientado([datos], { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        return { texto: (await ocrOrientado([datos], { columnas: true, motorElegido: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       }
       const doc = await abrirPdf(datos);
       try {
@@ -330,7 +350,7 @@ export function textoDeDocumento(datos: Buffer, opciones: { cribar?: boolean; pa
           if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
         }
         const imagenes = paginas > 1 ? [...primera, ...(await paginasComoImagenes(doc, paginas)).slice(1)] : primera;
-        return { texto: (await ocrOrientado(imagenes, { columnas: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        return { texto: (await ocrOrientado(imagenes, { columnas: true, motorElegido: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
       } finally {
         await doc.cleanup?.();
       }
@@ -352,6 +372,7 @@ export function mirarDocumento(datos: Buffer): Promise<{ texto: string | null; p
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
   return enCola(async () => {
+    await cargarAjustesOcr();
     try {
       if (tipo === "imagen") return { texto: null, primera: datos, ...(await pareceAjenoAlPedido(datos)) };
       const doc = await abrirPdf(datos);

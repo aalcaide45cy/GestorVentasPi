@@ -13,6 +13,7 @@ import { guardarAdjunto } from "./adjuntos";
 import { NoEsPedidoError, leerPedido, type ResultadoPedido } from "./documentos";
 import { carpetaCopias } from "@/lib/mantenimiento";
 import { MAX_BYTES_OCR, tipoDeFichero } from "./ocr";
+import { ajustesOcr, cargarAjustesOcr } from "./ocr-ajustes";
 
 /**
  * Lectura de pedidos en lote. Cada PDF o foto se guarda (cifrado) en `lecturas_pedidos` nada más subirse, antes de leerlo, como
@@ -64,11 +65,13 @@ export interface ResumenLecturas {
 /**
  * Lecturas simultáneas. Cada una gasta memoria (la hoja dibujada y el reconocimiento de texto), así que el límite lo ponen los
  * núcleos y la memoria del equipo: en un PC potente salen bastantes y en una Raspberry Pi, dos. Se puede fijar con la variable
- * de entorno `LECTORES_PEDIDOS`.
+ * de entorno `LECTORES_PEDIDOS` o, mejor, en Configuración (ajuste «lecturas a la vez»; 0 = automático).
  */
 export function lectoresPermitidos(): number {
   const fijo = Number(process.env.LECTORES_PEDIDOS);
   if (Number.isInteger(fijo) && fijo > 0) return Math.min(fijo, 32);
+  const elegido = ajustesOcr().simultaneas;
+  if (elegido > 0) return Math.min(elegido, 32);
   // Por defecto, hasta 6 a la vez: leer miles de pedidos va sobrado de rápido sin forzar el equipo
   const porNucleos = Math.floor(os.availableParallelism() * 0.75);
   const porMemoria = Math.floor(os.totalmem() / (1.5 * 1024 ** 3));
@@ -76,7 +79,7 @@ export function lectoresPermitidos(): number {
 }
 
 /** ¿Se fijó el número de lectores a mano (`LECTORES_PEDIDOS`)? Entonces no se ajusta solo. */
-const lectoresFijos = (): boolean => Number.isInteger(Number(process.env.LECTORES_PEDIDOS)) && Number(process.env.LECTORES_PEDIDOS) > 0;
+const lectoresFijos = (): boolean => (Number.isInteger(Number(process.env.LECTORES_PEDIDOS)) && Number(process.env.LECTORES_PEDIDOS) > 0) || ajustesOcr().simultaneas > 0;
 
 const MAXIMO_POR_DEFECTO = 6;
 
@@ -508,7 +511,8 @@ export async function registroLecturas(ej: Ejecutor, idUsuario: number, esAdmin:
 
 /** Pone a trabajar a los lectores que falten (no espera a que terminen). */
 export function despertarLectores(): void {
-  void bucle();
+  // Los ajustes de Configuración (lecturas a la vez, motor) se refrescan antes de poner a trabajar a los lectores
+  void cargarAjustesOcr().finally(() => void bucle());
 }
 
 /** Tras un reinicio del servidor, lo que estaba leyéndose vuelve a pendiente. Se hace una vez por arranque. */

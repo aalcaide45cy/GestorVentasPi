@@ -326,3 +326,11 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Pedidos de ocasión**: la «E» del distintivo pegada a la matrícula («E5919LZG») se ignora (queda 5919LZG).
 - **Pedido leído**: botón «🔄 Releer» en la propia ventana del pedido (rehace la ventana con los datos nuevos).
 - **Cola de pedidos**: con Mayús pulsada se eligen de golpe todos los pedidos entre el último marcado y el que pulsas (respeta el orden y la búsqueda de la tabla); con la cola llena se pueden seguir cargando pedidos (se leen en el servidor y pasan a la cola según haya hueco); «Releer» desde la ventana del pedido ya no esconde el visor del PDF; si el OCR lee la letra del DNI como un símbolo («51266944)») se calcula con las 8 cifras.
+
+## Versión 1.2.1 (19/10/2026)
+
+- **Motor de lectura elegible** (Configuración › BBDD › Sistema › «Lectura de pedidos (OCR)»): Tesseract (CPU, cualquier equipo), RapidOCR (CPU, recomendado para Raspberry) o RapidOCR (GPU NVIDIA). RapidOCR son los modelos PP-OCRv5 de PaddleOCR (detección + reconocimiento latino con tildes y «ñ») ejecutados con ONNX Runtime desde `src/lib/servicios/ocr-rapido.ts`, con los modelos en `ocr-modelos/` (se incluyen en la imagen Docker). Detecta el equipo y marca el recomendado (★); «Probar este motor» comprueba si arranca (y con qué: CPU, DirectML o CUDA). Si RapidOCR falla, se lee con Tesseract. Vale solo para pedidos; la rejilla de comisiones sigue con Tesseract.
+- **Pedidos que se leen a la vez**: ajuste en la misma pantalla (0 = automático, como hasta ahora; 1 a 32 = fijo). Sustituye a la variable de entorno `LECTORES_PEDIDOS`, que sigue mandando si existe.
+- **Pedido leído editable**: cliente, DNI, teléfono, email, domicilio, población (con código postal), fecha del pedido y de entrega, bastidor y matrícula se pueden corregir o escribir en la propia ventana antes de crear; lo editado es lo que se guarda.
+- **Lectura**: DNI con la primera cifra leída como letra o una cifra confundida (se corrige si hay una única posibilidad que cuadre con la letra, y se avisa), aviso si el DNI leído no es válido, «Sr. E.» por «Sr. D.», correo con la «@» leída como letra y con un espacio, y cabeceras con rayas o comillas delante («| CLIENTE», «“Marca / Modelo»).
+- Pruebas: 499 en verde.

@@ -14,6 +14,7 @@ import { SubPestanas } from "./estructura";
 import { guardarPreferencia } from "@/lib/preferencias";
 import type { Categoria } from "@/lib/servicios/papelera";
 import PanelActualizar from "./PanelActualizar";
+import PanelOcr from "./PanelOcr";
 import PanelMigracion from "./PanelMigracion";
 import PanelVaciar from "./PanelVaciar";
 import { estiloPanel } from "./utilidades";
@@ -243,6 +244,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
             {pestana === "sistema" && (
               <>
               <PanelActualizar />
+              <PanelOcr />
               <div>
                 <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>⚙️ Opciones de Interfaz y Seguridad</h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5", marginBottom: "16px" }}>

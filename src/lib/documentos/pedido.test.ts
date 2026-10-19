@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsearPedido, partirDomicilio } from "./pedido";
+import { parsearPedido, partirDomicilio, repararNif } from "./pedido";
 
 const catalogo = {
   modelos: [
@@ -308,5 +308,35 @@ describe("documentos que no son pedidos", () => {
   it("reconoce el CIF de una empresa como documento del cliente", () => {
     const texto = ["PEDIDO DE VEHÍCULO NUEVO", "Número Pedido 13958497 - 7441-00", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Instalaciones Moliaga S.I.  AUTOCARPE CONCESIONARIO, S.L.", "B88499868  B83747626", "Calle Jarama, 13  CLAVO, 22-26", "Mejorada Del Campo, Madrid (28840)  Rivas - Vaciamadrid, Madrid (28522)", "638874946  Tel.: 916665058", "RESUMEN", "Modelo:  RENAULT ESPACE FULL HYBRID E-TECH  40.263,55 €"].join("\n");
     expect(parsearPedido(texto, catalogo).dni).toBe("B88499868");
+  });
+
+  it("repara un DNI mal leido solo si hay una unica posibilidad que cuadre", () => {
+    expect(repararNif("47232126Q")).toBe("47232126Q");
+    expect(repararNif("C3217051K")).toBeNull(); // varias cifras posibles: no se adivina
+    expect(repararNif("C0546931Z")).toBe("00546931Z");
+    expect(repararNif("B88499868")).toBeNull(); // un CIF no es un DNI
+  });
+
+  it("lee el pedido de un escaneo con rayas y comillas delante de los encabezados", () => {
+    const texto = [
+      "PEDIDO DE VEH\u00cdCULO  renew",
+      "N\u00daMERO PEDIDO 18762",
+      "Emitido: Martes, 23 Julio 2024 / 16:16 hs",
+      "| CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+      "Sr. E. Roberto Martin Iglesias  AUTOCARPE CONCESIONARIO, S.L.",
+      "50874078X  B83747626",
+      "Calle Menorca, 16  CLAVO,",
+      "Arganda, Madrid (28500)  Rivas - Vaciamadrid, Madrid (28522)",
+      "635589621 / 635589621  Tel.: 916665058",
+      "milrob_85E hotmail.com  LavV: 10:00 a 15:00",
+      "RESUMEN",
+      "\u201cMarca / Modelo / Versi\u00f3n:  DACIA DACIA Sandero Stepway TCe Extreme CVT 67kW  15.640,50 \u20ac",
+    ].join("\n");
+    const d = parsearPedido(texto, catalogo);
+    expect(d.cliente).toBe("Roberto Martin Iglesias");
+    expect(d.dni).toBe("50874078X");
+    expect(d.telefono).toBe("635589621");
+    expect(d.email).toBe("milrob_85@hotmail.com");
+    expect(d.modeloTexto).toMatch(/Sandero/);
   });
 });
