@@ -84,6 +84,7 @@ type Columna =
   | "fecha_matriculacion"
   | "fecha_facturacion"
   | "fecha_entrega"
+  | "estado_intranet"
   | "cobro";
 
 const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
@@ -104,13 +105,14 @@ const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
   { clave: "fecha_matriculacion", etiqueta: "F. Mat" },
   { clave: "fecha_facturacion", etiqueta: "F. FAC." },
   { clave: "fecha_entrega", etiqueta: "F. Entrega" },
+  { clave: "estado_intranet", etiqueta: "Estado intranet" },
   { clave: "cobro", etiqueta: "Comisionado" },
 ];
 
 type Visibles = Record<Columna, boolean>;
 const TODAS: Visibles = Object.fromEntries(COLUMNAS.map((c) => [c.clave, true])) as Visibles;
 /** Por defecto «Marca» y «Modelo» van por separado; la columna unificada «Marca y modelo» se activa desde «Columnas». */
-const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false };
+const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false, estado_intranet: false };
 const ORDEN_POR_DEFECTO: Columna[] = COLUMNAS.map((c) => c.clave);
 const solo = (claves: Columna[]): Visibles => Object.fromEntries(COLUMNAS.map((c) => [c.clave, claves.includes(c.clave)])) as Visibles;
 const VISTAS_INCLUIDAS: { id: string; nombre: string; ayuda: string; config: ConfigColumnas }[] = [
@@ -139,6 +141,7 @@ const ANCHO_COLUMNA: Record<Columna, number> = {
   fecha_matriculacion: 150,
   fecha_facturacion: 150,
   fecha_entrega: 150,
+  estado_intranet: 130,
   cobro: 150,
 };
 /** «Dacia Sandero»: marca y modelo en una sola cadena, sin repetir la marca si el modelo ya la incluye («Renault 5» de la marca Renault). */
@@ -169,7 +172,31 @@ const ENCABEZADOS: Record<Columna, { etiqueta: string; fondo?: string }> = {
   fecha_matriculacion: { etiqueta: "F. Mat", fondo: FONDO_FECHA_B },
   fecha_facturacion: { etiqueta: "F. FAC.", fondo: FONDO_FECHA_A },
   fecha_entrega: { etiqueta: "F. Entrega", fondo: FONDO_FECHA_B },
+  estado_intranet: { etiqueta: "Estado intranet" },
   cobro: { etiqueta: "Comisionado", fondo: "rgba(128, 128, 128, 0.06)" },
+};
+
+/** Ayuda que sale al pasar el ratón por el título de cada columna. */
+const AYUDA_COLUMNA: Record<Columna, string> = {
+  cliente: "Nombre del cliente. Haz clic para ordenar",
+  telefono: "Primer teléfono del cliente",
+  email: "Primer correo del cliente",
+  clase: "VN (nuevo) o VO (usado)",
+  punto: "Color de la marca del vehículo",
+  marca: "Marca del vehículo",
+  modelo: "Modelo del vehículo",
+  marca_modelo: "Marca y modelo en una sola columna",
+  tipo_venta: "Forma de pago: contado, crédito, preference…",
+  estado: "Estado del vehículo en la app",
+  vendedor: "Comercial al que pertenece el expediente",
+  fecha_expediente: "Fecha en que se hizo el pedido",
+  fecha_afectacion: "Fecha de afectación del vehículo al pedido",
+  fecha_rci: "Fecha de contratación de la financiación (la fecha de pago de la financiera)",
+  fecha_matriculacion: "Fecha de matriculación (en un VN cuenta para comisionar)",
+  fecha_facturacion: "Fecha de facturación (en un VN y un VO es la que cuenta para comisionar)",
+  fecha_entrega: "Fecha de entrega al cliente",
+  estado_intranet: "Estado en la intranet del fabricante (Archivado, Anulado…), importado de sus listados",
+  cobro: "Si la comisión del coche ya aparece como pagada en el Cotejo de pagos",
 };
 
 const ANCHO_SELECCION = 40;
@@ -319,6 +346,7 @@ export default function ExpedientesList({
   const [fModelo, setFModelo] = useState("");
   const [fTipo, setFTipo] = useState("");
   const [fEstado, setFEstado] = useState("");
+  const [fIntranet, setFIntranet] = useState("");
   const [fVendedor, setFVendedor] = useState(currentUserName ?? "");
   const [fMes, setFMes] = useState("");
   const [fAnio, setFAnio] = useState("");
@@ -399,6 +427,7 @@ export default function ExpedientesList({
       vendedores: unicos(expedientes.map((e) => e.usuario?.nombre)),
       tipos: unicos(expedientes.map((e) => e.tipoDeVenta?.nombre_tipo_venta)),
       estados: unicos(expedientes.map((e) => e.estadoVehiculo?.nombre_estado_vehiculo)),
+      estadosIntranet: unicos(expedientes.map((e) => e.estado_intranet)),
       anios: Array.from(
         new Set(
           expedientes.flatMap((e) =>
@@ -427,6 +456,7 @@ export default function ExpedientesList({
           e.usuario?.nombre,
           e.vin,
           e.matricula,
+          e.estado_intranet,
         ];
         if (!campos.some((c) => c?.toLowerCase().includes(gs))) return false;
       }
@@ -441,6 +471,7 @@ export default function ExpedientesList({
       }
       if (fTipo && !e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase().includes(fTipo.toLowerCase())) return false;
       if (fEstado && !e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(fEstado.toLowerCase())) return false;
+      if (fIntranet && (fIntranet === "__sin__" ? !!e.estado_intranet : (e.estado_intranet ?? "").toLowerCase() !== fIntranet.toLowerCase())) return false;
       if (fVendedor && (e.usuario?.nombre?.toLowerCase().trim() ?? "") !== fVendedor.toLowerCase().trim()) return false;
       if (fMes || fAnio) {
         const objetivo =
@@ -458,7 +489,7 @@ export default function ExpedientesList({
       if (fTienda && e.id_tienda !== Number(fTienda)) return false;
       return true;
     });
-  }, [expedientes, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
+  }, [expedientes, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
 
   const ordenados = useMemo(() => {
     const valor = (e: ExpedienteDto): string => {
@@ -484,6 +515,8 @@ export default function ExpedientesList({
           return e.tipoDeVenta?.nombre_tipo_venta ?? "";
         case "estado":
           return e.estadoVehiculo?.nombre_estado_vehiculo ?? "";
+        case "estado_intranet":
+          return e.estado_intranet ?? "";
         case "vendedor":
           return e.usuario?.nombre ?? "";
         default:
@@ -523,6 +556,7 @@ export default function ExpedientesList({
     setFModelo("");
     setFTipo("");
     setFEstado("");
+    setFIntranet("");
     setFVendedor(currentUserName ?? ""); // al limpiar se vuelve a ver solo lo del usuario que ha iniciado sesión
     setFMes("");
     setFAnio("");
@@ -784,6 +818,7 @@ export default function ExpedientesList({
   if (!fVendedor) filtrosActivos.push("Todos los comerciales");
   if (fTipo) filtrosActivos.push(`Tipo de venta: ${fTipo}`);
   if (fEstado) filtrosActivos.push(`Estado: ${fEstado}`);
+  if (fIntranet) filtrosActivos.push(`Estado intranet: ${fIntranet === "__sin__" ? "sin estado" : fIntranet}`);
   if (ocultarEntregados) filtrosActivos.push("Entregados ocultos");
 
   const nCopias = Math.max(0, Math.floor(Number(copias) || 0));
@@ -830,6 +865,7 @@ export default function ExpedientesList({
     mostrarCol(clave) && (
       <th
         key={clave}
+        title={AYUDA_COLUMNA[clave]}
         onClick={clave === "cobro" ? undefined : () => ordenar(clave)}
         style={{
           cursor: clave === "cobro" ? "default" : "pointer",
@@ -1052,7 +1088,7 @@ export default function ExpedientesList({
               <OpcionDatos
                 icono="🧩"
                 titulo="Completar datos desde listados"
-                texto="Sube los Excel o CSV del fabricante (Expedientes, Llamadas de calidad…): la app reconoce las columnas, encuentra tus expedientes por bastidor, matrícula o NIF y propone rellenar o corregir. Ves todo antes de aplicar."
+                texto="Sube los Excel o CSV del fabricante (Expedientes, Llamadas de calidad…): la app reconoce las columnas, encuentra tus expedientes por bastidor, matrícula, NIF o correo y propone rellenar o corregir (con el PDF del pedido al lado, filtros por anulados y archivados y edición a mano). Ves todo antes de aplicar."
                 ayuda="Completa matrícula, bastidor, fechas, NIF, código postal, correo y teléfono de expedientes existentes. No crea expedientes ni modelos y se puede deshacer desde el Log de importaciones."
                 alPulsar={() => {
                   setMenuDatos(false);
@@ -1354,6 +1390,27 @@ export default function ExpedientesList({
               ))}
             </select>
           </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={etiquetaFiltro} title="Estado del expediente en la intranet del fabricante (Archivado, Anulado…), importado desde sus listados con «Completar datos desde listados»">Estado intranet</label>
+            <select
+              className="form-input"
+              value={fIntranet}
+              onChange={(e) => {
+                setFIntranet(e.target.value);
+                setPagina(1);
+              }}
+              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
+            >
+              <option value="">Todos</option>
+              <option value="__sin__">Sin estado importado</option>
+              {opciones.estadosIntranet.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         )}
       </div>
@@ -1514,6 +1571,17 @@ export default function ExpedientesList({
                       fecha_matriculacion: mostrarCol("fecha_matriculacion") && celdaFecha(exp, "fecha_matriculacion", "Matriculación", FONDO_FECHA_B),
                       fecha_facturacion: mostrarCol("fecha_facturacion") && celdaFecha(exp, "fecha_facturacion", "Facturación", FONDO_FECHA_A),
                       fecha_entrega: mostrarCol("fecha_entrega") && celdaFecha(exp, "fecha_entrega", "Entrega", FONDO_FECHA_B),
+                      estado_intranet: mostrarCol("estado_intranet") && (
+                          <td style={{ textAlign: "center" }}>
+                            {exp.estado_intranet ? (
+                              <span className="badge" title={`Estado del expediente en la intranet del fabricante: ${exp.estado_intranet}`} style={{ fontSize: "0.75rem", ...(/anulad/i.test(exp.estado_intranet) ? { backgroundColor: "rgba(239, 68, 68, 0.12)", color: "var(--danger)", border: "1px solid rgba(239, 68, 68, 0.3)" } : { backgroundColor: "rgba(128, 128, 128, 0.1)", color: "var(--text-secondary)", border: "1px solid var(--border-light)" }) }}>
+                                {exp.estado_intranet}
+                              </span>
+                            ) : (
+                              <span style={{ color: "var(--text-muted)" }}>—</span>
+                            )}
+                          </td>
+                      ),
                       cobro: mostrarCol("cobro") && (
                           <td style={{ textAlign: "center" }}>
                             {exp.comisionado?.estado === "pagado" ? (

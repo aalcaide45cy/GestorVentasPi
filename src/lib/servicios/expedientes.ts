@@ -164,6 +164,8 @@ export function aDto(e: FilaExpediente): ExpedienteDto {
     conceptos_especiales: e.conceptosEspeciales ?? [],
     bonus_manuales: e.bonusManuales ?? [],
     deshabilitado: e.deshabilitado,
+    estado_intranet: e.estadoIntranet,
+    fecha_primera_matriculacion: e.fechaPrimeraMatriculacion,
     cliente: e.cliente ? clienteDto(e.cliente) : null,
     modelo: e.modelo ? modeloDto(e.modelo) : null,
     tipoDeVenta: e.tipoDeVenta ? tipoVentaDto(e.tipoDeVenta) : null,

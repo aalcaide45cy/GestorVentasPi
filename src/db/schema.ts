@@ -250,6 +250,10 @@ export const expedientes = pgTable(
     fechaExpediente: date("fecha_expediente"),
     fechaAfectacion: date("fecha_afectacion"),
     fechaMatriculacion: date("fecha_matriculacion"),
+    /** Fecha en que se matriculó por primera vez el vehículo (en un usado, la de hace años). Solo informativa: no cuenta para las comisiones. */
+    fechaPrimeraMatriculacion: date("fecha_primera_matriculacion"),
+    /** Estado del expediente en la intranet del fabricante (Archivado, Anulado, Matriculación…), tal como viene en sus listados. */
+    estadoIntranet: varchar("estado_intranet", { length: 40 }),
     fechaEntrega: date("fecha_entrega"),
     fechaRci: date("fecha_rci"),
     fechaFacturacion: date("fecha_facturacion"),
@@ -952,6 +956,41 @@ export const adjuntos = pgTable(
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
   (t) => [index("adjuntos_cliente_idx").on(t.idCliente), index("adjuntos_expediente_idx").on(t.idExpediente)],
+);
+
+/**
+ * Pagos de la financiera (RCI / Mobilize) subidos para fijar la fecha de contratación de la financiación de cada expediente. Cada
+ * documento subido deja una fila: `aplicado` (ya fijó la fecha RCI de su expediente), `pendiente` (hay que decidir a qué expediente
+ * va) o `ignorado` (no era un pago de la financiera, o se descartó). El PDF se guarda como adjunto y, al aplicarse, pasa al expediente.
+ */
+export const pagosRci = pgTable(
+  "pagos_rci",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    nombreArchivo: text("nombre_archivo").notNull(),
+    idAdjunto: integer("id_adjunto").references(() => adjuntos.id, { onDelete: "set null" }),
+    /** aplicado | pendiente | ignorado */
+    estado: varchar("estado", { length: 12 }).notNull().default("pendiente"),
+    /** Por qué está pendiente o ignorado (o cómo se encontró el expediente). */
+    motivo: text("motivo"),
+    numeroOperacion: varchar("numero_operacion", { length: 40 }),
+    fechaPago: date("fecha_pago"),
+    nif: varchar("nif", { length: 20 }),
+    nombre: text("nombre"),
+    bastidor: varchar("bastidor", { length: 30 }),
+    matricula: varchar("matricula", { length: 20 }),
+    marca: varchar("marca", { length: 60 }),
+    modelo: text("modelo"),
+    importeNominalCent: integer("importe_nominal_cent"),
+    totalLiquidoCent: integer("total_liquido_cent"),
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
+    /** Fecha RCI que tenía el expediente antes de aplicar el pago (para poder deshacerlo). */
+    fechaRciAnterior: date("fecha_rci_anterior"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    resueltoEn: timestamp("resuelto_en", { withTimezone: true }),
+  },
+  (t) => [index("pagos_rci_estado_idx").on(t.estado), index("pagos_rci_operacion_idx").on(t.numeroOperacion), index("pagos_rci_expediente_idx").on(t.idExpediente)],
 );
 
 export const adjuntosDatos = pgTable("adjuntos_datos", {

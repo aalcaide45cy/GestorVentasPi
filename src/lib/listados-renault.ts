@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
+import { normalizarMatricula } from "@/lib/identificadores";
 
 /**
  * Lectura inteligente de los listados que se descargan del sistema del fabricante (Expedientes, Llamadas de calidad…, en Excel o
@@ -85,8 +86,8 @@ function buscarColumna(cabeceras: { original: string; norm: string }[], dato: st
 export function separarMatricula(valor: unknown): { matricula: string; fecha: string | null } {
   const t = String(valor ?? "").trim();
   const m = t.match(/^([^(]*)\(\s*([^)]*)\)?\s*$/);
-  if (!m) return { matricula: t.replace(/\s+/g, "").toUpperCase(), fecha: null };
-  return { matricula: m[1].replace(/\s+/g, "").toUpperCase(), fecha: parseFechaFlexible(m[2]) };
+  if (!m) return { matricula: normalizarMatricula(t), fecha: null };
+  return { matricula: normalizarMatricula(m[1]), fecha: parseFechaFlexible(m[2]) };
 }
 
 const texto = (fila: Record<string, unknown>, columna: string | null): string => (columna ? String(fila[columna] ?? "").trim() : "");

@@ -1,0 +1,1 @@
+ALTER TABLE "expedientes" ADD COLUMN "fecha_primera_matriculacion" date;

@@ -1,0 +1,1 @@
+ALTER TABLE "expedientes" ADD COLUMN "estado_intranet" varchar(40);

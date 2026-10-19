@@ -10,6 +10,6 @@ export const maxDuration = 120;
 /** Qué se rellenaría o corregiría con un listado del fabricante. No guarda nada y nunca crea expedientes. */
 export const POST = manejar(async (req: Request) => {
   const usuario = await requireSession("no_invitado");
-  const { filas, referencias } = await leerJson(req, esquemaPrevisualizarCompletar);
-  return NextResponse.json({ success: true, data: await previsualizarCompletado(db, usuario, filas, referencias) });
+  const { filas, referencias, asignaciones } = await leerJson(req, esquemaPrevisualizarCompletar);
+  return NextResponse.json({ success: true, data: await previsualizarCompletado(db, usuario, filas, referencias, asignaciones) });
 });
