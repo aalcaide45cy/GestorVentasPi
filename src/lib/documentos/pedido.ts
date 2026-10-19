@@ -155,15 +155,44 @@ interface Estructura {
  * («hoimail», «gnail»). Si el resto cuadra con un proveedor conocido, se recompone el correo.
  */
 function repararCorreo(c: string): string | null {
-  const m = c.trim().match(/^([\w.+-]{3,}?)(?:\s+|[EQG©@])(g[mn]a[il1]l|h[o0][tli1]{0,2}mail|outlook|yahoo|icloud|live|msn|me)\.([a-z.]{2,})$/);
+  const m = c.trim().match(/^([\w.+-]{3,}?)(?:\s*[EQG©@]\s*|\s+)(g[mn]a[il1]l|h[o0][tli1]{0,2}mail|outlook|yahoo|icloud|live|msn|me)\.([a-z.]{2,})$/);
   if (!m) return null;
   const d = m[2].toLowerCase();
   const dominio = d.startsWith("g") ? "gmail" : d.startsWith("h") ? "hotmail" : d;
   return `${m[1]}@${dominio}.${m[3]}`.toLowerCase();
 }
 
+const CONFUSIONES_CIFRA: Record<string, string> = { "0": "689", "1": "7", "2": "7", "3": "8", "4": "9", "5": "68", "6": "058", "7": "12", "8": "035690", "9": "048" };
+const LETRA_A_CIFRA: Record<string, string> = { C: "0", O: "0", D: "0", Q: "0", I: "1", L: "1", S: "5", G: "6", B: "8" };
+
+/**
+ * DNI leído con errores de OCR: la primera cifra como letra («C3217051K») y/o una cifra confundida con otra parecida
+ * (0/9, 1/7, 5/6, 3/8…). Solo se devuelve un DNI si exactamente uno de los cambios de una cifra hace cuadrar la letra.
+ */
+export function repararNif(nif: string): string | null {
+  const t = nif.toUpperCase().replace(/\s/g, "");
+  const m = t.match(/^([A-Z]?)(\d{7,8})([A-Z])$/);
+  if (!m) return null;
+  let cifras = m[2];
+  if (m[1]) {
+    const c = LETRA_A_CIFRA[m[1]];
+    if (!c || cifras.length !== 7) return null;
+    cifras = c + cifras;
+  }
+  if (cifras.length !== 8) return null;
+  if (validarDni(cifras + m[3])) return cifras + m[3];
+  const validos = new Set<string>();
+  for (let i = 0; i < 8; i++) {
+    for (const alt of CONFUSIONES_CIFRA[cifras[i]] ?? "") {
+      const prueba = cifras.slice(0, i) + alt + cifras.slice(i + 1);
+      if (validarDni(prueba + m[3])) validos.add(prueba + m[3]);
+    }
+  }
+  return validos.size === 1 ? [...validos][0] : null;
+}
+
 function leerEstructuraRenault(lineas: string[]): Estructura | null {
-  const iCliente = lineas.findIndex((l) => /^CLIENTE\b/.test(l.trim()) && /ESTABLECIMIENTO/i.test(l));
+  const iCliente = lineas.findIndex((l) => /^[^A-Za-z0-9]*CLIENTE\b/.test(l.trim()) && /ESTABLECIMIENTO/i.test(l));
   if (iCliente < 0) return null;
   const bloque = lineas.slice(iCliente + 1);
   const iResumen = bloque.findIndex((l) => /^RESUMEN\b/.test(l.trim()));
@@ -187,7 +216,8 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
 
   // Columna izquierda de cada línea del bloque del cliente
   const col = datos.map(primeraColumna);
-  e.cliente = col[0] ? col[0].replace(HONORIFICO, "").trim() || null : null;
+  // El OCR lee a veces la «D.» del tratamiento como «E.» («Sr. E. Mario Muñoz»)
+  e.cliente = col[0] ? col[0].replace(/^(Sra?\.?)\s+E\.\s+/i, "$1 D. ").replace(HONORIFICO, "").trim() || null : null;
   let iNif = col.findIndex((c, i) => i > 0 && /^([A-Z]?\d{7,8}[A-Z]|[A-HJNP-SUVW]\d{7}[0-9A-J])$/i.test(c.replace(/\s/g, "")));
   if (iNif > 0) e.dni = col[iNif].replace(/\s/g, "").toUpperCase();
   else {
@@ -215,14 +245,14 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   if (modelo) e.modeloLinea = modelo.replace(/^Mode[lti1]o\s*:\s*/i, "").replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "").replace(/\s{2,}/g, " ").trim();
   // Los pedidos de vehículos de ocasión no traen «Modelo:»: el vehículo va en el resumen, «Marca / Modelo / Versión: RENAULT Mégane S.T. … >[2535JXC]  12.620,00 €»
   else {
-    const resumen = lineas.find((l) => /^Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:/i.test(l.trim()));
+    const resumen = lineas.find((l) => /^[^A-Za-z0-9]*Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:/i.test(l.trim()));
     const texto = resumen
-      ?.replace(/^Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:\s*/i, "")
+      ?.replace(/^[^A-Za-z0-9]*Marca\s*\/\s*Modelo\s*\/\s*Versi[oó]n\s*:\s*/i, "")
       .replace(/\s*>\s*\[.*$/, "")
       .replace(/\s{2,}-?[\d.]+,\d{2}\s*€\s*$/, "")
       .replace(/\s{2,}/g, " ")
       .trim();
-    if (texto) e.modeloLinea = texto;
+    if (texto) e.modeloLinea = texto.replace(/^(\S+)\s+\1\b/i, "$1");
   }
 
   const plazo = lineas.find((l) => /^Plazo\s+de\s+Entrega/i.test(l.trim()));
@@ -318,6 +348,14 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   }
 
   let dni = estructura?.dni ?? null;
+  // Un DNI mal leído por el OCR (cifras confundidas, la primera cifra como letra…): se corrige si con un solo cambio la letra cuadra
+  if (dni && /^[A-WYZ]?\d{7,8}[A-Z]$/.test(dni) && !/^[XYZ]/.test(dni) && !validarDni(dni) && !/^[ABCDEFGHJNPQRSUVW]\d{7}[A-J]$/.test(dni)) {
+    const arreglado = repararNif(dni);
+    if (arreglado) {
+      avisos.push(`El OCR no leyó bien el DNI («${dni}»): se ha corregido a ${arreglado}, que es el único que cuadra con su letra. Compruébalo con el pedido.`);
+      dni = arreglado;
+    } else avisos.push(`El DNI leído («${dni}») no es válido: su letra no cuadra con las cifras. Compruébalo con el pedido.`);
+  }
   if (dni && estructura?.dniCalculado) avisos.push(`El OCR no leyó bien la letra del DNI: se ha calculado (${dni}) con sus 8 cifras. Compruébalo con el pedido.`);
   if (dni && !validarDni(dni) && !/^[A-Z]\d{8}$|^[A-Z]\d{7}[A-Z0-9]$/.test(dni)) dni = buscarDniEnTexto(dni)?.dni ?? dni;
   if (!dni) dni = buscarDniEnTexto(mayus)?.dni ?? null;

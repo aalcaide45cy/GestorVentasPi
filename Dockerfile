@@ -60,6 +60,8 @@ COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/src/db/migrations ./src/db/migrations
 COPY --from=build --chown=node:node /app/dist ./dist
+# Modelos de RapidOCR (lectura de pedidos): se leen desde esta carpeta en tiempo de ejecución
+COPY --from=build --chown=node:node /app/ocr-modelos ./ocr-modelos
 COPY --chown=node:node docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh && mkdir -p /backups && chown node:node /backups
 

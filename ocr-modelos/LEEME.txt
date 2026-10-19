@@ -1,0 +1,5 @@
+Modelos de RapidOCR (lectura de pedidos). Licencia Apache-2.0.
+- det.onnx: PaddlePaddle/PP-OCRv5_mobile_det_onnx (deteccion de texto)
+- rec.onnx: PaddlePaddle/latin_PP-OCRv5_mobile_rec_onnx (reconocimiento, alfabeto latino con tildes y enye)
+- diccionario-latin.txt: caracteres del modelo de reconocimiento (sacado de su inference.yml)
+Origen: https://huggingface.co/PaddlePaddle . Se ejecutan con ONNX Runtime (src/lib/servicios/ocr-rapido.ts).

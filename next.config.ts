@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
   // Oculta el círculo «N» de Next.js que sale solo en desarrollo (en la aplicación instalada no existe)
   devIndicators: false,
   // OCR de la rejilla (Tesseract en WebAssembly, lectura de PDF y lienzo nativo): se cargan desde node_modules en tiempo de ejecución
-  serverExternalPackages: ["tesseract.js", "pdfjs-dist", "@napi-rs/canvas"],
+  serverExternalPackages: ["tesseract.js", "pdfjs-dist", "@napi-rs/canvas", "onnxruntime-node", "onnxruntime-common"],
   outputFileTracingIncludes: {
     "/api/documentos/leer": [
       "./node_modules/tesseract.js/**/*",
@@ -56,6 +56,11 @@ const nextConfig: NextConfig = {
       "./node_modules/pdfjs-dist/standard_fonts/**/*",
       "./node_modules/pdfjs-dist/wasm/**/*",
       "./node_modules/@napi-rs/canvas*/**/*",
+      // RapidOCR (ONNX Runtime): solo los binarios de Linux (la imagen es linux/amd64 y linux/arm64) y los modelos
+      "./node_modules/onnxruntime-node/{package.json,dist,lib}/**/*",
+      "./node_modules/onnxruntime-node/bin/napi-v6/linux/**/*",
+      "./node_modules/onnxruntime-common/**/*",
+      "./ocr-modelos/**/*",
     ],
     "/api/comisiones/rejillas/ocr": [
       "./node_modules/tesseract.js/**/*",

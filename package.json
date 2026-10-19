@@ -23,6 +23,7 @@
     "@tesseract.js-data/spa": "^1.0.0",
     "drizzle-orm": "^0.45.4",
     "next": "^16.2.6",
+    "onnxruntime-node": "^1.22.0",
     "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
