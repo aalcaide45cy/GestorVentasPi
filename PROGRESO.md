@@ -347,3 +347,9 @@ Prueba con 1.000.000 de expedientes (`N_EXP=1000000 N_CLI=200000 NODE_OPTIONS=--
 - **Subir una copia grande (.dump)**: se sube por trozos de 32 MB (`/api/admin/copias/subir/trozo`), con progreso, reintentos y reanudación; antes iba en una sola petición y con una copia de un giga se cortaba por el camino («Load failed» en Safari, «Failed to fetch» en Chrome). La subida entera (`/api/admin/copias/subir`) sigue disponible.
 - **Restaurar una copia**: la restauración se hace en segundo plano. El servidor responde al momento («Restauración iniciada») y la pantalla pregunta cada 3 segundos en `/api/salud` en qué fase va (copia previa, restauración, ajustes) hasta que termina, y entonces lleva al inicio de sesión. Antes la petición duraba todo el proceso (varios minutos en la Raspberry con una copia grande) y el navegador o el túnel la cortaban. Si el servidor se reinicia a mitad, se avisa de que se interrumpió.
 - Pruebas: 511 en verde (nuevas: subida por trozos y restauración en segundo plano).
+
+## Versión 1.2.4 (19/10/2026)
+
+- **Contraseña olvidada**: en Configuración › Usuarios hay un botón «🗝️ Contraseña temporal» para cada usuario (solo administradores): crea una contraseña nueva que se ve una sola vez, obliga a cambiarla al entrar, quita bloqueos por intentos y cierra sus sesiones (`POST /api/admin/usuarios/seguridad` con `accion: reset_password`, queda en la auditoría sin la contraseña).
+- **Pantalla de login**: bajo el formulario hay una ayuda desplegable «¿Has olvidado la contraseña o el doble factor?» que explica qué hacer: otro administrador desde Configuración › Usuarios o, si es el único, `./scripts/reset-password.sh` y `./scripts/reset-2fa.sh` en la carpeta de instalación.
+- Pruebas: 512 en verde.

@@ -160,6 +160,20 @@ export default function LoginForm() {
           {enviando ? "Entrando…" : "Entrar"}
         </button>
       </form>
+      <details style={{ marginTop: "18px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+        <summary style={{ cursor: "pointer", color: "var(--text-muted)" }}>¿Has olvidado la contraseña o el doble factor?</summary>
+        <div style={{ marginTop: "8px", lineHeight: 1.55, display: "flex", flexDirection: "column", gap: "8px" }}>
+          <span>
+            <b>Si hay otro administrador:</b> que entre en Configuración › Usuarios y te restablezca la contraseña (o el doble factor).
+          </span>
+          <span>
+            <b>Si eres el único administrador:</b> desde el equipo donde está instalada la aplicación (la Raspberry, por SSH), en la carpeta de instalación:
+          </span>
+          <code style={{ display: "block", padding: "8px 10px", background: "var(--bg-surface-tint)", borderRadius: "var(--radius-sm)", wordBreak: "break-all" }}>./scripts/reset-password.sh tu@correo.com</code>
+          <code style={{ display: "block", padding: "8px 10px", background: "var(--bg-surface-tint)", borderRadius: "var(--radius-sm)", wordBreak: "break-all" }}>./scripts/reset-2fa.sh tu@correo.com</code>
+          <span>El primero muestra una contraseña temporal (una sola vez) que tendrás que cambiar al entrar; el segundo quita el doble factor para que lo actives de nuevo.</span>
+        </div>
+      </details>
     </PanelAcceso>
   );
 }

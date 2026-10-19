@@ -4,7 +4,7 @@ import type { Ejecutor } from "@/db";
 import { codigosRecuperacion, loginIntentos, sesiones, usuarios } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { cifrar, descifrar } from "@/lib/auth/cifrado";
-import { hashPassword, validarPassword, verificarPassword } from "@/lib/auth/password";
+import { generarPasswordTemporal, hashPassword, validarPassword, verificarPassword } from "@/lib/auth/password";
 import {
   generarCodigosRecuperacion,
   huellaCodigoRecuperacion,
@@ -225,6 +225,25 @@ export async function verificarSegundoFactor(
 
   await registrarIntento(ej, claves, false, ahora);
   return { estado: "incorrecto" };
+}
+
+/**
+ * Pone una contraseña temporal nueva a un usuario (la ve quien la pide una sola vez), le obliga a cambiarla al entrar, quita bloqueos
+ * por intentos y cierra todas sus sesiones. Lo usa un administrador desde Configuración › Usuarios.
+ */
+export async function resetearPassword(ej: Ejecutor, idUsuario: number): Promise<string> {
+  const temporal = generarPasswordTemporal();
+  const hash = await hashPassword(temporal);
+  await ej.transaction(async (tx) => {
+    const filas = await tx
+      .update(usuarios)
+      .set({ passwordHash: hash, debeCambiarPassword: true, intentosFallidos: 0, bloqueadoHasta: null })
+      .where(eq(usuarios.idUsuario, idUsuario))
+      .returning({ id: usuarios.idUsuario });
+    if (filas.length === 0) throw new HttpError(404, "Usuario no encontrado");
+    await revocarSesiones(tx, idUsuario);
+  });
+  return temporal;
 }
 
 /** Quita el 2FA (script de emergencia o administrador) y cierra todas las sesiones del usuario. */

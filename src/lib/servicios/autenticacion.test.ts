@@ -18,6 +18,7 @@ import {
   minutosDeBloqueo,
   prepararTotp,
   resetear2fa,
+  resetearPassword,
   verificarSegundoFactor,
 } from "./autenticacion";
 
@@ -216,6 +217,22 @@ describe("contraseña y sesiones", () => {
     expect(await db.select().from(codigosRecuperacion).where(eq(codigosRecuperacion.idUsuario, u.idUsuario))).toHaveLength(0);
     expect(await contarSesionesActivas(db, u.idUsuario)).toBe(0);
     expect(await estado(resetear2fa(db, 99999))).toBe(404);
+  });
+});
+
+describe("contrasena temporal de un administrador", () => {
+  it("la nueva contrasena funciona, obliga a cambiarla, quita el bloqueo y cierra las sesiones", async () => {
+    const u = await crearUsuario();
+    await crearSesionBd(u.idUsuario);
+    await db.update(usuarios).set({ intentosFallidos: 7, bloqueadoHasta: new Date(Date.now() + 3600_000) }).where(eq(usuarios.idUsuario, u.idUsuario));
+    const temporal = await resetearPassword(db, u.idUsuario);
+    expect(temporal.length).toBeGreaterThanOrEqual(12);
+    const [fila] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, u.idUsuario));
+    expect(fila).toMatchObject({ debeCambiarPassword: true, intentosFallidos: 0, bloqueadoHasta: null });
+    expect(await contarSesionesActivas(db, u.idUsuario)).toBe(0);
+    expect(await iniciarLogin(db, { email: u.loginEmail, password: PASSWORD, ip: null })).toEqual({ estado: "credenciales" });
+    expect(await iniciarLogin(db, { email: u.loginEmail, password: temporal, ip: null })).toMatchObject({ estado: "ok" });
+    expect(await estado(resetearPassword(db, 99999))).toBe(404);
   });
 });
 
