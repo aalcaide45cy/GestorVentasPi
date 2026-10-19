@@ -29,7 +29,11 @@ interface Sesiones {
 const MEDIA_DET = [0.485, 0.456, 0.406];
 const DESV_DET = [0.229, 0.224, 0.225];
 /** Lado largo máximo de la imagen que entra al detector (múltiplo de 32). Más alto lee mejor letra pequeña pero tarda más. */
-const LADO_DETECCION = 1280;
+const LADO_DETECCION = Number(process.env.OCR_LADO_DETECCION) || 1280;
+/** Si la primera pasada sale con poca confianza (escaneo flojo), se repite con el detector a más resolución. */
+const LADO_DETECCION_FINO = 2048;
+/** Parte del texto con poca confianza a partir de la cual se repite la lectura con más resolución. */
+const PARTE_DUDOSA = 0.08;
 const UMBRAL_BINARIO = 0.3;
 const UMBRAL_CAJA = 0.55;
 const AMPLIAR = 1.6;
@@ -156,8 +160,8 @@ function cajasDelMapa(prob: Float32Array, an: number, al: number, escalaX: numbe
   return cajas;
 }
 
-async function detectar(s: Sesiones, img: Buffer, ancho: number, alto: number): Promise<Caja[]> {
-  const factor = Math.min(1, LADO_DETECCION / Math.max(ancho, alto));
+async function detectar(s: Sesiones, img: Buffer, ancho: number, alto: number, lado: number): Promise<Caja[]> {
+  const factor = Math.min(1, lado / Math.max(ancho, alto));
   const an = Math.max(32, Math.round((ancho * factor) / 32) * 32);
   const al = Math.max(32, Math.round((alto * factor) / 32) * 32);
   const { data } = await sharp(img, { failOn: "none" }).removeAlpha().resize(an, al, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
@@ -225,6 +229,28 @@ export interface OpcionesRapido {
   confianzaMinima?: number;
 }
 
+interface Leida {
+  caja: Caja;
+  texto: string;
+  confianza: number;
+}
+
+/** Parte del texto (por longitud) leída con menos de 75 de confianza. */
+const parteDudosa = (l: Leida[]): number => {
+  const total = l.reduce((a, x) => a + x.texto.length, 0);
+  return total === 0 ? 1 : l.filter((x) => x.confianza < 75).reduce((a, x) => a + x.texto.length, 0) / total;
+};
+
+async function leerImagen(s: Sesiones, img: Buffer, ancho: number, alto: number, lado: number, confianzaMinima?: number): Promise<Leida[]> {
+  const cajas = await detectar(s, img, ancho, alto, lado);
+  const leidas: Leida[] = [];
+  for (const caja of cajas) {
+    const r = await reconocerCaja(s, img, caja);
+    if (r && (confianzaMinima === undefined || r.confianza >= confianzaMinima)) leidas.push({ caja, ...r });
+  }
+  return leidas;
+}
+
 /** Reconoce el texto de imágenes y lo devuelve en líneas, de arriba abajo y de izquierda a derecha. */
 export async function ocrImagenesRapido(imagenes: Buffer[], opciones: OpcionesRapido): Promise<LineaRapida[]> {
   const s = await cargarRapido(opciones.proveedor);
@@ -232,11 +258,11 @@ export async function ocrImagenesRapido(imagenes: Buffer[], opciones: OpcionesRa
   for (const img of imagenes) {
     const meta = await sharp(img, { failOn: "none" }).metadata();
     if (!meta.width || !meta.height) continue;
-    const cajas = await detectar(s, img, meta.width, meta.height);
-    const leidas: { caja: Caja; texto: string; confianza: number }[] = [];
-    for (const caja of cajas) {
-      const r = await reconocerCaja(s, img, caja);
-      if (r && (opciones.confianzaMinima === undefined || r.confianza >= opciones.confianzaMinima)) leidas.push({ caja, ...r });
+    let leidas = await leerImagen(s, img, meta.width, meta.height, LADO_DETECCION, opciones.confianzaMinima);
+    // Escaneo flojo: se repite con más resolución y se queda la pasada que lee con más confianza
+    if (parteDudosa(leidas) > PARTE_DUDOSA && Math.max(meta.width, meta.height) > LADO_DETECCION) {
+      const fina = await leerImagen(s, img, meta.width, meta.height, LADO_DETECCION_FINO, opciones.confianzaMinima);
+      if (parteDudosa(fina) < parteDudosa(leidas)) leidas = fina;
     }
     // Agrupar en filas: mismo centro vertical (dentro de media altura)
     leidas.sort((a, b) => (a.caja.y0 + a.caja.y1) / 2 - (b.caja.y0 + b.caja.y1) / 2);
