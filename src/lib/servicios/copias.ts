@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { rm, stat, unlink, writeFile } from "node:fs/promises";
+import { readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
@@ -493,6 +493,87 @@ export async function guardarSubida(ej: Ejecutor, cuerpo: ReadableStream | null,
   return aDto(fila, true);
 }
 
+/* ------------------------------------------------------------------ */
+/* Subida por trozos (reanudable)                                      */
+/* ------------------------------------------------------------------ */
+
+const SUBIDA_VALIDA = /^[0-9a-f]{32}$/;
+const rutaParcial = (id: string) => path.join(/*turbopackIgnore: true*/ dirCopias(), `.subida-${id}.parcial`);
+
+function comprobarIdSubida(id: string): void {
+  if (!SUBIDA_VALIDA.test(id)) throw new HttpError(400, "Identificador de subida no válido");
+}
+
+/** Bytes que lleva recibidos una subida por trozos (0 si no ha empezado). */
+export async function bytesDeSubida(id: string): Promise<number> {
+  comprobarIdSubida(id);
+  try {
+    return (await stat(/*turbopackIgnore: true*/ rutaParcial(id))).size;
+  } catch {
+    return 0;
+  }
+}
+
+/** Añade un trozo al final de la subida: `desde` debe coincidir con lo recibido hasta ahora (así un reintento no duplica nada). */
+export async function anadirTrozoSubida(id: string, desde: number, cuerpo: ReadableStream | null): Promise<number> {
+  const actual = await bytesDeSubida(id);
+  if (desde !== actual) throw new HttpError(409, "El trozo no encaja con lo recibido");
+  // Un trozo vacío (el navegador repite el cierre si se perdió la respuesta) no añade nada
+  if (!cuerpo) return actual;
+  let total = actual;
+  try {
+    await pipeline(
+      Readable.fromWeb(cuerpo as never),
+      async function* (fuente: AsyncIterable<Buffer>) {
+        for await (const trozo of fuente) {
+          total += trozo.length;
+          if (total > LIMITE_SUBIDA_BYTES) throw new HttpError(413, "El fichero supera el límite de 256 GB");
+          yield trozo;
+        }
+      },
+      createWriteStream(/*turbopackIgnore: true*/ rutaParcial(id), { flags: "a", mode: 0o600 }),
+    );
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 413) await unlink(/*turbopackIgnore: true*/ rutaParcial(id)).catch(() => undefined);
+    throw e instanceof HttpError ? e : new HttpError(400, "No se pudo guardar el trozo recibido");
+  }
+  return total;
+}
+
+/** Cierra una subida por trozos: comprueba que está completa y que es una copia válida, y la registra. */
+export async function terminarSubida(ej: Ejecutor, id: string, nombreOriginal: string, total: number, creadaPor: number): Promise<CopiaDto> {
+  comprobarIdSubida(id);
+  if (!nombreOriginal.toLowerCase().endsWith(".dump")) throw new HttpError(400, "El fichero debe terminar en .dump");
+  const parcial = rutaParcial(id);
+  const recibidos = await bytesDeSubida(id);
+  if (recibidos === 0) throw new HttpError(404, "No hay ninguna subida en curso con ese identificador");
+  if (recibidos !== total) throw new HttpError(409, `El fichero llegó incompleto (${recibidos} de ${total} bytes). Vuelve a subirlo.`);
+  const nombre = nombreNuevo("manual");
+  const ruta = path.join(/*turbopackIgnore: true*/ dirCopias(), nombre);
+  await rename(/*turbopackIgnore: true*/ parcial, /*turbopackIgnore: true*/ ruta);
+  const motivo = await motivoCopiaInvalida(ruta);
+  if (motivo) {
+    await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
+    throw new HttpError(400, `El fichero no es una copia válida: ${motivo}`);
+  }
+  const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo: "manual", tamano: recibidos, sha256: await sha256DeFichero(ruta), creadaPor }).returning();
+  return aDto(fila, true);
+}
+
+/** Borra las subidas por trozos que se quedaron a medias hace más de un día. */
+export async function limpiarSubidasAntiguas(): Promise<void> {
+  try {
+    const limite = Date.now() - 24 * 60 * 60 * 1000;
+    for (const f of await readdir(/*turbopackIgnore: true*/ dirCopias())) {
+      if (!/^\.subida-[0-9a-f]{32}\.parcial$/.test(f)) continue;
+      const ruta = path.join(/*turbopackIgnore: true*/ dirCopias(), f);
+      if ((await stat(/*turbopackIgnore: true*/ ruta)).mtimeMs < limite) await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
+    }
+  } catch {
+    /* sin carpeta o sin permiso: no pasa nada */
+  }
+}
+
 /** Generador de paso que corta el flujo al superar el límite de tamaño. */
 function limitarTamano(fijar: (n: number) => void) {
   let total = 0;
@@ -651,7 +732,7 @@ async function posRestauracion(ej: Ejecutor): Promise<void> {
  * Restaura una copia: valida credenciales y confirmación, activa el modo mantenimiento, hace una copia
  * previa, restaura, migra y vacía sesiones. Si algo falla vuelve a la copia previa.
  */
-export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaRestaurar>): Promise<{ previa: string; recifrado: boolean }> {
+export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaRestaurar>, alAvanzar?: (fase: string) => void): Promise<{ previa: string; recifrado: boolean }> {
   const { ruta } = await obtenerCopia(ej, entrada.id);
   if (!existsSync(/*turbopackIgnore: true*/ ruta)) throw new HttpError(404, "El fichero de la copia ya no está en el servidor");
   const motivo = await motivoCopiaInvalida(ruta);
@@ -663,11 +744,14 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
   let recifrado = false;
   try {
     notaPrevia = `Antes de restaurar la copia ${path.basename(ruta)}. Si algo sale mal, restaura esta para volver al estado anterior.`;
+    alAvanzar?.("Guardando una copia previa del estado actual");
     previa = await crearCopia(ej, "previa", idAdmin, notaPrevia);
     const rutaPrevia = path.join(/*turbopackIgnore: true*/ dirCopias(), previa.nombre);
     const plantillas = await guardarPlantillas(ej);
     try {
+      alAvanzar?.("Restaurando los datos de la copia (es lo que más tarda)");
       await pgRestore(ruta);
+      alAvanzar?.("Ajustando los datos restaurados");
       await posRestauracion(ej);
       await reponerPlantillas(ej, plantillas);
       // Si la copia viene de otra instalación, sus datos cifrados se vuelven a cifrar con la clave de esta (o se deshace todo)
@@ -685,6 +769,63 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
     await rm(/*turbopackIgnore: true*/ ficheroMantenimiento(), { force: true });
   }
   return { previa: previa.nombre, recifrado };
+}
+
+/* ------------------------------------------------------------------ */
+/* Restauración en segundo plano                                       */
+/* ------------------------------------------------------------------ */
+
+export interface EstadoRestauracion {
+  estado: "en_curso" | "terminada" | "fallida";
+  fase: string;
+  mensaje: string | null;
+  inicio: string;
+  fin: string | null;
+}
+
+const ficheroRestauracion = () => path.join(/*turbopackIgnore: true*/ dirCopias(), ".restauracion.json");
+
+async function guardarEstadoRestauracion(e: EstadoRestauracion): Promise<void> {
+  await writeFile(/*turbopackIgnore: true*/ ficheroRestauracion(), JSON.stringify(e), { mode: 0o600 }).catch(() => undefined);
+}
+
+/**
+ * Estado de la última restauración (lo lee `/api/salud` para que la pantalla lo vaya preguntando mientras dura, que en una
+ * Raspberry con una copia grande son varios minutos). Si quedó «en curso» pero el servidor ya no está en mantenimiento, se
+ * interrumpió (por ejemplo, el servidor se reinició).
+ */
+export async function leerEstadoRestauracion(): Promise<EstadoRestauracion | null> {
+  try {
+    const e = JSON.parse(await readFile(/*turbopackIgnore: true*/ ficheroRestauracion(), "utf8")) as EstadoRestauracion;
+    if (e.estado === "en_curso" && !enMantenimiento() && Date.now() - new Date(e.inicio).getTime() > 30_000) {
+      return { ...e, estado: "fallida", mensaje: "La restauración se interrumpió (el servidor se reinició). Comprueba el estado en Copias de seguridad.", fin: new Date().toISOString() };
+    }
+    return e;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Empieza una restauración completa y devuelve enseguida: la petición no puede durar lo que dura la restauración (minutos con una
+ * copia de un giga en una Raspberry), porque los túneles y los navegadores cortan las peticiones largas («Load failed»). El avance se
+ * consulta con `leerEstadoRestauracion`.
+ */
+export async function iniciarRestauracion(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaRestaurar>): Promise<void> {
+  const actual = await leerEstadoRestauracion();
+  if (enMantenimiento() || actual?.estado === "en_curso") throw new HttpError(409, "Ya hay una restauración en curso.");
+  const { ruta } = await obtenerCopia(ej, entrada.id);
+  if (!existsSync(/*turbopackIgnore: true*/ ruta)) throw new HttpError(404, "El fichero de la copia ya no está en el servidor");
+  const motivo = await motivoCopiaInvalida(ruta);
+  if (motivo) throw new HttpError(400, `La copia no se puede restaurar: ${motivo}`);
+  const inicio = new Date().toISOString();
+  await guardarEstadoRestauracion({ estado: "en_curso", fase: "Empezando", mensaje: null, inicio, fin: null });
+  void restaurarCopiaCompleta(ej, idAdmin, entrada, (fase) => void guardarEstadoRestauracion({ estado: "en_curso", fase, mensaje: null, inicio, fin: null }))
+    .then(() => guardarEstadoRestauracion({ estado: "terminada", fase: "Terminada", mensaje: "Copia restaurada. Tendrás que volver a iniciar sesión.", inicio, fin: new Date().toISOString() }))
+    .catch((e: unknown) => {
+      console.error("Restauración fallida:", e instanceof Error ? e.message : e);
+      return guardarEstadoRestauracion({ estado: "fallida", fase: "Fallida", mensaje: e instanceof HttpError ? e.message : "La restauración ha fallado (el detalle está en el registro del servidor).", inicio, fin: new Date().toISOString() });
+    });
 }
 
 /** Aviso de que hay más copias (o más GB) de los que el administrador quiere conservar. */

@@ -422,6 +422,48 @@ tr.fila-aviso > td:last-child {
   display: none;
 }
 
+/* Menú lateral en pantallas de escritorio: la parte de arriba (logo y enlaces) hace scroll si no cabe y el pie (cerrar sesión, reiniciar,
+   apagar…) se queda siempre dentro de la barra; antes, con pantallas bajas o muchos botones de administrador, se salía por debajo. */
+@media (min-width: 901px) {
+  .app-sidebar .sidebar-superior {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+  }
+  .app-sidebar .sidebar-pie {
+    flex: 0 0 auto;
+  }
+}
+@media (min-width: 901px) and (max-height: 1000px) {
+  .app-sidebar {
+    padding-top: 20px !important;
+    padding-bottom: 16px !important;
+  }
+  .app-sidebar .sidebar-superior {
+    gap: 24px !important;
+  }
+  .app-sidebar .sidebar-pie {
+    gap: 6px !important;
+    padding-top: 12px !important;
+  }
+  .app-sidebar .sidebar-pie button {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+}
+@media (min-width: 901px) and (max-height: 760px) {
+  .app-sidebar .sidebar-pie {
+    gap: 3px !important;
+  }
+  .app-sidebar .sidebar-pie button {
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+    font-size: 0.85rem !important;
+  }
+}
+
 @media (max-width: 900px) {
   html, body {
     overflow-x: hidden;
