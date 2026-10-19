@@ -8,7 +8,9 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { ExpedienteDto, MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { formatDate } from "@/lib/date-utils";
-import { MAXIMO_COLA, abrirDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola, type ItemCola } from "@/lib/pedidos-cola";
+import { permitirDuplicadosAhora } from "@/lib/preferencias";
+import type { ResultadoPedido } from "@/lib/servicios/documentos";
+import { MAXIMO_COLA, abrirDeCola, actualizarPedidoDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola, type ItemCola } from "@/lib/pedidos-cola";
 import { anotarResolucion, cancelarLecturas } from "@/lib/lecturas-pedidos-cliente";
 import EstadoLecturas from "./EstadoLecturas";
 import PedidoRapidoModal from "./PedidoRapidoModal";
@@ -29,6 +31,8 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
   const [marcados, setMarcados] = useState<string[]>([]);
+  /** Progreso de «Releer»: cuántos pedidos van y cuántos son. */
+  const [releyendo, setReleyendo] = useState<{ hechos: number; total: number } | null>(null);
   const estado = useSyncExternalStore(suscribirCola, leerCola, colaVacia);
   const { items, abierto } = estado;
   const lectura = useSyncExternalStore(suscribirLectura, leerLectura, () => null);
@@ -97,6 +101,34 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
 
   /** Forma de pago de un pedido de la cola: la del botón donde se soltó o la que reconoció la lectura. */
   const formaDePago = (i: (typeof items)[number]): string => i.eleccion?.tipo.nombre_tipo_venta ?? tiposVenta.find((t) => t.id_tipo_de_venta === i.pedido.datos.idTipoDeVenta)?.nombre_tipo_venta ?? "";
+  /** Vuelve a leer el PDF de los pedidos indicados con el lector actual (de tres en tres) y cambia sus datos en la cola. */
+  const releer = async (lista: typeof items) => {
+    if (lista.length === 0 || releyendo) return;
+    setReleyendo({ hechos: 0, total: lista.length });
+    let hechos = 0;
+    let mejorados = 0;
+    const fallos: string[] = [];
+    const cola = [...lista];
+    const trabajador = async () => {
+      for (let i = cola.shift(); i; i = cola.shift()) {
+        try {
+          const { data } = await llamar<ResultadoPedido>("/api/documentos/releer", { method: "POST", cuerpo: { idAdjunto: i.pedido.adjunto.id, duplicados: permitirDuplicadosAhora() } });
+          const antes = i.pedido.datos;
+          const d = data.datos;
+          if ((!antes.dni && d.dni) || (!antes.telefono && d.telefono) || (!antes.tipoPedido && d.tipoPedido) || (!antes.modeloTexto && d.modeloTexto) || (!antes.idModelo && d.idModelo)) mejorados++;
+          actualizarPedidoDeCola(i.id, data);
+        } catch (e) {
+          fallos.push(`${i.nombre}: ${textoError(e)}`);
+        }
+        hechos++;
+        setReleyendo({ hechos, total: lista.length });
+      }
+    };
+    await Promise.all([trabajador(), trabajador(), trabajador()]);
+    setReleyendo(null);
+    mostrar(`${lista.length - fallos.length} pedido${lista.length - fallos.length === 1 ? "" : "s"} leído${lista.length - fallos.length === 1 ? "" : "s"} otra vez${mejorados > 0 ? ` (${mejorados} con datos nuevos)` : ""}.${fallos.length > 0 ? ` ${fallos.length} con problema: ${fallos.slice(0, 2).join(" · ")}${fallos.length > 2 ? "…" : ""}` : ""}`, fallos.length > 0 ? "aviso" : undefined, 10000);
+  };
+
   const columnasCola: ColumnaTabla<(typeof items)[number]>[] = [
     {
       clave: "seleccion",
@@ -149,6 +181,9 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
           <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => abrirDeCola(i.id)}>
             Abrir
           </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={releyendo !== null} onClick={() => void releer([i])} title="Vuelve a leer el PDF de este pedido con el lector actual (por ejemplo, si no sacó el DNI, el teléfono o el modelo)">
+            🔄 Releer
+          </button>
           <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => { anotarResolucion(i.idLectura, "quitado"); soltarDocumentos([i]); quitarDeCola(i.id); }} title="Quita el pedido de la cola sin aplicarlo">
             Descartar
           </button>
@@ -170,6 +205,9 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => setMarcados(elegidos.length === items.length ? [] : items.map((i) => i.id))} title="Elige todos los pedidos de la cola, o quita la elección si ya están todos elegidos">
             {elegidos.length === items.length ? "Quitar la elección" : `Elegir todos (${items.length})`}
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} disabled={elegidos.length === 0 || releyendo !== null} onClick={() => void releer(items.filter((i) => elegidos.includes(i.id)))} title="Vuelve a leer el PDF de los pedidos elegidos con el lector actual; sus datos se actualizan en la cola">
+            {releyendo ? `🔄 Releyendo ${Math.min(releyendo.hechos + 1, releyendo.total)} de ${releyendo.total}…` : `🔄 Releer lo elegido (${elegidos.length})`}
           </button>
           <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem", color: elegidos.length > 0 ? "var(--danger)" : undefined }} disabled={elegidos.length === 0} onClick={descartarElegidos} title="Descarta de la cola los pedidos elegidos">
             🗑️ Descartar lo elegido ({elegidos.length})

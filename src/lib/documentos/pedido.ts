@@ -145,6 +145,8 @@ interface Estructura {
   fecha: string | null;
   plazo: { desde: string; hasta: string } | null;
   modeloLinea: string | null;
+  /** El OCR no leyó bien la letra del DNI y se ha calculado con sus 8 cifras. */
+  dniCalculado?: boolean;
 }
 
 /** Pedido de Renault/Dacia: bloque «CLIENTE» a la izquierda, establecimiento a la derecha, «RESUMEN» con el modelo. */
@@ -186,8 +188,17 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
   // Columna izquierda de cada línea del bloque del cliente
   const col = datos.map(primeraColumna);
   e.cliente = col[0] ? col[0].replace(HONORIFICO, "").trim() || null : null;
-  const iNif = col.findIndex((c, i) => i > 0 && /^[A-Z]?\d{7,8}[A-Z]$/i.test(c.replace(/\s/g, "")));
+  let iNif = col.findIndex((c, i) => i > 0 && /^[A-Z]?\d{7,8}[A-Z]$/i.test(c.replace(/\s/g, "")));
   if (iNif > 0) e.dni = col[iNif].replace(/\s/g, "").toUpperCase();
+  else {
+    // En un escaneo, la letra del DNI se lee a veces como una cifra («472321760» por «47232176Q») o se pierde: con las 8 cifras se calcula la letra
+    iNif = col.findIndex((c, i) => i > 0 && i <= 3 && /^\d{8,9}$/.test(c.replace(/\s/g, "")));
+    if (iNif > 0) {
+      const base = col[iNif].replace(/\s/g, "").slice(0, 8);
+      e.dni = base + "TRWAGMYFPDXBNJZSQVHLCKE"[Number(base) % 23];
+      e.dniCalculado = true;
+    }
+  }
   const iCP = col.findIndex((c) => /\(\d{5}\)/.test(c));
   if (iNif > 0 && iCP > iNif) e.domicilio = [...col.slice(iNif + 1, iCP), col[iCP]].join(", ");
   const tel = col.slice(iCP + 1).flatMap((c) => c.split(/\s*[\/;]\s*/)).find((c) => /^\+?\d[\d\s]{7,13}$/.test(c.trim()));
@@ -305,6 +316,7 @@ export function parsearPedido(texto: string, catalogo: CatalogoPedido): DatosPed
   }
 
   let dni = estructura?.dni ?? null;
+  if (dni && estructura?.dniCalculado) avisos.push(`El OCR no leyó bien la letra del DNI: se ha calculado (${dni}) con sus 8 cifras. Compruébalo con el pedido.`);
   if (dni && !validarDni(dni) && !/^[A-Z]\d{8}$|^[A-Z]\d{7}[A-Z0-9]$/.test(dni)) dni = buscarDniEnTexto(dni)?.dni ?? dni;
   if (!dni) dni = buscarDniEnTexto(mayus)?.dni ?? null;
 

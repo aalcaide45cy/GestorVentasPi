@@ -108,6 +108,12 @@ export function anadirACola(nuevos: Omit<ItemCola, "id" | "leidoEn">[]): ItemCol
   return items;
 }
 
+/** Cambia la lectura de un pedido que ya está en la cola (al releerlo), conservando su destino, su elección y su DNI. */
+export function actualizarPedidoDeCola(id: string, pedido: ResultadoPedido): void {
+  cargar();
+  emitir({ ...estado, items: estado.items.map((i) => (i.id === id ? { ...i, pedido } : i)) });
+}
+
 export function quitarDeCola(id: string): void {
   cargar();
   emitir({ items: estado.items.filter((i) => i.id !== id), abierto: estado.abierto === id ? null : estado.abierto });

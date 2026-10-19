@@ -8,7 +8,7 @@ import { claveAprendizaje } from "@/lib/documentos/modelos";
 import { parsearPedido, type DatosPedido } from "@/lib/documentos/pedido";
 import type { RegionFoto } from "@/lib/documentos/tarjetas";
 import { HttpError } from "@/lib/auth/sesion";
-import { guardarAdjunto, MAX_BYTES_ADJUNTO, detectarMime, type AdjuntoDto } from "./adjuntos";
+import { guardarAdjunto, leerAdjunto, MAX_BYTES_ADJUNTO, detectarMime, type AdjuntoDto } from "./adjuntos";
 import { leerCatalogos } from "./catalogos";
 import { leerTarjetasDeImagen, type TarjetaLeida } from "./dni-lectura";
 import { detectarTarjetas } from "@/lib/documentos/tarjetas";
@@ -185,6 +185,21 @@ export async function leerDocumentoAutomatico(ej: Ejecutor, idUsuario: number, n
 
 /** Lee un pedido (PDF o imagen) y propone los datos del expediente comparando con los catálogos. */
 export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false, opciones: { paralelo?: boolean } = {}): Promise<ResultadoPedido> {
+  const { datos: parsed, similares, metodo } = await analizarPedido(ej, datos, permitirDuplicados, opciones);
+  const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
+  return { datos: parsed, similares, adjunto, metodo };
+}
+
+/** Vuelve a leer un pedido ya guardado (con el lector tal como está ahora): no crea ningún documento nuevo. */
+export async function releerPedido(ej: Ejecutor, idAdjunto: number, permitirDuplicados = false): Promise<ResultadoPedido> {
+  const a = await leerAdjunto(ej, idAdjunto);
+  if (!a) throw new HttpError(404, "El fichero de este pedido ya no está guardado: vuelve a subirlo.");
+  const { datos: parsed, similares, metodo } = await analizarPedido(ej, a.datos, permitirDuplicados, { paralelo: true });
+  return { datos: parsed, similares, adjunto: a.meta, metodo };
+}
+
+/** El análisis de un pedido (sin guardar nada): texto, datos propuestos y expedientes parecidos. */
+async function analizarPedido(ej: Ejecutor, datos: Buffer, permitirDuplicados: boolean, opciones: { paralelo?: boolean }): Promise<{ datos: DatosPedido; similares: ExpedienteSimilar[]; metodo: ResultadoPedido["metodo"] }> {
   const { texto, metodo, descartado, cabecera } = await textoDeDocumento(datos, { cribar: true, paralelo: opciones.paralelo });
   if (descartado) throw new NoEsPedidoError(cabecera ?? "");
   const catalogos = await leerCatalogos(ej);
@@ -197,11 +212,10 @@ export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero:
   });
   // Un PDF que no es un pedido (otros papeles con datos de un cliente) se ignora: ni se propone nada ni se guarda en ningún sitio
   if (!parsed.esPedido) throw new NoEsPedidoError(texto.replace(/\s+/g, " ").trim().slice(0, 160));
-  const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
   // Con «Permitir expedientes duplicados» no se busca ni se avisa de pedidos parecidos
   const similares = permitirDuplicados ? [] : await buscarExpedientesSimilares(ej, parsed);
   if (similares.length > 0) parsed.avisos.unshift(`Ya existe un expediente que parece este pedido (nº ${similares[0].idExpediente}: ${similares[0].motivo}). Comprueba que no lo estás duplicando.`);
-  return { datos: parsed, similares, adjunto, metodo };
+  return { datos: parsed, similares, metodo };
 }
 
 export const esquemaAprenderModelo = z.object({
