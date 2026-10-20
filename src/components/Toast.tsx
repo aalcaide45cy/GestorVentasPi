@@ -1,10 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import PanelRegistroNotificaciones from "@/components/PanelRegistroNotificaciones";
+import { registrarNotificacion } from "@/lib/notificaciones-cliente";
 
 type TipoToast = "exito" | "error" | "aviso";
 
-/** Una notificación en forma de ventana: título, mensaje, detalles opcionales y botones (Aceptar y, si se pide, Cancelar). */
+/** Una notificación: título, mensaje y detalles opcionales. Con botón de cancelar es una confirmación (ventana); si no, un aviso flotante. */
 export interface OpcionesNotificacion {
   titulo?: string;
   texto: string;
@@ -12,11 +14,11 @@ export interface OpcionesNotificacion {
   detalles?: string[];
   tipo?: TipoToast;
   aceptar?: string;
-  /** Con texto, sale también el botón de cancelar. */
+  /** Con texto, sale una ventana de confirmación con este botón de cancelar. */
   cancelar?: string;
   /** Botón de aceptar en rojo (acciones que borran). */
   peligro?: boolean;
-  /** Si es una notificación de éxito, se cierra sola a los tantos milisegundos (por defecto 8 s); con 0 no se cierra sola. */
+  /** Milisegundos que se queda el aviso flotante (por defecto 6 s los de éxito, 10 s los avisos y 15 s los errores); con 0 no se cierra solo. Con 3 s o menos no se anota en el registro. */
   duracionMs?: number;
 }
 
@@ -27,15 +29,17 @@ interface Item extends OpcionesNotificacion {
 }
 
 interface ContextoToast {
-  /** Aviso corto: sale como ventana con «Aceptar» (los de éxito se cierran solos). Es la forma de siempre de avisar. */
+  /** Aviso corto: sale flotando arriba y queda anotado en el registro de notificaciones. Es la forma de siempre de avisar. */
   mostrar: (texto: string, tipo?: TipoToast, duracionMs?: number) => void;
-  /** Ventana de aviso con título y detalles; devuelve true si se acepta y false si se cancela (o se cierra con Esc). */
+  /** Aviso con título y detalles. Sin «cancelar» sale flotando arriba (y se resuelve a true al cerrarse); con «cancelar» es una ventana que devuelve false si se cancela. */
   notificar: (opciones: OpcionesNotificacion) => Promise<boolean>;
-  /** Pide confirmación antes de hacer algo: ventana con lo que va a pasar, «Aceptar» y «Cancelar». */
+  /** Pide confirmación antes de hacer algo: ventana con lo que va a pasar, «Aceptar» y «Cancelar». No se anota en el registro. */
   confirmar: (opciones: Omit<OpcionesNotificacion, "cancelar"> & { cancelar?: string }) => Promise<boolean>;
+  /** Abre el registro con todas las notificaciones anteriores. */
+  abrirRegistro: () => void;
 }
 
-const Contexto = createContext<ContextoToast>({ mostrar: () => undefined, notificar: async () => true, confirmar: async () => false });
+const Contexto = createContext<ContextoToast>({ mostrar: () => undefined, notificar: async () => true, confirmar: async () => false, abrirRegistro: () => undefined });
 
 const ESTILO: Record<TipoToast, { borde: string; fondo: string; icono: string; titulo: string }> = {
   exito: { borde: "var(--success)", fondo: "rgba(34, 197, 94, 0.15)", icono: "✅", titulo: "Hecho" },
@@ -43,8 +47,12 @@ const ESTILO: Record<TipoToast, { borde: string; fondo: string; icono: string; t
   aviso: { borde: "var(--warning)", fondo: "rgba(234, 179, 8, 0.15)", icono: "⚠️", titulo: "Atención" },
 };
 
+const DURACION: Record<TipoToast, number> = { exito: 6000, aviso: 10000, error: 15000 };
+const MAX_VISIBLES = 4;
+const MAX_DETALLES = 4;
+
 /** Separa un mensaje en una frase principal y el resto como detalles («Hecho. Copia previa: x. Otra cosa.» → frase + 2 líneas). */
-function partir(texto: string): { frase: string; detalles: string[] } {
+export function partir(texto: string): { frase: string; detalles: string[] } {
   const limpio = texto.replace(/^[✅🛑⚠️ℹ️\s]+/u, "").trim();
   const trozos = limpio
     .split(/\n+/)
@@ -56,19 +64,30 @@ function partir(texto: string): { frase: string; detalles: string[] } {
 }
 
 /**
- * Notificaciones en forma de ventana (no una tira arriba): título, lo que ha ocurrido bien estructurado y botones. Si llegan varias a la vez
- * se van enseñando una tras otra («1 de 3»). Los avisos de éxito se cierran solos tras unos segundos (con una barra que lo indica); los
- * errores y avisos esperan a que se acepten. Enter acepta y Esc cancela (o cierra).
+ * Notificaciones de la aplicación. Los avisos (éxito, error, atención) salen como tarjetas flotantes arriba, sin pedir que se acepten:
+ * se cierran solas (más tarde los errores), se pueden cerrar a mano y se detienen mientras se tiene el ratón encima. Todos quedan anotados
+ * en el registro de notificaciones (campana de la barra superior) para poder repasarlos otro día. Solo las confirmaciones («¿Seguro?»)
+ * siguen siendo una ventana, porque hay que decidir algo: Enter acepta y Esc cancela.
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<Item[]>([]);
+  const [flotantes, setFlotantes] = useState<Item[]>([]);
+  const [ventanas, setVentanas] = useState<Item[]>([]);
+  const [registroAbierto, setRegistroAbierto] = useState(false);
   const contador = useRef(0);
 
   const notificar = useCallback(
     (o: OpcionesNotificacion) =>
       new Promise<boolean>((resolver) => {
         const id = ++contador.current;
-        setItems((prev) => [...prev, { ...o, id, tipo: o.tipo ?? "exito", resolver }]);
+        const item: Item = { ...o, id, tipo: o.tipo ?? "exito", resolver };
+        if (o.cancelar) {
+          setVentanas((prev) => [...prev, item]);
+          return;
+        }
+        const { frase, detalles } = partir(o.texto);
+        // Los toques fugaces (3 s o menos, como «Copiado») no tienen nada que repasar y no se anotan
+        if (o.duracionMs === undefined || o.duracionMs === 0 || o.duracionMs > 3000) registrarNotificacion({ tipo: item.tipo, titulo: o.titulo ?? null, texto: frase, detalles: [...(o.detalles ?? []), ...detalles] });
+        setFlotantes((prev) => [...prev, item]);
       }),
     [],
   );
@@ -79,36 +98,112 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [notificar],
   );
   const confirmar = useCallback((o: Omit<OpcionesNotificacion, "cancelar"> & { cancelar?: string }) => notificar({ tipo: "aviso", titulo: "Confirma esta acción", aceptar: "Aceptar", cancelar: "Cancelar", ...o }), [notificar]);
+  const abrirRegistro = useCallback(() => setRegistroAbierto(true), []);
 
-  const valor = useMemo(() => ({ mostrar, notificar, confirmar }), [mostrar, notificar, confirmar]);
-  const actual = items[0] ?? null;
+  const valor = useMemo(() => ({ mostrar, notificar, confirmar, abrirRegistro }), [mostrar, notificar, confirmar, abrirRegistro]);
+  const ventana = ventanas[0] ?? null;
 
-  const cerrar = useCallback((aceptada: boolean) => {
-    setItems((prev) => {
+  const cerrarVentana = useCallback((aceptada: boolean) => {
+    setVentanas((prev) => {
       prev[0]?.resolver(aceptada);
       return prev.slice(1);
     });
   }, []);
+  const cerrarFlotante = useCallback((id: number) => {
+    setFlotantes((prev) => {
+      prev.find((x) => x.id === id)?.resolver(true);
+      return prev.filter((x) => x.id !== id);
+    });
+  }, []);
 
+  const visibles = flotantes.slice(-MAX_VISIBLES);
   return (
     <Contexto.Provider value={valor}>
       {children}
-      {actual && <Ventana key={actual.id} item={actual} pendientes={items.length} alCerrar={cerrar} />}
+      {visibles.length > 0 && (
+        <div
+          aria-live="polite"
+          style={{ position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", width: "min(440px, calc(100vw - 24px))", display: "flex", flexDirection: "column", gap: "10px", zIndex: 7000, pointerEvents: "none" }}
+        >
+          {visibles.map((item) => (
+            <Tarjeta key={item.id} item={item} alCerrar={cerrarFlotante} alVerRegistro={abrirRegistro} />
+          ))}
+        </div>
+      )}
+      {ventana && <Ventana key={ventana.id} item={ventana} pendientes={ventanas.length} alCerrar={cerrarVentana} />}
+      {registroAbierto && <PanelRegistroNotificaciones alCerrar={() => setRegistroAbierto(false)} />}
     </Contexto.Provider>
   );
 }
 
+/** Aviso flotante: se cierra solo (salvo duración 0), con una barra que se vacía; el ratón encima lo detiene. */
+function Tarjeta({ item, alCerrar, alVerRegistro }: { item: Item; alCerrar: (id: number) => void; alVerRegistro: () => void }) {
+  const estilo = ESTILO[item.tipo];
+  const { frase, detalles: deTexto } = partir(item.texto);
+  const detalles = [...(item.detalles ?? []), ...deTexto];
+  const duracion = item.duracionMs ?? DURACION[item.tipo];
+  const [pausado, setPausado] = useState(false);
+  // Tiempo que le queda: al quitar el ratón sigue por donde iba
+  const quedan = useRef(duracion);
+  const desde = useRef(0);
+
+  useEffect(() => {
+    if (!duracion || pausado) return;
+    desde.current = Date.now();
+    const t = setTimeout(() => alCerrar(item.id), quedan.current);
+    return () => {
+      clearTimeout(t);
+      quedan.current = Math.max(500, quedan.current - (Date.now() - desde.current));
+    };
+  }, [duracion, pausado, alCerrar, item.id]);
+
+  return (
+    <div
+      role={item.tipo === "error" ? "alert" : "status"}
+      onMouseEnter={() => setPausado(true)}
+      onMouseLeave={() => setPausado(false)}
+      className="glass-panel"
+      style={{ pointerEvents: "auto", position: "relative", overflow: "hidden", padding: "12px 38px 12px 14px", display: "flex", gap: "12px", alignItems: "flex-start", backgroundColor: "var(--bg-app)", backgroundImage: "linear-gradient(var(--bg-card), var(--bg-card))", backdropFilter: "none", borderLeft: `4px solid ${estilo.borde}`, boxShadow: "0 8px 28px rgba(0, 0, 0, 0.35)", borderRadius: "var(--radius-sm)", animation: "notificacion-entra 0.22s ease-out" }}
+    >
+      <div aria-hidden style={{ width: "30px", height: "30px", borderRadius: "50%", background: estilo.fondo, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", flexShrink: 0 }}>
+        {estilo.icono}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, flex: 1 }}>
+        {item.titulo && <div style={{ fontSize: "0.78rem", fontWeight: 700, color: estilo.borde, textTransform: "uppercase", letterSpacing: "0.03em" }}>{item.titulo}</div>}
+        <div style={{ fontSize: "0.92rem", fontWeight: 600, lineHeight: 1.4, color: "var(--text-primary)", overflowWrap: "anywhere" }}>{frase}</div>
+        {detalles.length > 0 && (
+          <ul style={{ margin: 0, paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "2px", fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+            {detalles.slice(0, MAX_DETALLES).map((d, i) => (
+              <li key={i} style={{ overflowWrap: "anywhere" }}>
+                {d}
+              </li>
+            ))}
+          </ul>
+        )}
+        {detalles.length > MAX_DETALLES && (
+          <button type="button" onClick={alVerRegistro} style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, color: "var(--primary)", cursor: "pointer", fontSize: "0.78rem" }}>
+            Y {detalles.length - MAX_DETALLES} más: ver en el registro
+          </button>
+        )}
+      </div>
+      <button type="button" aria-label="Cerrar el aviso" title="Cerrar (queda guardado en el registro de notificaciones)" onClick={() => alCerrar(item.id)} style={{ position: "absolute", top: "6px", right: "8px", width: "26px", height: "26px", border: "none", background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: "1.05rem", lineHeight: 1 }}>
+        ✕
+      </button>
+      {duracion > 0 && (
+        <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "3px", background: "var(--border-light)" }}>
+          <div style={{ height: "100%", background: estilo.borde, animation: `notificacion-cuenta-atras ${duracion}ms linear forwards`, animationPlayState: pausado ? "paused" : "running" }} />
+        </div>
+      )}
+      <style>{`@keyframes notificacion-cuenta-atras { from { width: 100%; } to { width: 0%; } } @keyframes notificacion-entra { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    </div>
+  );
+}
+
+/** Ventana de confirmación: lo que va a pasar y los botones Aceptar y Cancelar. */
 function Ventana({ item, pendientes, alCerrar }: { item: Item; pendientes: number; alCerrar: (aceptada: boolean) => void }) {
   const estilo = ESTILO[item.tipo];
   const { frase, detalles: deTexto } = partir(item.texto);
   const detalles = [...(item.detalles ?? []), ...deTexto];
-  // Los de éxito sin botón de cancelar se cierran solos (con una barra que se vacía); el resto espera
-  const auto = item.tipo === "exito" && !item.cancelar && item.duracionMs !== 0 ? (item.duracionMs ?? 8000) : 0;
-  useEffect(() => {
-    if (!auto) return;
-    const t = setTimeout(() => alCerrar(true), auto);
-    return () => clearTimeout(t);
-  }, [auto, alCerrar]);
 
   return (
     <div
@@ -138,24 +233,18 @@ function Ventana({ item, pendientes, alCerrar }: { item: Item; pendientes: numbe
           )}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{pendientes > 1 ? `Hay ${pendientes - 1} aviso(s) más después de este` : ""}</span>
+          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{pendientes > 1 ? `Hay ${pendientes - 1} pregunta(s) más después de esta` : ""}</span>
           <div style={{ display: "flex", gap: "10px" }}>
             {item.cancelar && (
               <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={() => alCerrar(false)}>
                 {item.cancelar}
               </button>
             )}
-            <button type="button" className="btn btn-primary" data-tecla={item.cancelar ? "enter" : undefined} autoFocus style={item.peligro ? { background: "var(--danger)", borderColor: "var(--danger)" } : undefined} onClick={() => alCerrar(true)}>
+            <button type="button" className="btn btn-primary" data-tecla="enter" autoFocus style={item.peligro ? { background: "var(--danger)", borderColor: "var(--danger)" } : undefined} onClick={() => alCerrar(true)}>
               {item.aceptar ?? "Aceptar"}
             </button>
           </div>
         </div>
-        {auto > 0 && (
-          <div aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "3px", background: "var(--border-light)" }}>
-            <div style={{ height: "100%", background: estilo.borde, animation: `notificacion-cuenta-atras ${auto}ms linear forwards` }} />
-          </div>
-        )}
-        <style>{`@keyframes notificacion-cuenta-atras { from { width: 100%; } to { width: 0%; } }`}</style>
       </div>
     </div>
   );

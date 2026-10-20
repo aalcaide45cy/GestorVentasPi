@@ -367,3 +367,5 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] 1.3.0: el estado de la intranet se guarda como texto en `expedientes.estado_intranet` (no cambia el estado del vehículo de la app) para filtrar anulados y archivados.
 - [D] 1.3.0: un pago de RCI se aplica solo cuando el expediente se identifica sin duda (bastidor o matrícula sin contradicción de documento, o el único expediente del cliente que puede llevarlo); si no, queda pendiente. Todo se puede deshacer.
 - [D] 1.3.0: «Deshabilitar» expedientes anulados en el listado es opcional y por fila, no automático.
+- [D] 1.4.3: el registro de notificaciones vive en el navegador (localStorage), no en la base de datos: es lo que esa persona vio en pantalla y no hace falta migración; contrapartida: no se comparte entre equipos. Los avisos de 3 s o menos («Copiado») no se anotan.
+- [D] 1.4.3: reponer plantillas tras restaurar es un extra y no hace fallar la restauración; antes de insertar se alinean las secuencias con los datos restaurados.

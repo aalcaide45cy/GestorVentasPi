@@ -764,10 +764,28 @@ async function guardarPlantillas(ej: Ejecutor) {
 }
 
 async function reponerPlantillas(ej: Ejecutor, g: Awaited<ReturnType<typeof guardarPlantillas>>): Promise<void> {
-  for (const t of g.tarifas) await ej.insert(plantillasTarifasVn).values({ nombre: t.nombre, descripcion: t.descripcion, sistema: t.sistema, datos: t.datos, creadaEn: t.creadaEn, actualizadaEn: t.actualizadaEn }).onConflictDoNothing();
-  for (const p of g.planes) await ej.insert(plantillasPlan).values({ ambito: p.ambito, nombre: p.nombre, descripcion: p.descripcion, datos: p.datos, creadaEn: p.creadaEn, actualizadaEn: p.actualizadaEn }).onConflictDoNothing();
-  // La plantilla genérica que trae la aplicación vuelve siempre, aunque la copia fuera de una versión anterior
-  await sembrar(ej as never);
+  // Las plantillas son un extra: si reponerlas falla (por ejemplo, una secuencia desfasada en la copia) la restauración de los datos
+  // no debe fallar por eso. Se avisa en el registro con la causa real y se sigue.
+  try {
+    // Se alinean las secuencias con los datos restaurados antes de insertar sin identificador
+    for (const tabla of ["plantillas_tarifas_vn", "plantillas_plan"]) {
+      await ej.execute(sql.raw(`select setval(pg_get_serial_sequence('${tabla}', 'id'), greatest((select coalesce(max(id), 0) from ${tabla}), 1))`));
+    }
+    for (const t of g.tarifas) await ej.insert(plantillasTarifasVn).values({ nombre: t.nombre, descripcion: t.descripcion, sistema: t.sistema, datos: t.datos, creadaEn: t.creadaEn, actualizadaEn: t.actualizadaEn }).onConflictDoNothing();
+    for (const p of g.planes) await ej.insert(plantillasPlan).values({ ambito: p.ambito, nombre: p.nombre, descripcion: p.descripcion, datos: p.datos, creadaEn: p.creadaEn, actualizadaEn: p.actualizadaEn }).onConflictDoNothing();
+    // La plantilla genérica que trae la aplicación vuelve siempre, aunque la copia fuera de una versión anterior
+    await sembrar(ej as never);
+  } catch (e) {
+    console.warn(`No se han podido reponer las plantillas tras restaurar (la restauración sigue adelante): ${mensajeConCausa(e)}`);
+  }
+}
+
+/** Mensaje de un error con la causa de la base de datos (Drizzle solo dice «Failed query» y esconde el motivo en `cause`). */
+export function mensajeConCausa(e: unknown): string {
+  if (!(e instanceof Error)) return "Error desconocido";
+  const causa = (e as { cause?: unknown }).cause;
+  const detalle = causa instanceof Error ? causa.message : "";
+  return detalle && !e.message.includes(detalle) ? `${e.message.split("\n")[0]} — causa: ${detalle}` : e.message;
 }
 
 async function posRestauracion(ej: Ejecutor, vaciarSesiones = true): Promise<void> {
@@ -881,9 +899,10 @@ export async function iniciarRestauracion(ej: Ejecutor, idAdmin: number, entrada
     .then(() => console.info(`Restauración de la copia ${path.basename(ruta)} terminada`))
     .then(() => guardarEstadoRestauracion({ estado: "terminada", fase: "Terminada", mensaje: "Copia restaurada. Tendrás que volver a iniciar sesión.", inicio, fin: new Date().toISOString() }))
     .catch((e: unknown) => {
-      console.error("Restauración fallida:", e instanceof Error ? (e.stack ?? e.message) : e);
+      console.error("Restauración fallida:", mensajeConCausa(e), e instanceof Error ? (e.stack ?? "") : "");
       // El mensaje completo solo lo ve un administrador (`/api/salud` lo filtra para el resto): puede traer nombres de tablas o consultas
-      return guardarEstadoRestauracion({ estado: "fallida", fase: "Fallida", mensaje: e instanceof Error ? e.message : "Error desconocido al restaurar", inicio, fin: new Date().toISOString() });
+      const mensaje = e instanceof Error ? mensajeConCausa(e) : "Error desconocido al restaurar";
+      return guardarEstadoRestauracion({ estado: "fallida", fase: "Fallida", mensaje: mensaje.slice(0, 600), inicio, fin: new Date().toISOString() });
     });
 }
 
