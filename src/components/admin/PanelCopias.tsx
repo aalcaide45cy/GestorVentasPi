@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { alTerminarTarea, lanzarTarea } from "@/lib/tareas-cliente";
 import { useRouter } from "next/navigation";
 import CampoSecreto from "@/components/CampoSecreto";
 import Modal from "@/components/Modal";
@@ -58,7 +59,7 @@ function NotaCopia({ copia, alGuardar }: { copia: CopiaDto; alGuardar: (notas: s
 
 export default function PanelCopias() {
   const router = useRouter();
-  const { mostrar, confirmar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const { datos, recargar } = useCarga<Datos>("/api/admin/copias", VACIO);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [restaurar, setRestaurar] = useState<CopiaDto | null>(null);
@@ -80,6 +81,9 @@ export default function PanelCopias() {
     else if (d === "cancelado") mostrar("Conexión con Google Drive cancelada.", "aviso");
   }, [mostrar]);
 
+  // Al terminar la copia (que va en segundo plano) se pone al día la lista
+  useEffect(() => alTerminarTarea((t) => { if (t.tipo === "copias") recargar(); }));
+
   const accion = async (nombre: string, fn: () => Promise<string | void>) => {
     setTrabajando(nombre);
     try {
@@ -93,10 +97,11 @@ export default function PanelCopias() {
     }
   };
 
+  // La copia va a la cola de segundo plano (con una base grande tarda): se sigue usando la aplicación y, al terminar, sale un aviso
   const crear = (drive: boolean) =>
     accion("crear", async () => {
-      const { extra } = await llamar(`/api/admin/copias${drive ? "?drive=1" : ""}`, { method: "POST" });
-      return typeof extra.aviso === "string" && extra.aviso ? extra.aviso : "Copia creada correctamente.";
+      await lanzarTarea(`/api/admin/copias${drive ? "?drive=1" : ""}`, {});
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La copia de seguridad está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
     });
 
   const subirDrive = (c: CopiaDto) =>
