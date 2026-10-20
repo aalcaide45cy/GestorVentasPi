@@ -457,3 +457,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **PostgreSQL de desarrollo**: el compose del PC sube memoria compartida a 1 GB y otros ajustes (se aplican al recrear el contenedor; el de la Raspberry no cambia).
 - **Revisión visual** en una copia de prueba aparte: los buscadores de los paneles nuevos usaban una clase de estilo inexistente (salían blancos), los modales de dos columnas se apilan en móvil y la cabecera de «Últimos expedientes» se ajusta.
 - Skill del proyecto **«Revisala con tus ojos»** y script `scripts/prueba-interfaz.ps1` para montar la copia de prueba.
+
+## Versión 1.4.1 (20/10/2026)
+- Corregido: al crear una copia de seguridad en segundo plano, si se miraba la lista de copias mientras se escribía el fichero, la lista lo apuntaba a medias y el registro definitivo fallaba («Failed query: insert into copias_seguridad…»). Ahora la lista se salta las copias que se están creando o subiendo, el registro definitivo se corrige si ya existía y las copias que quedaron apuntadas a medias se arreglan solas cuando el fichero está completo y es válido.
