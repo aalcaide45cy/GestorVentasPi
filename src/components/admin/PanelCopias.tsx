@@ -67,7 +67,7 @@ export default function PanelCopias() {
   const [faseRestauracion, setFaseRestauracion] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<CopiaDto | null>(null);
   const [marcadas, setMarcadas] = useState<number[]>([]);
-  const [form, setForm] = useState({ claveOrigen: "" });
+  const [form, setForm] = useState({ claveOrigen: "", sinClave: false });
   const [claveNueva, setClaveNueva] = useState("");
   const [cliente, setCliente] = useState({ id: "", secreto: "" });
   const urlVuelta = typeof window === "undefined" ? "" : `${window.location.origin}/api/admin/drive/callback`;
@@ -214,7 +214,7 @@ export default function PanelCopias() {
       if (!restaurar) return;
       // La restauración sigue en el servidor (en una Raspberry con una copia grande son varios minutos) y aquí se pregunta cómo va:
       // una sola petición tan larga se cortaba por el camino («Load failed»)
-      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, claveOrigen: form.claveOrigen.trim() || undefined } });
+      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, claveOrigen: form.claveOrigen.trim() || undefined, sinClave: form.sinClave || undefined } });
       const inicio = Date.now();
       let fallosSeguidos = 0;
       for (;;) {
@@ -236,7 +236,7 @@ export default function PanelCopias() {
       }
       setFaseRestauracion(null);
       setRestaurar(null);
-      setForm({ claveOrigen: "" });
+      setForm({ claveOrigen: "", sinClave: false });
       mostrar("Copia restaurada. Vuelve a iniciar sesión.");
       setTimeout(() => router.push("/login"), 1500);
     }).finally(() => setFaseRestauracion(null));
@@ -730,6 +730,13 @@ export default function PanelCopias() {
             <label className="form-label">Clave de recuperación (solo si la copia viene de OTRA instalación)</label>
             <CampoSecreto autoComplete="off" placeholder="Déjalo vacío si restauras en la misma instalación" value={form.claveOrigen} onChange={(e) => setForm({ ...form, claveOrigen: e.target.value })} title="La clave de recuperación que fijaste en la instalación donde se hizo la copia (o su APP_SECRET). Sirve para volver a cifrar los documentos y el doble factor con la clave de esta instalación" />
           </div>
+          <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "0.88rem", lineHeight: 1.5 }} title="Si la copia viene de otra instalación y no tienes su clave (ni es una copia portable), se restaura igualmente todo lo demás: clientes, expedientes, comisiones, planes…">
+            <input type="checkbox" checked={form.sinClave} onChange={(e) => setForm({ ...form, sinClave: e.target.checked })} style={{ marginTop: "3px" }} />
+            <span>
+              <b>No tengo la clave: restaurar igualmente</b> sin los documentos ni el doble factor.
+              <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>Se conserva todo lo demás. Los documentos (DNI, pedidos, pagos) quedarán sin archivo y cada usuario tendrá que volver a activar su doble factor al entrar. Las copias portables y las de esta misma instalación no necesitan esta opción.</span>
+            </span>
+          </label>
         </Modal>
       )}
     </div>
