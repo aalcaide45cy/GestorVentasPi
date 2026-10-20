@@ -135,6 +135,31 @@ describe("pagos de la financiera", () => {
     expect(p.estado).toBe("aplicado");
     expect(await rci(exp.idExpediente)).toBe("2026-10-10");
   });
+  it("si el pago es de otra persona, al aplicarlo el expediente pasa a su nombre con nota en los comentarios, y al deshacer vuelve el titular anterior", async () => {
+    const { admin, exp, cli } = await escenario();
+    await db.update(clientes).set({ nombre: "Daniel Hijo Mayor", dni: "02325318H", domicilio: "Calle Vieja 1", codigoPostal: "28001" }).where(eq(clientes.id, cli.id));
+    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());
+    expect(p.estado).toBe("pendiente");
+    const hecho = await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente, cambiarTitular: true });
+    expect(hecho.estado).toBe("aplicado");
+    const leerCli = async () => (await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0];
+    expect(await leerCli()).toMatchObject({ nombre: "Francisco MAYOR CASADO", dni: "51701814E", domicilio: "CALLE de la cijara,14", codigoPostal: "28522" });
+    expect((await leerCli()).comentarios).toContain("Daniel Hijo Mayor (02325318H)");
+    expect((await leerCli()).comentarios).toContain("Domicilio anterior: Calle Vieja 1 (28001)");
+    expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].comentarios).toContain("Cambio de titular");
+    await deshacerPago(db, admin, p.id);
+    expect(await leerCli()).toMatchObject({ nombre: "Daniel Hijo Mayor", dni: "02325318H", domicilio: "Calle Vieja 1", codigoPostal: "28001", comentarios: null });
+    expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].comentarios).toBeNull();
+  });
+
+  it("si el pago es de la misma persona (aunque el documento lleve ceros) no se cambia el titular", async () => {
+    const { admin, exp, cli } = await escenario("051701814E");
+    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto({ vin: "" }));
+    const hecho = p.estado === "aplicado" ? p : await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente, cambiarTitular: true });
+    expect(hecho.estado).toBe("aplicado");
+    expect((await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0]).toMatchObject({ nombre: "Francisco Mayor Casado", comentarios: null });
+  });
+
   it("al aplicar un pago a un expediente sin bastidor se anota el bastidor del pago (para que el listado lo encuentre) y al deshacer se quita", async () => {
     const { admin, exp, cli } = await escenario();
     await db.update(clientes).set({ dni: "99999999R" }).where(eq(clientes.id, cli.id));

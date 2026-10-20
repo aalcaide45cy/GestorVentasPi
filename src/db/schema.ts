@@ -989,6 +989,11 @@ export const pagosRci = pgTable(
     fechaRciAnterior: date("fecha_rci_anterior"),
     /** Al aplicar el pago se copió su bastidor al expediente (que no lo tenía): al deshacer, se quita. */
     vinAplicado: boolean("vin_aplicado").notNull().default(false),
+    /** Domicilio y código postal del adquiriente que trae el pago. */
+    domicilio: text("domicilio"),
+    codigoPostal: varchar("codigo_postal", { length: 10 }),
+    /** Si al aplicar el pago se cambió el titular del expediente: sus datos anteriores, para poder deshacerlo. */
+    titularAnterior: jsonb("titular_anterior").$type<{ idCliente: number; nombre: string | null; dni: string | null; domicilio: string | null; codigoPostal: string | null; comentariosCliente: string | null; comentariosExpediente: string | null; nombreNuevo: string; comentariosClienteNuevo: string; comentariosExpedienteNuevo: string } | null>(),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     resueltoEn: timestamp("resuelto_en", { withTimezone: true }),
   },

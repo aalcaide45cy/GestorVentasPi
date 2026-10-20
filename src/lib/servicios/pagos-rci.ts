@@ -6,7 +6,7 @@ import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { parsearPagoRci, type PagoRciLeido } from "@/lib/documentos/pago-rci";
 import { claveNif, limpiarNif, nifParecido, normalizarMatricula } from "@/lib/identificadores";
-import { guardarAdjunto } from "./adjuntos";
+import { guardarAdjunto, leerAdjunto } from "./adjuntos";
 import { actualizarExpedientes, comprobarAlcance } from "./expedientes-escritura";
 import { esquemaActualizarExpediente } from "./expedientes";
 import { mirarDocumento, ocrImagenes, tipoDeFichero } from "./ocr";
@@ -273,6 +273,8 @@ async function insertarPago(ej: Ejecutor, usuario: UsuarioActual, nombre: string
       fechaPago: l ? nulo(l.fechaPago) : null,
       nif: l ? nulo(l.nif) : null,
       nombre: l ? nulo(l.nombre) : null,
+      domicilio: l ? nulo(l.domicilio) : null,
+      codigoPostal: l ? nulo(l.codigoPostal) : null,
       bastidor: l ? nulo(l.bastidor) : null,
       matricula: l ? nulo(l.matricula) : null,
       marca: l ? nulo(l.marca) : null,
@@ -370,10 +372,12 @@ export const esquemaAplicarPago = z.object({
   idExpediente: z.number().int().positive(),
   /** Para corregir a mano una fecha mal leída. */
   fechaPago: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  /** El expediente pasa a nombre del adquiriente del pago (nombre, documento, domicilio y código postal), dejando nota en los comentarios. */
+  cambiarTitular: z.boolean().optional(),
 });
 
 /** Fija la fecha RCI del expediente con la fecha de pago y deja el pago como aplicado (con la fecha anterior, para poder deshacerlo). */
-export async function aplicarPago(ej: Ejecutor, usuario: UsuarioActual, id: number, o: { idExpediente: number; fechaPago?: string; motivo?: string }): Promise<PagoRciDto> {
+export async function aplicarPago(ej: Ejecutor, usuario: UsuarioActual, id: number, o: { idExpediente: number; fechaPago?: string; motivo?: string; cambiarTitular?: boolean }): Promise<PagoRciDto> {
   const pago = await leerPago(ej, usuario, id);
   const [{ vinAplicado: pagoVinAplicado }] = await ej.select({ vinAplicado: pagosRci.vinAplicado }).from(pagosRci).where(eq(pagosRci.id, id));
   const fecha = o.fechaPago ?? pago.fechaPago;
@@ -383,6 +387,19 @@ export async function aplicarPago(ej: Ejecutor, usuario: UsuarioActual, id: numb
   await comprobarAlcance(ej, usuario, [exp.id]);
   if (exp.rci !== fecha) {
     await actualizarExpedientes(ej, usuario, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: exp.id, expediente: { fecha_rci: fecha } }));
+  }
+  // Pagos leídos antes de guardar el domicilio: se vuelve a leer del PDF guardado cuando hace falta para cambiar el titular
+  if (o.cambiarTitular && pago.idAdjunto !== null) {
+    const [f] = await ej.select({ domicilio: pagosRci.domicilio }).from(pagosRci).where(eq(pagosRci.id, id));
+    if (!f?.domicilio) {
+      try {
+        const a = await leerAdjunto(ej, pago.idAdjunto);
+        const l = a ? parsearPagoRci(await textoDelPago(a.datos)) : null;
+        if (l?.domicilio) await ej.update(pagosRci).set({ domicilio: nulo(l.domicilio), codigoPostal: nulo(l.codigoPostal) }).where(eq(pagosRci.id, id));
+      } catch {
+        /* sin domicilio: se cambia solo el nombre y el documento */
+      }
+    }
   }
   await ej.transaction(async (tx) => {
     // Si el expediente aún no tiene bastidor (se creó con el pedido) y el del pago no está en otro expediente, se anota: así los listados
@@ -397,9 +414,34 @@ export async function aplicarPago(ej: Ejecutor, usuario: UsuarioActual, id: numb
         vinAplicado = true;
       }
     }
+    // Titular distinto (el pedido es de una persona y paga otra): el cliente pasa a los datos del adquiriente y queda una nota que lo explica
+    let titularAnterior: (typeof pagosRci.$inferInsert)["titularAnterior"] = null;
+    if (o.cambiarTitular && pago.nombre) {
+      const [datos] = await tx
+        .select({ idCliente: expedientes.idCliente, comentariosExp: expedientes.comentarios, nombre: clientes.nombre, dni: clientes.dni, domicilio: clientes.domicilio, cp: clientes.codigoPostal, comentariosCli: clientes.comentarios })
+        .from(expedientes)
+        .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+        .where(eq(expedientes.idExpediente, exp.id));
+      const [fila] = await tx.select({ domicilio: pagosRci.domicilio, cp: pagosRci.codigoPostal }).from(pagosRci).where(eq(pagosRci.id, id));
+      // Solo si de verdad es otra persona (el mismo documento, con o sin ceros, es el mismo titular)
+      if (datos?.idCliente && (!datos.dni || claveNif(datos.dni) !== claveNif(pago.nif))) {
+        const hoy = new Date().toISOString().slice(0, 10).split("-").reverse().join("/");
+        const persona = (n: string | null, d: string | null) => `${n?.trim() || "—"}${d ? ` (${d})` : ""}`;
+        const nota = `[${hoy}] Cambio de titular al aplicar el pago de la financiera nº ${pago.numeroOperacion ?? "—"}: el pedido se hizo a nombre de ${persona(datos.nombre, datos.dni)} y el pago de RCI figura a nombre de ${persona(pago.nombre, pago.nif)}.${datos.domicilio ? ` Domicilio anterior: ${datos.domicilio}${datos.cp ? ` (${datos.cp})` : ""}.` : ""} Los datos anteriores quedan anotados aquí.`;
+        const unir = (previo: string | null) => (previo && previo.trim() !== "" ? `${previo}\n\n${nota}` : nota);
+        const comentariosCli = unir(datos.comentariosCli);
+        const comentariosExp = unir(datos.comentariosExp);
+        await tx
+          .update(clientes)
+          .set({ nombre: pago.nombre, dni: pago.nif ?? datos.dni, ...(fila?.domicilio ? { domicilio: fila.domicilio } : {}), ...(fila?.cp ? { codigoPostal: fila.cp } : {}), comentarios: comentariosCli })
+          .where(eq(clientes.id, datos.idCliente));
+        await tx.update(expedientes).set({ comentarios: comentariosExp }).where(eq(expedientes.idExpediente, exp.id));
+        titularAnterior = { idCliente: datos.idCliente, nombre: datos.nombre, dni: datos.dni, domicilio: datos.domicilio, codigoPostal: datos.cp, comentariosCliente: datos.comentariosCli, comentariosExpediente: datos.comentariosExp, nombreNuevo: pago.nombre, comentariosClienteNuevo: comentariosCli, comentariosExpedienteNuevo: comentariosExp };
+      }
+    }
     await tx
       .update(pagosRci)
-      .set({ estado: "aplicado", idExpediente: exp.id, fechaPago: fecha, fechaRciAnterior: pago.estado === "aplicado" && pago.idExpediente === exp.id ? pago.fechaRciAnterior : exp.rci, vinAplicado: vinAplicado || (pago.estado === "aplicado" && pago.idExpediente === exp.id && pagoVinAplicado), motivo: o.motivo ?? pago.motivo, resueltoEn: new Date() })
+      .set({ estado: "aplicado", idExpediente: exp.id, ...(titularAnterior ? { titularAnterior } : {}), fechaPago: fecha, fechaRciAnterior: pago.estado === "aplicado" && pago.idExpediente === exp.id ? pago.fechaRciAnterior : exp.rci, vinAplicado: vinAplicado || (pago.estado === "aplicado" && pago.idExpediente === exp.id && pagoVinAplicado), motivo: o.motivo ?? pago.motivo, resueltoEn: new Date() })
       .where(eq(pagosRci.id, id));
     if (pago.idAdjunto !== null) await tx.update(adjuntos).set({ idExpediente: exp.id, ambito: "expediente" }).where(eq(adjuntos.id, pago.idAdjunto));
   });
@@ -417,10 +459,21 @@ export async function deshacerPago(ej: Ejecutor, usuario: UsuarioActual, id: num
   } else if (exp) {
     motivo = `Aplicación deshecha; la fecha RCI del expediente se había cambiado después (ahora ${exp.rci ?? "vacía"}) y no se toca`;
   }
-  const [{ vinAplicado }] = await ej.select({ vinAplicado: pagosRci.vinAplicado }).from(pagosRci).where(eq(pagosRci.id, id));
+  const [{ vinAplicado, titularAnterior }] = await ej.select({ vinAplicado: pagosRci.vinAplicado, titularAnterior: pagosRci.titularAnterior }).from(pagosRci).where(eq(pagosRci.id, id));
   await ej.transaction(async (tx) => {
+    // Titular cambiado al aplicar: se devuelve lo anterior, salvo lo que alguien haya vuelto a cambiar después
+    if (titularAnterior && exp) {
+      const [c] = await tx.select({ nombre: clientes.nombre, comentarios: clientes.comentarios }).from(clientes).where(eq(clientes.id, titularAnterior.idCliente));
+      if (c && c.nombre === titularAnterior.nombreNuevo) {
+        await tx.update(clientes).set({ nombre: titularAnterior.nombre, dni: titularAnterior.dni, domicilio: titularAnterior.domicilio, codigoPostal: titularAnterior.codigoPostal, ...(c.comentarios === titularAnterior.comentariosClienteNuevo ? { comentarios: titularAnterior.comentariosCliente } : {}) }).where(eq(clientes.id, titularAnterior.idCliente));
+        const [e] = await tx.select({ comentarios: expedientes.comentarios }).from(expedientes).where(eq(expedientes.idExpediente, exp.id));
+        if (e?.comentarios === titularAnterior.comentariosExpedienteNuevo) await tx.update(expedientes).set({ comentarios: titularAnterior.comentariosExpediente }).where(eq(expedientes.idExpediente, exp.id));
+      } else {
+        motivo += "; el titular se había cambiado después y no se toca";
+      }
+    }
     if (vinAplicado && exp) await tx.update(expedientes).set({ vin: null }).where(and(eq(expedientes.idExpediente, exp.id), sql`${normalizarTexto(expedientes.vin)} = ${limpiarNif(pago.bastidor)}`));
-    await tx.update(pagosRci).set({ estado: "pendiente", idExpediente: null, fechaRciAnterior: null, vinAplicado: false, motivo, resueltoEn: null }).where(eq(pagosRci.id, id));
+    await tx.update(pagosRci).set({ estado: "pendiente", idExpediente: null, fechaRciAnterior: null, vinAplicado: false, titularAnterior: null, motivo, resueltoEn: null }).where(eq(pagosRci.id, id));
     if (pago.idAdjunto !== null) await tx.update(adjuntos).set({ idExpediente: null, ambito: "pendiente" }).where(eq(adjuntos.id, pago.idAdjunto));
   });
   return leerPago(ej, usuario, id);

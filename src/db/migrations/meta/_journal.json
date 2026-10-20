@@ -295,6 +295,13 @@
       "when": 1792453828986,
       "tag": "0041_pagos_vin_aplicado",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792454430305,
+      "tag": "0042_pagos_titular",
+      "breakpoints": true
     }
   ]
 }

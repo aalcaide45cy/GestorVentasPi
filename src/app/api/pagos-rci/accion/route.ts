@@ -24,7 +24,7 @@ export const POST = manejar(async (req: Request) => {
   const e = await leerJson(req, esquema);
   switch (e.accion) {
     case "aplicar":
-      return NextResponse.json({ success: true, data: await aplicarPago(db, usuario, e.datos.id, { idExpediente: e.datos.idExpediente, fechaPago: e.datos.fechaPago, motivo: "Elegido a mano" }) });
+      return NextResponse.json({ success: true, data: await aplicarPago(db, usuario, e.datos.id, { idExpediente: e.datos.idExpediente, fechaPago: e.datos.fechaPago, motivo: "Elegido a mano", cambiarTitular: e.datos.cambiarTitular }) });
     case "deshacer":
       return NextResponse.json({ success: true, data: await deshacerPago(db, usuario, e.id) });
     case "editar":

@@ -277,6 +277,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
   const [matricula, setMatricula] = useState(pago.matricula ?? "");
   const [candidatos, setCandidatos] = useState<CandidatoPago[]>([]);
   const [motivoBusqueda, setMotivoBusqueda] = useState("");
+  const [cambiarTitular, setCambiarTitular] = useState(true);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<{ id_expediente: number; label: string }[]>([]);
   const editable = pago.estado !== "aplicado";
@@ -314,7 +315,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
       mostrar("Indica la fecha de pago antes de aplicar.", "error");
       return;
     }
-    await accion({ accion: "aplicar", datos: { id: pago.id, idExpediente, fechaPago: fecha } }, `Fecha RCI fijada en el expediente ${idExpediente}.`);
+    await accion({ accion: "aplicar", datos: { id: pago.id, idExpediente, fechaPago: fecha, cambiarTitular } }, `Fecha RCI fijada en el expediente ${idExpediente}.`);
   };
 
   const campo = (titulo: string, valor: string, fijar: (v: string) => void, tipo = "text", ayuda = "") => (
@@ -380,6 +381,15 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
               <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.45 }}>
                 Puedes aplicarlo ahora a uno de los expedientes (se fija la fecha RCI y se anota el bastidor) o esperar a subir el Excel de la intranet, que da el titular definitivo y enlaza los pagos pendientes por bastidor.
               </span>
+              {pago.nombre && (
+                <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "0.82rem", lineHeight: 1.4, padding: "6px 8px", border: "1px dashed var(--border-light)", borderRadius: "var(--radius-sm)" }} title="Si el expediente es de otra persona (el pedido a nombre del hijo y paga la madre), al aplicar el pago el cliente pasa a los datos del adquiriente y queda una nota en los comentarios del cliente y del expediente con los datos anteriores. Se puede deshacer.">
+                  <input type="checkbox" checked={cambiarTitular} onChange={(e) => setCambiarTitular(e.target.checked)} style={{ marginTop: "3px" }} />
+                  <span>
+                    Poner el expediente a nombre de <b>{pago.nombre}</b>
+                    {pago.nif ? ` (${pago.nif})` : ""} si el cliente es otra persona: nombre, documento, domicilio y código postal, con una nota en los comentarios.
+                  </span>
+                </label>
+              )}
               {candidatos.map((c) => (
                 <div key={c.id} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.8rem", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "4px 8px" }}>
                   <span style={{ flex: 1 }}>
