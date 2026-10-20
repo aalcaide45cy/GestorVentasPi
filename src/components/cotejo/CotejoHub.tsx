@@ -6,7 +6,6 @@ import type { CatalogosComisiones } from "@/components/comisiones/tipos";
 import type { ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import CotejoPagos from "./CotejoPagos";
-import MiMes from "./MiMes";
 import MisRejillas from "./MisRejillas";
 
 interface Props {
@@ -19,8 +18,7 @@ interface Props {
 }
 
 const PESTANAS = [
-  { id: "mes", icono: "📅", titulo: "Mi mes", ayuda: "La lista de coches que deberían venir en la rejilla de la empresa, para ir marcándolos a mano con la hoja delante." },
-  { id: "pago", icono: "🚗", titulo: "¿Me han pagado cada coche?", ayuda: "Subes la hoja de la empresa (PDF o foto) y la app lee las matrículas: te dice qué coches vendidos no te han pagado." },
+  { id: "mes", icono: "📅", titulo: "Mi mes", ayuda: "Elige un mes: ves sus coches, subes la rejilla de la empresa (PDF o foto) y la app te dice cuáles te han pagado, todo en la misma vista. También puedes marcarlos a mano con la hoja delante." },
   { id: "importes", icono: "✅", titulo: "¿Cuadran los importes?", ayuda: "Cruza la hoja de la empresa con tu liquidación de un mes, por matrícula e importe: faltan, sobran, distintos o duplicados." },
   { id: "rejillas", icono: "📁", titulo: "Mis rejillas", ayuda: "Todas las rejillas que has guardado, por mes: para verlas, buscar en ellas, ordenarlas y cambiarles el mes." },
   { id: "nomina", icono: "💶", titulo: "Mi nómina", ayuda: "Compara tu nómina con la liquidación, concepto a concepto: marca cada uno cuando lo veas cobrado." },
@@ -30,10 +28,11 @@ type IdPestana = (typeof PESTANAS)[number]["id"];
 
 /**
  * Todo el cotejo en un solo sitio, en cuatro apartados (antes estaba repartido entre esta pantalla y Comisiones):
- * el resumen del mes, qué coches te han pagado, si los importes cuadran y la comparación con la nómina.
+ * el mes (sus coches, la rejilla de la empresa y qué te han pagado), si los importes cuadran, las rejillas guardadas y la comparación con la nómina.
  */
 export default function CotejoHub({ expedientes, vendedores, esAdministrador, catalogo, idUsuario }: Props) {
   const [guardada, guardar] = usePreferencia("cotejo-pestana");
+  // «pago» era la pestaña de subir la rejilla, que ahora está dentro de «Mi mes»
   const activa: IdPestana = PESTANAS.some((p) => p.id === guardada) ? (guardada as IdPestana) : "mes";
   const pestana = PESTANAS.find((p) => p.id === activa) ?? PESTANAS[0];
   const cat = esAdministrador ? catalogo : { ...catalogo, vendedores: catalogo.vendedores.filter((v) => v.id === idUsuario) };
@@ -61,8 +60,7 @@ export default function CotejoHub({ expedientes, vendedores, esAdministrador, ca
       </div>
       <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>{pestana.ayuda}</p>
 
-      {activa === "mes" && <MiMes expedientes={expedientes} vendedores={vendedores} idUsuarioActual={idUsuario} esAdministrador={esAdministrador} />}
-      {activa === "pago" && <CotejoPagos />}
+      {activa === "mes" && <CotejoPagos expedientes={expedientes} vendedores={vendedores} idUsuarioActual={idUsuario} esAdministrador={esAdministrador} />}
       {activa === "importes" && <ValidacionRejilla cat={cat} usuarioInicial={inicial} esAdmin={esAdministrador} />}
       {activa === "rejillas" && <MisRejillas esAdministrador={esAdministrador} />}
       {activa === "nomina" && <CotejoCobros cat={cat} usuarioInicial={inicial} esAdmin={esAdministrador} />}

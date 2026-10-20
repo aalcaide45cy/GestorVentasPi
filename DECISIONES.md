@@ -369,3 +369,5 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] 1.3.0: «Deshabilitar» expedientes anulados en el listado es opcional y por fila, no automático.
 - [D] 1.4.3: el registro de notificaciones vive en el navegador (localStorage), no en la base de datos: es lo que esa persona vio en pantalla y no hace falta migración; contrapartida: no se comparte entre equipos. Los avisos de 3 s o menos («Copiado») no se anotan.
 - [D] 1.4.3: reponer plantillas tras restaurar es un extra y no hace fallar la restauración; antes de insertar se alinean las secuencias con los datos restaurados.
+- [D] 1.4.4: un coche se asigna a un mes para verlo por meses así: el de la rejilla donde se pagó si era uno de sus meses esperados; si no, el último mes en que debía cobrarse; sin fecha, a «Sin mes». Una matrícula de la rejilla sin coche cuenta en el mes de esa rejilla.
+- [D] 1.4.4: «Mi mes» y «¿Me han pagado cada coche?» se unen en una sola pestaña (la preferencia guardada «pago» vuelve a «Mi mes»).

@@ -1,7 +1,7 @@
 import sharp from "sharp";
-import { ocrCeldas } from "./ocr";
+import { cadenaDeMotores, imagenesDePdf, ocrCeldas, ocrImagenes, tipoDeFichero } from "./ocr";
 import { HttpError } from "@/lib/auth/sesion";
-import { imagenesDePdf, tipoDeFichero } from "./ocr";
+import { ajustesOcr, cargarAjustesOcr } from "./ocr-ajustes";
 
 /**
  * Lectura de las matrículas de la rejilla de comisiones escaneada («Resultado PROPIO»): una tabla de varias filas con la
@@ -202,11 +202,30 @@ async function recorteCaracter(b: { datos: Buffer; ancho: number; alto: number }
     .toBuffer();
 }
 
-/** ¿Hay algo escrito en la celda? Las celdas vacías solo traen ruido del escáner. */
-function celdaConTinta(g: Gris, c: Celda): boolean {
+/**
+ * ¿Hay algo escrito en la celda? Las celdas vacías solo traen ruido del escáner, y la franja que queda entre la cabecera y la primera
+ * fila solo trae el borde de la tabla: por eso solo cuenta la tinta del centro de la celda, no la de los bordes.
+ */
+export function celdaConTinta(g: Gris, c: Celda): boolean {
+  const y0 = c.y + Math.round(c.alto * 0.25);
+  const y1 = c.y + Math.round(c.alto * 0.75);
+  const x0 = c.x + Math.round(c.ancho * 0.1);
+  const x1 = c.x + Math.round(c.ancho * 0.9);
   let oscuros = 0;
-  for (let y = c.y; y < c.y + c.alto; y++) for (let x = c.x; x < c.x + c.ancho; x++) if (g.datos[y * g.ancho + x] < 110) oscuros++;
-  return oscuros > c.ancho * c.alto * 0.02;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (g.datos[y * g.ancho + x] < 110) oscuros++;
+  return oscuros > (x1 - x0) * (y1 - y0) * 0.02;
+}
+
+/** Matrícula que contiene el texto que leyó un motor de OCR (con las confusiones típicas corregidas), o null. */
+export function matriculaDeTexto(texto: string): string | null {
+  const limpio = texto.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const directa = limpio.match(/\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}/);
+  if (directa) return directa[0];
+  for (let i = 0; i + 7 <= limpio.length; i++) {
+    const r = repararMatricula(limpio.slice(i, i + 7));
+    if (r) return r;
+  }
+  return null;
 }
 
 const A_CIFRA: Record<string, string> = { S: "5", O: "0", I: "1", B: "8", Z: "2", G: "6", T: "7", L: "1", D: "0" };
@@ -240,6 +259,10 @@ function mayoria(chars: string[]): string {
 
 /** Lee las matrículas de una imagen de la rejilla (PNG/JPG). Prueba los giros habituales de un escáner. */
 export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoja> {
+  await cargarAjustesOcr();
+  // Motor de OCR elegido (RapidOCR, Apple Vision…): lee cada celda y su lectura cuenta como un voto más, el primero; con Tesseract
+  // solo se usan las lecturas propias de la rejilla
+  const motores = cadenaDeMotores(ajustesOcr().motor);
   for (const giro of [270, 90, 0, 180]) {
     const girada = await sharp(imagen, { failOn: "none" }).rotate(giro).png().toBuffer();
     const g = await aGris(girada, 0);
@@ -271,14 +294,28 @@ export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoj
       }
       porCaracter.push(lecturas);
     }
+    const delMotor: (string | null)[] = [];
+    if (motores.length > 0) {
+      for (const c of celdas) {
+        try {
+          const lineas = await ocrImagenes([await recorteLinea(girada, c)], { motorElegido: true, psm: "disperso" });
+          delMotor.push(matriculaDeTexto(lineas.map((l) => l.texto).join("")));
+        } catch {
+          delMotor.push(null);
+        }
+      }
+    }
     const matriculas: MatriculaLeida[] = [];
     const vistas = new Set<string>();
     for (let i = 0; i < celdas.length; i++) {
       const a = lineas[i].texto.replace(/\s/g, "").toUpperCase();
-      const validas = [...(MATRICULA.test(a) ? [a] : []), ...porCaracter[i].filter((x) => MATRICULA.test(x))];
+      const motor = delMotor[i] ?? null;
+      const validas = [...(motor ? [motor] : []), ...(MATRICULA.test(a) ? [a] : []), ...porCaracter[i].filter((x) => MATRICULA.test(x))];
       const b = porCaracter[i][0] ?? "";
       // Voto por posición entre todas las lecturas válidas (la línea entera cuenta como una más)
-      const votada = validas.length > 0 ? [...validas[0]].map((_, k) => mayoria(validas.map((x) => x[k]))).join("") : "";
+      // (la lectura del motor elegido cuenta doble: gana los empates)
+      const votos = motor ? [motor, ...validas] : validas;
+      const votada = validas.length > 0 ? [...validas[0]].map((_, k) => mayoria(votos.map((x) => x[k]))).join("") : "";
       const unanimes = validas.length >= 2 && validas.every((x) => x === validas[0]);
       const reparada = validas.length > 0 ? null : repararMatricula(a) ?? repararMatricula(b);
       const elegida = validas.length > 0 ? (MATRICULA.test(votada) ? votada : validas[0]) : reparada ?? (a || b);
