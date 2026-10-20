@@ -259,7 +259,7 @@ export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, a
 /** «Papelera y purga»: todo lo que sigue guardado aunque se haya eliminado, con control total para verlo, descargarlo y borrarlo de verdad. */
 export default function PanelPapelera() {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const { datos, recargar } = useCarga<Resumen>("/api/admin/papelera", VACIO);
   const [ver, setVer] = useState<InfoCategoria | null>(null);
   const [purga, setPurga] = useState<{ info: InfoCategoria; ids: string[] | null; dias: number | null } | null>(null);
@@ -307,7 +307,7 @@ export default function PanelPapelera() {
   };
 
   const compactar = async () => {
-    if (!window.confirm("Se va a compactar la base de datos: el espacio de todo lo borrado vuelve al disco. Las tablas afectadas quedan bloqueadas unos segundos (puede tardar un poco si hay documentos grandes). No se borra ningún dato. ¿Continuar?")) return;
+    if (!await confirmar({ texto: "Se va a compactar la base de datos: el espacio de todo lo borrado vuelve al disco. Las tablas afectadas quedan bloqueadas unos segundos (puede tardar un poco si hay documentos grandes). No se borra ningún dato. ¿Continuar?" })) return;
     setCompactando(true);
     try {
       await lanzarTarea("/api/admin/papelera", { accion: "compactar" });

@@ -55,7 +55,7 @@ const fecha = (v: string | null) => formatDate(v) || "-";
 
 /** «Cotejo de pagos»: sube las rejillas de la empresa y comprueba, por matrícula, qué coches vendidos no te han pagado. */
 export default function CotejoPagos() {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const { datos, recargar } = useCarga<DatosCotejo>("/api/cotejo", { coches: [], pagos: [], rejillas: [] });
   const [borradores, setBorradores] = useState<Borrador[]>([]);
   const [listados, setListados] = useState<Listado[]>([]);
@@ -125,7 +125,7 @@ export default function CotejoPagos() {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.mes)) return mostrar("Indica el mes de la rejilla antes de guardarla.", "error");
     if (matriculas.length === 0) return mostrar("La rejilla no tiene ninguna matrícula.", "error");
     const existente = datos.rejillas.find((r) => r.mes === b.mes);
-    if (existente && !window.confirm(`Ya hay una rejilla guardada de ${nombreMes(b.mes)} (${existente.filas} matrículas). ¿La sustituyo por esta?`)) return;
+    if (existente && !await confirmar({ texto: `Ya hay una rejilla guardada de ${nombreMes(b.mes)} (${existente.filas} matrículas). ¿La sustituyo por esta?` })) return;
     setTrabajando(true);
     try {
       await llamar("/api/cotejo/rejillas", { method: "PUT", cuerpo: { mes: b.mes, nombreArchivo: b.nombreArchivo, origen: "pdf", matriculas } });
@@ -140,7 +140,7 @@ export default function CotejoPagos() {
   };
 
   const borrar = async (mes: string) => {
-    if (!window.confirm(`¿Quito la rejilla de ${nombreMes(mes)}? Los coches de ese mes volverán a salir sin rejilla.`)) return;
+    if (!await confirmar({ texto: `¿Quito la rejilla de ${nombreMes(mes)}? Los coches de ese mes volverán a salir sin rejilla.` })) return;
     try {
       await llamar(`/api/cotejo/rejillas?mes=${mes}`, { method: "DELETE" });
       recargar();

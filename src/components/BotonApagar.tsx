@@ -24,13 +24,13 @@ const iconoProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", 
 
 /** Botón de sistema (solo administrador): pide al servidor (Raspberry Pi) una acción, siempre tras confirmar. Solo si el instalador la activó. */
 function BotonAccion({ colapsado, api, etiqueta, etiquetaOcupado, ayuda, confirmacion, aviso, cuerpo, icono, alHecho }: PropsAccion) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const { datos } = useCarga<{ disponible: boolean } | null>(api, null);
   const [ocupado, setOcupado] = useState(false);
   if (!datos?.disponible) return null;
 
   const ejecutar = async () => {
-    if (!window.confirm(confirmacion)) return;
+    if (!await confirmar({ texto: confirmacion })) return;
     setOcupado(true);
     try {
       await llamar(api, { method: "POST", cuerpo: { confirmar: true, ...cuerpo } });

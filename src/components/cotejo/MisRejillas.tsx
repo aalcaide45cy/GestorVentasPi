@@ -25,7 +25,7 @@ const colFilas: ColumnaTabla<FilaRejillaGuardada>[] = [
 
 /** «Mis rejillas»: todas las rejillas guardadas, por mes, para revisarlas cuando haga falta (ver, buscar, ordenar, cambiar el mes o borrar). */
 export default function MisRejillas({ esAdministrador }: { esAdministrador: boolean }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const { datos, recargar } = useCarga<RejillaGuardada[]>("/api/comisiones/rejillas/lista", []);
   const [viendo, setViendo] = useState<RejillaGuardada | null>(null);
   const [filas, setFilas] = useState<FilaRejillaGuardada[] | null>(null);
@@ -93,7 +93,7 @@ export default function MisRejillas({ esAdministrador }: { esAdministrador: bool
   };
 
   const borrar = async (r: RejillaGuardada) => {
-    if (!window.confirm(`¿Borrar la rejilla de ${r.vendedor} de ${nombreMes(r.mes)}? Se pierden sus ${r.filas} filas. Siempre puedes volver a subir el archivo.`)) return;
+    if (!await confirmar({ texto: `¿Borrar la rejilla de ${r.vendedor} de ${nombreMes(r.mes)}? Se pierden sus ${r.filas} filas. Siempre puedes volver a subir el archivo.`, peligro: true })) return;
     try {
       await llamar(`/api/comisiones/rejillas?usuario=${r.idUsuario}&mes=${r.mes}`, { method: "DELETE" });
       mostrar("Rejilla borrada.");

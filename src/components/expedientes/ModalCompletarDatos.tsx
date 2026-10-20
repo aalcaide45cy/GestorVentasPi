@@ -71,7 +71,7 @@ interface Borrador {
  * las filas dudosas. Nunca crea expedientes, clientes ni modelos.
  */
 export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar: () => void; alAplicar: () => void }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [listados, setListados] = useState<ListadoLeido[]>([]);
   const [resultado, setResultado] = useState<ResultadoPrevisualizar | null>(null);
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
@@ -286,7 +286,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
       mostrar("No has marcado ningún cambio.", "error");
       return;
     }
-    if (!window.confirm(`Se van a cambiar ${elegidos.size} dato(s) en ${cambios.length} expediente(s)${deshabilitar.size > 0 ? ` y deshabilitar ${deshabilitar.size} expediente(s) anulado(s)` : ""}. Quedará en el Log de importaciones y se podrá deshacer. ¿Continuar?`)) return;
+    if (!await confirmar({ texto: `Se van a cambiar ${elegidos.size} dato(s) en ${cambios.length} expediente(s)${deshabilitar.size > 0 ? ` y deshabilitar ${deshabilitar.size} expediente(s) anulado(s)` : ""}. Quedará en el Log de importaciones y se podrá deshacer. ¿Continuar?`, peligro: true })) return;
     setTrabajando(true);
     try {
       const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number }>("/api/expedientes/completar/aplicar", {

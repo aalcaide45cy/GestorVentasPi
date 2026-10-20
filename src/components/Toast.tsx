@@ -46,7 +46,11 @@ const ESTILO: Record<TipoToast, { borde: string; fondo: string; icono: string; t
 /** Separa un mensaje en una frase principal y el resto como detalles («Hecho. Copia previa: x. Otra cosa.» → frase + 2 líneas). */
 function partir(texto: string): { frase: string; detalles: string[] } {
   const limpio = texto.replace(/^[✅🛑⚠️ℹ️\s]+/u, "").trim();
-  const trozos = limpio.split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¡¿«“"(\d])/u).map((t) => t.trim()).filter(Boolean);
+  const trozos = limpio
+    .split(/\n+/)
+    .flatMap((l) => l.split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¡¿«“"(\d])/u))
+    .map((t) => t.trim())
+    .filter(Boolean);
   if (trozos.length <= 1) return { frase: limpio, detalles: [] };
   return { frase: trozos[0], detalles: trozos.slice(1) };
 }
@@ -74,7 +78,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     },
     [notificar],
   );
-  const confirmar = useCallback((o: Omit<OpcionesNotificacion, "cancelar"> & { cancelar?: string }) => notificar({ tipo: "aviso", aceptar: "Aceptar", cancelar: "Cancelar", ...o }), [notificar]);
+  const confirmar = useCallback((o: Omit<OpcionesNotificacion, "cancelar"> & { cancelar?: string }) => notificar({ tipo: "aviso", titulo: "Confirma esta acción", aceptar: "Aceptar", cancelar: "Cancelar", ...o }), [notificar]);
 
   const valor = useMemo(() => ({ mostrar, notificar, confirmar }), [mostrar, notificar, confirmar]);
   const actual = items[0] ?? null;

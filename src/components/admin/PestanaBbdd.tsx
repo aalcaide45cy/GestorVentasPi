@@ -31,7 +31,7 @@ const tarjeta = { padding: "16px", background: "rgba(255, 255, 255, 0.02)", bord
 /** Pestaña «BBDD»: limpieza de huérfanos con copia previa y ajustes de interfaz. */
 export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [analizando, setAnalizando] = useState(false);
   const [limpiando, setLimpiando] = useState(false);
   const [analisis, setAnalisis] = useState<AnalisisBbdd | null>(null);
@@ -70,7 +70,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
       mostrar("No hay registros huérfanos que limpiar.", "error");
       return;
     }
-    if (!window.confirm(`Se van a borrar ${analisis.stats.totalAnomalies} registro(s) huérfano(s) (solo los de las tarjetas «Se puede limpiar»).\n\nAntes se guarda una copia de seguridad completa; la verás en «Copias de seguridad» y podrás restaurarla si algo no era lo que esperabas. Los avisos «A revisar» no se tocan. ¿Continuar?`)) return;
+    if (!await confirmar({ texto: `Se van a borrar ${analisis.stats.totalAnomalies} registro(s) huérfano(s) (solo los de las tarjetas «Se puede limpiar»).\n\nAntes se guarda una copia de seguridad completa; la verás en «Copias de seguridad» y podrás restaurarla si algo no era lo que esperabas. Los avisos «A revisar» no se tocan. ¿Continuar?`, peligro: true })) return;
 
     setLimpiando(true);
     try {

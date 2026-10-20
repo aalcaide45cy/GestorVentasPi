@@ -30,7 +30,7 @@ const queCambio = (p: PasoHistorial): string => {
 
 /** Deshacer, rehacer e historial de cambios del usuario (menú lateral). Atajos: Ctrl+Z, Ctrl+Y y Ctrl+Mayús+Z fuera de los campos de texto. */
 export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const router = useRouter();
   const [estado, setEstado] = useState<EstadoHistorial | null>(null);
   const [lista, setLista] = useState(false);
@@ -85,9 +85,9 @@ export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
           return;
         } catch (e) {
           const mensaje = textoError(e);
-          if (!forzar && /se ha modificado después/.test(mensaje) && window.confirm(`${mensaje}
+          if (!forzar && /se ha modificado después/.test(mensaje) && await confirmar({ texto: `${mensaje}
 
-¿Quieres hacerlo igualmente?`)) continue;
+¿Quieres hacerlo igualmente?` })) continue;
           setOcupado(false);
           mostrar(mensaje, "error");
           cargar();
@@ -95,7 +95,7 @@ export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
         }
       }
     },
-    [cargar, mostrar, router],
+    [cargar, mostrar, confirmar, router],
   );
 
   // Atajos de teclado, solo cuando no se está escribiendo ni hay una ventana abierta
@@ -173,9 +173,9 @@ export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
                         className="btn btn-secondary"
                         style={{ padding: "2px 10px", fontSize: "0.75rem" }}
                         disabled={ocupado}
-                        onClick={() => {
+                        onClick={async () => {
                           const direccion = p.estado === "aplicado" ? "deshacer" : "rehacer";
-                          if (window.confirm(p.estado === "aplicado" ? `¿Deshacer «${p.accion}» y todo lo que hiciste después?` : `¿Rehacer los cambios hasta «${p.accion}»?`)) void aplicar(direccion, p.grupo);
+                          if (await confirmar({ texto: p.estado === "aplicado" ? `¿Deshacer «${p.accion}» y todo lo que hiciste después?` : `¿Rehacer los cambios hasta «${p.accion}»?`, peligro: true })) void aplicar(direccion, p.grupo);
                         }}
                       >
                         {p.estado === "aplicado" ? "Volver antes de esto" : "Rehacer hasta aquí"}
