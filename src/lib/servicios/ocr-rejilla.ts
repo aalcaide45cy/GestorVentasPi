@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { cadenaDeMotores, imagenesDePdf, ocrCeldas, ocrImagenes, tipoDeFichero } from "./ocr";
+import { cadenaDeMotores, enCola, imagenesDePdf, ocrCeldas, ocrImagenes, tipoDeFichero } from "./ocr";
 import { HttpError } from "@/lib/auth/sesion";
 import { ajustesOcr, cargarAjustesOcr } from "./ocr-ajustes";
 
@@ -335,8 +335,11 @@ export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoj
 export async function leerMatriculasDeFichero(datos: Buffer): Promise<LecturaHoja[]> {
   const tipo = tipoDeFichero(datos);
   if (!tipo) throw new HttpError(415, "Formato no admitido: sube un PDF o una imagen (PNG, JPG, WebP).");
-  const imagenes = tipo === "pdf" ? (await imagenesDePdf(datos, ESCALA_LECTURA)).imagenes : [datos];
-  const lecturas: LecturaHoja[] = [];
-  for (const img of imagenes) lecturas.push(await leerMatriculasDeImagen(img));
-  return lecturas;
+  // Por la misma fila de espera que el resto de lecturas escaneadas: de una en una, para no competir por la CPU con otras
+  return enCola(async () => {
+    const imagenes = tipo === "pdf" ? (await imagenesDePdf(datos, ESCALA_LECTURA)).imagenes : [datos];
+    const lecturas: LecturaHoja[] = [];
+    for (const img of imagenes) lecturas.push(await leerMatriculasDeImagen(img));
+    return lecturas;
+  });
 }

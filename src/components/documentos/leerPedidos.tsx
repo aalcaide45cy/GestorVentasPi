@@ -6,7 +6,7 @@ import { recogerPendientes, registrarAvisos, solicitarCancelacion, subirPedidos 
 import ControlesLectura from "./ControlesLectura";
 import { clasificarFichero, leerDniDeFichero } from "./BotonLeerDocumento";
 import { textoError } from "@/components/comisiones/api";
-import { MAXIMO_COLA, huecosEnCola, leerLectura, suscribirLectura, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
+import { leerLectura, suscribirLectura, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
 import { useRef } from "react";
 import OpcionVentanaPedido from "./OpcionVentanaPedido";
 import ZonaSoltar from "./ZonaSoltar";
@@ -34,7 +34,6 @@ export function useLeerPedidos() {
   const leer = async (ficheros: File[], destino: Destino = {}) => {
     if (ficheros.length === 0) return;
     // Con la cola llena los pedidos se suben igualmente: se leen en el servidor y pasan a la cola según vaya quedando hueco
-    if (huecosEnCola() < ficheros.length) mostrar(`La cola está llena (${MAXIMO_COLA} pedidos): se suben y se leen igualmente, y pasarán a la cola según vayas procesando o descartando.`);
     setSubiendo(true);
     try {
       let aSubir = ficheros;

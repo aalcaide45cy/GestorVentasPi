@@ -44,9 +44,6 @@ export interface EstadoCola {
 }
 
 const CLAVE = "gv_cola_pedidos";
-/** Pedidos que caben a la vez en la cola. */
-export const MAXIMO_COLA = 300;
-const MAXIMO = MAXIMO_COLA;
 const VACIO: EstadoCola = { items: [], abierto: null };
 
 let estado: EstadoCola = VACIO;
@@ -56,6 +53,13 @@ const oyentes = new Set<() => void>();
 function cargar(): void {
   if (cargado || typeof window === "undefined") return;
   cargado = true;
+  // Lo que esté sin guardar se guarda al cerrar o esconder la página
+  window.addEventListener("pagehide", guardarColaYa);
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") guardarColaYa();
+    });
+  }
   try {
     const crudo = window.localStorage.getItem(CLAVE);
     if (crudo) {
@@ -67,13 +71,25 @@ function cargar(): void {
   }
 }
 
-function emitir(nuevo: EstadoCola): void {
-  estado = nuevo;
+let guardadoPendiente: ReturnType<typeof setTimeout> | null = null;
+
+/** Guarda la cola en el navegador ahora mismo (se llama sola, poco después del último cambio, y al cerrar la página). */
+export function guardarColaYa(): void {
+  if (guardadoPendiente) {
+    clearTimeout(guardadoPendiente);
+    guardadoPendiente = null;
+  }
   try {
-    window.localStorage.setItem(CLAVE, JSON.stringify(nuevo.items));
+    window.localStorage.setItem(CLAVE, JSON.stringify(estado.items));
   } catch {
     /* sin almacenamiento */
   }
+}
+
+function emitir(nuevo: EstadoCola): void {
+  estado = nuevo;
+  // Con cientos de pedidos, reescribir toda la cola en cada cambio bloqueaba el navegador: se agrupan los cambios seguidos en un solo guardado
+  if (!guardadoPendiente) guardadoPendiente = setTimeout(guardarColaYa, 600);
   oyentes.forEach((o) => o());
 }
 
@@ -106,7 +122,7 @@ let contador = 0;
 export function anadirACola(nuevos: Omit<ItemCola, "id" | "leidoEn">[]): ItemCola[] {
   cargar();
   const items = nuevos.map((n) => ({ ...n, id: `p${Date.now().toString(36)}${(contador++).toString(36)}`, leidoEn: new Date().toISOString() }));
-  emitir({ ...estado, items: [...estado.items, ...items].slice(-MAXIMO) });
+  emitir({ ...estado, items: [...estado.items, ...items] });
   return items;
 }
 
@@ -130,12 +146,6 @@ export function abrirDeCola(id: string | null): void {
   cargar();
   estado = { ...estado, abierto: id };
   oyentes.forEach((o) => o());
-}
-
-/** Huecos libres en la cola (para no perder pedidos ya leídos al soltar más de golpe). */
-export function huecosEnCola(): number {
-  cargar();
-  return Math.max(0, MAXIMO_COLA - estado.items.length);
 }
 
 /** Progreso de la lectura en curso (visible en la cola aunque se esté trabajando con otro pedido). */

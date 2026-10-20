@@ -10,12 +10,13 @@ import type { ExpedienteDto, MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto
 import { formatDate } from "@/lib/date-utils";
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
 import type { ResultadoPedido } from "@/lib/servicios/documentos";
-import { MAXIMO_COLA, abrirDeCola, actualizarPedidoDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola, type ItemCola } from "@/lib/pedidos-cola";
+import { abrirDeCola, actualizarPedidoDeCola, colaVacia, leerCola, leerLectura, quitarDeCola, suscribirCola, suscribirLectura, vaciarCola, type ItemCola } from "@/lib/pedidos-cola";
 import { anotarResolucion, solicitarCancelacion } from "@/lib/lecturas-pedidos-cliente";
 import EstadoLecturas from "./EstadoLecturas";
 import PedidoRapidoModal from "./PedidoRapidoModal";
 import RellenarDesdePedidoModal from "./RellenarDesdePedidoModal";
-import { vincularDniAlExpediente } from "@/lib/crear-desde-pedido";
+import { crearPedidos, vincularDniAlExpediente } from "@/lib/crear-desde-pedido";
+import SelectorMotorRelectura, { useMotorDeRelectura } from "@/components/documentos/SelectorMotorRelectura";
 
 interface Props {
   marcas: (MarcaDto & { modelos: ModeloDto[] })[];
@@ -29,10 +30,13 @@ interface Props {
  */
 export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   const router = useRouter();
-  const { mostrar, confirmar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const [marcados, setMarcados] = useState<string[]>([]);
   /** Progreso de «Releer»: cuántos pedidos van y cuántos son. */
   const [releyendo, setReleyendo] = useState<{ hechos: number; total: number } | null>(null);
+  /** Progreso de «Crear expedientes con lo elegido». */
+  const [creando, setCreando] = useState<{ hechos: number; total: number } | null>(null);
+  const { motor: motorRelectura } = useMotorDeRelectura();
   const estado = useSyncExternalStore(suscribirCola, leerCola, colaVacia);
   const { items, abierto } = estado;
   const lectura = useSyncExternalStore(suscribirLectura, leerLectura, () => null);
@@ -99,6 +103,29 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     setMarcados((m) => (v ? [...m.filter((x) => !rango.includes(x)), ...rango] : m.filter((x) => !rango.includes(x))));
     ultimoMarcado.current = id;
   };
+  /** Crea de una vez los expedientes de los pedidos elegidos: solo los que no ofrecen duda y sin duplicar; los demás se quedan en la cola con su motivo. */
+  const crearElegidos = async () => {
+    const lista = items.filter((i) => elegidos.includes(i.id));
+    if (lista.length === 0 || creando) return;
+    if (!await confirmar({ titulo: "Crear expedientes", texto: `Se van a crear los expedientes de los ${lista.length} pedidos elegidos que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar).`, detalles: ["Los que tengan alguna duda se quedan en la cola, con su motivo.", "Nunca se duplica un expediente que ya exista."], aceptar: "Crear expedientes" })) return;
+    setCreando({ hechos: 0, total: lista.length });
+    try {
+      const r = await crearPedidos(lista, vendedorId, (hechos, total) => setCreando({ hechos, total }));
+      setMarcados([]);
+      router.refresh();
+      void notificar({
+        titulo: "Expedientes creados",
+        texto: `${r.creados} expediente${r.creados === 1 ? "" : "s"} creado${r.creados === 1 ? "" : "s"}${r.omitidos.length > 0 ? ` y ${r.omitidos.length} sin crear (se quedan en la cola)` : ""}.`,
+        detalles: r.omitidos.slice(0, 8).map((o) => `${o.nombre}: ${o.motivo}`).concat(r.omitidos.length > 8 ? [`… y ${r.omitidos.length - 8} más`] : []),
+        tipo: r.creados === 0 ? "error" : r.omitidos.length > 0 ? "aviso" : "exito",
+      });
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setCreando(null);
+    }
+  };
+
   /** Descarta de golpe los pedidos elegidos de la cola (sus ficheros se marcan como eliminados). */
   const descartarElegidos = async () => {
     const lista = items.filter((i) => elegidos.includes(i.id));
@@ -126,7 +153,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     const trabajador = async () => {
       for (let i = cola.shift(); i; i = cola.shift()) {
         try {
-          const { data } = await llamar<ResultadoPedido>("/api/documentos/releer", { method: "POST", cuerpo: { idAdjunto: i.pedido.adjunto.id, duplicados: permitirDuplicadosAhora() } });
+          const { data } = await llamar<ResultadoPedido>("/api/documentos/releer", { method: "POST", cuerpo: { idAdjunto: i.pedido.adjunto.id, duplicados: permitirDuplicadosAhora(), motor: motorRelectura } });
           const antes = i.pedido.datos;
           const d = data.datos;
           if ((!antes.dni && d.dni) || (!antes.telefono && d.telefono) || (!antes.tipoPedido && d.tipoPedido) || (!antes.modeloTexto && d.modeloTexto) || (!antes.idModelo && d.idModelo)) mejorados++;
@@ -213,12 +240,16 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     <div className="glass-panel" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
         <h3 style={{ fontSize: "1.05rem" }}>
-          📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length} de {MAXIMO_COLA})</span>
+          📥 Cola de pedidos <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>({items.length})</span>
           {lectura && <span style={{ color: "var(--primary)", fontWeight: 600, fontSize: "0.85rem" }}> · leyendo {lectura.hechos + 1} de {lectura.total}…<button type="button" className="btn btn-secondary" style={{ marginLeft: "8px", padding: "1px 8px", fontSize: "0.78rem" }} onClick={solicitarCancelacion}>✖ Cancelar lectura</button></span>}
         </h3>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} onClick={() => setMarcados(elegidos.length === items.length ? [] : items.map((i) => i.id))} title="Elige todos los pedidos de la cola, o quita la elección si ya están todos elegidos">
             {elegidos.length === items.length ? "Quitar la elección" : `Elegir todos (${items.length})`}
+          </button>
+          <SelectorMotorRelectura />
+          <button type="button" className="btn btn-primary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} disabled={elegidos.length === 0 || creando !== null} onClick={() => void crearElegidos()} title="Crea de una vez los expedientes de los pedidos elegidos (con Mayús puedes elegir bloques enteros). Solo los que no tienen dudas; los demás se quedan en la cola.">
+            {creando ? `Creando ${Math.min(creando.hechos + 1, creando.total)} de ${creando.total}…` : `➕ Crear expedientes con lo elegido (${elegidos.length})`}
           </button>
           <button type="button" className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: "0.85rem" }} disabled={elegidos.length === 0 || releyendo !== null} onClick={() => void releer(items.filter((i) => elegidos.includes(i.id)))} title="Vuelve a leer el PDF de los pedidos elegidos con el lector actual; sus datos se actualizan en la cola">
             {releyendo ? `🔄 Releyendo ${Math.min(releyendo.hechos + 1, releyendo.total)} de ${releyendo.total}…` : `🔄 Releer lo elegido (${elegidos.length})`}
@@ -252,6 +283,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
         alVerFilas={verFilas}
         columnas={columnasCola}
         filas={items}
+        bloque={200}
         clave={(i) => i.id}
         placeholder="Buscar por pedido, cliente, vehículo…"
         vacio="La cola está vacía."

@@ -88,7 +88,14 @@ async function crearUno(item: ItemCola, vendedorId: number): Promise<string | nu
  * duplicados» esté desactivado… y aunque esté activado: aquí nunca se duplica.
  */
 export async function crearTodosLosPedidos(vendedorId: number, alProgreso?: (hechos: number, total: number) => void): Promise<ResultadoCreacionMasiva> {
-  const items = [...leerCola().items];
+  return crearPedidos([...leerCola().items], vendedorId, alProgreso);
+}
+
+/**
+ * Crea de una vez los expedientes de los pedidos indicados (los elegidos en la cola) con las mismas garantías que «Crear todos»: solo los
+ * que no ofrecen duda y nunca duplicados; los demás se quedan en la cola con su motivo.
+ */
+export async function crearPedidos(items: ItemCola[], vendedorId: number, alProgreso?: (hechos: number, total: number) => void): Promise<ResultadoCreacionMasiva> {
   const res: ResultadoCreacionMasiva = { creados: 0, omitidos: [] };
   for (let i = 0; i < items.length; i++) {
     alProgreso?.(i, items.length);

@@ -57,6 +57,11 @@ export default function IndicadorTareas() {
   useEffect(
     () =>
       alTerminarTarea((t) => {
+        // La rejilla leída aparece en su pantalla: no hace falta avisar de que terminó bien
+        if (t.tipo === "rejilla" && t.estado === "terminada") {
+          void descartarTareaServidor(t.id);
+          return;
+        }
         // El aviso queda en el registro de notificaciones, así que la tarea ya no hace falta en la lista
         void notificar({
           titulo: t.titulo,

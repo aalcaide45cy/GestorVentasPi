@@ -486,3 +486,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.4.6 (20/10/2026)
 - Las «i» de ayuda estaban en las pestañas de dentro de las pantallas y el propietario las quería en las **pestañas laterales** (el menú de la izquierda): ahora cada entrada del menú (Dashboard, Expedientes, Clientes, Configuración, Comisiones, Cotejo de pagos, Informes, Log Importación, Log Lecturas y Laboratorio) lleva su «i» a la derecha, con la guía de esa pantalla entera. Se quitaron las de la fila de pestañas de Cotejo de pagos; las de Configuración y del editor de planes se mantienen. Con el menú plegado no salen (no hay sitio).
+
+## Versión 1.5.0 (20/10/2026)
+- **La cola de pedidos ya no tiene tope** (antes 300): caben los que haga falta. Lo leído sigue esperando en el servidor hasta que se recoge, y los PDF subidos quedan guardados y se leen en segundo plano; si el servidor se corta, lo que estaba leyéndose vuelve a pendiente.
+- **Arreglado el cuelgue con cientos de pedidos** (subir 1008 PDF dejaba la pantalla congelada unos segundos): ahora lo leído entra a la cola en bloque y sin recorrerla entera por cada pedido, la cola se guarda en el navegador de una sola vez poco después del último cambio (y al cerrar la página) y la tabla pinta de 200 en 200 con «Ver más» / «Ver todas» (la búsqueda y la elección con Mayús siguen contando todos).
+- **Crear expedientes con lo elegido**: en la cola de pedidos, elige varios (casillas, y con Mayús un bloque entero) y pulsa «➕ Crear expedientes con lo elegido»: se crean solo los que no tienen dudas y nunca duplicados; los demás se quedan en la cola con su motivo.
+- **Releer con otro motor de OCR**: selector «Releer con» junto a «Releer lo elegido» y en la ventana del pedido (junto a «Releer»); vale solo para esa relectura y no cambia el motor de Configuración.
+- **Lectura manual desactivada por defecto** (el ajuste se sigue guardando en el servidor).
+- **Rejillas de comisiones en la cola de segundo plano**: las hojas subidas se ponen todas en la cola de tareas (se leen de una en una, por orden, con la barra de progreso de la barra superior) y cada una aparece en cuanto se lee. La lectura de rejillas pasa además por la misma fila de espera del OCR que el resto de lecturas escaneadas.

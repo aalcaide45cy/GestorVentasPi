@@ -1,5 +1,6 @@
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
-import { abrirDeCola, anadirACola, fijarLectura, huecosEnCola, leerCola, quitarDeCola, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
+import { abrirDeCola, anadirACola, fijarLectura, leerCola, quitarDeCola, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
+import type { DatosPedido } from "@/lib/documentos/pedido";
 import type { LecturaDto, LecturaEnMarcha, ResumenLecturas } from "@/lib/servicios/lecturas-pedidos";
 
 /**
@@ -88,7 +89,32 @@ let abrirElPrimero = false;
 let recogidosEnTanda = 0;
 let ignoradosEnTanda = 0;
 
-const mismo = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.replace(/[\s.-]/g, "").toUpperCase() === b.replace(/[\s.-]/g, "").toUpperCase();
+const limpiar = (a: string | null | undefined): string => (a ? a.replace(/[\s.-]/g, "").toUpperCase() : "");
+
+type DatosDePedido = DatosPedido;
+
+/**
+ * Qué pedidos ya hay en la cola, para no recoger dos veces el mismo: por número de pedido, bastidor, matrícula o, juntos, DNI + fecha + modelo.
+ * Se construye una vez por tanda y se va completando, así recoger cientos de pedidos no recorre la cola entera en cada uno.
+ */
+function huellasDeLaCola() {
+  const pedidos = new Set<string>();
+  const vins = new Set<string>();
+  const matriculas = new Set<string>();
+  const personas = new Set<string>();
+  const clavePersona = (d: DatosDePedido) => (d.dni && d.fechaExpediente ? `${limpiar(d.dni)}|${d.fechaExpediente}|${d.idModelo}` : "");
+  const anadir = (d: DatosDePedido) => {
+    if (limpiar(d.numeroPedido)) pedidos.add(limpiar(d.numeroPedido));
+    if (limpiar(d.vin)) vins.add(limpiar(d.vin));
+    if (limpiar(d.matricula)) matriculas.add(limpiar(d.matricula));
+    if (clavePersona(d)) personas.add(clavePersona(d));
+  };
+  for (const x of leerCola().items) anadir(x.pedido.datos);
+  return {
+    anadir,
+    contiene: (d: DatosDePedido) => (!!limpiar(d.numeroPedido) && pedidos.has(limpiar(d.numeroPedido))) || (!!limpiar(d.vin) && vins.has(limpiar(d.vin))) || (!!limpiar(d.matricula) && matriculas.has(limpiar(d.matricula))) || (!!clavePersona(d) && personas.has(clavePersona(d))),
+  };
+}
 
 async function pedir<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { credentials: "same-origin", ...init });
@@ -109,27 +135,26 @@ async function consultar(): Promise<boolean> {
     enMarcha = marcha ?? [];
     const listos = lecturas.filter((l) => l.estado === "pedido" && l.resultado);
     const recogidos: number[] = [];
+    // Lo ya recogido se indexa una sola vez (no se recorre la cola entera por cada pedido leído) y todo lo nuevo entra en un solo cambio
+    const huellas = huellasDeLaCola();
+    const nuevosItems: Parameters<typeof anadirACola>[0] = [];
     for (const l of listos) {
       const pedido = l.resultado!;
       const d = pedido.datos;
-      const repetido = leerCola().items.some(
-        (x) =>
-          mismo(x.pedido.datos.numeroPedido, d.numeroPedido) ||
-          mismo(x.pedido.datos.vin, d.vin) ||
-          mismo(x.pedido.datos.matricula, d.matricula) ||
-          (!!d.dni && !!d.fechaExpediente && mismo(x.pedido.datos.dni, d.dni) && x.pedido.datos.fechaExpediente === d.fechaExpediente && x.pedido.datos.idModelo === d.idModelo),
-      );
-      if (repetido) {
+      if (huellas.contiene(d)) {
         ignoradosEnTanda++;
         recogidos.push(l.id);
         continue;
       }
-      if (huecosEnCola() === 0) break; // cola llena: se quedan en el servidor hasta que haya sitio
+      huellas.anadir(d);
       // Si ya existe un expediente de este pedido, la lectura sirve para completarlo: nunca se crea uno duplicado
       const yaExiste = l.destino?.idExpediente ? null : (pedido.similares[0]?.idExpediente ?? null);
-      const nuevos = anadirACola([{ nombre: l.nombre, pedido, eleccion: yaExiste ? null : ((l.destino?.eleccion as EleccionRapida | null | undefined) ?? null), idExpediente: l.destino?.idExpediente ?? yaExiste, dni: l.destino?.dni ?? null, idLectura: l.id }]);
+      nuevosItems.push({ nombre: l.nombre, pedido, eleccion: yaExiste ? null : ((l.destino?.eleccion as EleccionRapida | null | undefined) ?? null), idExpediente: l.destino?.idExpediente ?? yaExiste, dni: l.destino?.dni ?? null, idLectura: l.id });
       recogidosEnTanda++;
       recogidos.push(l.id);
+    }
+    if (nuevosItems.length > 0) {
+      const nuevos = anadirACola(nuevosItems);
       if (abrirElPrimero && nuevos[0]) {
         abrirElPrimero = false;
         abrirDeCola(nuevos[0].id);

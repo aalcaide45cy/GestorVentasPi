@@ -13,6 +13,7 @@ import { leerCatalogos } from "./catalogos";
 import { leerTarjetasDeImagen, type TarjetaLeida } from "./dni-lectura";
 import { detectarTarjetas } from "@/lib/documentos/tarjetas";
 import { enCola, imagenesDePdf, mirarDocumento, textoDeDocumento } from "./ocr";
+import { conMotor, type MotorOcr } from "./ocr-ajustes";
 
 /**
  * Lectura automática de documentos para rellenar fichas: el DNI (cliente y foto) y el pedido (expediente).
@@ -191,10 +192,11 @@ export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero:
 }
 
 /** Vuelve a leer un pedido ya guardado (con el lector tal como está ahora): no crea ningún documento nuevo. */
-export async function releerPedido(ej: Ejecutor, idAdjunto: number, permitirDuplicados = false): Promise<ResultadoPedido> {
+export async function releerPedido(ej: Ejecutor, idAdjunto: number, permitirDuplicados = false, motor?: MotorOcr): Promise<ResultadoPedido> {
   const a = await leerAdjunto(ej, idAdjunto);
   if (!a) throw new HttpError(404, "El fichero de este pedido ya no está guardado: vuelve a subirlo.");
-  const { datos: parsed, similares, metodo } = await analizarPedido(ej, a.datos, permitirDuplicados, { paralelo: true });
+  // Con `motor` se vuelve a leer con ese motor solo esta vez (el de Configuración no cambia)
+  const { datos: parsed, similares, metodo } = await conMotor(motor, () => analizarPedido(ej, a.datos, permitirDuplicados, { paralelo: true }));
   return { datos: parsed, similares, adjunto: a.meta, metodo };
 }
 

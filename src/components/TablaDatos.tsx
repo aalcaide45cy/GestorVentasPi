@@ -51,11 +51,13 @@ interface Props<T> {
   ordenInicial?: { clave: string; asc: boolean };
   /** Avisa de las filas que se ven (con la búsqueda y el orden aplicados), por ejemplo para elegir un rango con Mayús. */
   alVerFilas?: (filas: T[]) => void;
+  /** Con muchas filas se pintan por bloques de este tamaño (con un botón para ver más): la búsqueda y el orden siguen contando todas. */
+  bloque?: number;
 }
 
 const sinAcentos = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial, alVerFilas }: Props<T>) {
+export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial, alVerFilas, bloque }: Props<T>) {
   const relleno = compacta ? "5px 6px" : "6px 8px";
   const defecto = useMemo<Config>(() => ({ orden: columnas.map((c) => c.clave), visibles: Object.fromEntries(columnas.map((c) => [c.clave, !c.oculta])) }), [columnas]);
   const [guardado, fijar] = usePreferencia(`tabla-${id}`);
@@ -75,6 +77,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
   const [texto, setTexto] = useState("");
   const [orden, setOrden] = useState<{ clave: string; asc: boolean } | null>(ordenInicial ?? null);
   const [menu, setMenu] = useState(false);
+  const [cuantas, setCuantas] = useState(bloque ?? Number.POSITIVE_INFINITY);
 
   const activas = config.orden.map((k) => columnas.find((c) => c.clave === k)!).filter((c) => c && config.visibles[c.clave] !== false);
   // Borde transparente de 2 px en la primera y la última columna: así las cifras no se desplazan en las filas con marco (cápsula)
@@ -114,7 +117,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-        <input className="form-input" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`🔎 ${placeholder}`} style={{ flex: 1, minWidth: "160px", padding: "4px 10px", fontSize: "0.85rem" }} />
+        <input className="form-input" value={texto} onChange={(e) => { setTexto(e.target.value); setCuantas(bloque ?? Number.POSITIVE_INFINITY); }} placeholder={`🔎 ${placeholder}`} style={{ flex: 1, minWidth: "160px", padding: "4px 10px", fontSize: "0.85rem" }} />
         <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{texto ? `${visibles.length} de ${filas.length}` : `${filas.length}`}</span>
         <button type="button" className="btn btn-secondary" onClick={() => setMenu(true)} title="Columnas y vistas: elige cuáles se ven, cámbialas de orden (arrastrando) o guarda vistas con nombre" style={{ padding: "4px 10px", fontSize: "0.8rem" }}>
           ⚙️ Columnas y vistas
@@ -137,7 +140,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
               </tr>
             </thead>
             <tbody>
-              {visibles.map((f) => (
+              {visibles.slice(0, cuantas).map((f) => (
                 <tr key={clave(f)} className={claseFila?.(f) || undefined} style={estiloFila?.(f)}>
                   {activas.map((c, k) => (
                     <td key={c.clave} style={{ ...bordesLaterales(k), borderTop: "1px solid var(--border-light)", textAlign: alineacion(k), padding: relleno, whiteSpace: "nowrap", maxWidth: c.ancho ? c.ancho * 2 : undefined, overflow: "hidden", textOverflow: "ellipsis" }} title={typeof c.valor(f) === "string" ? String(c.valor(f)) : undefined}>
@@ -159,6 +162,19 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
               </tfoot>
             )}
           </table>
+        </div>
+      )}
+      {visibles.length > cuantas && (
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+          <span>
+            Se ven {cuantas} de {visibles.length}.
+          </span>
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px" }} onClick={() => setCuantas((c) => c + (bloque ?? 200))}>
+            Ver {Math.min(bloque ?? 200, visibles.length - cuantas)} más
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px" }} onClick={() => setCuantas(Number.POSITIVE_INFINITY)}>
+            Ver todas
+          </button>
         </div>
       )}
     </div>

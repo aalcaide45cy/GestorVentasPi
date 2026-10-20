@@ -8,6 +8,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
+import SelectorMotorRelectura, { useMotorDeRelectura } from "@/components/documentos/SelectorMotorRelectura";
 import { actualizarPedidoDeCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
 import type { ResultadoPedido } from "@/lib/servicios/documentos";
 import type { CoincidenciaCliente } from "@/lib/servicios/clientes";
@@ -44,6 +45,7 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
  */
 export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
   const { mostrar, confirmar } = useToast();
+  const { motor: motorRelectura } = useMotorDeRelectura();
   const router = useRouter();
   // Se recuerda entre lecturas: «Releer» rehace la ventana y el visor no debe esconderse
   const [verPdf, setVerPdfEstado] = useState(pdfAbierto);
@@ -177,7 +179,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
   const releer = async () => {
     setReleyendo(true);
     try {
-      const { data } = await llamar<ResultadoPedido>("/api/documentos/releer", { method: "POST", cuerpo: { idAdjunto: pedido.adjunto.id, duplicados: permitirDuplicadosAhora() } });
+      const { data } = await llamar<ResultadoPedido>("/api/documentos/releer", { method: "POST", cuerpo: { idAdjunto: pedido.adjunto.id, duplicados: permitirDuplicadosAhora(), motor: motorRelectura } });
       actualizarPedidoDeCola(item.id, data);
       mostrar("Pedido leído otra vez con el lector actual: revisa los datos.");
     } catch (e) {
@@ -411,6 +413,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
           <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
             {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
           </button>
+          <SelectorMotorRelectura compacto />
           <button type="button" className="btn btn-secondary" onClick={() => void releer()} disabled={releyendo || trabajando} title="Vuelve a leer el PDF de este pedido con el lector actual (por ejemplo, si no sacó el DNI, el teléfono o el modelo) y rehace esta ventana con los datos nuevos">
             {releyendo ? "🔄 Releyendo…" : "🔄 Releer"}
           </button>

@@ -373,3 +373,5 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] 1.4.4: «Mi mes» y «¿Me han pagado cada coche?» se unen en una sola pestaña (la preferencia guardada «pago» vuelve a «Mi mes»).
 - [D] 1.4.5: las guías de las pestañas viven en un solo archivo (`lib/guias.ts`) y se muestran en una ventana; solo llevan «i» las pestañas (barras de pestañas), no las secciones sueltas.
 - [D] 1.4.5: el Histórico reutiliza el cotejo por matrícula (`cotejarPagos`) sobre todas las rejillas guardadas; no hay tabla nueva en la base de datos porque las rejillas ya se guardan por mes.
+- [D] 1.5.0: se quita el tope de 300 de la cola de pedidos; la cola sigue en localStorage (unos 1,5 KB por pedido) con guardado agrupado. Si algún día no cupiera (cuota del navegador), el guardado falla en silencio y la cola vive en memoria; lo leído sigue en el servidor hasta recogerse.
+- [D] 1.5.0: el motor de relectura se pasa por petición (`motor` en `/api/documentos/releer`) con un contexto asíncrono (`conMotor`), sin tocar el ajuste global.

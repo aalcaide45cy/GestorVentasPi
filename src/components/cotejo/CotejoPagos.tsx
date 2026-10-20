@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
+import { esperarTarea, refrescarTareas } from "@/lib/tareas-cliente";
 import { ajustarLecturas, cotejarPagos, filasDelMes, filasSinMes, resumenPorMes, sugerirMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
 import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
 import { formatDate } from "@/lib/date-utils";
@@ -143,23 +144,36 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
     if (lista.length === 0) return;
     setTrabajando(true);
     try {
-      const nuevos: Borrador[] = [];
+      // Todas las hojas se ponen primero en la cola de segundo plano del servidor (que las lee de una en una, por orden) y se van recogiendo según terminan
+      const enCola: { f: File; tarea: string }[] = [];
       for (const f of lista) {
         if (!esPdf(f) && !esImagen(f)) {
           mostrar(`«${f.name}» no es un PDF ni una imagen.`, "error");
           continue;
         }
-        const r = await fetch("/api/cotejo/leer", { method: "POST", headers: { "Content-Type": f.type || "application/pdf" }, body: f, credentials: "same-origin" });
-        const json = (await r.json().catch(() => ({}))) as { message?: string; data?: { paginas: { matriculas: MatriculaLeida[] }[] } };
-        if (!r.ok || !json.data) {
+        const r = await fetch(`/api/cotejo/leer?asincrono=1&nombre=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type || "application/pdf" }, body: f, credentials: "same-origin" });
+        const json = (await r.json().catch(() => ({}))) as { message?: string; tarea?: string };
+        if (!r.ok || !json.tarea) {
           mostrar(`${f.name}: ${json.message ?? `Error ${r.status}`}`, "error");
           continue;
         }
-        const paginas = json.data.paginas;
+        enCola.push({ f, tarea: json.tarea });
+      }
+      await refrescarTareas();
+      const nuevos: Borrador[] = [];
+      for (const { f, tarea } of enCola) {
+        let paginas: { matriculas: MatriculaLeida[] }[];
+        try {
+          paginas = (await esperarTarea<{ paginas: { matriculas: MatriculaLeida[] }[] }>(tarea)).paginas;
+        } catch (e) {
+          mostrar(`${f.name}: ${textoError(e)}`, "error");
+          continue;
+        }
+        const hechos: Borrador[] = [];
         paginas.forEach((p, i) => {
           if (p.matriculas.length === 0) mostrar(`No he podido leer ninguna matrícula en «${f.name}»${paginas.length > 1 ? ` (página ${i + 1})` : ""}. Puedes escribirlas a mano.`, "error");
           const sugerido = sugerirMes(p.matriculas.map((m) => m.matricula), cochesTodos);
-          nuevos.push({
+          hechos.push({
             clave: `${f.name}-${i}-${Date.now()}`,
             nombreArchivo: paginas.length > 1 ? `${f.name} (pág. ${i + 1})` : f.name,
             // Si la hoja no deja adivinar su mes, se supone que es el que se está mirando
@@ -167,10 +181,12 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
             filas: ajustarLecturas(p.matriculas.map((m) => ({ matricula: m.matricula, confianza: m.valida ? m.confianza : 0 })), cochesTodos.map((c) => c.matricula)),
           });
         });
+        // Cada hoja aparece en cuanto se lee, sin esperar a las demás
+        nuevos.push(...hechos);
+        setBorradores((b) => [...b, ...hechos]);
+        // Se salta al mes de la primera rejilla leída para ver enseguida su cotejo
+        if (nuevos.length === hechos.length && hechos.length > 0 && hechos[0].mes !== mes) guardarMes(hechos[0].mes);
       }
-      setBorradores((b) => [...b, ...nuevos]);
-      // Se salta al mes de la rejilla leída para ver enseguida su cotejo
-      if (nuevos.length > 0 && nuevos[0].mes !== mes) guardarMes(nuevos[0].mes);
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {
@@ -428,7 +444,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
           )}
 
           <label className="btn btn-primary" style={{ cursor: trabajando ? "wait" : "pointer", textAlign: "center", justifyContent: "center" }}>
-            {trabajando ? "⏳ Leyendo la hoja…" : borradorMes || rejillaMes ? "📄 Subir otra hoja (PDF o foto)" : `📄 Subir la rejilla de ${mesCorto(mes)} (PDF o foto)`}
+            {trabajando ? "⏳ Leyendo en segundo plano…" : borradorMes || rejillaMes ? "📄 Subir otra hoja (PDF o foto)" : `📄 Subir la rejilla de ${mesCorto(mes)} (PDF o foto)`}
             <input type="file" multiple accept=".pdf,image/*" style={{ display: "none" }} disabled={trabajando} onChange={(e) => { void subirRejillas(e.target.files); e.target.value = ""; }} />
           </label>
           <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>También puedes arrastrar el archivo aquí. La lectura tarda unos segundos por hoja y no guarda nada hasta que pulses «Guardar rejilla».</div>

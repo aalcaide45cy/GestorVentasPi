@@ -16,7 +16,7 @@ export default function OverlaySubida() {
   const dialogo = useSyncExternalStore(suscribirDialogoCancelar, leerDialogoCancelar, () => false);
   const resumen = useSyncExternalStore(suscribirResumenLecturas, leerResumenLecturas, () => null);
   const pct = s && s.total > 0 ? Math.round((100 * s.hechos) / s.total) : 0;
-  const manual = resumen?.manual ?? true;
+  const manual = resumen?.manual ?? false;
   return (
     <>
       {s && (

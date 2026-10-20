@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { AsyncLocalStorage } from "node:async_hooks";
 import os from "node:os";
 import { inArray } from "drizzle-orm";
 import { db, type Ejecutor } from "@/db";
@@ -27,12 +28,24 @@ const VIGENCIA_MS = 5000;
 /** Por defecto RapidOCR en CPU: lee mejor que Tesseract y va bien tanto en la Raspberry como en un PC (si falla, se usa Tesseract). */
 // En macOS el de Apple Vision (si no se puede usar, se cae solo a RapidOCR).
 // La lectura es manual por defecto: el usuario pulsa «Iniciar lectura» cuando ha terminado de subir.
-const DEFECTO: AjustesOcr = { motor: process.platform === "darwin" ? "vision" : "rapido-cpu", simultaneas: 0, lecturaManual: true };
+const DEFECTO: AjustesOcr = { motor: process.platform === "darwin" ? "vision" : "rapido-cpu", simultaneas: 0, lecturaManual: false };
 
 const G = globalThis as unknown as { __ajustesOcr?: { valor: AjustesOcr; leidoEn: number } };
 
+/** Motor elegido solo para la lectura que se está haciendo (por ejemplo, al releer un pedido con otro motor), sin cambiar el de Configuración. */
+const motorDeEstaLectura = new AsyncLocalStorage<MotorOcr>();
+
+/** Ejecuta `tarea` con el motor indicado en lugar del de Configuración (vale para todo lo que esa tarea lea). */
+export function conMotor<T>(motor: MotorOcr | undefined, tarea: () => Promise<T>): Promise<T> {
+  return motor ? motorDeEstaLectura.run(motor, tarea) : tarea();
+}
+
 /** Ajustes ya leídos (sin esperar a la base de datos); `cargarAjustesOcr` los refresca. */
-export const ajustesOcr = (): AjustesOcr => G.__ajustesOcr?.valor ?? DEFECTO;
+export const ajustesOcr = (): AjustesOcr => {
+  const base = G.__ajustesOcr?.valor ?? DEFECTO;
+  const forzado = motorDeEstaLectura.getStore();
+  return forzado ? { ...base, motor: forzado } : base;
+};
 
 export const esMotor = (v: unknown): v is MotorOcr => typeof v === "string" && (MOTORES as string[]).includes(v);
 

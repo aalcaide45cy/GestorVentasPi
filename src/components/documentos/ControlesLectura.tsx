@@ -43,7 +43,7 @@ export default function ControlesLectura({ parte = "pedidos" }: { parte?: "motor
   };
 
   const esperando = resumen?.subiendo ?? 0;
-  const manual = resumen?.manual ?? a?.lecturaManual ?? true;
+  const manual = resumen?.manual ?? a?.lecturaManual ?? false;
   if (parte === "motor") {
     if (!a) return null;
     return (
