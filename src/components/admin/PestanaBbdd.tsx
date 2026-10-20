@@ -161,6 +161,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
     <div className="glass-panel" style={{ ...estiloPanel, padding: "32px" }}>
       <SubPestanas
         id="bbdd"
+        guiaBase="config.bbdd"
         pestanas={[
           { clave: "analisis", etiqueta: "🔍 Análisis y limpieza", ayuda: "Busca registros huérfanos y cosas a revisar en la base de datos", insignia: analisis ? analisis.stats.totalAnomalies + analisis.stats.totalARevisar : undefined },
           { clave: "papelera", etiqueta: "🗑️ Papelera y purga", ayuda: "Todo lo eliminado que sigue guardado: verlo, descargarlo y purgarlo de verdad" },

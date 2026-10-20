@@ -6,6 +6,7 @@ import type { Seccion } from "@/lib/servicios/intercambio";
 import type { EstadoVehiculoDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import { BotonesDatosSeccion } from "./datos/DatosSeccion";
+import BotonAyuda from "./BotonAyuda";
 import PestanaBbdd from "./admin/PestanaBbdd";
 import PestanaEstados from "./admin/PestanaEstados";
 import PestanaExpedientes from "./admin/PestanaExpedientes";
@@ -72,9 +73,12 @@ export default function AdminCatalogosForm({
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       <div style={{ display: "flex", justifyContent: "center", gap: "10px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", flexWrap: "wrap" }}>
         {PESTANAS.map((p) => (
-          <button key={p.clave} type="button" className={`btn ${pestana === p.clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setPestana(p.clave)} style={{ padding: "10px 20px", fontSize: "0.9rem" }}>
-            {p.etiqueta}
-          </button>
+          <span key={p.clave} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <button type="button" className={`btn ${pestana === p.clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setPestana(p.clave)} style={{ padding: "10px 20px", fontSize: "0.9rem" }}>
+              {p.etiqueta}
+            </button>
+            <BotonAyuda guia={`config.${p.clave}`} />
+          </span>
         ))}
       </div>
 

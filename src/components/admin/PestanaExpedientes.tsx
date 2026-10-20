@@ -106,6 +106,7 @@ export default function PestanaExpedientes() {
 
       <SubPestanas
         id="config-expedientes"
+        guiaBase="config.expedientes"
         pestanas={[
           { clave: "lista", etiqueta: "📄 Lista", ayuda: "Cuántos expedientes se ven por página, qué se ve al abrir la lista y si se recuerda el filtro" },
           { clave: "modos", etiqueta: "🔓 Selección y eliminación", ayuda: "Cuánto tiempo se quedan activos los modos de selección y de eliminación de la lista" },

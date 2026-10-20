@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
+import BotonAyuda from "@/components/BotonAyuda";
 import { useToast } from "@/components/Toast";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 import { llamar, textoError } from "./api";
@@ -249,8 +250,8 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
         {PESTANAS.map((p) => {
           const activa = pestana === p.id;
           return (
+            <span key={p.id} style={{ display: "inline-flex", alignItems: "center", marginBottom: "-1px" }}>
             <button
-              key={p.id}
               type="button"
               role="tab"
               aria-selected={activa}
@@ -263,7 +264,6 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
                 background: "transparent",
                 border: "none",
                 borderBottom: `2px solid ${activa ? "var(--primary)" : "transparent"}`,
-                marginBottom: "-1px",
                 color: activa ? "var(--text-primary)" : "var(--text-secondary)",
                 fontWeight: activa ? 700 : 600,
                 fontSize: "0.95rem",
@@ -275,6 +275,8 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
               <span aria-hidden="true">{p.icono}</span>
               {p.titulo}
             </button>
+            <BotonAyuda guia={`plan.${p.id}`} />
+            </span>
           );
         })}
       </div>

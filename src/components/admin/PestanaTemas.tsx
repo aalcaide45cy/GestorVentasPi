@@ -101,6 +101,7 @@ export default function PestanaTemas() {
 
       <SubPestanas
         id="temas"
+        guiaBase="config.temas"
         pestanas={[
           { clave: "oscuros", etiqueta: "🌙 Oscuros", insignia: oscuros.length, ayuda: "Temas de fondo oscuro" },
           { clave: "claros", etiqueta: "☀️ Claros", insignia: claros.length, ayuda: "Temas de fondo claro" },

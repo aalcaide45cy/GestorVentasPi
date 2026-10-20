@@ -1,0 +1,23 @@
+import { describe, expect, it } from "vitest";
+import { GUIAS } from "./guias";
+
+// Una guía por cada pestaña que lleva «i»: si se añade una pestaña, hay que escribir su guía
+const PESTANAS = [
+  ...["marcas", "modelos", "tiendas", "pagos", "estados", "expedientes", "bbdd", "temas"].map((c) => `config.${c}`),
+  ...["analisis", "papelera", "datos", "copias", "sistema", "rendimiento", "registro", "peligro"].map((c) => `config.bbdd.${c}`),
+  ...["lista", "modos", "foto"].map((c) => `config.expedientes.${c}`),
+  ...["oscuros", "claros", "originales"].map((c) => `config.temas.${c}`),
+  ...["mes", "historico", "importes", "rejillas", "nomina"].map((c) => `cotejo.${c}`),
+  ...["resumen", "objetivo", "modelos", "usados", "reglas", "bonus", "penalizaciones", "liquidacion", "notas"].map((c) => `plan.${c}`),
+];
+
+describe("guías de las pestañas", () => {
+  it.each(PESTANAS)("%s tiene su guía completa", (clave) => {
+    const g = GUIAS[clave];
+    expect(g, `falta la guía ${clave}`).toBeDefined();
+    expect(g.titulo.trim()).not.toBe("");
+    expect(g.queEs.trim().length).toBeGreaterThan(20);
+    expect(g.pasos.length).toBeGreaterThan(0);
+    g.pasos.forEach((p) => expect(p.trim()).not.toBe(""));
+  });
+});

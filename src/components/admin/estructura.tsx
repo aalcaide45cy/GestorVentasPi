@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import BotonAyuda from "@/components/BotonAyuda";
 import { usePreferencia } from "@/lib/preferencias";
 
 /**
@@ -18,7 +19,8 @@ export interface SubPestana {
 }
 
 /** Fila de subpestañas con el contenido de la elegida debajo. La pestaña abierta se recuerda por `id`. */
-export function SubPestanas({ id, pestanas, children }: { id: string; pestanas: SubPestana[]; children: (clave: string) => ReactNode }) {
+/** Con `guiaBase` («config.bbdd»), cada pestaña lleva una «i» con su guía de uso (clave `guiaBase.clavePestaña` en `lib/guias.ts`). */
+export function SubPestanas({ id, pestanas, guiaBase, children }: { id: string; pestanas: SubPestana[]; guiaBase?: string; children: (clave: string) => ReactNode }) {
   const [guardada, guardar] = usePreferencia(`subpestana-${id}`);
   const actual = pestanas.some((p) => p.clave === guardada) ? (guardada as string) : pestanas[0].clave;
   return (
@@ -27,8 +29,8 @@ export function SubPestanas({ id, pestanas, children }: { id: string; pestanas: 
         {pestanas.map((p) => {
           const activa = p.clave === actual;
           return (
+            <span key={p.clave} style={{ display: "inline-flex", alignItems: "center", gap: "2px", marginBottom: "-1px" }}>
             <button
-              key={p.clave}
               type="button"
               role="tab"
               aria-selected={activa}
@@ -44,7 +46,6 @@ export function SubPestanas({ id, pestanas, children }: { id: string; pestanas: 
                 borderBottom: `3px solid ${activa ? "var(--primary)" : "transparent"}`,
                 borderRadius: "var(--radius-sm) var(--radius-sm) 0 0",
                 cursor: "pointer",
-                marginBottom: "-1px",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "8px",
@@ -55,6 +56,8 @@ export function SubPestanas({ id, pestanas, children }: { id: string; pestanas: 
                 <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "1px 7px", borderRadius: "999px", background: "var(--bg-surface-tint)", color: "var(--text-secondary)" }}>{p.insignia}</span>
               )}
             </button>
+            {guiaBase && <BotonAyuda guia={`${guiaBase}.${p.clave}`} />}
+            </span>
           );
         })}
       </div>
