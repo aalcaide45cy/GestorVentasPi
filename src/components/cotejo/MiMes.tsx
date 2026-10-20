@@ -18,6 +18,8 @@ interface Props {
   vendedores: { id: number; nombre: string }[];
   idUsuarioActual: number;
   esAdministrador: boolean;
+  /** Dentro de la vista de cotejo del mes: el vendedor y el mes los manda esa vista, así que no se repiten los controles. */
+  integrada?: { idVendedor: number };
 }
 
 type Respuesta = (ResultadoMes & { expedientes?: Record<string, { cliente: string; vehiculo: string; matricula: string | null }> }) | null;
@@ -47,8 +49,9 @@ interface Fila {
  * «Mi mes»: la lista de los coches que deberían venir en la rejilla de la empresa en ese mes, con lo que te corresponde por cada
  * uno (coche, financiación, Preference y bonus). Sirve para ir tachando a mano con la hoja delante.
  */
-export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdministrador }: Props) {
-  const [idVendedor, setIdVendedor] = useState(idUsuarioActual);
+export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdministrador, integrada }: Props) {
+  const [idVendedorPropio, setIdVendedor] = useState(idUsuarioActual);
+  const idVendedor = integrada?.idVendedor ?? idVendedorPropio;
   const [mesGuardado, guardarMes] = usePreferencia("cotejo-mes");
   const mes = /^\d{4}-\d{2}$/.test(mesGuardado ?? "") ? (mesGuardado as string) : mesActual();
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -129,7 +132,7 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
   ];
 
   return (
-    <section className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+    <section className={integrada ? undefined : "glass-panel"} style={{ padding: integrada ? 0 : "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
         <div>
           <h2 style={{ fontSize: "1.15rem", margin: 0 }}>🚗 Coches que deberían venir en la rejilla de {nombreMes(mes)}</h2>
@@ -137,7 +140,7 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
             Con la hoja de la empresa delante, ve marcando cada coche cuando lo encuentres. Lo que te falte por marcar es lo que hay que reclamar.
           </p>
         </div>
-        {esAdministrador && (
+        {esAdministrador && !integrada && (
           <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem" }}>
             Vendedor
             <select className="form-input" value={idVendedor} onChange={(e) => setIdVendedor(Number(e.target.value))}>
@@ -152,16 +155,20 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
       </div>
 
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" className="btn btn-secondary" onClick={() => guardarMes(sumarMeses(mes, -1))}>
-          ◀ Anterior
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => guardarMes(mesActual())} disabled={mes === mesActual()}>
-          Mes actual
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => guardarMes(sumarMeses(mes, 1))}>
-          Siguiente ▶
-        </button>
-        <input type="month" className="form-input" value={mes} onChange={(e) => e.target.value && guardarMes(e.target.value)} style={{ width: "auto" }} />
+        {!integrada && (
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => guardarMes(sumarMeses(mes, -1))}>
+              ◀ Anterior
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => guardarMes(mesActual())} disabled={mes === mesActual()}>
+              Mes actual
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => guardarMes(sumarMeses(mes, 1))}>
+              Siguiente ▶
+            </button>
+            <input type="month" className="form-input" value={mes} onChange={(e) => e.target.value && guardarMes(e.target.value)} style={{ width: "auto" }} />
+          </>
+        )}
         <label style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "0.85rem", marginLeft: "auto" }}>
           <input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} /> Ver solo los que me faltan por marcar
         </label>

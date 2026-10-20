@@ -367,3 +367,5 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] 1.3.0: el estado de la intranet se guarda como texto en `expedientes.estado_intranet` (no cambia el estado del vehículo de la app) para filtrar anulados y archivados.
 - [D] 1.3.0: un pago de RCI se aplica solo cuando el expediente se identifica sin duda (bastidor o matrícula sin contradicción de documento, o el único expediente del cliente que puede llevarlo); si no, queda pendiente. Todo se puede deshacer.
 - [D] 1.3.0: «Deshabilitar» expedientes anulados en el listado es opcional y por fila, no automático.
+- [D] 1.4.4: un coche se asigna a un mes para verlo por meses así: el de la rejilla donde se pagó si era uno de sus meses esperados; si no, el último mes en que debía cobrarse; sin fecha, a «Sin mes». Una matrícula de la rejilla sin coche cuenta en el mes de esa rejilla.
+- [D] 1.4.4: «Mi mes» y «¿Me han pagado cada coche?» se unen en una sola pestaña (la preferencia guardada «pago» vuelve a «Mi mes»).

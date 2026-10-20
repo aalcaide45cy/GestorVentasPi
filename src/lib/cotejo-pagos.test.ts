@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cotejarPagos, distancia, mesesEsperados, sugerirMes, type CocheCotejo, type PagoRejilla } from "./cotejo-pagos";
+import { cotejarPagos, distancia, filasDelMes, filasSinMes, mesDeFila, mesesEsperados, resumenPorMes, sugerirMes, type CocheCotejo, type PagoRejilla } from "./cotejo-pagos";
 
 const coche = (o: Partial<CocheCotejo>): CocheCotejo => ({
   origen: "app", id_expediente: 1, cliente: "Ana Ruiz", tipo_pago: "Contado", marca: "Dacia", modelo: "Sandero", matricula: "1234BCD",
@@ -94,5 +94,30 @@ describe("ajustarLecturas", () => {
     const { ajustarLecturas } = await import("./cotejo-pagos");
     expect(ajustarLecturas([{ matricula: "1234BCD", confianza: 95 }], ["1234BCE"])[0].matricula).toBe("1234BCD");
     expect(ajustarLecturas([{ matricula: "1234BCX", confianza: 55 }], ["1234BCD", "1234BCE"])[0].matricula).toBe("1234BCX");
+  });
+});
+
+describe("cotejo por meses", () => {
+  const cocheMes = (matricula: string, f_matriculacion: string | null, extra: Partial<CocheCotejo> = {}): CocheCotejo => ({ origen: "app", id_expediente: 1, cliente: "X", tipo_pago: "", marca: "Renault", modelo: "Clio", matricula, f_expediente: null, f_afectacion: null, f_matriculacion, f_entrega: null, estado: "", usado: false, ...extra });
+
+  it("asigna cada coche al mes en que debía cobrarse y cuenta los estados por mes", () => {
+    const r = cotejarPagos(
+      [cocheMes("1111AAA", "2026-04-10"), cocheMes("2222BBB", "2026-04-20"), cocheMes("3333CCC", "2026-03-05"), cocheMes("4444DDD", null)],
+      [{ mes: "2026-04", matricula: "1111AAA", importe: null }, { mes: "2026-03", matricula: "9999ZZZ", importe: null }, { mes: "2026-03", matricula: "3333CCC", importe: null }],
+    );
+    const abril = filasDelMes(r.filas, "2026-04");
+    expect(abril.map((f) => [f.matricula, f.estado]).sort()).toEqual([["1111AAA", "pagado"], ["2222BBB", "no_pagado"]]);
+    // La matrícula de la rejilla de marzo que no es de ningún coche cuenta en marzo
+    expect(filasDelMes(r.filas, "2026-03").map((f) => f.matricula).sort()).toEqual(["3333CCC", "9999ZZZ"]);
+    expect(filasSinMes(r.filas).map((f) => f.matricula)).toEqual(["4444DDD"]);
+    expect(resumenPorMes(r.filas).get("2026-04")).toEqual({ total: 2, pagados: 1, dudosos: 0, noPagados: 1, sinRejilla: 0 });
+  });
+
+  it("un usado cobrado en uno de sus meses cuenta en ese mes; si falta, en el último que le correspondía", () => {
+    const usado = cocheMes("5555EEE", null, { usado: true, f_afectacion: "2026-02-10", f_entrega: "2026-03-20" });
+    const pagado = cotejarPagos([usado], [{ mes: "2026-02", matricula: "5555EEE", importe: null }]);
+    expect(mesDeFila(pagado.filas[0])).toBe("2026-02");
+    const falta = cotejarPagos([usado], [{ mes: "2026-02", matricula: "0000ZZZ", importe: null }, { mes: "2026-03", matricula: "0001ZZZ", importe: null }]);
+    expect(mesDeFila(falta.filas.find((f) => f.matricula === "5555EEE")!)).toBe("2026-03");
   });
 });

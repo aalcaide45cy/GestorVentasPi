@@ -255,3 +255,46 @@ export function sugerirMes(matriculas: string[], coches: CocheCotejo[]): string 
   for (const [m, n] of cuenta) if (mejor === null || n > (cuenta.get(mejor) ?? 0)) mejor = m;
   return mejor;
 }
+
+/**
+ * Mes al que se asigna una fila para verla por meses: el mes de la rejilla donde se pagó si era uno de los que le correspondían; si no,
+ * el último mes en que debía cobrarse (donde se echa en falta). Una matrícula de la rejilla sin coche cuenta en el mes de esa rejilla.
+ * Devuelve null si el coche no tiene fecha para saber en qué mes cobrarlo.
+ */
+export function mesDeFila(f: FilaCotejo): string | null {
+  if (!f.coche) return f.mesRejilla;
+  const esperados = mesesEsperados(f.coche);
+  if (esperados.length === 0) return null;
+  if (f.mesRejilla && esperados.includes(f.mesRejilla)) return f.mesRejilla;
+  return esperados[esperados.length - 1];
+}
+
+export interface ResumenMes {
+  total: number;
+  pagados: number;
+  dudosos: number;
+  noPagados: number;
+  sinRejilla: number;
+}
+
+const resumenVacio = (): ResumenMes => ({ total: 0, pagados: 0, dudosos: 0, noPagados: 0, sinRejilla: 0 });
+
+/** Recuento de filas por estado, mes a mes (las filas sin mes no cuentan). */
+export function resumenPorMes(filas: FilaCotejo[]): Map<string, ResumenMes> {
+  const m = new Map<string, ResumenMes>();
+  for (const f of filas) {
+    const mes = mesDeFila(f);
+    if (!mes) continue;
+    const r = m.get(mes) ?? resumenVacio();
+    r.total++;
+    if (f.estado === "pagado") r.pagados++;
+    else if (f.estado === "dudoso") r.dudosos++;
+    else if (f.estado === "no_pagado") r.noPagados++;
+    else r.sinRejilla++;
+    m.set(mes, r);
+  }
+  return m;
+}
+
+export const filasDelMes = (filas: FilaCotejo[], mes: string): FilaCotejo[] => filas.filter((f) => mesDeFila(f) === mes);
+export const filasSinMes = (filas: FilaCotejo[]): FilaCotejo[] => filas.filter((f) => mesDeFila(f) === null);

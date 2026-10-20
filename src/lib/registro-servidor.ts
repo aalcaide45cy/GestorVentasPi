@@ -65,7 +65,9 @@ export function instalarRegistroServidor(): void {
       } finally {
         G.__registroEnConsola = false;
       }
-      anotar(nivel === "log" ? "INFO" : nivel.toUpperCase(), format(...args));
+      // Lo que Next escribe con `console` (peticiones, «✓ Compiled…») también es ruido, y en desarrollo anotarlo provoca el bucle de recompilar
+      const texto = format(...args);
+      if (!RUIDO.test(texto.replace(ANSI, "").split(/\r?\n/)[0])) anotar(nivel === "log" ? "INFO" : nivel.toUpperCase(), texto);
     };
   }
   for (const [flujo, nivel] of [[process.stdout, "INFO"], [process.stderr, "ERROR"]] as const) {

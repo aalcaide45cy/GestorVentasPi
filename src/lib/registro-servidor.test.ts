@@ -61,4 +61,15 @@ describe("registro del servidor", () => {
     expect(nuevas[1]).toMatch(/\[INFO\] Linea con color$/);
     expect(nuevas[2]).toMatch(/\[ERROR\] fallo directo por stderr$/);
   });
+
+  it("tampoco anota las líneas de compilar y de peticiones que Next escribe con console (provocarían el bucle de recargas)", async () => {
+    const antes = (await leerRegistro({ nivel: "todo", lineas: 5000 })).entradas.length;
+    console.log("\u001b[32m✓\u001b[0m Compiled in 2ms");
+    console.log(" GET /login 200 in 43ms (next.js: 4ms)");
+    console.log("Línea que sí cuenta");
+    await esperar(300);
+    const nuevas = (await leerRegistro({ nivel: "todo", lineas: 5000 })).entradas.slice(antes);
+    expect(nuevas).toHaveLength(1);
+    expect(nuevas[0]).toMatch(/Línea que sí cuenta$/);
+  });
 });
