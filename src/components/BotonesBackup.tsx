@@ -78,8 +78,8 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al restaurar la copia de seguridad."));
       const r = (await res.json()) as { message?: string };
       mostrar(r.message ?? "Copia restaurada.");
+      // Sin recargar la página: los datos nuevos llegan con el refresco suave
       router.refresh();
-      setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error al procesar el archivo de copia de seguridad JSON.", "error");
     } finally {
