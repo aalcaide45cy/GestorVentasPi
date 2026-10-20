@@ -367,15 +367,19 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
   const [informe, setInforme] = useState<Informe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
+  // Planes: crear las marcas y modelos que el archivo usa y todavía no existen (marcado por defecto)
+  const [crearCatalogo, setCrearCatalogo] = useState(true);
+  // El archivo se puede ver y corregir a mano antes de aplicarlo
+  const [textoArchivo, setTextoArchivo] = useState("");
   // El servidor sigue pidiendo la palabra de confirmación: se manda sola, porque la verificación es el doble clic del botón
   const palabra = modo === "sustituir" ? "SUSTITUIR" : "IMPORTAR";
 
-  const previsualizar = async (p: unknown, m: Modo) => {
+  const previsualizar = async (p: unknown, m: Modo, crear = crearCatalogo) => {
     setTrabajando(true);
     setError(null);
     setInforme(null);
     try {
-      const { extra } = await llamar("/api/admin/datos/importar", { method: "POST", cuerpo: { paquete: p, modo: m, aplicar: false, seccion: seccion.seccion } });
+      const { extra } = await llamar("/api/admin/datos/importar", { method: "POST", cuerpo: { paquete: p, modo: m, aplicar: false, seccion: seccion.seccion, opciones: { crearCatalogo: crear } } });
       setInforme(extra.informe as Informe);
     } catch (e) {
       setError(textoError(e));
@@ -394,11 +398,28 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
       const p = JSON.parse(await archivo.text()) as unknown;
       setPaquete(p);
       setNombreArchivo(archivo.name);
+      setTextoArchivo(JSON.stringify(p, null, 2).length <= 400_000 ? JSON.stringify(p, null, 2) : "");
       await previsualizar(p, modo);
     } catch {
       setPaquete(null);
       setError("No se pudo leer el archivo: no es un JSON válido.");
     }
+  };
+
+  /** Vuelve a analizar el archivo después de corregirlo a mano en el cuadro de texto. */
+  const reanalizarTexto = async () => {
+    try {
+      const p = JSON.parse(textoArchivo) as unknown;
+      setPaquete(p);
+      await previsualizar(p, modo);
+    } catch {
+      setError("El texto del archivo no es un JSON válido: corrígelo (comillas, comas y llaves) y vuelve a analizar.");
+    }
+  };
+
+  const cambiarCatalogo = (v: boolean) => {
+    setCrearCatalogo(v);
+    if (paquete) void previsualizar(paquete, modo, v);
   };
 
   const cambiarModo = (m: Modo) => {
@@ -411,7 +432,7 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
     setTrabajando(true);
     setError(null);
     try {
-      const { extra } = await llamar("/api/admin/datos/importar", { method: "POST", cuerpo: { paquete, modo, aplicar: true, seccion: seccion.seccion, confirmacion: palabra } });
+      const { extra } = await llamar("/api/admin/datos/importar", { method: "POST", cuerpo: { paquete, modo, aplicar: true, seccion: seccion.seccion, confirmacion: palabra, opciones: { crearCatalogo } } });
       const r = extra.informe as Informe;
       const copia = extra.copia as { nombre: string; creadaAhora: boolean } | null;
       mostrar(
@@ -464,7 +485,42 @@ export function ModalImportar({ seccion, alCerrar, alTerminar }: { seccion: Secc
             🛑 {error}
           </div>
         )}
+        {informe?.faltan && (informe.faltan.marcas.length > 0 || informe.faltan.modelos.length > 0) && (
+          <div style={{ padding: "10px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", cursor: "pointer" }} title="Los planes usan coches (marcas y modelos) que todavía no existen en esta aplicación. Con la casilla marcada se crean antes de importar; sin marcar, los planes que los usen se omiten.">
+              <input type="checkbox" checked={crearCatalogo} disabled={trabajando} onChange={(e) => cambiarCatalogo(e.target.checked)} style={{ marginTop: "3px", accentColor: "var(--primary)" }} />
+              <span>
+                <b>Crear los coches que faltan</b> ({informe.faltan.marcas.length > 0 ? `${informe.faltan.marcas.length} marca(s)` : ""}
+                {informe.faltan.marcas.length > 0 && informe.faltan.modelos.length > 0 ? " y " : ""}
+                {informe.faltan.modelos.length > 0 ? `${informe.faltan.modelos.length} modelo(s)` : ""}) antes de importar los planes.
+                <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{[...informe.faltan.marcas.map((m) => `Marca ${m}`), ...informe.faltan.modelos.map((m) => `Modelo ${m}`)].slice(0, 12).join(" · ")}</div>
+              </span>
+            </label>
+          </div>
+        )}
+        {informe?.faltan && informe.faltan.vendedores.length > 0 && (
+          <div role="note" style={{ padding: "8px 12px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", fontSize: "0.85rem" }}>
+            Faltan vendedores (usuarios) que usa el archivo: {informe.faltan.vendedores.join(", ")}. Hay que crearlos en Configuración › Usuarios; los planes que los usen se omitirán.
+          </div>
+        )}
         {informe && <VistaPrevia informe={informe} modo={modo} hayCambios={hayCambios} textoAntes="Antes se guardarán una copia interna de esta sección y una copia de seguridad del estado actual." />}
+        {paquete !== null && (
+          <details style={{ fontSize: "0.85rem" }}>
+            <summary style={{ cursor: "pointer" }} title="Ver el contenido del archivo y corregirlo a mano antes de aplicarlo">
+              ✏️ Ver o editar el archivo a mano
+            </summary>
+            {textoArchivo === "" ? (
+              <div style={{ marginTop: "6px", color: "var(--text-muted)" }}>El archivo es demasiado grande para editarlo aquí.</div>
+            ) : (
+              <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <textarea className="form-input" value={textoArchivo} onChange={(e) => setTextoArchivo(e.target.value)} spellCheck={false} style={{ fontFamily: "monospace", fontSize: "0.78rem", minHeight: "180px", resize: "vertical" }} />
+                <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start", padding: "4px 12px" }} disabled={trabajando} onClick={() => void reanalizarTexto()} title="Vuelve a analizar el archivo con lo que has escrito; no cambia nada hasta que apliques">
+                  Volver a analizar
+                </button>
+              </div>
+            )}
+          </details>
+        )}
       </div>
     </Modal>
   );
