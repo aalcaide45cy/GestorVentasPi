@@ -57,14 +57,14 @@ export default function IndicadorTareas() {
   useEffect(
     () =>
       alTerminarTarea((t) => {
-        // Cuando la persona ha visto el aviso, la tarea ya no hace falta en la lista
+        // El aviso queda en el registro de notificaciones, así que la tarea ya no hace falta en la lista
         void notificar({
           titulo: t.titulo,
           texto: t.estado === "terminada" ? "La tarea ha terminado correctamente." : t.estado === "error" ? `La tarea ha fallado: ${t.error ?? "error desconocido"}` : t.texto || "La tarea se ha cancelado.",
           detalles: resumenResultado(t.resultado),
           tipo: t.estado === "terminada" ? "exito" : t.estado === "error" ? "error" : "aviso",
-          duracionMs: 0,
-        }).then(() => descartarTareaServidor(t.id));
+        });
+        void descartarTareaServidor(t.id);
       }),
     [notificar],
   );
