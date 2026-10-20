@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import BarraHistorial from "@/components/BarraHistorial";
+import BotonAyuda from "@/components/BotonAyuda";
 import BotonApagar, { BotonReiniciarServidor } from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
@@ -42,7 +43,20 @@ interface EnlaceNavProps {
   children: ReactNode;
 }
 
-function EnlaceNav({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda, punto }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string; punto?: string }) {
+/** Entrada del menú con, a su derecha, la «i» de la guía de uso de esa pantalla (con el menú plegado no hay sitio y no sale). */
+function EnlaceNav({ guia, ...props }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string; punto?: string; guia?: string }) {
+  if (!guia || props.colapsado) return <EnlaceNavBase {...props} />;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <EnlaceNavBase {...props} />
+      </div>
+      <BotonAyuda guia={guia} />
+    </div>
+  );
+}
+
+function EnlaceNavBase({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda, punto }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string; punto?: string }) {
   const ruta = usePathname();
   if (alPulsar) {
     return (
@@ -399,7 +413,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
 
         {/* Navegación */}
         <nav style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <EnlaceNav href="/dashboard" titulo="Dashboard" colapsado={isCollapsed}>
+          <EnlaceNav href="/dashboard" titulo="Dashboard" guia="menu.dashboard" colapsado={isCollapsed}>
             <rect x="3" y="3" width="7" height="9" />
             <rect x="14" y="3" width="7" height="5" />
             <rect x="14" y="12" width="7" height="9" />
@@ -408,11 +422,11 @@ export default function Sidebar({ user, version }: SidebarProps) {
 
           {isVendedorOrUp && (
             <>
-              <EnlaceNav href="/dashboard/expedientes" titulo="Expedientes" colapsado={isCollapsed}>
+              <EnlaceNav href="/dashboard/expedientes" titulo="Expedientes" guia="menu.expedientes" colapsado={isCollapsed}>
                 <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
                 <polyline points="14 2 14 8 20 8" />
               </EnlaceNav>
-              <EnlaceNav href="/dashboard/clientes" titulo="Clientes" colapsado={isCollapsed}>
+              <EnlaceNav href="/dashboard/clientes" titulo="Clientes" guia="menu.clientes" colapsado={isCollapsed}>
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -422,7 +436,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
           )}
 
           {isAdmin && (
-            <EnlaceNav href="/dashboard/admin" titulo="Configuración" colapsado={isCollapsed} punto={avisoCopias?.excede ? (avisoCopias.motivo ?? "Hay demasiadas copias de seguridad") : undefined}>
+            <EnlaceNav href="/dashboard/admin" titulo="Configuración" guia="menu.configuracion" colapsado={isCollapsed} punto={avisoCopias?.excede ? (avisoCopias.motivo ?? "Hay demasiadas copias de seguridad") : undefined}>
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </EnlaceNav>
@@ -430,27 +444,27 @@ export default function Sidebar({ user, version }: SidebarProps) {
 
           {isVendedorOrUp && (
             <>
-              <EnlaceNav href="/dashboard/comisiones" titulo="Comisiones" colapsado={isCollapsed} insignia={avisosRejilla?.total}>
+              <EnlaceNav href="/dashboard/comisiones" titulo="Comisiones" guia="menu.comisiones" colapsado={isCollapsed} insignia={avisosRejilla?.total}>
                 <line x1="12" y1="1" x2="12" y2="23" />
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </EnlaceNav>
-              <EnlaceNav href="/dashboard/cotejo-pagos" titulo="Cotejo de pagos" colapsado={isCollapsed}>
+              <EnlaceNav href="/dashboard/cotejo-pagos" titulo="Cotejo de pagos" guia="menu.cotejo" colapsado={isCollapsed}>
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </EnlaceNav>
-              <EnlaceNav href="/dashboard/informes" titulo="Informes" colapsado={isCollapsed}>
+              <EnlaceNav href="/dashboard/informes" titulo="Informes" guia="menu.informes" colapsado={isCollapsed}>
                 <line x1="18" y1="20" x2="18" y2="10" />
                 <line x1="12" y1="20" x2="12" y2="4" />
                 <line x1="6" y1="20" x2="6" y2="14" />
               </EnlaceNav>
-              <EnlaceNav href="/dashboard/log-importacion" titulo="Log Importación" colapsado={isCollapsed}>
+              <EnlaceNav href="/dashboard/log-importacion" titulo="Log Importación" guia="menu.log-importacion" colapsado={isCollapsed}>
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
                 <line x1="16" y1="13" x2="8" y2="13" />
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10 9 9 9 8 9" />
               </EnlaceNav>
-              <EnlaceNav href="/dashboard/log-lecturas" titulo="Log Lecturas" colapsado={isCollapsed}>
+              <EnlaceNav href="/dashboard/log-lecturas" titulo="Log Lecturas" guia="menu.log-lecturas" colapsado={isCollapsed}>
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <path d="M7 8h10M7 12h10M7 16h6" />
               </EnlaceNav>
@@ -460,6 +474,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
             <EnlaceNav
               href="#"
               titulo="Laboratorio"
+              guia="menu.laboratorio"
               colapsado={isCollapsed}
               activo={labAbierto === "true"}
               ayuda="Abre o cierra el laboratorio de comisiones: toca reglas y mira cómo se mueven los puntos, el tramo y la comisión sin guardar nada"

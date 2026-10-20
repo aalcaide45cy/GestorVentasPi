@@ -14,6 +14,95 @@ export interface Guia {
 }
 
 export const GUIAS: Record<string, Guia> = {
+  /* ---------------- Menú lateral ---------------- */
+  "menu.dashboard": {
+    titulo: "Dashboard",
+    queEs: "La pantalla de inicio: el resumen de tu actividad y los accesos rápidos para crear expedientes y subir documentos.",
+    pasos: [
+      "Arriba ves el objetivo del mes, los expedientes del mes y totales, los clientes registrados y el reparto por tipo de pago.",
+      "«Últimos expedientes activos» lista los más recientes: pulsa uno para abrirlo, o arrastra el pedido de un cliente sobre un expediente para rellenarlo.",
+      "«Acceso rápido a modelos»: pulsa el método de pago bajo un modelo para crear un expediente de venta al instante, o arrastra ahí el pedido del cliente.",
+      "«Pedidos de clientes»: arrastra o sube los PDF o fotos de los pedidos; la aplicación lee los datos y los deja en una cola para revisarlos.",
+      "«Pagos de la financiera (RCI)»: sube el PDF del pago y la aplicación fija la fecha RCI del expediente.",
+    ],
+    ojo: ["Si la lectura es manual, tras subir pedidos hay que pulsar «Iniciar lectura».", "El motor de lectura (OCR) se elige junto a las zonas de subida."],
+  },
+  "menu.expedientes": {
+    titulo: "Expedientes",
+    queEs: "El listado completo de ventas y su seguimiento: crear, buscar, filtrar, editar y exportar expedientes.",
+    pasos: [
+      "«Nuevo expediente» crea una venta; también se puede crear desde el Dashboard.",
+      "Con «Filtrado y búsqueda avanzada» filtras por mes (los atajos «Se cobra en» y «Afectados en» van mes a mes), campo de fecha, vendedor, tipo de venta, estado del vehículo y estado de la intranet.",
+      "Pulsa la cabecera de una columna para ordenar. «Columnas y vistas» elige qué columnas ver y su orden; pasa el ratón por una cabecera para ver qué significa.",
+      "Pulsa un expediente para editarlo. Con doble clic sobre un valor se copia.",
+      "«Selección» y «Eliminación» están bloqueadas por seguridad: pulsa el candado para activarlas un rato y poder actuar sobre varios expedientes.",
+      "«Importar y exportar» saca los expedientes a un archivo, los trae de otro, y completa datos desde los Excel de la intranet.",
+    ],
+    ojo: ["Lo eliminado va a la papelera (Configuración › BBDD › Papelera) y se puede recuperar.", "Los cambios recientes se pueden deshacer con «Deshacer» de la barra lateral."],
+  },
+  "menu.clientes": {
+    titulo: "Clientes",
+    queEs: "La base de clientes: su ficha con datos de contacto (correos y teléfonos) y los documentos que hayas subido.",
+    pasos: ["Busca un cliente por nombre, correo, teléfono o documento.", "Pulsa un cliente para ver o editar su ficha y sus expedientes.", "Al dejar el ratón sobre un nombre se ve su foto (tomada del DNI), si la hay."],
+    ojo: ["Un cliente se crea al hacer un expediente o al leer su pedido; también se puede crear a mano."],
+  },
+  "menu.configuracion": {
+    titulo: "Configuración",
+    queEs: "Todo lo que se ajusta de la aplicación, solo para administradores: usuarios y roles, marcas y modelos, tiendas, tipos de pago, estados, preferencias, base de datos y tema.",
+    pasos: [
+      "«Gestión de usuarios y roles»: alta de usuarios, cambio de rol, bloqueo, restablecer contraseña o doble factor.",
+      "Debajo, las pestañas (Marcas, Modelos, Tiendas, Pagos, Estados, Expedientes, BBDD y Tema), cada una con su propia «i» de guía.",
+      "En BBDD están las copias de seguridad, la papelera, las actualizaciones y el estado del equipo.",
+    ],
+    ojo: ["Un punto rojo junto a «Configuración» avisa de que hay demasiadas copias de seguridad.", "Lo que cambias aquí afecta a todos los usuarios."],
+  },
+  "menu.comisiones": {
+    titulo: "Comisiones",
+    queEs: "Los planes de comisionamiento: cuánto se cobra por cada coche según el plan del mes. De aquí salen las liquidaciones.",
+    pasos: [
+      "«Nuevo plan» crea un plan; se puede partir de una plantilla o importar uno de un archivo.",
+      "Abre un plan para editarlo por pestañas (Resumen, Objetivo, VN, Usados, Financiación, Bonus, Penalizaciones, Liquidación y Notas), cada una con su «i».",
+      "En «Liquidación» generas y revisas lo que corresponde mes a mes, vendedor a vendedor.",
+    ],
+    ojo: ["Un número rojo junto a «Comisiones» indica validaciones de comisiones pendientes.", "La validación con la hoja de la empresa y el control de cobros están en «Cotejo de pagos».", "Lo generado en un mes se cobra en la nómina del final del mes siguiente."],
+  },
+  "menu.cotejo": {
+    titulo: "Cotejo de pagos",
+    queEs: "Todo para comprobar que la empresa te ha pagado lo que toca: tu mes, la hoja (rejilla) de la empresa, el histórico de matrículas y tu nómina.",
+    pasos: [
+      "«Mi mes»: eliges un mes, subes la rejilla de la empresa (PDF o foto) y ves qué coches te han pagado y cuáles no, todo en la misma vista.",
+      "«Histórico»: todas las matrículas de tus expedientes frente a todas las leídas de las rejillas guardadas, con un color por fila.",
+      "«¿Cuadran los importes?»: cruza la hoja con tu liquidación del mes, por matrícula e importe.",
+      "«Mis rejillas»: las rejillas guardadas, por mes, para verlas o corregirlas.",
+      "«Mi nómina»: compara tu nómina con la liquidación, concepto a concepto.",
+    ],
+    ojo: ["Las rejillas leídas se revisan antes de guardarse: corrige lo mal leído a mano.", "El motor de lectura (OCR) se puede cambiar en «Mi mes», bajo el botón de subir la hoja."],
+  },
+  "menu.informes": {
+    titulo: "Informes",
+    queEs: "Informes de rendimiento de ventas y comisiones, con gráficos por marca, forma de pago y comercial.",
+    pasos: ["Elige los filtros de consulta (fechas, vendedor, marca…).", "Mira las tarjetas de resumen y los gráficos: distribución por marca, por forma de pago y rendimiento económico por comercial.", "Los datos salen de los expedientes de la aplicación y de las comisiones calculadas."],
+    ojo: ["Si cambias un expediente, el informe se actualiza al volver a consultar."],
+  },
+  "menu.log-importacion": {
+    titulo: "Log de importaciones",
+    queEs: "El registro de todas las cargas de archivos que han creado o modificado expedientes y clientes.",
+    pasos: ["Cada línea es una importación: archivo, fecha y cuántos registros cambió.", "Abre una para ver qué se creó o cambió, registro a registro.", "«Deshacer importación» devuelve los datos a como estaban antes de esa carga."],
+    ojo: ["Quitar una línea del historial no deshace los datos importados: para eso está «Deshacer importación»."],
+  },
+  "menu.log-lecturas": {
+    titulo: "Log de lecturas de pedidos",
+    queEs: "Qué ha pasado con cada PDF o foto que has subido para leer, durante los últimos tres meses.",
+    pasos: ["Filtra por resultado: leído, ignorado por no ser un pedido, fallido…", "Cada línea dice qué se hizo después: expediente creado, completado o quitado de la cola.", "Sirve para localizar un pedido que no entró en la cola o un dato mal leído."],
+    ojo: ["De lo ignorado no se guarda el fichero, solo el principio de lo que se leyó."],
+  },
+  "menu.laboratorio": {
+    titulo: "Laboratorio",
+    queEs: "Un simulador de comisiones: toca reglas y mira cómo se mueven los puntos, el tramo y la comisión sin guardar nada.",
+    pasos: ["Pulsa «Laboratorio» en el menú para abrir o cerrar el panel.", "Cambia reglas o datos del escenario y mira el resultado al momento.", "Al cerrar el panel no se queda nada guardado."],
+    ojo: ["El botón se puede ocultar desde «Mis datos»."],
+  },
+
   /* ---------------- Configuración ---------------- */
   "config.marcas": {
     titulo: "Marcas",
@@ -136,49 +225,6 @@ export const GUIAS: Record<string, Guia> = {
     queEs: "Traer los datos de la aplicación antigua o borrar todos los datos de esta. Son acciones grandes.",
     pasos: ["Para migrar, sigue los pasos que indica el panel.", "Para borrar, elige qué se borra y confirma con doble clic; antes se crea una copia previa."],
     ojo: ["Borrar todo no se puede deshacer salvo restaurando una copia."],
-  },
-
-  /* ---------------- Cotejo de pagos ---------------- */
-  "cotejo.mes": {
-    titulo: "Mi mes",
-    queEs: "Comprueba, mes a mes, que la empresa te ha pagado todos los coches que vendiste. Subes la hoja de comisiones (rejilla) del mes y la aplicación te dice qué coches no aparecen.",
-    pasos: [
-      "Elige el mes arriba. En el carril de meses ves de un vistazo cuáles tienen rejilla y cuántos coches están sin pagar o dudosos.",
-      "Pulsa «Subir la rejilla» (PDF o foto) o arrástrala. La aplicación lee las matrículas de la hoja.",
-      "Revisa las matrículas leídas: las marcadas en amarillo o rojo se han leído con dudas. ✔ es un coche tuyo; ? no coincide con ninguno. Corrige a mano lo que haga falta.",
-      "Mientras no la guardes, el resultado de la derecha ya la usa como vista previa. Cuando esté bien, pulsa «Guardar rejilla».",
-      "Los contadores (No pagados, Dudosos, Pagados…) filtran la tabla de coches del mes. Lo que sale en rojo es lo que hay que reclamar.",
-    ],
-    ojo: ["Si el OCR lee mal, cambia de motor en el selector de debajo del botón.", "Un coche cuenta en el mes de su matriculación (en usados, del mes de afectación al de entrega).", "El desplegable «Con la hoja delante» sirve para marcar a mano cada coche y ver cuánto te corresponde por cada uno."],
-  },
-  "cotejo.historico": {
-    titulo: "Histórico",
-    queEs: "Todas las matrículas de tus expedientes frente a todas las matrículas leídas de las rejillas que has guardado, en una sola tabla y con un color por fila.",
-    pasos: [
-      "Mira los contadores de arriba: cuántas coinciden, cuántos coches no figuran en ninguna rejilla y cuántas matrículas de rejilla no tienen expediente.",
-      "Pulsa un contador para filtrar la tabla. 🟢 coincide, 🔴 el coche no figura en la rejilla de su mes, 🟡 dudoso (otro mes, repetida o parecida), 🟣 está en una rejilla pero no hay expediente con esa matrícula, ⚪ todavía no has subido la rejilla de su mes.",
-      "Cada fila dice en qué mes le tocaba cobrarse y en la rejilla de qué mes figura.",
-      "Usa el buscador para encontrar una matrícula, un cliente o un mes.",
-    ],
-    ojo: ["El histórico crece solo: cada rejilla que guardas en «Mi mes» aporta sus matrículas.", "Las correcciones de matrículas mal leídas se hacen en «Mi mes» o en «Mis rejillas»."],
-  },
-  "cotejo.importes": {
-    titulo: "¿Cuadran los importes?",
-    queEs: "Cruza la hoja de la empresa con tu liquidación de un mes, por matrícula e importe: te dice qué falta, qué sobra, qué es distinto y qué está duplicado.",
-    pasos: ["Elige el mes y el vendedor.", "Sube la hoja de la empresa con sus importes (o usa la guardada).", "Revisa las diferencias: cada línea explica si falta, sobra, el importe no coincide o está repetida.", "Corrige lo mal leído y vuelve a comparar."],
-    ojo: ["Esta pestaña compara importes; para saber solo si te han pagado cada coche, usa «Mi mes»."],
-  },
-  "cotejo.rejillas": {
-    titulo: "Mis rejillas",
-    queEs: "Todas las rejillas que has guardado, por mes, para revisarlas cuando haga falta.",
-    pasos: ["Pulsa una rejilla para ver sus filas, buscar en ellas y ordenarlas.", "Puedes corregir una fila, añadir otra, quitar una o cambiar el mes de la rejilla.", "«Borrar» quita la rejilla entera."],
-    ojo: ["Cambiar una rejilla cambia el cotejo de ese mes."],
-  },
-  "cotejo.nomina": {
-    titulo: "Mi nómina",
-    queEs: "Compara tu nómina con la liquidación, concepto a concepto, para ver si te han pagado todo.",
-    pasos: ["Elige el mes de la nómina.", "Anota o sube lo que figura en tu nómina por cada concepto.", "Marca cada concepto cuando lo veas cobrado: lo que quede sin marcar es lo que falta."],
-    ojo: ["Lo generado en el mes M se cobra en la nómina del final del mes M+1."],
   },
 
   /* ---------------- Plan de comisionamiento ---------------- */

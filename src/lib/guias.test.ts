@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { GUIAS } from "./guias";
 
-// Una guía por cada pestaña que lleva «i»: si se añade una pestaña, hay que escribir su guía
+// Una guía por cada entrada del menú lateral y por cada pestaña que lleva «i»: si se añade una, hay que escribir su guía
 const PESTANAS = [
   ...["marcas", "modelos", "tiendas", "pagos", "estados", "expedientes", "bbdd", "temas"].map((c) => `config.${c}`),
   ...["analisis", "papelera", "datos", "copias", "sistema", "rendimiento", "registro", "peligro"].map((c) => `config.bbdd.${c}`),
   ...["lista", "modos", "foto"].map((c) => `config.expedientes.${c}`),
   ...["oscuros", "claros", "originales"].map((c) => `config.temas.${c}`),
-  ...["mes", "historico", "importes", "rejillas", "nomina"].map((c) => `cotejo.${c}`),
+  ...["dashboard", "expedientes", "clientes", "configuracion", "comisiones", "cotejo", "informes", "log-importacion", "log-lecturas", "laboratorio"].map((c) => `menu.${c}`),
   ...["resumen", "objetivo", "modelos", "usados", "reglas", "bonus", "penalizaciones", "liquidacion", "notas"].map((c) => `plan.${c}`),
 ];
 

@@ -1,6 +1,5 @@
 "use client";
 
-import BotonAyuda from "@/components/BotonAyuda";
 import CotejoCobros from "@/components/comisiones/CotejoCobros";
 import ValidacionRejilla from "@/components/comisiones/ValidacionRejilla";
 import type { CatalogosComisiones } from "@/components/comisiones/tipos";
@@ -47,12 +46,9 @@ export default function CotejoHub({ expedientes, vendedores, esAdministrador, ca
         {PESTANAS.map((p) => {
           const seleccionada = p.id === activa;
           return (
-            <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-              <button type="button" role="tab" aria-selected={seleccionada} className={seleccionada ? "btn btn-primary" : "btn btn-secondary"} onClick={() => guardar(p.id)} title={p.ayuda}>
-                {p.icono} {p.titulo}
-              </button>
-              <BotonAyuda guia={`cotejo.${p.id}`} />
-            </span>
+            <button key={p.id} type="button" role="tab" aria-selected={seleccionada} className={seleccionada ? "btn btn-primary" : "btn btn-secondary"} onClick={() => guardar(p.id)} title={p.ayuda}>
+              {p.icono} {p.titulo}
+            </button>
           );
         })}
       </div>
