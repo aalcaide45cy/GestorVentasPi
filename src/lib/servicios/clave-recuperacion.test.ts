@@ -82,6 +82,19 @@ describe("clave de recuperación: restaurar en otra instalación", () => {
     await expect(ajustarCifradoTrasRestaurar(db, undefined)).rejects.toMatchObject({ status: 400, message: expect.stringContaining("otra instalación") });
   });
 
+  it("copia de otra instalación sin la clave: con «sin clave» se restaura todo lo demás, sin documentos ni doble factor", async () => {
+    const { idUsuario, idAdjunto } = await datosCifradosConA();
+    process.env.APP_SECRET = SECRETO_B;
+    await expect(ajustarCifradoTrasRestaurar(db, undefined)).rejects.toMatchObject({ status: 400 });
+    expect(await ajustarCifradoTrasRestaurar(db, undefined, true)).toEqual({ recifrado: false, descartado: true });
+    const [u] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, idUsuario));
+    expect(u).toMatchObject({ totpSecretoCifrado: null, totpActivo: false });
+    expect(await db.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, idAdjunto))).toHaveLength(0);
+    // El registro del documento sigue (sin archivo) y la base ya es legible con la clave de esta instalación
+    expect(await db.select().from(adjuntos).where(eq(adjuntos.id, idAdjunto))).toHaveLength(1);
+    expect(await secretoValido(db, SECRETO_B)).toBe(true);
+  });
+
   it("también vale el APP_SECRET de origen en lugar de la clave, y la clave de origen queda sin validez", async () => {
     const { idAdjunto } = await datosCifradosConA();
     await asegurarComprobacion(db);

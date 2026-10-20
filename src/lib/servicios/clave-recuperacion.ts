@@ -160,10 +160,29 @@ export async function recifrarTodo(ej: Ejecutor, secretoOrigen: string): Promise
 }
 
 /**
+ * Para una copia de otra instalación de la que no se tiene la clave: los datos cifrados no se pueden abrir, así que se quitan (los
+ * documentos ya no tienen archivo, el doble factor de cada usuario vuelve a estar sin activar y se desconecta Google Drive) y todo lo
+ * demás se conserva. Así cualquier copia se puede restaurar en cualquier equipo; cada usuario vuelve a activar su doble factor al entrar.
+ */
+export async function descartarDatosCifrados(ej: Ejecutor): Promise<{ adjuntos: number; usuarios: number }> {
+  let nAdjuntos = 0;
+  let nUsuarios = 0;
+  await ej.transaction(async (tx) => {
+    nAdjuntos = (await tx.delete(adjuntosDatos).returning({ id: adjuntosDatos.idAdjunto })).length;
+    nUsuarios = (await tx.update(usuarios).set({ totpSecretoCifrado: null, totpActivo: false, totpUltimoContador: null }).returning({ id: usuarios.idUsuario })).length;
+    await tx.delete(conexionDrive);
+    await tx.delete(codigosRecuperacion);
+    await escribir(tx, CLAVE_COMPROBACION, cifrar("ok", "comprobacion"));
+    await tx.delete(ajustes).where(eq(ajustes.clave, CLAVE_ENVUELTA));
+  });
+  return { adjuntos: nAdjuntos, usuarios: nUsuarios };
+}
+
+/**
  * Paso posterior a restaurar una copia: si sus datos cifrados no se leen con el APP_SECRET de esta instalación, pide la clave de
  * recuperación (o el APP_SECRET de origen) y los vuelve a cifrar. Si no se puede, falla (y la restauración se deshace).
  */
-export async function ajustarCifradoTrasRestaurar(ej: Ejecutor, claveOrigen: string | undefined): Promise<{ recifrado: boolean }> {
+export async function ajustarCifradoTrasRestaurar(ej: Ejecutor, claveOrigen: string | undefined, sinClave = false): Promise<{ recifrado: boolean; descartado?: boolean }> {
   const actual = process.env.APP_SECRET ?? "";
   if (await secretoValido(ej, actual)) {
     await asegurarComprobacion(ej);
@@ -177,6 +196,12 @@ export async function ajustarCifradoTrasRestaurar(ej: Ejecutor, claveOrigen: str
     return { recifrado: true };
   }
   const introducido = claveOrigen?.trim() ?? "";
+  // Sin la clave y a petición de quien restaura: se conserva todo salvo lo que está cifrado con la clave de otra instalación
+  if (!introducido && sinClave) {
+    await descartarDatosCifrados(ej);
+    await prepararPortabilidad(ej);
+    return { recifrado: false, descartado: true };
+  }
   if (!introducido) throw new HttpError(400, "Esta copia viene de otra instalación y sus datos cifrados (documentos, doble factor) usan otra clave. Escribe la «clave de recuperación» (o el APP_SECRET de la instalación de origen) para poder restaurarla.");
   const origen = await secretoDeOrigen(ej, introducido);
   if (!origen) throw new HttpError(400, "La clave de recuperación (o el APP_SECRET) no es correcta para esta copia.");

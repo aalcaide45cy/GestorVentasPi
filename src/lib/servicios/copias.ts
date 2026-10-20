@@ -738,6 +738,8 @@ export const esquemaRestaurar = z.object({
   id: z.number().int().positive(),
   /** Solo si la copia viene de otra instalación: clave de recuperación (o APP_SECRET de origen) para volver a cifrar sus datos. */
   claveOrigen: z.string().max(500).optional(),
+  /** Copia de otra instalación sin la clave: se restaura igualmente, sin los documentos ni el doble factor (que usan la clave de la otra instalación). */
+  sinClave: z.boolean().optional(),
 });
 
 async function pgRestore(ruta: string): Promise<void> {
@@ -768,7 +770,7 @@ async function reponerPlantillas(ej: Ejecutor, g: Awaited<ReturnType<typeof guar
   await sembrar(ej as never);
 }
 
-async function posRestauracion(ej: Ejecutor): Promise<void> {
+async function posRestauracion(ej: Ejecutor, vaciarSesiones = true): Promise<void> {
   const { migrate } = await import("drizzle-orm/node-postgres/migrator");
   const { Pool } = await import("pg");
   const { drizzle } = await import("drizzle-orm/node-postgres");
@@ -778,7 +780,8 @@ async function posRestauracion(ej: Ejecutor): Promise<void> {
   } finally {
     await pool.end();
   }
-  await ej.execute(sql`truncate table sesiones, login_intentos`);
+  // Al volver atrás tras un fallo se conservan las sesiones: así el administrador sigue dentro y puede leer el motivo en pantalla
+  if (vaciarSesiones) await ej.execute(sql`truncate table sesiones, login_intentos`);
 }
 
 /**
@@ -808,11 +811,11 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
       await posRestauracion(ej);
       await reponerPlantillas(ej, plantillas);
       // Si la copia viene de otra instalación, sus datos cifrados se vuelven a cifrar con la clave de esta (o se deshace todo)
-      recifrado = (await ajustarCifradoTrasRestaurar(ej, entrada.claveOrigen)).recifrado;
+      recifrado = (await ajustarCifradoTrasRestaurar(ej, entrada.claveOrigen, entrada.sinClave === true)).recifrado;
     } catch (e) {
       // Vuelta atrás: se restaura el estado anterior
       await pgRestore(rutaPrevia).catch(() => undefined);
-      await posRestauracion(ej).catch(() => undefined);
+      await posRestauracion(ej, false).catch(() => undefined);
       throw e instanceof HttpError ? new HttpError(500, `${e.message}. Se ha recuperado el estado anterior.`) : e;
     }
   } finally {
