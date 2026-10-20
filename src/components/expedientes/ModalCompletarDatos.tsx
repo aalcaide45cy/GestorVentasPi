@@ -391,7 +391,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
                     {f.texto} ({cuentas[f.id]})
                   </button>
                 ))}
-                <input className="input-premium" type="search" placeholder="Buscar por cliente, NIF, bastidor, matrícula, expediente…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra las filas que se ven por cualquier dato del listado o del expediente" />
+                <input className="form-input" type="search" placeholder="Buscar por cliente, NIF, bastidor, matrícula, expediente…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra las filas que se ven por cualquier dato del listado o del expediente" />
                 <details style={{ fontSize: "0.82rem" }}>
                   <summary style={{ cursor: "pointer" }} title="Elige qué columnas ver en la tabla">
                     Columnas
@@ -602,7 +602,7 @@ function DetalleFila({
         </button>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px", maxHeight: "72vh" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "72vh", overflowY: "auto" }}>
         <div style={{ minHeight: "300px", overflow: "hidden", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
           {fila.idAdjuntoPedido !== null ? (
             <VisorPedido key={fila.idAdjuntoPedido} idAdjunto={fila.idAdjuntoPedido} nombre={fila.clienteApp ?? fila.clienteListado} />
@@ -659,7 +659,7 @@ function DetalleFila({
             )}
             <div style={{ marginTop: "8px", display: "flex", gap: "6px" }}>
               <input
-                className="input-premium"
+                className="form-input"
                 placeholder="Buscar otro expediente (nombre, DNI, bastidor, matrícula)"
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
@@ -701,7 +701,7 @@ function DetalleFila({
                       <div style={{ color: "var(--text-muted)", fontSize: "0.74rem" }}>ahora: {formatear(p.actual)}</div>
                     </span>
                     <input
-                      className="input-premium"
+                      className="form-input"
                       type={esFecha ? "date" : "text"}
                       value={esFecha ? (/^\d{4}-\d{2}-\d{2}$/.test(valor) ? valor : "") : valor}
                       onChange={(e) => alEditar(k, e.target.value)}

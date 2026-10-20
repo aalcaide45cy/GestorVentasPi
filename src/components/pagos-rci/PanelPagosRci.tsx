@@ -147,7 +147,7 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
             <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.82rem" }} disabled={trabajando || cuentas.pendiente === 0} onClick={() => void reintentar()} title="Vuelve a buscar el expediente de los pagos pendientes: útil después de completar datos con un listado (el expediente ya tiene bastidor o documento nuevo)">
               ↻ Reintentar pendientes
             </button>
-            <input className="input-premium" type="search" placeholder="Buscar por cliente, documento, bastidor, matrícula, operación…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra los pagos por cualquier dato" />
+            <input className="form-input" type="search" placeholder="Buscar por cliente, documento, bastidor, matrícula, operación…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra los pagos por cualquier dato" />
             <details style={{ fontSize: "0.82rem" }}>
               <summary style={{ cursor: "pointer" }} title="Elige qué columnas ver en la tabla">
                 Columnas
@@ -321,7 +321,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
   const campo = (titulo: string, valor: string, fijar: (v: string) => void, tipo = "text", ayuda = "") => (
     <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.82rem" }} title={ayuda}>
       <span style={{ minWidth: "110px", color: "var(--text-muted)" }}>{titulo}</span>
-      <input className="input-premium" type={tipo} value={valor} onChange={(e) => fijar(e.target.value)} disabled={!editable} style={{ flex: 1 }} />
+      <input className="form-input" type={tipo} value={valor} onChange={(e) => fijar(e.target.value)} disabled={!editable} style={{ flex: 1 }} />
     </label>
   );
 
@@ -335,7 +335,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
         </button>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px", maxHeight: "72vh" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "72vh", overflowY: "auto" }}>
         <div style={{ minHeight: "300px", overflow: "hidden", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
           {pago.idAdjunto !== null ? <VisorPedido key={pago.idAdjunto} idAdjunto={pago.idAdjunto} nombre={pago.nombreArchivo} /> : <div style={{ padding: "16px", color: "var(--text-muted)" }}>El archivo ya no está guardado.</div>}
         </div>
@@ -406,7 +406,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
               ))}
               <div style={{ display: "flex", gap: "6px" }}>
                 <input
-                  className="input-premium"
+                  className="form-input"
                   placeholder="Buscar otro expediente (nombre, DNI, bastidor, matrícula)"
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}
