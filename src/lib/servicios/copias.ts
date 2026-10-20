@@ -12,7 +12,7 @@ import { sembrar } from "@/db/semilla";
 import { ajustes, conexionDrive, copiasSeguridad, plantillasPlan, plantillasTarifasVn } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
-import { ajustarCifradoTrasRestaurar, asegurarComprobacion } from "./clave-recuperacion";
+import { ajustarCifradoTrasRestaurar, asegurarComprobacion, prepararPortabilidad } from "./clave-recuperacion";
 
 /* ------------------------------------------------------------------ */
 /* Configuración y utilidades                                          */
@@ -256,10 +256,12 @@ export const esquemaAjustesCopias = z.object({
   avisoMaxCopias: z.number().int().min(0).max(1000).default(40),
   /** Aviso cuando las copias ocupan más GB que estos (0 = sin aviso). */
   avisoMaxGb: z.number().int().min(0).max(10000).default(0),
+  /** Copias portables: llevan dentro la clave de cifrado y se restauran en cualquier instalación sin pedir nada. */
+  portables: z.boolean().default(true),
 });
 export type AjustesCopias = z.infer<typeof esquemaAjustesCopias>;
 
-export const AJUSTES_POR_DEFECTO: AjustesCopias = { automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0 };
+export const AJUSTES_POR_DEFECTO: AjustesCopias = { automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0, portables: true };
 
 const CLAVES: Record<keyof AjustesCopias, string> = {
   automatica: "backup_auto",
@@ -272,6 +274,7 @@ const CLAVES: Record<keyof AjustesCopias, string> = {
   driveCarpeta: "backup_drive_carpeta",
   avisoMaxCopias: "backup_aviso_max_copias",
   avisoMaxGb: "backup_aviso_max_gb",
+  portables: "backup_portables",
 };
 
 export async function leerAjustesCopias(ej: Ejecutor): Promise<AjustesCopias> {
@@ -294,6 +297,7 @@ export async function leerAjustesCopias(ej: Ejecutor): Promise<AjustesCopias> {
     driveCarpeta: mapa.get(CLAVES.driveCarpeta)?.trim() || d.driveCarpeta,
     avisoMaxCopias: num("avisoMaxCopias", d.avisoMaxCopias),
     avisoMaxGb: num("avisoMaxGb", d.avisoMaxGb),
+    portables: bool("portables", d.portables),
   };
 }
 
@@ -355,6 +359,8 @@ export async function motivoCopiaInvalida(ruta: string): Promise<string | null> 
 export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: number | null = null, nota?: string): Promise<CopiaDto> {
   // Deja en la base el dato de comprobación del cifrado: así cualquier copia permite saber si su clave coincide
   await asegurarComprobacion(ej).catch(() => undefined);
+  // Con las copias portables, la copia lleva dentro la clave para abrirse en otra instalación
+  await prepararPortabilidad(ej).catch(() => undefined);
   const nombre = nombreNuevo(tipo);
   copiasEnCurso().add(nombre);
   try {
