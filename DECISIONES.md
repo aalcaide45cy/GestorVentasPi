@@ -371,3 +371,5 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] 1.4.3: reponer plantillas tras restaurar es un extra y no hace fallar la restauración; antes de insertar se alinean las secuencias con los datos restaurados.
 - [D] 1.4.4: un coche se asigna a un mes para verlo por meses así: el de la rejilla donde se pagó si era uno de sus meses esperados; si no, el último mes en que debía cobrarse; sin fecha, a «Sin mes». Una matrícula de la rejilla sin coche cuenta en el mes de esa rejilla.
 - [D] 1.4.4: «Mi mes» y «¿Me han pagado cada coche?» se unen en una sola pestaña (la preferencia guardada «pago» vuelve a «Mi mes»).
+- [D] 1.4.5: las guías de las pestañas viven en un solo archivo (`lib/guias.ts`) y se muestran en una ventana; solo llevan «i» las pestañas (barras de pestañas), no las secciones sueltas.
+- [D] 1.4.5: el Histórico reutiliza el cotejo por matrícula (`cotejarPagos`) sobre todas las rejillas guardadas; no hay tabla nueva en la base de datos porque las rejillas ya se guardan por mes.

@@ -538,6 +538,8 @@ tr.fila-aviso > td:last-child {
   .app-topbar {
     justify-content: space-between !important;
     gap: 10px;
+    /* En el móvil la barra no cabe en una línea (menú, recursos, tareas, campana y buscador): pasa a varias en vez de ensanchar la página */
+    flex-wrap: wrap;
   }
   .indicador-recursos {
     margin-right: 0 !important;

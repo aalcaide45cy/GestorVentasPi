@@ -43,7 +43,7 @@ export default function BarraPaginacion({ tamano, pagina, totalPaginas, totalFil
         color: "var(--text-secondary)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         <span>Mostrar:</span>
         {TAMANOS_PAGINA.map((t) => (
           <button
