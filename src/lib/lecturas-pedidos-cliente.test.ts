@@ -20,7 +20,7 @@ function servidorFalso() {
       llamadas.push({ url, metodo, cuerpo: typeof init?.body === "string" ? init.body : null });
       const json = (data: unknown, status = 200) => new Response(JSON.stringify({ success: true, data }), { status });
       if (metodo === "POST" && url.startsWith("/api/documentos/lecturas")) return json({ id: siguienteId++, estado: "subiendo" }, 201);
-      if (metodo === "GET") return json({ resumen: { subiendo: 0, pendientes: 0, leyendo: 0, pedidos: 0, descartados: 0, errores: 0, lectores: 2, maximo: 2, manual: true }, lecturas: [], enMarcha: [] });
+      if (metodo === "GET") return json({ resumen: { subiendo: 0, pendientes: 0, leyendo: 0, pedidos: 0, descartados: 0, repetidos: 0, errores: 0, lectores: 2, maximo: 2, manual: true }, lecturas: [], enMarcha: [] });
       return json({ afectadas: 0 });
     }),
   );
@@ -83,5 +83,39 @@ describe("cancelar una subida de pedidos", () => {
     c.solicitarCancelacion();
     await c.cancelarLecturas({ eliminar: false });
     expect(c.leerDialogoCancelar()).toBe(false);
+  });
+});
+
+describe("recoger lo leído sin perder los repetidos", () => {
+  it("el pedido que ya estaba en la cola no se pierde en silencio: se manda al servidor como ignorado, con su motivo", async () => {
+    const dato = (numero: string, cliente: string) => ({
+      resultado: { datos: { numeroPedido: numero, vin: null, matricula: null, dni: null, cliente, fechaExpediente: null, idModelo: null, avisos: [] }, similares: [], adjunto: { id: 1 }, metodo: "ocr" },
+    });
+    const lecturas = [
+      { id: 1, nombre: "a.pdf", estado: "pedido", destino: null, ...dato("13757863", "Ana") },
+      { id: 2, nombre: "a-copia.pdf", estado: "pedido", destino: null, ...dato("13757863", "Ana") },
+      { id: 3, nombre: "b.pdf", estado: "pedido", destino: null, ...dato("14000000", "Luis") },
+    ];
+    const enviados: { accion: string; ids?: number[]; repetidos?: { id: number; motivo: string }[] }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const json = (data: unknown) => new Response(JSON.stringify({ success: true, data }), { status: 200 });
+        if ((init?.method ?? "GET") === "PATCH") {
+          enviados.push(JSON.parse(String(init?.body)));
+          return json({ afectadas: 0 });
+        }
+        return json({ resumen: { subiendo: 0, pendientes: 0, leyendo: 0, pedidos: 3, descartados: 0, repetidos: 0, errores: 0, lectores: 2, maximo: 2, manual: false }, lecturas, enMarcha: [] });
+      }),
+    );
+    const c = await import("./lecturas-pedidos-cliente");
+    const cola = await import("./pedidos-cola");
+    cola.vaciarCola();
+    await c.recogerPendientes();
+    // Entran el primero y el otro pedido; el que repetía el número 13757863 queda anotado como ignorado, no recogido
+    expect(cola.leerCola().items.map((i) => i.nombre)).toEqual(["a.pdf", "b.pdf"]);
+    expect(enviados.find((e) => e.accion === "recoger")?.ids).toEqual([1, 3]);
+    const rep = enviados.find((e) => e.accion === "repetido");
+    expect(rep?.repetidos).toEqual([{ id: 2, motivo: "Repetido: ya hay en la cola un pedido con el mismo número (13757863)" }]);
   });
 });

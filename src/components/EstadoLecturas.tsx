@@ -68,7 +68,11 @@ export default function EstadoLecturas() {
             ⏳ {r.leyendo} leyéndose y {r.pendientes} en espera ({r.lectores} lecturas a la vez, hasta {r.maximo} si el equipo aguanta)
           </span>
         )}
-        {r.descartados > 0 && <span>🗑️ {r.descartados} no eran pedidos o estaban repetidos (ignorados)</span>}
+        {r.descartados > 0 && (
+          <span title="Pulsa «Ver cuáles» para ver cada archivo ignorado y por qué">
+            🗑️ {r.descartados} ignorados: {r.descartados - r.repetidos} no eran pedidos y {r.repetidos} estaban repetidos
+          </span>
+        )}
         {r.errores > 0 && <span style={{ color: "var(--danger)" }}>⚠️ {r.errores} con error</span>}
         <span style={{ marginLeft: "auto", display: "flex", gap: "6px", flexWrap: "wrap" }}>
           {r.manual && r.subiendo > 0 && (

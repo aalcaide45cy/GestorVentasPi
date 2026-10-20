@@ -56,6 +56,8 @@ export interface ResumenLecturas {
   leyendo: number;
   pedidos: number;
   descartados: number;
+  /** De los descartados, los que lo son por estar repetidos (el mismo archivo subido otra vez o un pedido con el mismo número ya en la cola). */
+  repetidos: number;
   errores: number;
   /** Cuántas lecturas se hacen a la vez ahora y el máximo que admite este equipo. */
   lectores: number;
@@ -278,6 +280,10 @@ export async function listarLecturas(ej: Ejecutor, idUsuario: number, opciones: 
   const suyas = and(eq(lecturasPedidos.idUsuario, idUsuario), isNull(lecturasPedidos.recogidaEn));
   const cuentas = await ej.select({ estado: lecturasPedidos.estado, n: sql<number>`count(*)::int` }).from(lecturasPedidos).where(suyas).groupBy(lecturasPedidos.estado);
   const n = (e: EstadoLectura) => cuentas.find((c) => c.estado === e)?.n ?? 0;
+  const [{ rep }] = await ej
+    .select({ rep: sql<number>`count(*)::int` })
+    .from(lecturasPedidos)
+    .where(and(suyas, eq(lecturasPedidos.estado, "descartado"), sql`(${lecturasPedidos.error} like 'Repetido%' or ${lecturasPedidos.error} like 'Este mismo archivo%')`));
   const filas = await ej
     .select({ id: lecturasPedidos.id, nombre: lecturasPedidos.nombre, estado: lecturasPedidos.estado, error: lecturasPedidos.error, destino: lecturasPedidos.destino, resultado: opciones.otros ? sql<null>`null` : lecturasPedidos.resultado, creadaEn: lecturasPedidos.creadaEn })
     .from(lecturasPedidos)
@@ -293,7 +299,7 @@ export async function listarLecturas(ej: Ejecutor, idUsuario: number, opciones: 
     .limit(100);
   return {
     enMarcha: enMarcha as LecturaEnMarcha[],
-    resumen: { subiendo: n("subiendo"), pendientes: n("pendiente"), leyendo: n("leyendo"), pedidos: n("pedido"), descartados: n("descartado"), errores: n("error"), lectores: limiteActual(), maximo: lectoresPermitidos(), manual: (await cargarAjustesOcr(ej)).lecturaManual },
+    resumen: { subiendo: n("subiendo"), pendientes: n("pendiente"), leyendo: n("leyendo"), pedidos: n("pedido"), descartados: n("descartado"), repetidos: rep, errores: n("error"), lectores: limiteActual(), maximo: lectoresPermitidos(), manual: (await cargarAjustesOcr(ej)).lecturaManual },
     lecturas: filas.map((f) => ({
       id: f.id,
       nombre: f.nombre,
@@ -307,7 +313,9 @@ export async function listarLecturas(ej: Ejecutor, idUsuario: number, opciones: 
 }
 
 export const esquemaAccionLecturas = z.object({
-  accion: z.enum(["recoger", "limpiar", "reintentar", "cancelar", "rescatar", "resolver", "iniciar"]),
+  accion: z.enum(["recoger", "limpiar", "reintentar", "cancelar", "rescatar", "resolver", "iniciar", "repetido"]),
+  /** Solo en «repetido»: pedidos leídos que ya estaban en la cola del navegador, con el motivo de cada uno. */
+  repetidos: z.array(z.object({ id: z.number().int().positive(), motivo: z.string().max(240) })).max(5000).optional(),
   /** Solo en «iniciar»: lo manda el navegador al terminar de subir; en lectura manual no hace nada (la lectura la inicia el usuario). */
   automatico: z.boolean().optional(),
   ids: z.array(z.number().int().positive()).max(5000).optional(),
@@ -318,6 +326,7 @@ export const esquemaAccionLecturas = z.object({
 
 /**
  * - recoger: el navegador ya ha puesto esos pedidos en su cola (dejan de listarse).
+ * - repetido: el navegador ya tenía ese pedido en su cola: se anota como ignorado (con su motivo) para que se cuente y se pueda ver cuál era.
  * - limpiar: oculta los descartados y cancelados de la lista.
  * - reintentar: vuelve a poner en pendiente los que dieron error.
  * - iniciar: termina la subida de un lote: lo subido empieza a leerse (hasta entonces no se lee nada).
@@ -334,6 +343,20 @@ export async function accionLecturas(ej: Ejecutor, idUsuario: number, e: z.infer
     case "recoger": {
       const r = await ej.update(lecturasPedidos).set({ recogidaEn: ahora }).where(and(suyas, eq(lecturasPedidos.estado, "pedido"), deLaLista)).returning({ id: lecturasPedidos.id });
       return r.length;
+    }
+    case "repetido": {
+      let n = 0;
+      await ej.transaction(async (tx) => {
+        for (const x of e.repetidos ?? []) {
+          const r = await tx
+            .update(lecturasPedidos)
+            .set({ estado: "descartado", error: x.motivo, resultado: null, terminadaEn: ahora })
+            .where(and(suyas, eq(lecturasPedidos.id, x.id), eq(lecturasPedidos.estado, "pedido"), isNull(lecturasPedidos.recogidaEn)))
+            .returning({ id: lecturasPedidos.id });
+          n += r.length;
+        }
+      });
+      return n;
     }
     case "limpiar": {
       const r = await ej.update(lecturasPedidos).set({ recogidaEn: ahora }).where(and(suyas, inArray(lecturasPedidos.estado, e.ids && e.ids.length > 0 ? ["descartado", "cancelado", "error"] : ["descartado", "cancelado"]), deLaLista)).returning({ id: lecturasPedidos.id });

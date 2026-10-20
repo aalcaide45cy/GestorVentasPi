@@ -80,6 +80,22 @@ describe("lecturas de pedidos en paralelo", () => {
     expect((await listarLecturas(db, u.idUsuario, { otros: true })).lecturas).toHaveLength(0);
   }, 120_000);
 
+  it("un pedido leído que el navegador ya tenía en su cola se anota como ignorado (repetido) con su motivo y se cuenta", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const pedido = await hoja(["PEDIDO DE VEHICULO NUEVO", "RENAULT RETAIL GROUP", "CLIENTE Sr. D. Luis Gil Mora   ESTABLECIMIENTO"]);
+    const a = await encolarLectura(db, u.idUsuario, "repe.png", pedido, null, false);
+    await esperarFin(u.idUsuario);
+    const motivo = "Repetido: ya hay en la cola un pedido con el mismo número (123)";
+    expect(await accionLecturas(db, u.idUsuario, { accion: "repetido", repetidos: [{ id: a.id, motivo }] })).toBe(1);
+    // Ya no es un pedido por recoger: cuenta como ignorado y aparece en «Ver cuáles» con su motivo
+    const { resumen } = await listarLecturas(db, u.idUsuario);
+    expect(resumen).toMatchObject({ pedidos: 0, descartados: 1, repetidos: 1 });
+    const { lecturas } = await listarLecturas(db, u.idUsuario, { otros: true });
+    expect(lecturas.map((l) => [l.id, l.estado, l.error])).toEqual([[a.id, "descartado", motivo]]);
+    // Solo vale con pedidos aún sin recoger: repetir la orden no cuenta dos veces
+    expect(await accionLecturas(db, u.idUsuario, { accion: "repetido", repetidos: [{ id: a.id, motivo }] })).toBe(0);
+  }, 120_000);
+
   it("en una subida por lotes no se lee nada hasta «iniciar», y un lote abandonado empieza solo pasado un rato", async () => {
     const u = await crearUsuarioPrueba("vendedor");
     const pedido = await hoja(["PEDIDO DE VEHICULO NUEVO", "RENAULT RETAIL GROUP", "CLIENTE Sr. D. Eva Ruiz   ESTABLECIMIENTO"], 9);

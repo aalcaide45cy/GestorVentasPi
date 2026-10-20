@@ -87,7 +87,6 @@ let temporizador: ReturnType<typeof setInterval> | null = null;
 let consultando = false;
 let abrirElPrimero = false;
 let recogidosEnTanda = 0;
-let ignoradosEnTanda = 0;
 
 const limpiar = (a: string | null | undefined): string => (a ? a.replace(/[\s.-]/g, "").toUpperCase() : "");
 
@@ -112,7 +111,14 @@ function huellasDeLaCola() {
   for (const x of leerCola().items) anadir(x.pedido.datos);
   return {
     anadir,
-    contiene: (d: DatosDePedido) => (!!limpiar(d.numeroPedido) && pedidos.has(limpiar(d.numeroPedido))) || (!!limpiar(d.vin) && vins.has(limpiar(d.vin))) || (!!limpiar(d.matricula) && matriculas.has(limpiar(d.matricula))) || (!!clavePersona(d) && personas.has(clavePersona(d))),
+    /** Por qué este pedido ya está en la cola (null si no lo está). */
+    motivo: (d: DatosDePedido): string | null => {
+      if (limpiar(d.numeroPedido) && pedidos.has(limpiar(d.numeroPedido))) return `Repetido: ya hay en la cola un pedido con el mismo número (${d.numeroPedido})`;
+      if (limpiar(d.vin) && vins.has(limpiar(d.vin))) return `Repetido: ya hay en la cola un pedido con el mismo bastidor (${d.vin})`;
+      if (limpiar(d.matricula) && matriculas.has(limpiar(d.matricula))) return `Repetido: ya hay en la cola un pedido con la misma matrícula (${d.matricula})`;
+      if (clavePersona(d)) return personas.has(clavePersona(d)) ? `Repetido: ya hay en la cola un pedido del mismo cliente, fecha y modelo (${d.cliente ?? d.dni})` : null;
+      return null;
+    },
   };
 }
 
@@ -135,15 +141,17 @@ async function consultar(): Promise<boolean> {
     enMarcha = marcha ?? [];
     const listos = lecturas.filter((l) => l.estado === "pedido" && l.resultado);
     const recogidos: number[] = [];
+    const repetidos: { id: number; motivo: string }[] = [];
     // Lo ya recogido se indexa una sola vez (no se recorre la cola entera por cada pedido leído) y todo lo nuevo entra en un solo cambio
     const huellas = huellasDeLaCola();
     const nuevosItems: Parameters<typeof anadirACola>[0] = [];
     for (const l of listos) {
       const pedido = l.resultado!;
       const d = pedido.datos;
-      if (huellas.contiene(d)) {
-        ignoradosEnTanda++;
-        recogidos.push(l.id);
+      const motivoRepetido = huellas.motivo(d);
+      if (motivoRepetido) {
+        // No se pierde en silencio: queda anotado como ignorado, con el motivo, y se cuenta en «Ver cuáles»
+        repetidos.push({ id: l.id, motivo: motivoRepetido });
         continue;
       }
       huellas.anadir(d);
@@ -161,6 +169,7 @@ async function consultar(): Promise<boolean> {
       }
     }
     if (recogidos.length > 0) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "recoger", ids: recogidos }) });
+    if (repetidos.length > 0) await pedir("/api/documentos/lecturas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "repetido", repetidos }) });
 
     // En lectura manual, lo subido que espera a «Iniciar lectura» no cuenta como trabajo en marcha
     const trabajando = r.pendientes + r.leyendo + (r.manual ? 0 : r.subiendo);
@@ -170,14 +179,13 @@ async function consultar(): Promise<boolean> {
     else {
       fijarLectura(null);
       if (subidosEnTanda > 0 && !cancelada) {
-        avisar(`${recogidosEnTanda} pedido${recogidosEnTanda === 1 ? "" : "s"} leído${recogidosEnTanda === 1 ? "" : "s"}${recogidosEnTanda > 0 ? " (están en la cola de pedidos)" : ""}${r.descartados + ignoradosEnTanda > 0 ? `, ${r.descartados + ignoradosEnTanda} que no eran pedidos o estaban repetidos, ignorados` : ""}${r.errores > 0 ? ` y ${r.errores} con error (puedes reintentarlos desde la cola)` : ""}.`);
+        avisar(`${recogidosEnTanda} pedido${recogidosEnTanda === 1 ? "" : "s"} leído${recogidosEnTanda === 1 ? "" : "s"}${recogidosEnTanda > 0 ? " (están en la cola de pedidos)" : ""}${r.descartados + repetidos.length > 0 ? `, ${r.descartados + repetidos.length} ignorados (${r.descartados + repetidos.length - r.repetidos - repetidos.length} no eran pedidos y ${r.repetidos + repetidos.length} estaban repetidos)` : ""}${r.errores > 0 ? ` y ${r.errores} con error (puedes reintentarlos desde la cola)` : ""}.`);
       }
       subidosEnTanda = 0;
       recogidosEnTanda = 0;
-      ignoradosEnTanda = 0;
     }
     emitir();
-    return trabajando > 0 || subiendo > 0 || listos.length > recogidos.length;
+    return trabajando > 0 || subiendo > 0 || listos.length > recogidos.length + repetidos.length;
   } catch {
     return true; // sin conexión un momento: se vuelve a intentar
   } finally {
