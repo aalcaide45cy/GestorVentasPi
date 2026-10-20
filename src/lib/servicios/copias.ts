@@ -12,7 +12,7 @@ import { sembrar } from "@/db/semilla";
 import { ajustes, conexionDrive, copiasSeguridad, plantillasPlan, plantillasTarifasVn } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
-import { ajustarCifradoTrasRestaurar, asegurarComprobacion } from "./clave-recuperacion";
+import { ajustarCifradoTrasRestaurar, asegurarComprobacion, prepararPortabilidad } from "./clave-recuperacion";
 
 /* ------------------------------------------------------------------ */
 /* Configuración y utilidades                                          */
@@ -211,6 +211,13 @@ function ejecutar(cmd: string[], opciones: { stdin?: string; stdout?: string; sh
 const dosDigitos = (n: number) => String(n).padStart(2, "0");
 
 /** Nombre único: si ya existe una copia del mismo segundo, avanza hasta encontrar uno libre. */
+/**
+ * Copias que se están escribiendo ahora mismo (el `pg_dump` o la subida del navegador van llenando el fichero). Mientras tanto, la lista
+ * de copias no debe registrarlas: se apuntarían a medias (con su tamaño y huella parciales) y chocarían con el registro definitivo.
+ */
+const G = globalThis as unknown as { __copiasEnCurso?: Set<string> };
+const copiasEnCurso = (): Set<string> => (G.__copiasEnCurso ??= new Set());
+
 function nombreNuevo(tipo: TipoCopia, d = new Date()): string {
   for (let i = 0; i < 120; i++) {
     const nombre = nombreEn(tipo, new Date(d.getTime() + i * 1000));
@@ -249,10 +256,12 @@ export const esquemaAjustesCopias = z.object({
   avisoMaxCopias: z.number().int().min(0).max(1000).default(40),
   /** Aviso cuando las copias ocupan más GB que estos (0 = sin aviso). */
   avisoMaxGb: z.number().int().min(0).max(10000).default(0),
+  /** Copias portables: llevan dentro la clave de cifrado y se restauran en cualquier instalación sin pedir nada. */
+  portables: z.boolean().default(true),
 });
 export type AjustesCopias = z.infer<typeof esquemaAjustesCopias>;
 
-export const AJUSTES_POR_DEFECTO: AjustesCopias = { automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0 };
+export const AJUSTES_POR_DEFECTO: AjustesCopias = { automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0, portables: true };
 
 const CLAVES: Record<keyof AjustesCopias, string> = {
   automatica: "backup_auto",
@@ -265,6 +274,7 @@ const CLAVES: Record<keyof AjustesCopias, string> = {
   driveCarpeta: "backup_drive_carpeta",
   avisoMaxCopias: "backup_aviso_max_copias",
   avisoMaxGb: "backup_aviso_max_gb",
+  portables: "backup_portables",
 };
 
 export async function leerAjustesCopias(ej: Ejecutor): Promise<AjustesCopias> {
@@ -287,6 +297,7 @@ export async function leerAjustesCopias(ej: Ejecutor): Promise<AjustesCopias> {
     driveCarpeta: mapa.get(CLAVES.driveCarpeta)?.trim() || d.driveCarpeta,
     avisoMaxCopias: num("avisoMaxCopias", d.avisoMaxCopias),
     avisoMaxGb: num("avisoMaxGb", d.avisoMaxGb),
+    portables: bool("portables", d.portables),
   };
 }
 
@@ -348,7 +359,18 @@ export async function motivoCopiaInvalida(ruta: string): Promise<string | null> 
 export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: number | null = null, nota?: string): Promise<CopiaDto> {
   // Deja en la base el dato de comprobación del cifrado: así cualquier copia permite saber si su clave coincide
   await asegurarComprobacion(ej).catch(() => undefined);
+  // Con las copias portables, la copia lleva dentro la clave para abrirse en otra instalación
+  await prepararPortabilidad(ej).catch(() => undefined);
   const nombre = nombreNuevo(tipo);
+  copiasEnCurso().add(nombre);
+  try {
+    return await crearCopiaNombrada(ej, tipo, creadaPor, nota, nombre);
+  } finally {
+    copiasEnCurso().delete(nombre);
+  }
+}
+
+async function crearCopiaNombrada(ej: Ejecutor, tipo: TipoCopia, creadaPor: number | null, nota: string | undefined, nombre: string): Promise<CopiaDto> {
   const ruta = path.join(/*turbopackIgnore: true*/ dirCopias(), nombre);
   const fallar = async (mensaje: string, estado: number = 500): Promise<never> => {
     await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
@@ -369,7 +391,14 @@ export async function crearCopia(ej: Ejecutor, tipo: TipoCopia, creadaPor: numbe
   const motivo = await motivoCopiaInvalida(ruta);
   if (motivo) return await fallar(`La copia de seguridad no es válida y se ha descartado: ${motivo}`);
   const tamano = (await stat(/*turbopackIgnore: true*/ ruta)).size;
-  const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo, tamano, sha256: sha256 ?? (await sha256DeFichero(ruta)), creadaPor, notas: nota ?? (tipo === "previa" ? "Copia automática previa a una operación delicada." : null) }).returning();
+  const huella = sha256 ?? (await sha256DeFichero(ruta));
+  const notas = nota ?? (tipo === "previa" ? "Copia automática previa a una operación delicada." : null);
+  // Si por lo que sea la lista ya la había apuntado a medias, se corrige con los datos definitivos en vez de fallar por nombre repetido
+  const [fila] = await ej
+    .insert(copiasSeguridad)
+    .values({ nombre, tipo, tamano, sha256: huella, creadaPor, notas })
+    .onConflictDoUpdate({ target: copiasSeguridad.nombre, set: { tamano, sha256: huella, estado: "ok", error: null, creadaPor, notas } })
+    .returning();
   await anotarError(ej, null).catch(() => undefined);
   return aDto(fila, true);
 }
@@ -429,10 +458,23 @@ export async function guardarNotaCopia(ej: Ejecutor, id: number, notas: string |
 /** Anota en la tabla los `.dump` de la carpeta que no estén registrados (subidos a mano o tras una restauración). */
 export async function sincronizarCarpeta(ej: Ejecutor): Promise<void> {
   const dir = dirCopias();
-  const conocidas = new Set((await ej.select({ n: copiasSeguridad.nombre }).from(copiasSeguridad)).map((x) => x.n));
+  const registradas = await ej.select({ id: copiasSeguridad.id, n: copiasSeguridad.nombre, tamano: copiasSeguridad.tamano, estado: copiasSeguridad.estado }).from(copiasSeguridad);
+  const conocidas = new Set(registradas.map((x) => x.n));
+  // Copias apuntadas a medias (la lista las vio mientras se escribían): si el fichero ya está completo y es válido, se corrigen
+  for (const r of registradas.filter((x) => x.estado === "error" && x.tamano < TAMANO_MINIMO_COPIA && !copiasEnCurso().has(x.n))) {
+    try {
+      const ruta = path.join(/*turbopackIgnore: true*/ dir, r.n);
+      if (!existsSync(/*turbopackIgnore: true*/ ruta)) continue;
+      const st = statSync(/*turbopackIgnore: true*/ ruta);
+      if (st.size < TAMANO_MINIMO_COPIA || Date.now() - st.mtimeMs < 15_000 || (await motivoCopiaInvalida(ruta)) !== null) continue;
+      await ej.update(copiasSeguridad).set({ estado: "ok", error: null, tamano: st.size, sha256: await sha256DeFichero(ruta) }).where(eq(copiasSeguridad.id, r.id));
+    } catch {
+      /* se deja como está */
+    }
+  }
   for (const nombre of readdirSync(/*turbopackIgnore: true*/ dir)) {
     const m = NOMBRE_VALIDO.exec(nombre);
-    if (!m || conocidas.has(nombre)) continue;
+    if (!m || conocidas.has(nombre) || copiasEnCurso().has(nombre)) continue;
     const ruta = path.join(/*turbopackIgnore: true*/ dir, nombre);
     try {
       const st = statSync(/*turbopackIgnore: true*/ ruta);
@@ -476,21 +518,27 @@ export async function guardarSubida(ej: Ejecutor, cuerpo: ReadableStream | null,
   if (!cuerpo) throw new HttpError(400, "No se ha recibido ningún fichero");
   if (!nombreOriginal.toLowerCase().endsWith(".dump")) throw new HttpError(400, "El fichero debe terminar en .dump");
   const nombre = nombreNuevo("manual");
+  copiasEnCurso().add(nombre);
   const ruta = path.join(/*turbopackIgnore: true*/ dirCopias(), nombre);
   let bytes = 0;
   try {
     await pipeline(Readable.fromWeb(cuerpo as never), limitarTamano((n) => (bytes = n)), createWriteStream(/*turbopackIgnore: true*/ ruta, { mode: 0o600 }));
   } catch (e) {
+    copiasEnCurso().delete(nombre);
     await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
     throw e instanceof HttpError ? e : new HttpError(400, "No se pudo guardar el fichero recibido");
   }
-  const motivo = await motivoCopiaInvalida(ruta);
-  if (motivo) {
-    await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
-    throw new HttpError(400, `El fichero no es una copia válida: ${motivo}`);
+  try {
+    const motivo = await motivoCopiaInvalida(ruta);
+    if (motivo) {
+      await unlink(/*turbopackIgnore: true*/ ruta).catch(() => undefined);
+      throw new HttpError(400, `El fichero no es una copia válida: ${motivo}`);
+    }
+    const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo: "manual", tamano: bytes, sha256: await sha256DeFichero(ruta), creadaPor }).returning();
+    return aDto(fila, true);
+  } finally {
+    copiasEnCurso().delete(nombre);
   }
-  const [fila] = await ej.insert(copiasSeguridad).values({ nombre, tipo: "manual", tamano: bytes, sha256: await sha256DeFichero(ruta), creadaPor }).returning();
-  return aDto(fila, true);
 }
 
 /* ------------------------------------------------------------------ */

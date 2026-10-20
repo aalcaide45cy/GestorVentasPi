@@ -110,7 +110,7 @@ describe("copias vacías o rotas (sin PostgreSQL)", () => {
 
 describe("ajustes", () => {
   it("valores por defecto y guardado validado", async () => {
-    expect(await leerAjustesCopias(db)).toEqual({ automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0 });
+    expect(await leerAjustesCopias(db)).toEqual({ automatica: true, hora: "03:30", retDiarias: 14, retSemanales: 8, retMensuales: 12, driveAutomatica: false, driveFrecuencia: "todas", driveCarpeta: "GestorVentasPi-Copias", avisoMaxCopias: 40, avisoMaxGb: 0, portables: true });
     await guardarAjustesCopias(db, { automatica: false, hora: "04:15", retDiarias: 7, retSemanales: 2, retMensuales: 3, driveAutomatica: true });
     expect((await leerAjustesCopias(db)).hora).toBe("04:15");
     await expect(guardarAjustesCopias(db, { automatica: true, hora: "25:99", retDiarias: 7, retSemanales: 2, retMensuales: 3, driveAutomatica: false })).rejects.toThrow();
@@ -162,6 +162,37 @@ describe.skipIf(!hayPg)("copias completas con PostgreSQL", () => {
     await borrarCopia(db, c.id);
     expect(existsSync(ruta)).toBe(false);
   });
+
+  it("si se mira la lista de copias mientras se está creando una, no se apunta a medias ni falla el registro definitivo", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    let creando = true;
+    const mirando = (async () => {
+      while (creando) {
+        await listarCopias(db);
+        await new Promise((r) => setTimeout(r, 5));
+      }
+    })();
+    const copia = await crearCopia(db, "manual", admin.idUsuario);
+    creando = false;
+    await mirando;
+    expect(copia.estado).toBe("ok");
+    const filas = await db.select().from(copiasSeguridad).where(eq(copiasSeguridad.nombre, copia.nombre));
+    expect(filas).toHaveLength(1);
+    expect(filas[0]).toMatchObject({ estado: "ok", tamano: copia.tamano });
+    expect(filas[0].tamano).toBeGreaterThan(4096);
+    await borrarCopia(db, copia.id);
+  });
+
+  it("una copia apuntada a medias por la lista se corrige sola cuando el fichero ya está completo", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const buena = await crearCopia(db, "manual", admin.idUsuario);
+    // Se simula que la lista la vio con un tamaño parcial
+    await db.update(copiasSeguridad).set({ tamano: 10, estado: "error", error: "Copia vacía o demasiado pequeña: no sirve para restaurar." }).where(eq(copiasSeguridad.id, buena.id));
+    await new Promise((r) => setTimeout(r, 16_000));
+    const lista = await listarCopias(db);
+    expect(lista.find((c) => c.id === buena.id)).toMatchObject({ estado: "ok", tamano: buena.tamano });
+    await borrarCopia(db, buena.id);
+  }, 40_000);
 
   it("reutiliza una copia reciente y válida antes de una operación grande, o crea una nueva si no hay", async () => {
     const primera = await asegurarCopiaReciente(db, null);

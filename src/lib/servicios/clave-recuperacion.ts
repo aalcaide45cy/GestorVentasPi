@@ -15,6 +15,9 @@ import { HttpError } from "@/lib/auth/sesion";
 
 const CLAVE_ENVUELTA = "clave_recuperacion_envuelta";
 const CLAVE_COMPROBACION = "comprobacion_secreto";
+/** Copias portables: el APP_SECRET de origen, sin proteger, guardado en la propia base (y por tanto en cada copia). */
+const CLAVE_PORTABLE = "clave_portable";
+const AJUSTE_PORTABLES = "backup_portables";
 const MINIMO_CLAVE = 10;
 
 interface Envuelta {
@@ -51,6 +54,25 @@ async function leer(ej: Ejecutor, clave: string): Promise<string | null> {
 }
 async function escribir(ej: Ejecutor, clave: string, valor: string): Promise<void> {
   await ej.insert(ajustes).values({ clave, valor }).onConflictDoUpdate({ target: ajustes.clave, set: { valor } });
+}
+
+/** ¿Están activadas las copias portables? (por defecto, sí: la copia se descarga de un PC y se abre en otro sin pedir nada). */
+export async function copiasPortablesActivas(ej: Ejecutor): Promise<boolean> {
+  return (await leer(ej, AJUSTE_PORTABLES)) !== "false";
+}
+
+/**
+ * Antes de cada copia: con las copias portables, deja dentro de la base el APP_SECRET de esta instalación, de modo que quien restaure la
+ * copia en otra instalación no tenga que escribir nada (se vuelven a cifrar los datos solos). Sin ellas, se quita. Ojo: quien tenga el
+ * archivo de la copia puede abrir los documentos y los secretos del doble factor; por eso se puede desactivar.
+ */
+export async function prepararPortabilidad(ej: Ejecutor): Promise<void> {
+  if (await copiasPortablesActivas(ej)) {
+    const secreto = process.env.APP_SECRET;
+    if (secreto) await escribir(ej, CLAVE_PORTABLE, secreto);
+  } else {
+    await ej.delete(ajustes).where(eq(ajustes.clave, CLAVE_PORTABLE));
+  }
 }
 
 /** Deja en la base un dato cifrado conocido, para poder saber después (en cualquier instalación) si el APP_SECRET coincide. */
@@ -146,6 +168,13 @@ export async function ajustarCifradoTrasRestaurar(ej: Ejecutor, claveOrigen: str
   if (await secretoValido(ej, actual)) {
     await asegurarComprobacion(ej);
     return { recifrado: false };
+  }
+  // Copia portable: lleva dentro el secreto de origen, así que no hace falta pedir nada
+  const portable = await leer(ej, CLAVE_PORTABLE);
+  if (portable && portable !== actual && (await secretoValido(ej, portable))) {
+    await recifrarTodo(ej, portable);
+    await prepararPortabilidad(ej);
+    return { recifrado: true };
   }
   const introducido = claveOrigen?.trim() ?? "";
   if (!introducido) throw new HttpError(400, "Esta copia viene de otra instalación y sus datos cifrados (documentos, doble factor) usan otra clave. Escribe la «clave de recuperación» (o el APP_SECRET de la instalación de origen) para poder restaurarla.");

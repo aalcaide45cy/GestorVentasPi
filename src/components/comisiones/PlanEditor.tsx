@@ -109,7 +109,15 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
   const { mostrar } = useToast();
   // Si se recarga la página (F5) con el plan a medias, se recupera lo que había sin guardar y la pestaña en la que estabas
   const claveBorrador = `plan-${inicial?.idPlan ?? 0}`;
-  const [borrador] = useState(() => leerBorrador<{ plan: Plan; pestana: IdPestana }>(claveBorrador));
+  // Un plan que se abre a propósito con sus datos (por ejemplo, una copia con el mes elegido) no recupera un borrador viejo: el borrador solo
+  // sirve para volver a donde estabas tras recargar la página. Antes, un borrador olvidado de otro plan nuevo pisaba las fechas de la copia.
+  const [borrador] = useState(() => (inicial && inicial.idPlan === 0 ? null : leerBorrador<{ plan: Plan; pestana: IdPestana }>(claveBorrador)));
+  useEffect(() => {
+    if (inicial && inicial.idPlan === 0) borrarBorrador(claveBorrador);
+    // Al salir del editor dentro de la aplicación (Volver, el menú…) el borrador ya no hace falta; al recargar (F5) sí se conserva
+    return () => borrarBorrador(claveBorrador);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [plan, setPlanEstado] = useState<Plan>(borrador?.plan ?? inicial ?? PLAN_VACIO());
   const [guardado, setGuardado] = useState(JSON.stringify(inicial && inicial.idPlan !== 0 ? inicial : null));
   const [pestana, setPestana] = useState<IdPestana>(borrador?.pestana && PESTANAS.some((p) => p.id === borrador.pestana) ? borrador.pestana : PESTANAS.some((p) => p.id === pestanaInicial) ? (pestanaInicial as IdPestana) : "resumen");

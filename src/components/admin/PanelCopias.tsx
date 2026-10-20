@@ -558,6 +558,13 @@ export default function PanelCopias() {
               <label className="form-label" title="Además, la última copia de cada mes, durante este número de meses">Guardar mensuales</label>
               <input className="form-input" type="number" min={0} style={{ width: "80px" }} value={ajustes.retMensuales} onChange={(e) => campoAjuste("retMensuales", Number(e.target.value))} />
             </div>
+            <label style={{ display: "flex", gap: "6px", alignItems: "flex-start", flexBasis: "100%", fontSize: "0.88rem" }} title="La copia lleva dentro la clave que abre los documentos y el doble factor, así que se restaura en cualquier PC sin pedir ningún código. Quien tenga el archivo de la copia podría abrir esos datos: no la dejes en sitios que no sean tuyos.">
+              <input type="checkbox" checked={ajustes.portables} onChange={(e) => campoAjuste("portables", e.target.checked)} style={{ marginTop: "3px" }} />
+              <span>
+                <b>Copias portables</b> (recomendado para llevar la base a otro PC): descargas el .dump de un equipo y lo restauras en otro <b>sin escribir ninguna clave</b>.
+                <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>Si lo desmarcas, las copias nuevas necesitarán la «clave de recuperación» de abajo (o el archivo .env) para abrirse en otra instalación. Quien tenga el archivo de una copia portable puede abrir los documentos y el doble factor que lleva.</span>
+              </span>
+            </label>
             <label style={{ display: "flex", gap: "6px", alignItems: "center" }} title="Sube a Google Drive las copias automáticas según la frecuencia que elijas. Las copias manuales las subes tú, una a una o en lote, con los botones de la lista">
               <input type="checkbox" checked={ajustes.driveAutomatica} onChange={(e) => campoAjuste("driveAutomatica", e.target.checked)} /> Subir a Drive automáticamente
             </label>

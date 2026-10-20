@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { adjuntos, adjuntosDatos, usuarios } from "@/db/schema";
+import { adjuntos, adjuntosDatos, ajustes, usuarios } from "@/db/schema";
 import { cifrar, cifrarBuffer, descifrar, descifrarBuffer } from "@/lib/auth/cifrado";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { ajustarCifradoTrasRestaurar, asegurarComprobacion, configurarClaveRecuperacion, estadoClaveRecuperacion, secretoValido } from "./clave-recuperacion";
+import { ajustarCifradoTrasRestaurar, asegurarComprobacion, configurarClaveRecuperacion, copiasPortablesActivas, estadoClaveRecuperacion, prepararPortabilidad, secretoValido } from "./clave-recuperacion";
 
 const ORIGINAL = process.env.APP_SECRET;
 const SECRETO_A = "a".repeat(40);
@@ -53,6 +53,33 @@ describe("clave de recuperación: restaurar en otra instalación", () => {
     expect(await estadoClaveRecuperacion(db)).toEqual({ configurada: true });
     process.env.APP_SECRET = SECRETO_A;
     expect(await secretoValido(db, SECRETO_A)).toBe(false);
+  });
+
+  it("copia portable: se restaura en otra instalación sin pedir ninguna clave y la copia siguiente sigue siendo portable", async () => {
+    const { idUsuario, idAdjunto } = await datosCifradosConA();
+    await prepararPortabilidad(db);
+    expect(await copiasPortablesActivas(db)).toBe(true);
+    process.env.APP_SECRET = SECRETO_B;
+    expect(await secretoValido(db, SECRETO_B)).toBe(false);
+    expect(await ajustarCifradoTrasRestaurar(db, undefined)).toEqual({ recifrado: true });
+    const [u] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, idUsuario));
+    expect(descifrar(u.totpSecretoCifrado!, "totp")).toBe("SECRETO-TOTP");
+    const [d] = await db.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, idAdjunto));
+    expect(descifrarBuffer(d.datos).toString()).toBe("contenido");
+    // La clave guardada pasa a ser la de esta instalación: la próxima copia también se podrá llevar a otro PC
+    const [fila] = await db.select().from(ajustes).where(eq(ajustes.clave, "clave_portable"));
+    expect(fila.valor).toBe(SECRETO_B);
+  });
+
+  it("si se desactivan las copias portables, la copia no lleva la clave y en otra instalación se vuelve a pedir", async () => {
+    await datosCifradosConA();
+    await prepararPortabilidad(db);
+    await db.insert(ajustes).values({ clave: "backup_portables", valor: "false" }).onConflictDoUpdate({ target: ajustes.clave, set: { valor: "false" } });
+    expect(await copiasPortablesActivas(db)).toBe(false);
+    await prepararPortabilidad(db);
+    expect(await db.select().from(ajustes).where(eq(ajustes.clave, "clave_portable"))).toHaveLength(0);
+    process.env.APP_SECRET = SECRETO_B;
+    await expect(ajustarCifradoTrasRestaurar(db, undefined)).rejects.toMatchObject({ status: 400, message: expect.stringContaining("otra instalación") });
   });
 
   it("también vale el APP_SECRET de origen en lugar de la clave, y la clave de origen queda sin validez", async () => {
