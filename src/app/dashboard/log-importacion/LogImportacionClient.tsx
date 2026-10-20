@@ -85,7 +85,7 @@ const columnasBaseRegistros: ColumnaTabla<Registro>[] = [
 /** «Log de Importaciones»: historial de cargas CSV/Excel con corrección rápida de cada expediente. */
 export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVenta, estadosVehiculo, tiendas }: Props) {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [bloques, setBloques] = useState<BloqueImportacionDto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
@@ -141,7 +141,7 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
   }, []);
 
   const eliminarBloque = async (id: number) => {
-    if (!window.confirm("¿Quitar esta línea del historial? Los datos importados se quedan como están (para quitarlos usa «Deshacer importación»).")) return;
+    if (!await confirmar({ texto: "¿Quitar esta línea del historial? Los datos importados se quedan como están (para quitarlos usa «Deshacer importación»).", peligro: true })) return;
     try {
       const res = await fetch(`/api/importaciones?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al eliminar bloque"));
@@ -155,12 +155,12 @@ export default function LogImportacionClient({ marcas, modelosPorMarca, tiposVen
 
   /** Deshace de verdad una importación: elimina lo que creó y devuelve lo que cambió a su valor anterior. */
   const deshacerBloque = async (b: BloqueImportacionDto) => {
-    if (!window.confirm(`¿Deshacer la importación «${b.nombre_archivo}»?
+    if (!await confirmar({ texto: `¿Deshacer la importación «${b.nombre_archivo}»?
 
 • ${b.creados} expediente(s) creado(s) pasarán a eliminados.
 • ${b.modificados} expediente(s) modificado(s) volverán a los datos que tenían antes (si no se han vuelto a cambiar).
 
-Los clientes que se crearan con ella no se borran. Las comisiones se recalculan solas.`)) return;
+Los clientes que se crearan con ella no se borran. Las comisiones se recalculan solas.`, peligro: true })) return;
     try {
       const res = await fetch("/api/importaciones/deshacer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: b.id }) });
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se ha podido deshacer la importación"));

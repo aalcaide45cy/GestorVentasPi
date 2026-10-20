@@ -7,10 +7,11 @@ import { iniciarLectura, leerResumenLecturas, suscribirResumenLecturas } from "@
 import type { AjustesOcrDto } from "@/app/api/admin/ocr/route";
 
 /**
- * Controles de la lectura de pedidos junto a la zona de arrastrar: el botón «Iniciar lectura» (cuando la lectura es manual y hay pedidos
- * subidos esperando) y, solo para administradores, el motor de OCR y si la lectura es manual, sin ir a Configuración.
+ * Controles de la lectura junto a las zonas de arrastrar, sin ir a Configuración. `parte="pedidos"`: el botón «Iniciar lectura» (cuando la
+ * lectura es manual y hay pedidos subidos esperando) y, para administradores, si la lectura es manual. `parte="motor"`: el motor de OCR
+ * (solo administradores), que sirve tanto para los pedidos como para los pagos de la financiera.
  */
-export default function ControlesLectura() {
+export default function ControlesLectura({ parte = "pedidos" }: { parte?: "motor" | "pedidos" }) {
   const { mostrar } = useToast();
   const resumen = useSyncExternalStore(suscribirResumenLecturas, leerResumenLecturas, () => null);
   const [a, setA] = useState<AjustesOcrDto | null>(null);
@@ -43,6 +44,28 @@ export default function ControlesLectura() {
 
   const esperando = resumen?.subiendo ?? 0;
   const manual = resumen?.manual ?? a?.lecturaManual ?? true;
+  if (parte === "motor") {
+    if (!a) return null;
+    return (
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", fontSize: "0.82rem" }}>
+        <b title="El motor de OCR se usa para leer los pedidos y los pagos de la financiera que vengan escaneados o en foto">🔎 Motor de lectura (OCR) para pedidos y pagos</b>
+        <select
+          className="form-input"
+          value={a.motor}
+          disabled={guardando}
+          onChange={(e) => void guardar({ motor: e.target.value }, "Motor de lectura cambiado.")}
+          title="Motor con el que se leen los documentos. Entre paréntesis, el equipo en el que va mejor (★ = el recomendado para este equipo)"
+          style={{ padding: "4px 8px", fontSize: "0.82rem", flex: "1 1 320px", maxWidth: "560px" }}
+        >
+          {a.opciones.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.nombre} ({o.equipo}){o.recomendado ? " ★" : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
   if (!a && !(manual && esperando > 0)) return null;
 
   return (
@@ -64,20 +87,6 @@ export default function ControlesLectura() {
       )}
       {a && (
         <>
-          <select
-            className="form-input"
-            value={a.motor}
-            disabled={guardando}
-            onChange={(e) => void guardar({ motor: e.target.value }, "Motor de lectura cambiado.")}
-            title="Motor con el que se leen los pedidos. Entre paréntesis, el equipo en el que va mejor (★ = el recomendado para este equipo)"
-            style={{ padding: "3px 8px", fontSize: "0.78rem", maxWidth: "100%" }}
-          >
-            {a.opciones.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.nombre} ({o.equipo}){o.recomendado ? " ★" : ""}
-              </option>
-            ))}
-          </select>
           <label style={{ display: "flex", gap: "5px", alignItems: "center", cursor: "pointer" }} title="Con la lectura manual, tras subir los pedidos no se lee nada hasta que pulses «Iniciar lectura». Sin marcar, se leen solos al terminar de subirlos.">
             <input type="checkbox" checked={a.lecturaManual} disabled={guardando} onChange={(e) => void guardar({ lecturaManual: e.target.checked }, e.target.checked ? "Lectura manual: pulsarás «Iniciar lectura»." : "Lectura automática: se leerá al terminar de subir.")} style={{ accentColor: "var(--primary)" }} />
             Lectura manual

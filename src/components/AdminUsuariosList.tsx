@@ -29,7 +29,7 @@ const ROLES_OPCIONES = [
 /** «Gestión de Usuarios y Roles»: alta con contraseña temporal, edición, suspensión y baja. */
 export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: Props) {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [usuarios, setUsuarios] = useState<UsuarioAdminDto[]>(usuariosIniciales);
   const [actualizando, setActualizando] = useState<number | null>(null);
 
@@ -198,7 +198,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
         : accion === "reset_password"
           ? `¿Crear una contraseña temporal para ${u.nombre}? Se cerrarán sus sesiones, la contraseña actual dejará de valer y tendrá que cambiarla al entrar.`
           : `¿Cerrar todas las sesiones abiertas de ${u.nombre}?`;
-    if (!window.confirm(texto)) return;
+    if (!await confirmar({ texto: texto })) return;
     setActualizando(u.id_usuario);
     try {
       const res = await fetch("/api/admin/usuarios/seguridad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id_usuario: u.id_usuario, accion }) });

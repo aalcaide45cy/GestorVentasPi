@@ -1,11 +1,12 @@
 import { and, asc, eq, inArray, isNull, max, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { adjuntos, clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, importacionesRegistros, marcas, modelos, telefonosClientes } from "@/db/schema";
+import { adjuntos, clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, importacionesRegistros, marcas, modelos, pagosRci, telefonosClientes, tipoDeVenta } from "@/db/schema";
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { claveNif, nifParecido, normalizarMatricula } from "@/lib/identificadores";
 import { conRecalculo } from "./liquidaciones";
+import { reintentarPagosPendientes } from "./pagos-rci";
 
 /**
  * Completar y corregir datos de expedientes que YA existen a partir de los listados del fabricante (Expedientes, Llamadas de
@@ -13,7 +14,7 @@ import { conRecalculo } from "./liquidaciones";
  * elige qué aplicar. Todo queda en el log de importaciones y se puede deshacer.
  */
 
-export const CAMPOS_COMPLETAR = ["vin", "matricula", "fecha_expediente", "fecha_afectacion", "fecha_matriculacion", "fecha_primera_matriculacion", "fecha_entrega", "fecha_facturacion", "estado_intranet", "dni", "codigo_postal", "email", "telefono"] as const;
+export const CAMPOS_COMPLETAR = ["vin", "matricula", "fecha_expediente", "fecha_afectacion", "fecha_matriculacion", "fecha_primera_matriculacion", "fecha_entrega", "fecha_facturacion", "estado_intranet", "cliente_nombre", "dni", "codigo_postal", "email", "telefono"] as const;
 export type CampoCompletar = (typeof CAMPOS_COMPLETAR)[number];
 
 /** Etiquetas del log de importaciones (las mismas que usa la importación de Excel, para poder deshacer ambas). */
@@ -27,6 +28,7 @@ export const ETIQUETA_CAMPO: Record<CampoCompletar, string> = {
   fecha_entrega: "Fecha Entrega",
   fecha_facturacion: "Fecha Facturación",
   estado_intranet: "Estado en la intranet",
+  cliente_nombre: "Nombre del cliente",
   dni: "DNI/NIF",
   codigo_postal: "Código postal",
   email: "Email",
@@ -90,6 +92,9 @@ export interface CandidatoExpediente {
   fecha: string | null;
   /** Por qué se sugiere. */
   motivo: string;
+  /** Fuerza de la sugerencia (suma de pistas) y si es la elegida como probable. */
+  puntos?: number;
+  probable?: boolean;
 }
 
 export type ComoCoincide = "bastidor" | "matricula" | "nif" | "email" | "nombre" | "manual";
@@ -157,6 +162,7 @@ interface ExpedienteCargado {
   cliente: string | null;
   dni: string | null;
   codigoPostal: string | null;
+  financiado: boolean;
   idAdjuntoPedido: number | null;
 }
 
@@ -183,12 +189,14 @@ async function cargarExpedientes(ej: Ejecutor, usuario: UsuarioActual): Promise<
       cliente: clientes.nombre,
       dni: clientes.dni,
       codigoPostal: clientes.codigoPostal,
+      financiado: tipoDeVenta.requiereRciAlMatricular,
     })
     .from(expedientes)
     .leftJoin(estadoVehiculo, eq(estadoVehiculo.idEstadoVehiculo, expedientes.idEstadoVehiculo))
     .leftJoin(modelos, eq(modelos.idModelo, expedientes.idModelo))
     .leftJoin(marcas, eq(marcas.idMarca, modelos.marcaId))
     .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+    .leftJoin(tipoDeVenta, eq(tipoDeVenta.idTipoDeVenta, expedientes.idTipoDeVenta))
     .where(donde)
     .orderBy(asc(expedientes.idExpediente))
     .limit(60000);
@@ -201,7 +209,7 @@ async function cargarExpedientes(ej: Ejecutor, usuario: UsuarioActual): Promise<
     .groupBy(adjuntos.idExpediente)) {
     if (a.idExpediente !== null && a.id !== null) pedidos.set(a.idExpediente, a.id);
   }
-  return filas.map((f) => ({ ...f, clase: f.clase ?? "VN", marca: f.marca ?? "", modelo: f.modelo ?? "", cliente: f.cliente ?? null, idAdjuntoPedido: pedidos.get(f.id) ?? null }));
+  return filas.map((f) => ({ ...f, clase: f.clase ?? "VN", marca: f.marca ?? "", modelo: f.modelo ?? "", cliente: f.cliente ?? null, financiado: f.financiado ?? false, idAdjuntoPedido: pedidos.get(f.id) ?? null }));
 }
 
 interface Indices {
@@ -299,6 +307,89 @@ const aCandidato = (e: ExpedienteCargado, motivo: string): CandidatoExpediente =
   motivo,
 });
 
+const PALABRAS_VACIAS = new Set(["de", "del", "la", "las", "los", "el", "y", "da", "do", "dos", "san", "santa"]);
+/** Apellidos y nombres (sin acentos) de un nombre completo, sin partículas, para ver si dos personas comparten alguno. */
+const palabrasDeNombre = (t: string | null): string[] => sinAcentos(t ?? "").replace(/[^a-z ]/g, " ").split(/\s+/).filter((p) => p.length >= 3 && !PALABRAS_VACIAS.has(p));
+
+interface PagoPendiente {
+  nombre: string | null;
+  nif: string | null;
+}
+
+/**
+ * Cuando una fila del listado no encuentra expediente por ningún dato exacto (por ejemplo, el coche se pidió a nombre del hijo y la
+ * financiera y la intranet lo tienen a nombre de la madre), se buscan los expedientes que **todavía no tienen bastidor** y encajan por
+ * pistas: mismo modelo, fecha de pedido cercana, apellidos en común, mismo código postal o teléfono y un pago de RCI pendiente de ese
+ * bastidor. Devuelve los mejores con el motivo de cada uno; solo hay un «probable» si destaca claramente.
+ */
+function sugerirPorPistas(f: FilaCompletar, todos: ExpedienteCargado[], idx: Indices, telefonos: Map<number, Set<string>>, pago: PagoPendiente | undefined): CandidatoExpediente[] {
+  const vehiculoListado = sinAcentos(`${f.marca} ${f.modelo}`);
+  const marca = sinAcentos(f.marca);
+  const apellidosListado = new Set(palabrasDeNombre(f.cliente));
+  const telefono = f.telefono.replace(/\D/g, "");
+  const correo = f.email.trim().toLowerCase();
+  const puntuados: { e: ExpedienteCargado; puntos: number; razones: string[] }[] = [];
+  for (const e of todos) {
+    // Un expediente que ya tiene bastidor o matrícula distintos a los de la fila es otro coche
+    if (f.bastidor && e.vin && norm(e.vin) !== norm(f.bastidor)) continue;
+    const mat = norm(normalizarMatricula(f.matricula));
+    if (mat && e.matricula && norm(normalizarMatricula(e.matricula)) !== mat) continue;
+    if (e.vin || e.matricula) continue;
+    let puntos = 0;
+    const razones: string[] = [];
+    if (marca && sinAcentos(e.marca) === marca) {
+      puntos += 2;
+      const modeloIgual = sinAcentos(e.modelo).split(" ").some((p) => p.length > 2 && vehiculoListado.includes(p));
+      if (modeloIgual) {
+        puntos += 3;
+        razones.push("mismo modelo");
+      } else razones.push("misma marca");
+    }
+    const dias = diasEntre(e.fechaExpediente, f.fCreado);
+    if (Number.isFinite(dias)) {
+      if (dias > 120) continue;
+      if (dias <= 10) {
+        puntos += 3;
+        razones.push(`pedido ${Math.round(dias)} día(s) de diferencia`);
+      } else if (dias <= 30) {
+        puntos += 2;
+        razones.push(`pedido ${Math.round(dias)} días de diferencia`);
+      } else if (dias <= 60) puntos += 1;
+    }
+    const comunes = palabrasDeNombre(e.cliente).filter((p) => apellidosListado.has(p));
+    if (comunes.length > 0) {
+      puntos += 3;
+      razones.push(`apellido en común (${comunes.map((p) => p[0].toUpperCase() + p.slice(1)).join(", ")})`);
+    }
+    if (f.codigoPostal && e.codigoPostal && f.codigoPostal === e.codigoPostal) {
+      puntos += 2;
+      razones.push("mismo código postal");
+    }
+    if (e.idCliente !== null) {
+      if (telefono.length >= 9 && (telefonos.get(e.idCliente)?.has(telefono) ?? false)) {
+        puntos += 3;
+        razones.push("mismo teléfono");
+      }
+      if (correo && (idx.correosDe.get(e.idCliente)?.has(correo) ?? false)) {
+        puntos += 3;
+        razones.push("mismo correo");
+      }
+    }
+    if (pago && e.financiado) {
+      puntos += 1;
+      razones.push("pago a plazos, como el pago de RCI de ese bastidor");
+    }
+    if (puntos >= 5) puntuados.push({ e, puntos, razones });
+  }
+  puntuados.sort((a, b) => b.puntos - a.puntos);
+  const mejores = puntuados.slice(0, 6);
+  return mejores.map((m, i) => ({
+    ...aCandidato(m.e, m.razones.join(" · ")),
+    puntos: m.puntos,
+    probable: i === 0 && (m.puntos >= 9 || (m.puntos >= 6 && m.puntos - (mejores[1]?.puntos ?? 0) >= 3)),
+  }));
+}
+
 /** Ofrece, para cada fila del listado, lo que se rellenaría o corregiría en el expediente que le corresponde. No guarda nada. */
 export async function previsualizarCompletado(
   ej: Ejecutor,
@@ -335,6 +426,12 @@ export async function previsualizarCompletado(
     for (const c of idx.correosDe.get(e.idCliente) ?? []) idx.porCorreo.set(c, [...(idx.porCorreo.get(c) ?? []), e]);
   }
 
+  // Pagos de la financiera pendientes, por bastidor: si el listado trae el mismo bastidor, es una pista (y se le dice a la persona)
+  const pagosPendientes = new Map<string, PagoPendiente>();
+  for (const p of await ej.select({ vin: pagosRci.bastidor, nombre: pagosRci.nombre, nif: pagosRci.nif }).from(pagosRci).where(eq(pagosRci.estado, "pendiente"))) {
+    if (p.vin) pagosPendientes.set(norm(p.vin), { nombre: p.nombre, nif: p.nif });
+  }
+
   const salida: FilaPrevisualizada[] = [];
   for (const f of filas) {
     const anuladoListado = /anulad/i.test(f.estado);
@@ -354,7 +451,12 @@ export async function previsualizarCompletado(
     if (!exp) {
       const motivo = ambiguo ? `${hallado.pista ?? "Hay varios expedientes posibles"}: elige cuál a mano (no se toca ninguno)` : (hallado.pista ?? "No hay ningún expediente tuyo que coincida (no se crea nada)");
       const estado = anuladoListado ? "anulado" : ambiguo ? "ambiguo" : "sin_coincidencia";
-      salida.push({ ...base, idExpediente: null, clienteApp: null, dniApp: null, vehiculoApp: null, claseApp: null, deshabilitadoApp: false, idAdjuntoPedido: null, coincide: como, estado, motivo: anuladoListado ? `Anulado en el listado y sin expediente en la app. ${motivo}` : motivo, propuestas: [], candidatos: hallado.candidatos.map((e) => aCandidato(e, hallado.pista ?? "Mismo cliente")) });
+      const pago = f.bastidor ? pagosPendientes.get(norm(f.bastidor)) : undefined;
+      // Sin candidatos exactos ni parecidos: se sugieren los expedientes sin bastidor que encajan por pistas (otro titular, mismo coche)
+      const porPistas = hallado.candidatos.length === 0 && !anuladoListado ? sugerirPorPistas(f, todos, idx, telefonos, pago) : [];
+      const textoPago = pago ? ` Hay un pago de RCI pendiente con este bastidor a nombre de ${pago.nombre ?? "otra persona"}${pago.nif ? ` (${pago.nif})` : ""}.` : "";
+      const textoPistas = porPistas.length > 0 ? " Estos expedientes sin bastidor podrían ser el suyo (otro titular, mismo coche): elige a mano." : "";
+      salida.push({ ...base, idExpediente: null, clienteApp: null, dniApp: null, vehiculoApp: null, claseApp: null, deshabilitadoApp: false, idAdjuntoPedido: null, coincide: como, estado, motivo: (anuladoListado ? `Anulado en el listado y sin expediente en la app. ${motivo}` : motivo) + textoPago + textoPistas, propuestas: [], candidatos: [...hallado.candidatos.map((e) => aCandidato(e, hallado.pista ?? "Mismo cliente")), ...porPistas] });
       continue;
     }
     const props: PropuestaCampo[] = [];
@@ -383,7 +485,10 @@ export async function previsualizarCompletado(
     // El estado del listado queda guardado para poder filtrar y revisar a mano (anulados, archivados…)
     const estadoListado = f.estado.trim().slice(0, 40);
     if (estadoListado && (exp.estadoIntranet ?? "").toLowerCase() !== estadoListado.toLowerCase()) proponer("estado_intranet", exp.estadoIntranet, estadoListado);
-    proponer("dni", exp.dni, f.nif || null);
+    // Si el documento del listado es de otra persona (o la fila se asoció a mano), el titular del expediente cambia: se propone el nombre
+    const otroTitular = f.cliente.trim() !== "" && nombreClave(f.cliente) !== nombreClave(exp.cliente) && (como === "manual" || (f.nif !== "" && exp.dni !== null && claveNif(f.nif) !== claveNif(exp.dni)));
+    if (otroTitular) proponer("cliente_nombre", exp.cliente, f.cliente.trim(), `Cambia el titular: el pedido era de «${exp.cliente ?? "—"}» y el listado lo tiene a nombre de esta persona. Se anotará en los comentarios del cliente y del expediente`);
+    proponer("dni", exp.dni, f.nif || null, otroTitular && exp.dni ? "Cambia el documento del titular" : undefined);
     proponer("codigo_postal", exp.codigoPostal, f.codigoPostal || null);
     if (f.email && exp.idCliente !== null && !(idx.correosDe.get(exp.idCliente)?.has(f.email.toLowerCase()) ?? false)) props.push({ campo: "email", etiqueta: ETIQUETA_CAMPO.email, actual: null, nuevo: f.email, tipo: "rellenar", aviso: "Se añade como correo del cliente" });
     const tel = f.telefono.replace(/\D/g, "");
@@ -457,7 +562,7 @@ const COLUMNA_EXPEDIENTE: Partial<Record<CampoCompletar, "vin" | "matricula" | "
 };
 
 /** Aplica solo lo que la persona ha elegido, recalcula las comisiones afectadas y lo deja en el log de importaciones. */
-export async function aplicarCompletado(ej: Ejecutor, usuario: UsuarioActual, entradaCruda: EntradaAplicarCompletado): Promise<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[] }> {
+export async function aplicarCompletado(ej: Ejecutor, usuario: UsuarioActual, entradaCruda: EntradaAplicarCompletado): Promise<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados: number }> {
   const entrada = esquemaAplicarCompletado.parse(entradaCruda);
   if (entrada.cambios.length === 0 && entrada.deshabilitar.length === 0) throw new HttpError(400, "No hay nada que aplicar");
   const ids = [...new Set([...entrada.cambios.map((c) => c.id_expediente), ...entrada.deshabilitar])];
@@ -499,8 +604,8 @@ export async function aplicarCompletado(ej: Ejecutor, usuario: UsuarioActual, en
           if ((actual ?? "") === valor) continue;
           setExp[col] = campo === "vin" ? valor.toUpperCase() : valor;
           cambios[ETIQUETA_CAMPO[campo]] = { old: actual || "(Vacío)", new: setExp[col] };
-        } else if (campo === "dni" || campo === "codigo_postal") {
-          const colCli = campo === "dni" ? "dni" : "codigoPostal";
+        } else if (campo === "dni" || campo === "codigo_postal" || campo === "cliente_nombre") {
+          const colCli = campo === "dni" ? "dni" : campo === "cliente_nombre" ? "nombre" : "codigoPostal";
           const actual = (exp.cliente as unknown as Record<string, string | null> | null)?.[colCli] ?? null;
           if ((actual ?? "") === valor) continue;
           setCli[colCli] = valor;
@@ -519,6 +624,19 @@ export async function aplicarCompletado(ej: Ejecutor, usuario: UsuarioActual, en
         }
       }
       if (Object.keys(cambios).length === 0) continue;
+      // Cambio de titular (el pedido se hizo a nombre de otra persona): se deja anotado en los comentarios del cliente y del expediente
+      const dniAnterior = exp.cliente?.dni ?? "";
+      const titularCambia = setCli.nombre !== undefined || (setCli.dni !== undefined && dniAnterior !== "" && claveNif(setCli.dni) !== claveNif(dniAnterior));
+      if (titularCambia && exp.idCliente !== null) {
+        const hoy = new Date().toISOString().slice(0, 10).split("-").reverse().join("/");
+        const persona = (nombre: string | null | undefined, dni: string | null | undefined) => `${nombre?.trim() || "—"}${dni ? ` (${dni})` : ""}`;
+        const nota = `[${hoy}] Cambio de titular al completar datos desde el listado «${entrada.archivo}»: el pedido se hizo a nombre de ${persona(exp.cliente?.nombre, dniAnterior)} y el listado de la intranet lo tiene a nombre de ${persona(setCli.nombre ?? exp.cliente?.nombre, setCli.dni ?? dniAnterior)}. Los datos anteriores quedan anotados aquí.`;
+        const unir = (previo: string | null | undefined) => (previo && previo.trim() !== "" ? `${previo}\n\n${nota}` : nota);
+        setExp.comentarios = unir(exp.comentarios);
+        setCli.comentarios = unir(exp.cliente?.comentarios);
+        cambios["Comentario del expediente"] = { old: exp.comentarios || "(Vacío)", new: setExp.comentarios };
+        cambios["Comentario del cliente"] = { old: exp.cliente?.comentarios || "(Vacío)", new: setCli.comentarios };
+      }
       if (Object.keys(setExp).length > 0) await tx.update(expedientes).set(setExp).where(eq(expedientes.idExpediente, exp.idExpediente));
       if (Object.keys(setCli).length > 0 && exp.idCliente !== null) await tx.update(clientes).set(setCli).where(eq(clientes.id, exp.idCliente));
       expCambiados++;
@@ -544,7 +662,9 @@ export async function aplicarCompletado(ej: Ejecutor, usuario: UsuarioActual, en
     await tx.update(importacionesBloques).set({ creados: 0, modificados: expCambiados, omitidos: omitidos.length }).where(eq(importacionesBloques.id, bloque.id));
     return { valor: { expedientesCambiados: expCambiados, camposCambiados: campos, omitidos }, idsDespues: ids };
   });
-  return valor;
+  // Los expedientes ya tienen bastidor, matrícula o documento nuevos: los pagos de la financiera que esperaban pueden engancharse ahora
+  const pagos = await reintentarPagosPendientes(ej, usuario).catch(() => ({ revisados: 0, enlazados: 0 }));
+  return { ...valor, pagosEnlazados: pagos.enlazados };
 }
 
 const ETIQUETA_A_CAMPO = new Map(Object.entries(ETIQUETA_CAMPO).map(([campo, etiqueta]) => [etiqueta, campo as CampoCompletar]));
@@ -593,6 +713,21 @@ export async function deshacerBloque(ej: Ejecutor, usuario: UsuarioActual, idBlo
           }
           continue;
         }
+        if (etiqueta === "Comentario del expediente" || etiqueta === "Comentario del cliente") {
+          const delCliente = etiqueta === "Comentario del cliente";
+          const actual = delCliente ? (exp.cliente?.comentarios ?? "") : (exp.comentarios ?? "");
+          const previo = old === "(Vacío)" ? null : old;
+          if (actual !== nuevo || (delCliente && exp.idCliente === null)) {
+            res.conservados.push(`${etiqueta} de ${exp.idExpediente}: se cambió después, se deja como está`);
+          } else if (delCliente) {
+            await tx.update(clientes).set({ comentarios: previo }).where(eq(clientes.id, exp.idCliente as number));
+            res.revertidos++;
+          } else {
+            await tx.update(expedientes).set({ comentarios: previo }).where(eq(expedientes.idExpediente, exp.idExpediente));
+            res.revertidos++;
+          }
+          continue;
+        }
         const campo = ETIQUETA_A_CAMPO.get(etiqueta);
         const anterior = old === "(Vacío)" || old === "(Ninguno)" ? null : old;
         if (!campo) {
@@ -608,8 +743,8 @@ export async function deshacerBloque(ej: Ejecutor, usuario: UsuarioActual, idBlo
           }
           await tx.update(expedientes).set({ [col]: anterior }).where(eq(expedientes.idExpediente, exp.idExpediente));
           res.revertidos++;
-        } else if ((campo === "dni" || campo === "codigo_postal") && exp.idCliente !== null) {
-          const colCli = campo === "dni" ? "dni" : "codigoPostal";
+        } else if ((campo === "dni" || campo === "codigo_postal" || campo === "cliente_nombre") && exp.idCliente !== null) {
+          const colCli = campo === "dni" ? "dni" : campo === "cliente_nombre" ? "nombre" : "codigoPostal";
           const actual = (exp.cliente as unknown as Record<string, string | null> | null)?.[colCli] ?? null;
           if ((actual ?? "") !== nuevo) {
             res.conservados.push(`Cliente de ${exp.idExpediente}: ${etiqueta} se cambió después, se deja como está`);

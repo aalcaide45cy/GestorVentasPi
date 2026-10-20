@@ -13,7 +13,7 @@ interface Estado {
 
 /** «Actualizar la aplicación»: lanza desde aquí la actualización a la última versión (espera a GitHub y la instala sola). */
 export default function PanelActualizar() {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [info, setInfo] = useState<Estado | null>(null);
   const [pidiendo, setPidiendo] = useState(false);
 
@@ -47,7 +47,7 @@ export default function PanelActualizar() {
   }, [enCurso, leer]);
 
   const lanzar = async () => {
-    if (!window.confirm("¿Buscar e instalar la última versión?\n\nSi GitHub todavía la está construyendo, se espera a que termine y se instala sola. Se hace una copia de seguridad antes. Durante la instalación la aplicación puede dejar de responder uno o dos minutos.")) return;
+    if (!await confirmar({ texto: "¿Buscar e instalar la última versión?\n\nSi GitHub todavía la está construyendo, se espera a que termine y se instala sola. Se hace una copia de seguridad antes. Durante la instalación la aplicación puede dejar de responder uno o dos minutos." })) return;
     setPidiendo(true);
     try {
       await llamar("/api/admin/actualizar", { method: "POST", cuerpo: { confirmar: true } });

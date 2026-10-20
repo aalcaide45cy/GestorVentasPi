@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerJsonCrudo, manejar } from "@/lib/http";
+import { encolar, type ContextoTarea } from "@/lib/servicios/tareas";
 import { CATEGORIAS, compactar, descargarPapelera, esquemaAFondo, esquemaCompactar, esquemaPurga, espacioBaseDeDatos, filasPapelera, purgar, purgarAFondo, resumenPapelera, type Categoria } from "@/lib/servicios/papelera";
 
 export const dynamic = "force-dynamic";
@@ -35,23 +36,53 @@ export const GET = manejar(async (req: Request) => {
   return NextResponse.json({ success: true, data: { categorias, espacio } });
 });
 
-/** Purgar una categoría (`{categoria, ids | todo | antesDeDias, confirmacion: "PURGAR"}`), purgar a fondo (`{accion: "a_fondo"}`) o compactar (`{accion: "compactar"}`). */
+/**
+ * Purgar una categoría (`{categoria, ids | todo | antesDeDias, confirmacion: "PURGAR"}`), purgar a fondo (`{accion: "a_fondo"}`) o compactar
+ * (`{accion: "compactar"}`). Con `?asincrono=1` no espera: pone la tarea en la cola de segundo plano y devuelve `{ tarea }` para seguir su
+ * avance en `/api/tareas` (se puede navegar por la aplicación mientras tanto).
+ */
 export const POST = manejar(async (req: Request) => {
   const admin = await requireSession("administrador");
   const crudo = await leerJsonCrudo(req);
+  const asincrono = new URL(req.url).searchParams.get("asincrono") === "1";
+
+  // Se valida todo antes de poner nada en cola
+  type Trabajo = { titulo: string; ejecutar: (ctx?: ContextoTarea) => Promise<unknown> };
+  let trabajo: Trabajo;
   if (crudo.accion === "compactar") {
     esquemaCompactar.parse(crudo);
-    const r = await compactar(db);
-    await auditar({ idUsuario: admin.idUsuario, accion: "bbdd_compactada", entidad: "papelera", detalle: { ...r } });
-    return NextResponse.json({ success: true, data: r });
+    trabajo = {
+      titulo: "Compactar la base de datos",
+      ejecutar: async (ctx) => {
+        const r = await compactar(db, ctx);
+        await auditar({ idUsuario: admin.idUsuario, accion: "bbdd_compactada", entidad: "papelera", detalle: { ...r } });
+        return r;
+      },
+    };
+  } else if (crudo.accion === "a_fondo") {
+    const entrada = esquemaAFondo.parse(crudo);
+    trabajo = {
+      titulo: "Purgar a fondo la papelera",
+      ejecutar: async (ctx) => {
+        const r = await purgarAFondo(db, admin.idUsuario, entrada, ctx);
+        await auditar({ idUsuario: admin.idUsuario, accion: "papelera_purgada_a_fondo", entidad: "papelera", detalle: { purgados: r.purgados, bloqueados: r.bloqueados, detalle: r.detalle } });
+        return r;
+      },
+    };
+  } else {
+    const entrada = esquemaPurga.parse(crudo);
+    trabajo = {
+      titulo: `Purgar ${entrada.categoria}`,
+      ejecutar: async (ctx) => {
+        const r = await purgar(db, admin.idUsuario, entrada, ctx);
+        await auditar({ idUsuario: admin.idUsuario, accion: "papelera_purgada", entidad: entrada.categoria, detalle: { purgados: r.purgados, bloqueados: r.bloqueados } });
+        return r;
+      },
+    };
   }
-  if (crudo.accion === "a_fondo") {
-    const r = await purgarAFondo(db, admin.idUsuario, esquemaAFondo.parse(crudo));
-    await auditar({ idUsuario: admin.idUsuario, accion: "papelera_purgada_a_fondo", entidad: "papelera", detalle: { purgados: r.purgados, bloqueados: r.bloqueados, detalle: r.detalle } });
-    return NextResponse.json({ success: true, data: r });
+  if (asincrono) {
+    const tarea = encolar({ tipo: "papelera", titulo: trabajo.titulo, idUsuario: admin.idUsuario }, (ctx) => trabajo.ejecutar(ctx));
+    return NextResponse.json({ success: true, tarea: tarea.id }, { status: 202 });
   }
-  const entrada = esquemaPurga.parse(crudo);
-  const r = await purgar(db, admin.idUsuario, entrada);
-  await auditar({ idUsuario: admin.idUsuario, accion: "papelera_purgada", entidad: entrada.categoria, detalle: { purgados: r.purgados, bloqueados: r.bloqueados } });
-  return NextResponse.json({ success: true, data: r });
+  return NextResponse.json({ success: true, data: await trabajo.ejecutar() });
 });

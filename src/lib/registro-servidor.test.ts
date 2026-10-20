@@ -49,6 +49,9 @@ describe("registro del servidor", () => {
     const antes = (await leerRegistro({ nivel: "todo", lineas: 5000 })).entradas.length;
     process.stdout.write("Mensaje directo del servidor\n");
     process.stdout.write(" GET /api/documentos/lecturas 200 in 17ms (next.js: 2ms)\n");
+    // Las líneas de compilar de Next no se anotan: el archivo está en el proyecto y provocarían un bucle de recargas en desarrollo
+    process.stdout.write("\u001b[32m✓\u001b[0m Compiled in 3ms\n");
+    process.stdout.write(" ⚠ Compiling /dashboard ...\n");
     process.stdout.write("\u001b[31mLinea con color\u001b[0m\n");
     process.stderr.write("fallo directo por stderr\n");
     await esperar(300);

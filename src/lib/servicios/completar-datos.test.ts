@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, marcas, modelos, tipoDeVenta } from "@/db/schema";
+import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, marcas, modelos, pagosRci, tipoDeVenta } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { aplicarCompletado, deshacerBloque, esquemaFilaCompletar, previsualizarCompletado } from "./completar-datos";
+import { candidatosDePago, procesarPago } from "./pagos-rci";
 
 beforeEach(reiniciarBd);
 
@@ -170,5 +171,75 @@ describe("completar datos desde un listado", () => {
     expect(d.revertidos).toBe(0);
     expect(d.conservados[0]).toContain("se cambió después");
     expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].matricula).toBe("1111AAA");
+  });
+
+  it("pedido a nombre del hijo y pago e intranet a nombre de la madre: se sugiere el expediente por pistas, se cambia el titular dejando nota y el pago pendiente se engancha solo", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const [tipo] = await db.insert(tipoDeVenta).values({ nombreTipoVenta: "Preference", categoria: "preference", requiereRciAlMatricular: true }).returning();
+    const [est] = await db.insert(estadoVehiculo).values({ nombreEstadoVehiculo: "Nuevo", clase: "VN" }).returning();
+    const [marca] = await db.insert(marcas).values({ nombre: "Dacia" }).returning();
+    const [modelo] = await db.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: "Sandero Stepway" }).returning();
+    const [hijo] = await db.insert(clientes).values({ clienteId: "h1", nombre: "Daniel Frade Hernandez", dni: "02325318H" }).returning();
+    const [exp] = await db.insert(expedientes).values({ idUsuario: admin.idUsuario, idCliente: hijo.id, idTipoDeVenta: tipo.idTipoDeVenta, idEstadoVehiculo: est.idEstadoVehiculo, idModelo: modelo.idModelo, fechaExpediente: "2026-03-30" }).returning();
+    // Otro expediente que no debe ganar: otra fecha y otro cliente
+    const [otroCli] = await db.insert(clientes).values({ clienteId: "o1", nombre: "Pedro Gomez Ruiz", dni: "11111111H" }).returning();
+    const [otro] = await db.insert(expedientes).values({ idUsuario: admin.idUsuario, idCliente: otroCli.id, idTipoDeVenta: tipo.idTipoDeVenta, fechaExpediente: "2026-08-01" }).returning();
+
+    // El pago llega a nombre de la madre: no hay expediente suyo, queda pendiente
+    const PDF = Buffer.from("%PDF-1.4\n%prueba\n");
+    const textoPago = [
+      "DETALLE DE LA LIQUIDACIÓN DE PAGO",
+      "RCI Banque S.A.",
+      "NÚMERO DE OPERACIÓN  FECHA DE PAGO  PUNTO DE RED",
+      "202600024258  09/04/2026  5081",
+      "DATOS VEHÍCULO",
+      "Marca  Modelo  Matrícula  Fecha Matriculación  Número de Chasis",
+      "DACIA  SANDERO  UU1DJF00X76729081",
+      "DATOS ADQUIRIENTE",
+      "Nombre y Apellidos/Razón Social:  Ana Isabel HERNANDEZ MARIN  N.I.F.:  50449427P",
+      "Domicilio:  CALLE X  Código postal: 28522",
+      "DATOS DE LA PERSONA QUE REPRESENTA A RCI BANQUE S.A.",
+      "Nombre y Apellidos/Razón Social:  OTRA PERSONA  N.I.F.:  50826230W",
+    ].join("\n");
+    const pago = await procesarPago(db, admin, { datos: PDF, nombre: "pago.pdf" }, textoPago);
+    expect(pago.estado).toBe("pendiente");
+    // En el propio pago también se sugiere el expediente del hijo por pistas (otro titular, mismo coche)
+    const sugeridos = await candidatosDePago(db, admin, pago.id);
+    expect(sugeridos.motivo).toContain("podrían ser el suyo");
+    expect(sugeridos.candidatos[0]).toMatchObject({ id: exp.idExpediente });
+    expect(sugeridos.candidatos[0].motivo).toContain("apellido en común (Hernandez)");
+
+    // El listado trae a la madre: ningún dato exacto coincide, pero las pistas señalan el expediente del hijo
+    const excel = fila({ cliente: "Ana Isabel HERNANDEZ MARIN", nif: "50449427P", bastidor: "UU1DJF00X76729081", marca: "DACIA", modelo: "Sandero Stepway", fCreado: "2026-04-02", estado: "Archivado", fMatriculacion: "2026-04-20" });
+    const r = await previsualizarCompletado(db, admin, [excel]);
+    expect(r.filas[0].estado).toBe("sin_coincidencia");
+    expect(r.filas[0].motivo).toContain("pago de RCI pendiente");
+    expect(r.filas[0].candidatos[0]).toMatchObject({ id: exp.idExpediente, probable: true });
+    expect(r.filas[0].candidatos[0].motivo).toContain("apellido en común (Hernandez)");
+    expect(r.filas[0].candidatos.map((c) => c.id)).not.toContain(otro.idExpediente);
+
+    // Se asocia a mano: se propone cambiar el titular además de rellenar bastidor y fechas
+    const manual = await previsualizarCompletado(db, admin, [excel], undefined, { "2": exp.idExpediente });
+    const campos = Object.fromEntries(manual.filas[0].propuestas.map((p) => [p.campo, p]));
+    expect(campos.cliente_nombre).toMatchObject({ actual: "Daniel Frade Hernandez", nuevo: "Ana Isabel HERNANDEZ MARIN" });
+    expect(campos.dni.nuevo).toBe("50449427P");
+    expect(campos.vin.nuevo).toBe("UU1DJF00X76729081");
+
+    const a = await aplicarCompletado(db, admin, { archivo: "Expedientes_VN.xlsx", cambios: [{ id_expediente: exp.idExpediente, campos: manual.filas[0].propuestas.map((p) => ({ campo: p.campo, valor: p.nuevo })) }] });
+    expect(a.pagosEnlazados).toBe(1);
+    const [e1] = await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente));
+    const [c1] = await db.select().from(clientes).where(eq(clientes.id, hijo.id));
+    expect(c1).toMatchObject({ nombre: "Ana Isabel HERNANDEZ MARIN", dni: "50449427P" });
+    expect(c1.comentarios).toContain("Daniel Frade Hernandez (02325318H)");
+    expect(e1.comentarios).toContain("Cambio de titular");
+    expect(e1.fechaRci).toBe("2026-04-09");
+    expect((await db.select().from(pagosRci).where(eq(pagosRci.id, pago.id)))[0]).toMatchObject({ estado: "aplicado", idExpediente: exp.idExpediente });
+
+    // Deshacer el listado devuelve el titular y quita las notas
+    const [bloque] = await db.select().from(importacionesBloques);
+    await deshacerBloque(db, admin, bloque.id);
+    const [c2] = await db.select().from(clientes).where(eq(clientes.id, hijo.id));
+    expect(c2).toMatchObject({ nombre: "Daniel Frade Hernandez", dni: "02325318H", comentarios: null });
+    expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].comentarios).toBeNull();
   });
 });

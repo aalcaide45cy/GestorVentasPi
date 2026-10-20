@@ -42,7 +42,7 @@ describe("pago de la financiera", () => {
 
   it("lee la fecha de pago, el bastidor y el documento del adquiriente (no el de la persona que representa a la financiera)", () => {
     const p = parsearPagoRci(PAGO);
-    expect(p).toMatchObject({ numeroOperacion: "202600072629", fechaPago: "2026-10-10", nif: "51701814E", nombre: "Francisco MAYOR CASADO", bastidor: "UU1DJF00477657076", matricula: "", marca: "DACIA", importeNominalCent: 575767, totalLiquidoCent: 484555 });
+    expect(p).toMatchObject({ numeroOperacion: "202600072629", fechaPago: "2026-10-10", nif: "51701814E", nombre: "Francisco MAYOR CASADO", domicilio: "CALLE de la cijara,14", codigoPostal: "28522", bastidor: "UU1DJF00477657076", matricula: "", marca: "DACIA", importeNominalCent: 575767, totalLiquidoCent: 484555 });
     expect(p?.modelo).toContain("SANDERO");
     expect(p?.faltan).toEqual([]);
   });

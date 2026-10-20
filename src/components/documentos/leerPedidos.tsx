@@ -112,7 +112,7 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
           </button>
         </div>
       )}
-      <ControlesLectura />
+      <ControlesLectura parte="pedidos" />
       <OpcionVentanaPedido />
     </div>
   );

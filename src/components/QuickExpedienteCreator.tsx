@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import type { MarcaDto, ModeloDto, TipoVentaDto, VendedorDto } from "@/lib/dto";
 import type { EleccionRapida } from "@/lib/pedidos-cola";
 import ColaPedidos from "./ColaPedidos";
+import ControlesLectura from "./documentos/ControlesLectura";
 import ZonaPagosRci from "./pagos-rci/ZonaPagosRci";
 import { useLeerPedidos, ZonaPedidos } from "./documentos/leerPedidos";
 import { mensajeDeError } from "./expedientes/comun";
@@ -318,9 +319,16 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-start" }}>
-        <ZonaPedidos compacta />
-        <ZonaPagosRci />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "14px" }}>
+        <TarjetaZona titulo="📄 Pedidos de clientes" ayuda="Arrastra los pedidos (PDF o foto): se leen y crean expedientes en la cola de pedidos. Lo que no sea un pedido se ignora.">
+          <ZonaPedidos compacta />
+        </TarjetaZona>
+        <TarjetaZona titulo="💳 Pagos de la financiera (RCI)" ayuda="Arrastra los pagos de RCI (PDF o foto): la fecha de pago fija la fecha RCI de su expediente. Lo que no sea un pago se ignora.">
+          <ZonaPagosRci />
+        </TarjetaZona>
+      </div>
+      <div style={{ padding: "8px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)" }}>
+        <ControlesLectura parte="motor" />
       </div>
 
       <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
@@ -394,5 +402,15 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
 
     </div>
+  );
+}
+
+/** Tarjeta de una zona de arrastrar (pedidos, pagos de RCI…): título, ayuda al pasar el ratón y su contenido, todas con el mismo aspecto. */
+function TarjetaZona({ titulo, ayuda, children }: { titulo: string; ayuda: string; children: ReactNode }) {
+  return (
+    <section title={ayuda} style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "12px 14px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)", minWidth: 0 }}>
+      <h3 style={{ margin: 0, fontSize: "0.92rem", fontWeight: 700 }}>{titulo}</h3>
+      {children}
+    </section>
   );
 }

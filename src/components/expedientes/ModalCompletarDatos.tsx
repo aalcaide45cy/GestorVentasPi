@@ -71,7 +71,7 @@ interface Borrador {
  * las filas dudosas. Nunca crea expedientes, clientes ni modelos.
  */
 export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar: () => void; alAplicar: () => void }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [listados, setListados] = useState<ListadoLeido[]>([]);
   const [resultado, setResultado] = useState<ResultadoPrevisualizar | null>(null);
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
@@ -83,7 +83,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
   const [busqueda, setBusqueda] = useState("");
   const [columnas, setColumnas] = useState<Set<Columna>>(new Set(["estadoListado", "documentos", "expediente", "propuestas"]));
   const [detalle, setDetalle] = useState<number | null>(null);
-  const [hecho, setHecho] = useState<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[] } | null>(null);
+  const [hecho, setHecho] = useState<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number } | null>(null);
   const [referencias, setReferencias] = useState<Referencia[]>(["bastidor", "matricula", "nif", "email", "nombre"]);
 
   /** Busca los expedientes de las filas con las referencias elegidas; si hay una selección guardada, la conserva. */
@@ -98,7 +98,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
       for (const p of f.propuestas) {
         const k = claveCampo(f.fila, p.campo);
         // Un anulado en el listado no se marca solo: se decide a mano
-        const porDefecto = (f.estado !== "anulado" || p.campo === "estado_intranet") && (p.tipo === "rellenar" || !p.aviso);
+        const porDefecto = (f.estado !== "anulado" || p.campo === "estado_intranet") && (p.tipo === "rellenar" || !p.aviso || f.coincide === "manual");
         if (previos && f.fila !== reasignada ? previos.has(k) : porDefecto) marcados.add(k);
       }
     }
@@ -286,10 +286,10 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
       mostrar("No has marcado ningún cambio.", "error");
       return;
     }
-    if (!window.confirm(`Se van a cambiar ${elegidos.size} dato(s) en ${cambios.length} expediente(s)${deshabilitar.size > 0 ? ` y deshabilitar ${deshabilitar.size} expediente(s) anulado(s)` : ""}. Quedará en el Log de importaciones y se podrá deshacer. ¿Continuar?`)) return;
+    if (!await confirmar({ texto: `Se van a cambiar ${elegidos.size} dato(s) en ${cambios.length} expediente(s)${deshabilitar.size > 0 ? ` y deshabilitar ${deshabilitar.size} expediente(s) anulado(s)` : ""}. Quedará en el Log de importaciones y se podrá deshacer. ¿Continuar?`, peligro: true })) return;
     setTrabajando(true);
     try {
-      const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[] }>("/api/expedientes/completar/aplicar", {
+      const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number }>("/api/expedientes/completar/aplicar", {
         method: "POST",
         cuerpo: { archivo: listados.map((l) => l.nombre).join(", ").slice(0, 250), cambios, deshabilitar: [...deshabilitar] },
       });
@@ -372,6 +372,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
           {hecho && (
             <div role="status" style={{ padding: "12px 14px", borderLeft: "4px solid var(--success)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)" }}>
               ✅ Hecho: {hecho.camposCambiados} dato(s) cambiado(s) en {hecho.expedientesCambiados} expediente(s). Está en el <b>Log de importaciones</b>, donde puedes deshacerlo.
+              {(hecho.pagosEnlazados ?? 0) > 0 && <div style={{ marginTop: "4px" }}>💳 Además, {hecho.pagosEnlazados} pago(s) de la financiera que estaban pendientes se han enlazado con su expediente y han fijado su fecha RCI.</div>}
               {hecho.omitidos.length > 0 && (
                 <ul style={{ margin: "6px 0 0", paddingLeft: "18px", fontSize: "0.82rem", color: "var(--warning)" }}>
                   {hecho.omitidos.slice(0, 8).map((o) => (
@@ -390,7 +391,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
                     {f.texto} ({cuentas[f.id]})
                   </button>
                 ))}
-                <input className="input-premium" type="search" placeholder="Buscar por cliente, NIF, bastidor, matrícula, expediente…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra las filas que se ven por cualquier dato del listado o del expediente" />
+                <input className="form-input" type="search" placeholder="Buscar por cliente, NIF, bastidor, matrícula, expediente…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra las filas que se ven por cualquier dato del listado o del expediente" />
                 <details style={{ fontSize: "0.82rem" }}>
                   <summary style={{ cursor: "pointer" }} title="Elige qué columnas ver en la tabla">
                     Columnas
@@ -475,7 +476,17 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
                                   </div>
                                 </>
                               ) : (
-                                <span style={{ color: f.estado === "ambiguo" ? "var(--warning)" : "var(--text-muted)", fontSize: "0.8rem" }}>{f.candidatos.length > 0 ? `${f.candidatos.length} posible(s): elige a mano` : "—"}</span>
+                                f.candidatos[0]?.probable ? (
+                                  <div style={{ fontSize: "0.78rem" }}>
+                                    <b style={{ color: "var(--success)" }}>Probable:</b> Exp. {f.candidatos[0].id} · {f.candidatos[0].cliente ?? "—"}
+                                    <div style={{ color: "var(--text-muted)" }}>{f.candidatos[0].motivo}</div>
+                                    <button type="button" className="btn btn-primary" style={{ marginTop: "3px", padding: "1px 8px", fontSize: "0.76rem" }} disabled={trabajando} onClick={() => void asignar(f.fila, f.candidatos[0].id)} title="Asociar esta fila del listado con ese expediente y calcular los cambios">
+                                      Elegir este
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: f.estado === "ambiguo" ? "var(--warning)" : "var(--text-muted)", fontSize: "0.8rem" }}>{f.candidatos.length > 0 ? `${f.candidatos.length} posible(s): abre la fila y elige` : "—"}</span>
+                                )
                               )}
                             </td>
                           )}
@@ -591,7 +602,7 @@ function DetalleFila({
         </button>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px", maxHeight: "72vh" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "72vh", overflowY: "auto" }}>
         <div style={{ minHeight: "300px", overflow: "hidden", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
           {fila.idAdjuntoPedido !== null ? (
             <VisorPedido key={fila.idAdjuntoPedido} idAdjunto={fila.idAdjuntoPedido} nombre={fila.clienteApp ?? fila.clienteListado} />
@@ -620,9 +631,11 @@ function DetalleFila({
                 {dato("NIF", fila.dniApp)}
                 {dato("Vehículo", `${fila.claseApp ?? ""} ${fila.vehiculoApp ?? ""}`.trim())}
                 {dato("Encontrado por", fila.coincide)}
-                <button type="button" className="btn btn-secondary" style={{ marginTop: "6px", padding: "2px 8px", fontSize: "0.78rem" }} disabled={trabajando} onClick={() => alAsignar(null)} title="Olvida la asociación elegida a mano y vuelve a buscar solo con los datos">
+                {fila.coincide === "manual" && (
+                  <button type="button" className="btn btn-secondary" style={{ marginTop: "6px", padding: "2px 8px", fontSize: "0.78rem" }} disabled={trabajando} onClick={() => alAsignar(null)} title="Olvida la asociación elegida a mano y vuelve a buscar solo con los datos">
                   Quitar asociación manual
                 </button>
+                )}
               </>
             ) : (
               <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{fila.motivo ?? "Sin expediente asociado."}</span>
@@ -634,7 +647,7 @@ function DetalleFila({
                 {fila.candidatos.map((c) => (
                   <div key={c.id} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.8rem", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "4px 8px" }}>
                     <span style={{ flex: 1 }}>
-                      <b>Exp. {c.id}</b> · {c.cliente ?? "—"} · {c.dni ?? "sin NIF"} · {c.vehiculo ?? "—"} · {c.vin ?? c.matricula ?? "sin bastidor"} · {c.fecha ?? ""}
+                      <b>Exp. {c.id}</b> {c.probable && <b style={{ color: "var(--success)" }}>· probable </b>}· {c.cliente ?? "—"} · {c.dni ?? "sin NIF"} · {c.vehiculo ?? "—"} · {c.vin ?? c.matricula ?? "sin bastidor"} · {c.fecha ?? ""}
                       <div style={{ color: "var(--text-muted)" }}>{c.motivo}</div>
                     </span>
                     <button type="button" className="btn btn-primary" style={{ padding: "2px 8px" }} disabled={trabajando} onClick={() => alAsignar(c.id)} title="Asociar esta fila del listado con este expediente">
@@ -646,7 +659,7 @@ function DetalleFila({
             )}
             <div style={{ marginTop: "8px", display: "flex", gap: "6px" }}>
               <input
-                className="input-premium"
+                className="form-input"
                 placeholder="Buscar otro expediente (nombre, DNI, bastidor, matrícula)"
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
@@ -688,7 +701,7 @@ function DetalleFila({
                       <div style={{ color: "var(--text-muted)", fontSize: "0.74rem" }}>ahora: {formatear(p.actual)}</div>
                     </span>
                     <input
-                      className="input-premium"
+                      className="form-input"
                       type={esFecha ? "date" : "text"}
                       value={esFecha ? (/^\d{4}-\d{2}-\d{2}$/.test(valor) ? valor : "") : valor}
                       onChange={(e) => alEditar(k, e.target.value)}

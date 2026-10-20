@@ -13,6 +13,9 @@ export interface PagoRciLeido {
   fechaPago: string;
   nif: string;
   nombre: string;
+  /** Domicilio y código postal del adquiriente. */
+  domicilio: string;
+  codigoPostal: string;
   bastidor: string;
   matricula: string;
   marca: string;
@@ -86,6 +89,7 @@ export function parsearPagoRci(texto: string): PagoRciLeido | null {
   const ad = adquiriente.match(/Nombre y Apellidos\/Raz[óo]n Social:\s*(.+?)\s+N\.?I\.?F\.?:\s*([A-Z0-9][A-Z0-9 .-]{5,13}?)(?=\s+(?:Domicilio|C[óo]digo|$)|\s*$)/i);
   const nif = limpiarNif(ad?.[2] ?? "");
   const nombre = (ad?.[1] ?? "").trim();
+  const dom = adquiriente.match(/Domicilio:\s*(.+?)\s+C[óo]digo postal:\s*(\d{5})/i);
 
   const importeNominalCent = aCentimos(una.match(/IMPORTE NOMINAL DEL PR[ÉE]STAMO\s+([\d.]+,\d{2})/i)?.[1]);
   const totalLiquidoCent = aCentimos(una.match(/TOTAL L[ÍI]QUIDO\s+([\d.]+,\d{2})/i)?.[1]);
@@ -95,5 +99,5 @@ export function parsearPagoRci(texto: string): PagoRciLeido | null {
   if (!fechaPago) faltan.push("fecha de pago");
   if (!nif) faltan.push("documento del adquiriente");
   if (!bastidor && !matricula) faltan.push("bastidor");
-  return { numeroOperacion, fechaPago, nif, nombre, bastidor, matricula, marca, modelo, importeNominalCent, totalLiquidoCent, faltan };
+  return { numeroOperacion, fechaPago, nif, nombre, domicilio: (dom?.[1] ?? "").trim(), codigoPostal: dom?.[2] ?? "", bastidor, matricula, marca, modelo, importeNominalCent, totalLiquidoCent, faltan };
 }

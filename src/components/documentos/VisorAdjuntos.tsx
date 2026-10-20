@@ -58,7 +58,7 @@ const normalizar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 
 /** Lista de adjuntos de un cliente o expediente: subida (también arrastrando), búsqueda por nombre, vista previa y borrado (uno o varios). */
 export default function VisorAdjuntos({ idCliente, idExpediente, titulo = "📎 Documentos adjuntos" }: Props) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const consulta = idExpediente ? `idExpediente=${idExpediente}` : `idCliente=${idCliente}`;
   const destino = idExpediente ? { idExpediente } : { idCliente };
   const { datos, recargar } = useCarga<AdjuntoDto[]>(`/api/adjuntos?${consulta}`, []);
@@ -102,7 +102,7 @@ export default function VisorAdjuntos({ idCliente, idExpediente, titulo = "📎 
   const eliminar = async (lista: AdjuntoDto[]) => {
     if (lista.length === 0) return;
     const texto = lista.length === 1 ? `¿Quitar «${lista[0].nombre}»?` : `¿Quitar ${lista.length} documentos?`;
-    if (!window.confirm(`${texto} Dejarán de verse, pero los ficheros se conservan en la base de datos.`)) return;
+    if (!await confirmar({ texto: `${texto} Dejarán de verse, pero los ficheros se conservan en la base de datos.` })) return;
     setBorrando(true);
     let fallos = 0;
     for (const a of lista) {

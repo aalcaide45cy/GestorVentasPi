@@ -42,7 +42,7 @@ const esPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name
 
 /** «✅ Validación de comisiones con la rejilla de la empresa»: sube la hoja, cruza por matrícula y controla qué coches se han pagado. */
 export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { cat: CatalogosComisiones; usuarioInicial: number; esAdmin: boolean }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [usuario, setUsuario] = useState(usuarioInicial);
   // La hoja de un mes llega a lo largo de dos meses después (liquidación de agosto → nómina de septiembre → hoja en octubre)
   const [mes, setMes] = useState(sumarMeses(mesActual(), -2));
@@ -109,7 +109,7 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
   };
 
   const borrarRejilla = async () => {
-    if (!window.confirm(`¿Eliminar la rejilla de ${nombreMes(mes)}? Las marcas de pagado/reclamado se conservan.`)) return;
+    if (!await confirmar({ texto: `¿Eliminar la rejilla de ${nombreMes(mes)}? Las marcas de pagado/reclamado se conservan.`, peligro: true })) return;
     try {
       await llamar(url, { method: "DELETE" });
       recargar();

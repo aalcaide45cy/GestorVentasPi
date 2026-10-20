@@ -1,0 +1,1 @@
+ALTER TABLE "pagos_rci" ADD COLUMN "vin_aplicado" boolean DEFAULT false NOT NULL;

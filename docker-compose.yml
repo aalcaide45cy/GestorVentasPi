@@ -10,6 +10,17 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-gestor}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
       POSTGRES_DB: ${POSTGRES_DB:-gestorventas}
+    # Ajustes para un PC de desarrollo con mucha memoria (el PostgreSQL por defecto usa solo 128 MB y va justo con documentos de varios GB).
+    # Se aplican al recrear el contenedor (docker compose up -d db). En la Raspberry se usan los del instalador, que son más prudentes.
+    command: >
+      postgres -c shared_buffers=${PG_SHARED_BUFFERS:-1GB}
+               -c effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-8GB}
+               -c work_mem=32MB
+               -c maintenance_work_mem=512MB
+               -c max_wal_size=2GB
+               -c wal_compression=on
+               -c random_page_cost=1.1
+               -c jit=off
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

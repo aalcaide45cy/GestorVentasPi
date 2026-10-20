@@ -4,6 +4,7 @@ import type { Ejecutor } from "@/db";
 import { descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearCopia } from "./copias";
+import { TareaCancelada, type ContextoTarea } from "./tareas";
 
 /**
  * Papelera y purga: la aplicación no borra de verdad al eliminar un cliente, un expediente, un documento o un elemento de un catálogo,
@@ -397,14 +398,45 @@ async function purgarCatalogo(tx: Ejecutor, claves: string[]): Promise<{ purgado
   return { purgados, bloqueados };
 }
 
+/** Cómo cuenta una purga su avance (y si la han cancelado). Sin tarea en segundo plano no hace nada. */
+export type ProgresoPurga = Pick<ContextoTarea, "avance" | "cancelada">;
+const SIN_PROGRESO: ProgresoPurga = { avance: () => undefined, cancelada: () => false };
+
+/**
+ * Hace una purga grande por lotes pequeños, cada uno en su propia transacción: no se queda una orden gigante bloqueando la base, se
+ * ve el avance y se puede cancelar entre lote y lote (lo ya purgado, purgado está; antes siempre hay una copia de seguridad).
+ */
+async function purgarPorLotes(ej: Ejecutor, ids: number[], tamano: number, nombre: string, progreso: ProgresoPurga, hacer: (tx: Ejecutor, lote: number[]) => Promise<number>, base = { hecho: 0, total: ids.length }): Promise<number> {
+  let purgados = 0;
+  progreso.avance(base.hecho, base.total, `${nombre}: ${base.hecho.toLocaleString("es-ES")} de ${base.total.toLocaleString("es-ES")}`);
+  for (let i = 0; i < ids.length; i += tamano) {
+    if (progreso.cancelada()) throw new TareaCancelada(`Se ha parado a mitad: ${purgados.toLocaleString("es-ES")} de ${ids.length.toLocaleString("es-ES")} ${nombre.toLowerCase()} purgados (el resto sigue en la papelera)`);
+    const lote = ids.slice(i, i + tamano);
+    purgados += await ej.transaction(async (tx) => {
+      await tx.execute(SIN_HISTORIAL);
+      return hacer(tx, lote);
+    });
+    const hecho = base.hecho + Math.min(i + tamano, ids.length);
+    progreso.avance(hecho, base.total, `${nombre}: ${hecho.toLocaleString("es-ES")} de ${base.total.toLocaleString("es-ES")}`);
+  }
+  return purgados;
+}
+
+/** Limpia el espacio que dejan los borrados (VACUUM normal: no bloquea la aplicación). Si no se puede (dentro de una transacción), no pasa nada. */
+async function limpiarEspacio(ej: Ejecutor, tablas: string[], progreso: ProgresoPurga): Promise<void> {
+  progreso.avance(0, 0, "Limpiando el espacio que ocupaban los datos borrados…");
+  for (const t of tablas) await ej.execute(sql.raw(`vacuum "${t}"`)).catch(() => undefined);
+}
+
 /** Purga una categoría (o lo elegido de ella). Guarda antes una copia de seguridad completa; si no puede, no borra nada. */
-export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaPurga>): Promise<ResultadoPurga> {
+export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaPurga>, progreso: ProgresoPurga = SIN_PROGRESO): Promise<ResultadoPurga> {
   if (entrada.confirmacion.trim().toUpperCase() !== "PURGAR") throw new HttpError(400, "Escribe PURGAR para confirmar");
   const { categoria } = entrada;
   const dias = entrada.antesDeDias;
   const porIds = !entrada.todo && !!entrada.ids && entrada.ids.length > 0;
   if (!entrada.todo && !porIds && dias === undefined) throw new HttpError(400, "No hay nada elegido para purgar: elige filas, purga todo o indica de cuántos días atrás");
   let copiaPrevia: string | null = null;
+  progreso.avance(0, 0, "Haciendo la copia de seguridad previa…");
   try {
     copiaPrevia = (await crearCopia(ej, "previa", idAdmin, `Antes de purgar «${TEXTOS[categoria].titulo}». Restáurala si algo no era lo que esperabas.`)).nombre;
   } catch (e) {
@@ -412,12 +444,22 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
   }
   const todosLosIds = async (): Promise<string[]> => (await filasPapelera(ej, categoria, 100000)).filas.map((f) => f.id);
   const ids = entrada.ids && !entrada.todo ? entrada.ids : categoria === "historial" || categoria === "lecturas" || categoria === "auditoria" ? [] : await todosLosIds();
-  const r = await ej.transaction(async (tx) => {
+  const res: ResultadoPurga = { purgados: 0, bloqueados: 0, copiaPrevia, detalle: [] };
+  // Documentos y expedientes pueden ser muchísimos (y pesados): por lotes pequeños y con avance
+  if (categoria === "documentos") {
+    res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 20, "Documentos", progreso, (tx, lote) => purgarDocumentos(tx, lote));
+    await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos"], progreso);
+    return res;
+  }
+  if (categoria === "expedientes") {
+    res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 50, "Expedientes", progreso, (tx, lote) => purgarExpedientes(tx, lote));
+    await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos", "expedientes"], progreso);
+    return res;
+  }
+  progreso.avance(0, 0, `Purgando ${TEXTOS[categoria].titulo.toLowerCase()}…`);
+  return ej.transaction(async (tx) => {
     await tx.execute(SIN_HISTORIAL);
-    const res: ResultadoPurga = { purgados: 0, bloqueados: 0, copiaPrevia, detalle: [] };
-    if (categoria === "expedientes") res.purgados = await purgarExpedientes(tx, idsNumericos(ids));
-    else if (categoria === "clientes") Object.assign(res, await purgarClientes(tx, idsNumericos(ids)));
-    else if (categoria === "documentos") res.purgados = await purgarDocumentos(tx, idsNumericos(ids));
+    if (categoria === "clientes") Object.assign(res, await purgarClientes(tx, idsNumericos(ids)));
     else if (categoria === "catalogo") Object.assign(res, await purgarCatalogo(tx, ids));
     else if (categoria === "historial") {
       const filtro = porIds ? sql`where id in (${lista(idsNumericos(ids))})` : dias !== undefined ? sql`where en < now() - (${dias} || ' days')::interval` : sql``;
@@ -431,42 +473,47 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
     }
     return res;
   });
-  return r;
 }
 
 /**
  * Purga a fondo: expedientes y clientes eliminados con todo lo suyo, documentos eliminados (y, si se pide, los sin vincular), catálogos
  * eliminados que nadie usa, y el registro de lecturas; por último compacta la base. Una sola copia previa para todo.
  */
-export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaAFondo>): Promise<ResultadoPurga & { compactado: ResultadoCompactado | null }> {
+export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.infer<typeof esquemaAFondo>, progreso: ProgresoPurga = SIN_PROGRESO): Promise<ResultadoPurga & { compactado: ResultadoCompactado | null }> {
   if (entrada.confirmacion.trim().toUpperCase() !== "PURGAR A FONDO") throw new HttpError(400, "Escribe PURGAR A FONDO para confirmar");
   let copiaPrevia: string;
+  progreso.avance(0, 0, "Haciendo la copia de seguridad previa…");
   try {
     copiaPrevia = (await crearCopia(ej, "previa", idAdmin, "Antes de purgar a fondo la papelera. Restáurala si algo no era lo que esperabas.")).nombre;
   } catch (e) {
     throw new HttpError(500, `No se ha purgado nada: no se pudo crear la copia de seguridad previa (${e instanceof Error ? e.message : "error desconocido"}).`);
   }
   const detalle: string[] = [];
-  const res = await ej.transaction(async (tx) => {
-    await tx.execute(SIN_HISTORIAL);
-    let purgados = 0;
-    let bloqueados = 0;
-    const suma = (etiqueta: string, n: number) => {
-      purgados += n;
-      if (n > 0) detalle.push(`${n.toLocaleString("es-ES")} ${etiqueta}`);
-    };
-    const exps = (await filas<{ id: number }>(tx, sql`select id_expediente id from expedientes where eliminado_en is not null`)).map((x) => x.id);
-    if (exps.length > 0) suma("expedientes eliminados", await purgarExpedientes(tx, exps));
-    const clis = (await filas<{ id: number }>(tx, sql`select id from clientes where eliminado_en is not null`)).map((x) => x.id);
-    if (clis.length > 0) {
+  let purgados = 0;
+  let bloqueados = 0;
+  const suma = (etiqueta: string, n: number) => {
+    purgados += n;
+    if (n > 0) detalle.push(`${n.toLocaleString("es-ES")} ${etiqueta}`);
+  };
+  const exps = (await filas<{ id: number }>(ej, sql`select id_expediente id from expedientes where eliminado_en is not null`)).map((x) => x.id);
+  if (exps.length > 0) suma("expedientes eliminados", await purgarPorLotes(ej, exps, 50, "Expedientes", progreso, (tx, lote) => purgarExpedientes(tx, lote)));
+  const clis = (await filas<{ id: number }>(ej, sql`select id from clientes where eliminado_en is not null`)).map((x) => x.id);
+  if (clis.length > 0) {
+    progreso.avance(0, 0, "Purgando clientes eliminados…");
+    await ej.transaction(async (tx) => {
+      await tx.execute(SIN_HISTORIAL);
       const r = await purgarClientes(tx, clis);
       suma("clientes eliminados", r.purgados);
       bloqueados += r.bloqueados;
-    }
-    const docs = (
-      await filas<{ id: number }>(tx, sql`select a.id ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} ${entrada.incluirSinVincular ? sql`` : sql`and a.ambito <> 'pendiente'`}`)
-    ).map((x) => x.id);
-    if (docs.length > 0) suma("documentos", await purgarDocumentos(tx, docs));
+    });
+  }
+  const docs = (
+    await filas<{ id: number }>(ej, sql`select a.id ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} ${entrada.incluirSinVincular ? sql`` : sql`and a.ambito <> 'pendiente'`}`)
+  ).map((x) => x.id);
+  if (docs.length > 0) suma("documentos", await purgarPorLotes(ej, docs, 20, "Documentos", progreso, (tx, lote) => purgarDocumentos(tx, lote)));
+  progreso.avance(0, 0, "Purgando catálogos, lecturas y registros…");
+  await ej.transaction(async (tx) => {
+    await tx.execute(SIN_HISTORIAL);
     const claves = (await filasPapelera(tx, "catalogo", 100000)).filas.map((f) => f.id);
     if (claves.length > 0) {
       const r = await purgarCatalogo(tx, claves);
@@ -476,10 +523,9 @@ export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.inf
     suma("registros de lecturas de pedidos", ((await tx.execute(sql`delete from lecturas_pedidos where estado in ('descartado', 'cancelado', 'pedido', 'error') returning id`)) as unknown as Filas<unknown>).rows.length);
     if (!entrada.conservarHistorial) suma("entradas del historial de deshacer", ((await tx.execute(sql`delete from historial_cambios returning id`)) as unknown as Filas<unknown>).rows.length);
     if (entrada.vaciarAuditoria) suma("anotaciones del registro de auditoría", ((await tx.execute(sql`delete from auditoria returning id`)) as unknown as Filas<unknown>).rows.length);
-    return { purgados, bloqueados, copiaPrevia, detalle };
   });
-  const compactado = await compactar(ej).catch(() => null);
-  return { ...res, compactado };
+  const compactado = await compactar(ej, progreso).catch(() => null);
+  return { purgados, bloqueados, copiaPrevia, detalle, compactado };
 }
 
 /* ------------------------------------------------------------------ */
@@ -504,9 +550,15 @@ export async function espacioBaseDeDatos(ej: Ejecutor): Promise<{ total: number;
  * Devuelve al disco el espacio de lo borrado (VACUUM FULL). Al borrar filas, PostgreSQL deja el hueco reservado para reutilizarlo: la
  * base no encoge sola. Bloquea esas tablas unos segundos mientras se compactan.
  */
-export async function compactar(ej: Ejecutor): Promise<ResultadoCompactado> {
+export async function compactar(ej: Ejecutor, progreso: ProgresoPurga = SIN_PROGRESO): Promise<ResultadoCompactado> {
   const antes = (await espacioBaseDeDatos(ej)).total;
-  for (const t of TABLAS_A_COMPACTAR) await ej.execute(sql.raw(`vacuum full "${t}"`));
+  let hechas = 0;
+  for (const t of TABLAS_A_COMPACTAR) {
+    if (progreso.cancelada()) throw new TareaCancelada(`Se ha parado: ${hechas} de ${TABLAS_A_COMPACTAR.length} tablas compactadas`);
+    progreso.avance(hechas, TABLAS_A_COMPACTAR.length, `Compactando la tabla ${t} (${hechas + 1} de ${TABLAS_A_COMPACTAR.length})…`);
+    await ej.execute(sql.raw(`vacuum full "${t}"`));
+    hechas++;
+  }
   const despues = (await espacioBaseDeDatos(ej)).total;
   return { antes, despues };
 }

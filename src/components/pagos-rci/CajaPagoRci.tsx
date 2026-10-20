@@ -9,7 +9,7 @@ import { ErrorPagoRci, fechaCorta, subirPagoRci } from "@/lib/pagos-rci-cliente"
  * el del cliente y se fija la fecha RCI con la fecha de pago. El pago queda guardado con el expediente.
  */
 export default function CajaPagoRci({ idExpediente, alAplicado }: { idExpediente: number; alAplicado: (fechaPago: string) => void }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const entrada = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
 
@@ -22,7 +22,7 @@ export default function CajaPagoRci({ idExpediente, alAplicado }: { idExpediente
         p = await subirPagoRci(f, { idExpediente });
       } catch (e) {
         // Documento distinto al del cliente: se pregunta antes de aplicarlo igualmente
-        if (e instanceof ErrorPagoRci && e.estado === 409 && window.confirm(`${e.message}\n\n¿Aplicarlo de todos modos?`)) p = await subirPagoRci(f, { idExpediente, forzar: true });
+        if (e instanceof ErrorPagoRci && e.estado === 409 && await confirmar({ texto: `${e.message}\n\n¿Aplicarlo de todos modos?` })) p = await subirPagoRci(f, { idExpediente, forzar: true });
         else throw e;
       }
       if (p.estado === "aplicado" && p.fechaPago) {

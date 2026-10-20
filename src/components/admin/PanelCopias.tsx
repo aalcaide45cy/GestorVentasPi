@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { alTerminarTarea, lanzarTarea } from "@/lib/tareas-cliente";
 import { useRouter } from "next/navigation";
 import CampoSecreto from "@/components/CampoSecreto";
 import Modal from "@/components/Modal";
@@ -58,7 +59,7 @@ function NotaCopia({ copia, alGuardar }: { copia: CopiaDto; alGuardar: (notas: s
 
 export default function PanelCopias() {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const { datos, recargar } = useCarga<Datos>("/api/admin/copias", VACIO);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [restaurar, setRestaurar] = useState<CopiaDto | null>(null);
@@ -80,6 +81,9 @@ export default function PanelCopias() {
     else if (d === "cancelado") mostrar("Conexión con Google Drive cancelada.", "aviso");
   }, [mostrar]);
 
+  // Al terminar la copia (que va en segundo plano) se pone al día la lista
+  useEffect(() => alTerminarTarea((t) => { if (t.tipo === "copias") recargar(); }));
+
   const accion = async (nombre: string, fn: () => Promise<string | void>) => {
     setTrabajando(nombre);
     try {
@@ -93,10 +97,11 @@ export default function PanelCopias() {
     }
   };
 
+  // La copia va a la cola de segundo plano (con una base grande tarda): se sigue usando la aplicación y, al terminar, sale un aviso
   const crear = (drive: boolean) =>
     accion("crear", async () => {
-      const { extra } = await llamar(`/api/admin/copias${drive ? "?drive=1" : ""}`, { method: "POST" });
-      return typeof extra.aviso === "string" && extra.aviso ? extra.aviso : "Copia creada correctamente.";
+      await lanzarTarea(`/api/admin/copias${drive ? "?drive=1" : ""}`, {});
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La copia de seguridad está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
     });
 
   const subirDrive = (c: CopiaDto) =>
@@ -105,8 +110,8 @@ export default function PanelCopias() {
       return "Copia subida a Google Drive.";
     });
 
-  const borrar = (c: CopiaDto) => {
-    if (!window.confirm(`¿Borrar la copia ${c.nombre}? ${c.enDrive ? "También se borrará de Google Drive." : ""}`)) return;
+  const borrar = async (c: CopiaDto) => {
+    if (!await confirmar({ texto: `¿Borrar la copia ${c.nombre}? ${c.enDrive ? "También se borrará de Google Drive." : ""}`, peligro: true })) return;
     void accion(`borrar${c.id}`, async () => {
       const { extra } = await llamar(`/api/admin/copias?id=${c.id}`, { method: "DELETE" });
       return typeof extra.aviso === "string" && extra.aviso ? extra.aviso : "Copia borrada.";
@@ -134,9 +139,9 @@ export default function PanelCopias() {
 
   const subidas = seleccion.filter((c) => !c.enDrive && c.archivoPresente && c.estado === "ok");
   const enDriveSel = seleccion.filter((c) => c.enDrive);
-  const driveLote = (quitar: boolean) => {
+  const driveLote = async (quitar: boolean) => {
     const lista = quitar ? enDriveSel : subidas;
-    if (quitar && !window.confirm(`¿Quitar ${lista.length} copia(s) de Google Drive? Los archivos del servidor se conservan.`)) return;
+    if (quitar && !await confirmar({ texto: `¿Quitar ${lista.length} copia(s) de Google Drive? Los archivos del servidor se conservan.` })) return;
     void accion(quitar ? "lote-quitar" : "lote-subir", async () => {
       let hechas = 0;
       const fallos: string[] = [];
@@ -153,19 +158,19 @@ export default function PanelCopias() {
     });
   };
 
-  const quitarUna = (c: CopiaDto) => {
-    if (!window.confirm(`¿Quitar la copia ${c.nombre} de Google Drive? El archivo del servidor se conserva.`)) return;
+  const quitarUna = async (c: CopiaDto) => {
+    if (!await confirmar({ texto: `¿Quitar la copia ${c.nombre} de Google Drive? El archivo del servidor se conserva.` })) return;
     void accion(`quitar${c.id}`, async () => {
       await llamar("/api/admin/drive/quitar", { method: "POST", cuerpo: { id: c.id } });
       return "Copia quitada de Google Drive.";
     });
   };
 
-  const borrarLote = () => {
+  const borrarLote = async () => {
     const validasRestantes = datos.copias.filter((c) => c.estado === "ok" && !marcadas.includes(c.id)).length;
     const aviso = validasRestantes === 0 ? "\n\n⚠️ Con esta selección te quedarías SIN ninguna copia válida en el servidor." : "";
     const enDrive = seleccion.filter((c) => c.enDrive).length;
-    if (!window.confirm(`¿Borrar ${seleccion.length} copia(s) de seguridad?${enDrive > 0 ? ` ${enDrive} también se borrarán de Google Drive.` : ""} Esta acción no se puede deshacer.${aviso}`)) return;
+    if (!await confirmar({ texto: `¿Borrar ${seleccion.length} copia(s) de seguridad?${enDrive > 0 ? ` ${enDrive} también se borrarán de Google Drive.` : ""} Esta acción no se puede deshacer.${aviso}`, peligro: true })) return;
     void accion("lote-borrar", async () => {
       let hechas = 0;
       const fallos: string[] = [];
@@ -183,8 +188,8 @@ export default function PanelCopias() {
     });
   };
 
-  const borrarInvalidas = () => {
-    if (!window.confirm(`Se van a borrar ${estado?.invalidas ?? 0} copia(s) vacías o rotas. No sirven para restaurar nada, así que no se pierde ninguna copia útil. ¿Continuar?`)) return;
+  const borrarInvalidas = async () => {
+    if (!await confirmar({ texto: `Se van a borrar ${estado?.invalidas ?? 0} copia(s) vacías o rotas. No sirven para restaurar nada, así que no se pierde ninguna copia útil. ¿Continuar?`, peligro: true })) return;
     void accion("invalidas", async () => {
       const { extra } = await llamar("/api/admin/copias?invalidas=1", { method: "DELETE" });
       return typeof extra.aviso === "string" && extra.aviso ? extra.aviso : `Copias inválidas borradas (${String(extra.borradas ?? 0)}).`;
@@ -313,8 +318,8 @@ export default function PanelCopias() {
       return "Credenciales guardadas. Ya puedes pulsar «Conectar con Google Drive».";
     });
 
-  const borrarCredenciales = () => {
-    if (!window.confirm("¿Borrar las credenciales de Google guardadas? Tendrás que volver a escribirlas para conectar.")) return;
+  const borrarCredenciales = async () => {
+    if (!await confirmar({ texto: "¿Borrar las credenciales de Google guardadas? Tendrás que volver a escribirlas para conectar.", peligro: true })) return;
     void accion("credenciales-borrar", async () => {
       await llamar("/api/admin/drive/credenciales", { method: "DELETE" });
       return "Credenciales borradas.";
@@ -330,8 +335,8 @@ export default function PanelCopias() {
     }
   };
 
-  const desconectarDrive = () => {
-    if (!window.confirm("¿Desconectar Google Drive? Las copias ya subidas no se borran.")) return;
+  const desconectarDrive = async () => {
+    if (!await confirmar({ texto: "¿Desconectar Google Drive? Las copias ya subidas no se borran." })) return;
     void accion("desconectar", async () => {
       await llamar("/api/admin/drive/estado", { method: "DELETE" });
       return "Google Drive desconectado.";

@@ -135,4 +135,56 @@ describe("pagos de la financiera", () => {
     expect(p.estado).toBe("aplicado");
     expect(await rci(exp.idExpediente)).toBe("2026-10-10");
   });
+  it("si el pago es de otra persona, al aplicarlo el expediente pasa a su nombre con nota en los comentarios, y al deshacer vuelve el titular anterior", async () => {
+    const { admin, exp, cli } = await escenario();
+    await db.update(clientes).set({ nombre: "Daniel Hijo Mayor", dni: "02325318H", domicilio: "Calle Vieja 1", codigoPostal: "28001" }).where(eq(clientes.id, cli.id));
+    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());
+    expect(p.estado).toBe("pendiente");
+    const hecho = await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente, cambiarTitular: true });
+    expect(hecho.estado).toBe("aplicado");
+    const leerCli = async () => (await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0];
+    expect(await leerCli()).toMatchObject({ nombre: "Francisco MAYOR CASADO", dni: "51701814E", domicilio: "CALLE de la cijara,14", codigoPostal: "28522" });
+    expect((await leerCli()).comentarios).toContain("Daniel Hijo Mayor (02325318H)");
+    expect((await leerCli()).comentarios).toContain("Domicilio anterior: Calle Vieja 1 (28001)");
+    expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].comentarios).toContain("Cambio de titular");
+    await deshacerPago(db, admin, p.id);
+    expect(await leerCli()).toMatchObject({ nombre: "Daniel Hijo Mayor", dni: "02325318H", domicilio: "Calle Vieja 1", codigoPostal: "28001", comentarios: null });
+    expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].comentarios).toBeNull();
+  });
+
+  it("si el pago es de la misma persona (aunque el documento lleve ceros) no se cambia el titular", async () => {
+    const { admin, exp, cli } = await escenario("051701814E");
+    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto({ vin: "" }));
+    const hecho = p.estado === "aplicado" ? p : await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente, cambiarTitular: true });
+    expect(hecho.estado).toBe("aplicado");
+    expect((await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0]).toMatchObject({ nombre: "Francisco Mayor Casado", comentarios: null });
+  });
+
+  it("al aplicar un pago a un expediente sin bastidor se anota el bastidor del pago (para que el listado lo encuentre) y al deshacer se quita", async () => {
+    const { admin, exp, cli } = await escenario();
+    await db.update(clientes).set({ dni: "99999999R" }).where(eq(clientes.id, cli.id));
+    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());
+    expect(p.estado).toBe("pendiente");
+    const hecho = await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente });
+    expect(hecho.estado).toBe("aplicado");
+    const vin = async () => (await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].vin;
+    expect(await vin()).toBe("UU1DJF00477657076");
+    await deshacerPago(db, admin, p.id);
+    expect(await vin()).toBeNull();
+  });
+
+  it("desde la cajita de otro expediente, un pago ya aplicado no se aplica otra vez; uno pendiente sí", async () => {
+    const { admin, exp, cli, tipo } = await escenario();
+    await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());
+    const [otro] = await db.insert(expedientes).values({ idUsuario: admin.idUsuario, idCliente: cli.id, idTipoDeVenta: tipo.idTipoDeVenta }).returning();
+    await expect(procesarPago(db, admin, { datos: PDF, nombre: "a.pdf", idExpediente: otro.idExpediente, forzar: true }, pagoTexto())).rejects.toThrow("ya está aplicado al expediente");
+    expect(await rci(otro.idExpediente)).toBeNull();
+    // Un pago que quedó pendiente se aplica al expediente elegido y no se duplica
+    const pendiente = await procesarPago(db, admin, { datos: PDF, nombre: "b.pdf" }, pagoTexto({ op: "202600000009", nif: "11111111H", vin: "" }));
+    expect(pendiente.estado).toBe("pendiente");
+    const hecho = await procesarPago(db, admin, { datos: PDF, nombre: "b.pdf", idExpediente: otro.idExpediente, forzar: true }, pagoTexto({ op: "202600000009", nif: "11111111H", vin: "" }));
+    expect(hecho.id).toBe(pendiente.id);
+    expect(hecho.estado).toBe("aplicado");
+    expect(exp.idExpediente).not.toBe(otro.idExpediente);
+  });
 });

@@ -76,6 +76,13 @@ export interface Informe {
   avisos: string[];
   /** Primeros cambios previstos o hechos, para que el usuario los vea. */
   muestra: { accion: "nuevo" | "actualiza" | "elimina" | "omite"; texto: string }[];
+  /** Planes: lo que el archivo usa y todavía no existe en esta aplicación (los modelos y marcas se pueden crear al importar). */
+  faltan?: { marcas: string[]; modelos: string[]; vendedores: string[] };
+}
+
+export interface OpcionesImportacion {
+  /** Crear las marcas y modelos que el archivo usa y no existen (solo planes). */
+  crearCatalogo?: boolean;
 }
 
 function nuevoInforme(seccion: Seccion, modo: Modo, total: number): Informe {
@@ -488,7 +495,7 @@ class Reversion extends Error {}
  * Importa (o simula) una sección. Con `aplicar = false` se ejecuta todo y se deshace: es la vista previa. Los registros con
  * errores se omiten y se cuentan; el resto se aplica.
  */
-export async function importarSeccion(ej: Ejecutor, idAdmin: number, entrada: unknown, modo: Modo, aplicar: boolean, seccionEsperada?: Seccion): Promise<Informe> {
+export async function importarSeccion(ej: Ejecutor, idAdmin: number, entrada: unknown, modo: Modo, aplicar: boolean, seccionEsperada?: Seccion, opciones: OpcionesImportacion = {}): Promise<Informe> {
   const parsed = esquemaPaquete.safeParse(entrada);
   if (!parsed.success) throw new HttpError(400, motivoZod(parsed.error) || "El archivo no es una exportación válida de GestorVentasPi.");
   const paquete = parsed.data;
@@ -503,7 +510,7 @@ export async function importarSeccion(ej: Ejecutor, idAdmin: number, entrada: un
   let informe = nuevoInforme(paquete.seccion, modo, paquete.datos.length);
   try {
     await ej.transaction(async (tx) => {
-      informe = await ejecutarImportacion(tx, idAdmin, paquete, modo, informe);
+      informe = await ejecutarImportacion(tx, idAdmin, paquete, modo, informe, opciones);
       if (!aplicar) throw new Reversion();
     });
     informe.aplicado = aplicar;
@@ -530,7 +537,7 @@ function unirInformes(base: Informe, clientes: Informe, expedientes: Informe): I
   };
 }
 
-async function ejecutarImportacion(tx: Ejecutor, idAdmin: number, p: z.infer<typeof esquemaPaquete>, modo: Modo, inf: Informe): Promise<Informe> {
+async function ejecutarImportacion(tx: Ejecutor, idAdmin: number, p: z.infer<typeof esquemaPaquete>, modo: Modo, inf: Informe, opciones: OpcionesImportacion = {}): Promise<Informe> {
   switch (p.seccion) {
     case "clientes":
       return importarClientes(tx, p.datos, modo, inf);
@@ -554,7 +561,7 @@ async function ejecutarImportacion(tx: Ejecutor, idAdmin: number, p: z.infer<typ
     case "tiendas":
       return importarTiendas(tx, p.datos, modo, inf);
     case "planes":
-      return importarPlanes(tx, p.datos, p.mapas, modo, inf);
+      return importarPlanes(tx, p.datos, p.mapas, modo, inf, opciones.crearCatalogo ?? false);
     case "plantillas_tarifas":
       return importarPlantillasTarifas(tx, p.datos, modo, inf);
     case "plantillas_plan":
@@ -1123,7 +1130,7 @@ async function importarExpedientes(tx: Ejecutor, idAdmin: number, datos: unknown
 
 /* ---- Planes de comisionamiento ---- */
 
-async function importarPlanes(tx: Ejecutor, datos: unknown[], mapasCrudos: unknown, modo: Modo, inf: Informe): Promise<Informe> {
+async function importarPlanes(tx: Ejecutor, datos: unknown[], mapasCrudos: unknown, modo: Modo, inf: Informe, crearCatalogo = false): Promise<Informe> {
   const mapas = z
     .object({ marcas: z.record(z.string(), z.string()).default({}), modelos: z.record(z.string(), z.object({ marca: z.string(), modelo: z.string() })).default({}), usuarios: z.record(z.string(), z.string()).default({}) })
     .safeParse(mapasCrudos ?? {});
@@ -1132,6 +1139,35 @@ async function importarPlanes(tx: Ejecutor, datos: unknown[], mapasCrudos: unkno
   const mos = await tx.select().from(modelos).where(isNull(modelos.eliminadoEn));
   const us = await tx.select({ id: usuarios.idUsuario, email: usuarios.loginEmail }).from(usuarios);
   const existentes = await tx.select().from(commissionPlans);
+
+  // Lo que el archivo usa y no existe aquí: se enseña en la vista previa y, si se elige, se crea antes de importar los planes
+  const marcaFalta = (nombre: string) => !ms.some((x) => norm(x.nombre) === norm(nombre));
+  const modeloFalta = (marca: string, modelo: string) => {
+    const m = ms.find((x) => norm(x.nombre) === norm(marca));
+    return !mos.some((x) => norm(x.nombreModelo) === norm(modelo) && (!m || x.marcaId === m.idMarca));
+  };
+  const faltaMarcas = [...new Set(Object.values(mp.marcas).filter((n) => n.trim() !== "" && marcaFalta(n)))];
+  const faltaModelos = [...new Set(Object.values(mp.modelos).filter((x) => x.modelo.trim() !== "" && modeloFalta(x.marca, x.modelo)).map((x) => `${x.marca} ${x.modelo}`.trim()))];
+  const faltaVendedores = [...new Set(Object.values(mp.usuarios).filter((e) => !us.some((u) => u.email.toLowerCase() === e.toLowerCase())))];
+  if (faltaMarcas.length + faltaModelos.length + faltaVendedores.length > 0) inf.faltan = { marcas: faltaMarcas, modelos: faltaModelos, vendedores: faltaVendedores };
+  if (crearCatalogo) {
+    for (const nombre of faltaMarcas) {
+      const [m] = await tx.insert(marcas).values({ nombre }).returning();
+      ms.push(m);
+      nota(inf, "nuevo", `Marca «${nombre}»: se crea porque los planes la usan`);
+    }
+    for (const x of Object.values(mp.modelos)) {
+      if (x.modelo.trim() === "" || !modeloFalta(x.marca, x.modelo)) continue;
+      let marca = ms.find((m) => norm(m.nombre) === norm(x.marca));
+      if (!marca && x.marca.trim() !== "") {
+        [marca] = await tx.insert(marcas).values({ nombre: x.marca }).returning();
+        ms.push(marca);
+      }
+      const [mo] = await tx.insert(modelos).values({ marcaId: marca?.idMarca ?? null, nombreModelo: x.modelo }).returning();
+      mos.push(mo);
+      nota(inf, "nuevo", `Modelo «${`${x.marca} ${x.modelo}`.trim()}»: se crea porque los planes lo usan`);
+    }
+  }
 
   const faltan = new Set<string>();
   const idMarca = (viejo: number | null | undefined): number | null => {
@@ -1187,7 +1223,7 @@ async function importarPlanes(tx: Ejecutor, datos: unknown[], mapasCrudos: unkno
       promociones: p.promociones.map((x) => ({ ...x, id: undefined as number | undefined })),
     };
     if (faltan.size > 0) {
-      error(inf, `${filaN(i)} («${p.nombre}»): faltan en esta aplicación: ${[...faltan].slice(0, 6).join(", ")}. Importa antes los catálogos (y crea los usuarios).`);
+      error(inf, `${filaN(i)} («${p.nombre}»): faltan en esta aplicación: ${[...faltan].slice(0, 6).join(", ")}. Marca «Crear los modelos y marcas que faltan» o importa antes los catálogos (los vendedores hay que crearlos como usuarios).`);
       continue;
     }
     if (existente) {

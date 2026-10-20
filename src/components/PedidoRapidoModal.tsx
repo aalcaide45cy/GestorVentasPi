@@ -43,7 +43,7 @@ type Dato = "dni" | "telefono" | "email" | "domicilio" | "poblacion" | "vin" | "
  * varios); cada dato del pedido se puede aplicar o no, y crea el expediente con el modelo y la forma de pago.
  */
 export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId, posicion, total, alIr, alCerrar, alTerminar, alDescartar }: Props) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const router = useRouter();
   // Se recuerda entre lecturas: «Releer» rehace la ventana y el visor no debe esconderse
   const [verPdf, setVerPdfEstado] = useState(pdfAbierto);
@@ -158,7 +158,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
 
   // Crea de una vez todos los pedidos de la cola que no ofrecen duda ni están duplicados (aunque «permitir duplicados» esté apagado)
   const crearTodos = async () => {
-    if (!window.confirm(`Se van a crear de una vez los expedientes de los ${total} pedidos de la cola que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar). Los demás se quedan en la cola. ¿Continuar?`)) return;
+    if (!await confirmar({ texto: `Se van a crear de una vez los expedientes de los ${total} pedidos de la cola que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar). Los demás se quedan en la cola. ¿Continuar?` })) return;
     setMasivo({ hechos: 0, total });
     try {
       const r = await crearTodosLosPedidos(vendedorId, (hechos, tot) => setMasivo({ hechos, total: tot }));

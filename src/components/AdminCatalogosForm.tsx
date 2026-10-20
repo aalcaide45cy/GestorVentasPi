@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Seccion } from "@/lib/servicios/intercambio";
 import type { EstadoVehiculoDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
@@ -51,6 +52,7 @@ export default function AdminCatalogosForm({
   const [pestanaGuardada, setPestanaGuardada] = usePreferencia("config-pestana");
   const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaGuardada) ? (pestanaGuardada as Pestana) : "marcas";
   const setPestana = (p: Pestana) => setPestanaGuardada(p);
+  const router = useRouter();
   const [marcas, setMarcas] = useState(marcasIniciales);
   const [tipos, setTipos] = useState(tiposVentaIniciales);
   const [estados, setEstados] = useState(estadosIniciales);
@@ -79,7 +81,7 @@ export default function AdminCatalogosForm({
       {SECCION_DE_PESTANA[pestana] && (
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "-12px" }}>
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Datos de esta pestaña:</span>
-          <BotonesDatosSeccion key={pestana} seccion={SECCION_DE_PESTANA[pestana]} alCambiar={() => window.location.reload()} />
+          <BotonesDatosSeccion key={pestana} seccion={SECCION_DE_PESTANA[pestana]} alCambiar={() => router.refresh()} />
         </div>
       )}
 

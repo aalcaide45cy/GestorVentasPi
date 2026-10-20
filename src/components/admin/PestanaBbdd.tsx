@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { mensajeDeError } from "@/components/expedientes/comun";
@@ -12,6 +12,7 @@ import PanelDatos from "./PanelDatos";
 import PanelPapelera, { GestorFilas } from "./PanelPapelera";
 import { SubPestanas } from "./estructura";
 import { guardarPreferencia } from "@/lib/preferencias";
+import { alTerminarTarea, lanzarTarea } from "@/lib/tareas-cliente";
 import type { Categoria } from "@/lib/servicios/papelera";
 import PanelActualizar from "./PanelActualizar";
 import PanelOcr from "./PanelOcr";
@@ -30,7 +31,7 @@ const tarjeta = { padding: "16px", background: "rgba(255, 255, 255, 0.02)", bord
 /** Pestaña «BBDD»: limpieza de huérfanos con copia previa y ajustes de interfaz. */
 export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const [analizando, setAnalizando] = useState(false);
   const [limpiando, setLimpiando] = useState(false);
   const [analisis, setAnalisis] = useState<AnalisisBbdd | null>(null);
@@ -54,33 +55,36 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
     }
   };
 
+  // Al terminar la limpieza (que va en segundo plano) se vuelve a analizar y se actualiza la lista de copias
+  useEffect(() =>
+    alTerminarTarea((t) => {
+      if (t.tipo !== "limpieza") return;
+      setVersionCopias((n) => n + 1);
+      void analizar();
+      router.refresh();
+    }),
+  );
+
   const limpiar = async () => {
     if (!analisis || analisis.stats.totalAnomalies === 0) {
       mostrar("No hay registros huérfanos que limpiar.", "error");
       return;
     }
-    if (!window.confirm(`Se van a borrar ${analisis.stats.totalAnomalies} registro(s) huérfano(s) (solo los de las tarjetas «Se puede limpiar»).\n\nAntes se guarda una copia de seguridad completa; la verás en «Copias de seguridad» y podrás restaurarla si algo no era lo que esperabas. Los avisos «A revisar» no se tocan. ¿Continuar?`)) return;
+    if (!await confirmar({ texto: `Se van a borrar ${analisis.stats.totalAnomalies} registro(s) huérfano(s) (solo los de las tarjetas «Se puede limpiar»).\n\nAntes se guarda una copia de seguridad completa; la verás en «Copias de seguridad» y podrás restaurarla si algo no era lo que esperabas. Los avisos «A revisar» no se tocan. ¿Continuar?`, peligro: true })) return;
 
     setLimpiando(true);
     try {
       const d = analisis.details;
-      const res = await fetch("/api/admin/db-cleanup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cleanEmails: d.orphanEmails.map((e) => e.id),
-          cleanTelefonos: d.orphanTelefonos.map((t) => t.id),
-          cleanUserTiendas: d.orphanUserTiendas.map((u) => u.id),
-          cleanImportRegistros: d.orphanImportRegistros.map((r) => r.id),
-          cleanAdjuntos: d.orphanAdjuntos.map((a) => a.id),
-          cleanAdjuntosEliminados: d.orphanAdjuntosEliminados.map((a) => a.id),
-        }),
+      // La limpieza va a la cola de segundo plano (puede tardar si hay documentos pesados): se sigue usando la aplicación mientras tanto
+      await lanzarTarea("/api/admin/db-cleanup", {
+        cleanEmails: d.orphanEmails.map((e) => e.id),
+        cleanTelefonos: d.orphanTelefonos.map((t) => t.id),
+        cleanUserTiendas: d.orphanUserTiendas.map((u) => u.id),
+        cleanImportRegistros: d.orphanImportRegistros.map((r) => r.id),
+        cleanAdjuntos: d.orphanAdjuntos.map((a) => a.id),
+        cleanAdjuntosEliminados: d.orphanAdjuntosEliminados.map((a) => a.id),
       });
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al ejecutar la limpieza."));
-      mostrar("Limpieza hecha. Se guardó antes una copia de seguridad (en «Copias de seguridad»).");
-      setVersionCopias((n) => n + 1);
-      await analizar();
-      router.refresh();
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La limpieza está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error al limpiar la base de datos.", "error");
     } finally {

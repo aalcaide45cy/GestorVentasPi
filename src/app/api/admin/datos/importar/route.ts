@@ -17,6 +17,8 @@ const esquema = z.object({
   /** false = solo vista previa (no cambia nada). */
   aplicar: z.boolean().default(false),
   seccion: z.enum(SECCIONES).optional(),
+  /** Opciones de la importación (por ejemplo, crear las marcas y modelos que faltan al importar planes). */
+  opciones: z.object({ crearCatalogo: z.boolean().default(false) }).default({ crearCatalogo: false }),
   /** Para aplicar: «IMPORTAR», o «SUSTITUIR» si el modo es sustituir. */
   confirmacion: z.string().optional(),
 });
@@ -42,7 +44,7 @@ export const POST = manejar(async (req: Request) => {
       throw new HttpError(409, `No se ha importado nada porque no se pudo hacer la copia de seguridad previa. ${err instanceof Error ? err.message : ""}`.trim());
     }
   }
-  const informe = await importarSeccion(db, admin.idUsuario, e.paquete, e.modo, e.aplicar, e.seccion);
+  const informe = await importarSeccion(db, admin.idUsuario, e.paquete, e.modo, e.aplicar, e.seccion, e.opciones);
   if (e.aplicar) {
     await auditar({ idUsuario: admin.idUsuario, accion: "datos_importados", entidad: informe.seccion, detalle: { modo: e.modo, nuevos: informe.nuevos, actualizados: informe.actualizados, eliminados: informe.eliminados, omitidos: informe.omitidos } });
   }

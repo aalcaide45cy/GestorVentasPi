@@ -24,7 +24,7 @@ const guardarLocal = (clave: string, valor: string) => {
 /** «Exportar Backup (JSON)» y «Restaurar Backup (JSON)»: solo se muestran al administrador. */
 export default function BotonesBackup({ deshabilitado = false }: { deshabilitado?: boolean }) {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [ocupado, setOcupado] = useState(false);
 
   const exportar = async () => {
@@ -53,14 +53,14 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
     const entrada = ev.target;
     const archivo = entrada.files?.[0];
     if (!archivo) return;
-    const ok = window.confirm(
+    const ok = await confirmar({ texto: 
       "¡ATENCIÓN! Estás a punto de importar una copia de DATOS BÁSICOS en JSON.\n\n" +
         "Esto SUSTITUIRÁ tiendas, usuarios, clientes, expedientes y catálogos por los del archivo " + archivo.name + ".\n\n" +
         "Y además BORRARÁ lo que este archivo NO contiene y no se recupera con él: planes de comisionamiento, liquidaciones, libro de puntos, documentos adjuntos (DNI, pedidos), rejillas del cotejo, plantillas y copias internas.\n\n" +
         "Antes de empezar se hará automáticamente una copia de seguridad COMPLETA (.dump) del estado actual, con la que podrás volver atrás desde Configuración › BBDD.\n" +
         "Si lo que quieres es recuperarlo TODO, usa mejor «Restaurar» una copia completa (.dump).\n\n" +
-        "¿Seguro que quieres continuar?",
-    );
+        "¿Seguro que quieres continuar?"
+    , peligro: true });
     if (!ok) {
       entrada.value = "";
       return;
@@ -78,8 +78,8 @@ export default function BotonesBackup({ deshabilitado = false }: { deshabilitado
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al restaurar la copia de seguridad."));
       const r = (await res.json()) as { message?: string };
       mostrar(r.message ?? "Copia restaurada.");
+      // Sin recargar la página: los datos nuevos llegan con el refresco suave
       router.refresh();
-      setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error al procesar el archivo de copia de seguridad JSON.", "error");
     } finally {

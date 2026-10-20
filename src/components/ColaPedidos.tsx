@@ -29,7 +29,7 @@ interface Props {
  */
 export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [marcados, setMarcados] = useState<string[]>([]);
   /** Progreso de «Releer»: cuántos pedidos van y cuántos son. */
   const [releyendo, setReleyendo] = useState<{ hechos: number; total: number } | null>(null);
@@ -100,10 +100,10 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     ultimoMarcado.current = id;
   };
   /** Descarta de golpe los pedidos elegidos de la cola (sus ficheros se marcan como eliminados). */
-  const descartarElegidos = () => {
+  const descartarElegidos = async () => {
     const lista = items.filter((i) => elegidos.includes(i.id));
     if (lista.length === 0) return;
-    if (!window.confirm(`¿Descartar los ${lista.length} pedidos elegidos de la cola? Sus ficheros se marcan como eliminados (se borran del todo desde Configuración › BBDD) y habrá que volver a soltarlos para usarlos.`)) return;
+    if (!await confirmar({ texto: `¿Descartar los ${lista.length} pedidos elegidos de la cola? Sus ficheros se marcan como eliminados (se borran del todo desde Configuración › BBDD) y habrá que volver a soltarlos para usarlos.`, peligro: true })) return;
     for (const i of lista) {
       anotarResolucion(i.idLectura, "quitado");
       quitarDeCola(i.id);
@@ -233,8 +233,8 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
             type="button"
             className="btn btn-secondary"
             style={{ padding: "6px 14px", fontSize: "0.85rem" }}
-            onClick={() => {
-              if (window.confirm("¿Descartar todos los pedidos de la cola? Sus ficheros se marcan como eliminados (se borran del todo desde Configuración › BBDD) y habrá que volver a soltarlos para usarlos.")) {
+            onClick={async () => {
+              if (await confirmar({ texto: "¿Descartar todos los pedidos de la cola? Sus ficheros se marcan como eliminados (se borran del todo desde Configuración › BBDD) y habrá que volver a soltarlos para usarlos.", peligro: true })) {
                 soltarDocumentos(items);
                 vaciarCola();
               }

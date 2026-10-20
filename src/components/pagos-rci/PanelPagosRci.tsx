@@ -94,6 +94,20 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
     }
   };
 
+  const reintentar = async () => {
+    setTrabajando(true);
+    try {
+      const { data } = await llamar<{ revisados: number; enlazados: number }>("/api/pagos-rci/accion", { method: "POST", cuerpo: { accion: "reintentar" } });
+      mostrar(data.enlazados > 0 ? `${data.enlazados} pago(s) enlazado(s) con su expediente.` : `Revisados ${data.revisados} pago(s) pendientes: ninguno encaja todavía.`);
+      await cargar();
+      alCambiar?.();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   const cuentas = useMemo(() => {
     const c: Record<Filtro, number> = { pendiente: 0, aplicado: 0, ignorado: 0, todos: 0 };
     for (const p of pagos ?? []) {
@@ -130,7 +144,10 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
                 {f.texto} ({cuentas[f.id]})
               </button>
             ))}
-            <input className="input-premium" type="search" placeholder="Buscar por cliente, documento, bastidor, matrícula, operación…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra los pagos por cualquier dato" />
+            <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.82rem" }} disabled={trabajando || cuentas.pendiente === 0} onClick={() => void reintentar()} title="Vuelve a buscar el expediente de los pagos pendientes: útil después de completar datos con un listado (el expediente ya tiene bastidor o documento nuevo)">
+              ↻ Reintentar pendientes
+            </button>
+            <input className="form-input" type="search" placeholder="Buscar por cliente, documento, bastidor, matrícula, operación…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: "1 1 260px", minWidth: "220px", marginLeft: "auto" }} title="Filtra los pagos por cualquier dato" />
             <details style={{ fontSize: "0.82rem" }}>
               <summary style={{ cursor: "pointer" }} title="Elige qué columnas ver en la tabla">
                 Columnas
@@ -145,6 +162,11 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
               </div>
             </details>
           </div>
+          {cuentas.pendiente > 0 && (
+            <div role="note" style={{ padding: "10px 14px", borderLeft: "4px solid var(--warning)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.84rem", lineHeight: 1.5 }}>
+              <b>{cuentas.pendiente} pago(s) pendiente(s) de asociar.</b> Hay dos formas de resolverlos: <b>1)</b> abrirlos y elegir a mano el expediente (te sugiero los que encajan por modelo, fecha y apellidos); o <b>2)</b> subir el Excel de la intranet desde <i>Expedientes › Importar y exportar › Completar datos desde listados</i>: el expediente toma el bastidor y el titular que figura en la intranet y los pagos pendientes se enlazan solos. Si el pago está a nombre de otra persona (por ejemplo, el coche se pidió a nombre del hijo y paga la madre), el nombre definitivo del titular lo da el Excel.
+            </div>
+          )}
           <div className="table-container">
             <table className="table-premium table-compact">
               <thead>
@@ -255,6 +277,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
   const [matricula, setMatricula] = useState(pago.matricula ?? "");
   const [candidatos, setCandidatos] = useState<CandidatoPago[]>([]);
   const [motivoBusqueda, setMotivoBusqueda] = useState("");
+  const [cambiarTitular, setCambiarTitular] = useState(true);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<{ id_expediente: number; label: string }[]>([]);
   const editable = pago.estado !== "aplicado";
@@ -292,13 +315,13 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
       mostrar("Indica la fecha de pago antes de aplicar.", "error");
       return;
     }
-    await accion({ accion: "aplicar", datos: { id: pago.id, idExpediente, fechaPago: fecha } }, `Fecha RCI fijada en el expediente ${idExpediente}.`);
+    await accion({ accion: "aplicar", datos: { id: pago.id, idExpediente, fechaPago: fecha, cambiarTitular } }, `Fecha RCI fijada en el expediente ${idExpediente}.`);
   };
 
   const campo = (titulo: string, valor: string, fijar: (v: string) => void, tipo = "text", ayuda = "") => (
     <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.82rem" }} title={ayuda}>
       <span style={{ minWidth: "110px", color: "var(--text-muted)" }}>{titulo}</span>
-      <input className="input-premium" type={tipo} value={valor} onChange={(e) => fijar(e.target.value)} disabled={!editable} style={{ flex: 1 }} />
+      <input className="form-input" type={tipo} value={valor} onChange={(e) => fijar(e.target.value)} disabled={!editable} style={{ flex: 1 }} />
     </label>
   );
 
@@ -312,7 +335,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
         </button>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px", maxHeight: "72vh" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "72vh", overflowY: "auto" }}>
         <div style={{ minHeight: "300px", overflow: "hidden", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
           {pago.idAdjunto !== null ? <VisorPedido key={pago.idAdjunto} idAdjunto={pago.idAdjunto} nombre={pago.nombreArchivo} /> : <div style={{ padding: "16px", color: "var(--text-muted)" }}>El archivo ya no está guardado.</div>}
         </div>
@@ -355,6 +378,18 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
             <section style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <h4 style={{ margin: 0 }}>A qué expediente va</h4>
               {motivoBusqueda && <span style={{ fontSize: "0.8rem", color: "var(--warning)" }}>ℹ {motivoBusqueda}</span>}
+              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.45 }}>
+                Puedes aplicarlo ahora a uno de los expedientes (se fija la fecha RCI y se anota el bastidor) o esperar a subir el Excel de la intranet, que da el titular definitivo y enlaza los pagos pendientes por bastidor.
+              </span>
+              {pago.nombre && (
+                <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "0.82rem", lineHeight: 1.4, padding: "6px 8px", border: "1px dashed var(--border-light)", borderRadius: "var(--radius-sm)" }} title="Si el expediente es de otra persona (el pedido a nombre del hijo y paga la madre), al aplicar el pago el cliente pasa a los datos del adquiriente y queda una nota en los comentarios del cliente y del expediente con los datos anteriores. Se puede deshacer.">
+                  <input type="checkbox" checked={cambiarTitular} onChange={(e) => setCambiarTitular(e.target.checked)} style={{ marginTop: "3px" }} />
+                  <span>
+                    Poner el expediente a nombre de <b>{pago.nombre}</b>
+                    {pago.nif ? ` (${pago.nif})` : ""} si el cliente es otra persona: nombre, documento, domicilio y código postal, con una nota en los comentarios.
+                  </span>
+                </label>
+              )}
               {candidatos.map((c) => (
                 <div key={c.id} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.8rem", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "4px 8px" }}>
                   <span style={{ flex: 1 }}>
@@ -371,7 +406,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
               ))}
               <div style={{ display: "flex", gap: "6px" }}>
                 <input
-                  className="input-premium"
+                  className="form-input"
                   placeholder="Buscar otro expediente (nombre, DNI, bastidor, matrícula)"
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}

@@ -161,6 +161,43 @@ describe("exportar e importar por secciones", () => {
     expect((await db.select().from(commissionPlans)).length).toBe(0);
   });
 
+  it("planes: si faltan marcas o modelos se listan en la vista previa y, si se elige, se crean al importar (y la vista previa no los crea)", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const vendedor = await crearUsuarioPrueba("vendedor", "Vendedora");
+    const [marca] = await db.insert(marcas).values({ nombre: "Dacia" }).returning();
+    const [mod] = await db.insert(modelos).values({ marcaId: marca.idMarca, nombreModelo: "Striker" }).returning();
+    const creado = await guardarPlan(db, null, {
+      nombre: "Septiembre 2026",
+      fechaInicio: "2026-09-01",
+      fechaFin: "2026-09-30",
+      vendedores: [{ idUsuario: vendedor.idUsuario, objetivoBase: 800 }],
+      puntosModelo: [{ idModelo: mod.idModelo, puntos: 100 }],
+      tasas: [{ idMarca: marca.idMarca }],
+    });
+    const archivo = JSON.parse(JSON.stringify(await exportarSeccion(db, "planes", { ids: [creado.plan.idPlan] })));
+    // En esta instalación no existe ni la marca ni el modelo
+    await db.delete(commissionPlans);
+    await db.delete(modelos);
+    await db.delete(marcas);
+
+    const sin = await importarSeccion(db, admin.idUsuario, archivo, "anadir", false);
+    expect(sin).toMatchObject({ nuevos: 0, totalErrores: 1 });
+    expect(sin.faltan).toMatchObject({ marcas: ["Dacia"], modelos: ["Dacia Striker"], vendedores: [] });
+    expect(sin.errores[0]).toMatch(/Crear los modelos y marcas que faltan/);
+
+    const prev = await importarSeccion(db, admin.idUsuario, archivo, "anadir", false, undefined, { crearCatalogo: true });
+    expect(prev).toMatchObject({ nuevos: 1, totalErrores: 0 });
+    expect(prev.muestra.some((m) => m.texto.includes("Modelo «Dacia Striker»"))).toBe(true);
+    // La vista previa no deja nada creado
+    expect(await db.select().from(marcas)).toHaveLength(0);
+
+    const hecho = await importarSeccion(db, admin.idUsuario, archivo, "anadir", true, undefined, { crearCatalogo: true });
+    expect(hecho).toMatchObject({ nuevos: 1, totalErrores: 0 });
+    expect((await db.select().from(marcas)).map((m) => m.nombre)).toEqual(["Dacia"]);
+    expect((await db.select().from(modelos)).map((m) => m.nombreModelo)).toEqual(["Striker"]);
+    expect(await db.select().from(commissionPlans)).toHaveLength(1);
+  });
+
   it("rejillas y ajustes: ida y vuelta y los ajustes secretos no se exportan ni se importan", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const v = await crearUsuarioPrueba("vendedor");

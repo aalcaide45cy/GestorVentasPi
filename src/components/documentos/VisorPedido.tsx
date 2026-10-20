@@ -10,7 +10,7 @@ import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
  * archivo original: se sube de nuevo y el pedido pasa a usar ese documento.
  */
 export default function VisorPedido({ idAdjunto, nombre, alRecargado }: { idAdjunto: number; nombre: string; alRecargado?: (adjunto: AdjuntoDto) => void }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [idActual, setIdActual] = useState(idAdjunto);
   const [estado, setEstado] = useState<"comprobando" | "ok" | "falta">("comprobando");
   const [subiendo, setSubiendo] = useState(false);
@@ -33,7 +33,7 @@ export default function VisorPedido({ idAdjunto, nombre, alRecargado }: { idAdju
     if (!f) return;
     // Si el nombre no coincide con el del pedido, se avisa por si se ha elegido otro fichero sin querer
     const mismo = f.name.replace(/\.[^.]+$/, "").toLowerCase() === nombre.replace(/\.[^.]+$/, "").toLowerCase();
-    if (!mismo && !window.confirm(`El archivo elegido se llama «${f.name}» y el pedido leído era «${nombre}». ¿Es el mismo pedido?`)) return;
+    if (!mismo && !await confirmar({ texto: `El archivo elegido se llama «${f.name}» y el pedido leído era «${nombre}». ¿Es el mismo pedido?` })) return;
     setSubiendo(true);
     try {
       const r = await fetch(`/api/adjuntos?tipo=pedido&nombre=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type || "application/octet-stream" }, body: f, credentials: "same-origin" });
