@@ -71,6 +71,21 @@ describe("papelera: lo que sigue guardado tras eliminar", () => {
     expect((await filasPapelera(db, "clientes")).filas[0].bloqueo).toMatch(/expediente/);
   });
 
+  it.skipIf(!hayPg)("purgar documentos va por lotes, cuenta su avance y se puede cancelar entre lotes", { timeout: 120_000 }, async () => {
+    const { admin, borrado, docBorrado } = await escenario();
+    const avances: string[] = [];
+    const r = await purgar(db, admin.idUsuario, { categoria: "documentos", todo: true, confirmacion: "PURGAR" }, { avance: (_h, _t, texto) => void (texto && avances.push(texto)), cancelada: () => false });
+    expect(r.purgados).toBe(1);
+    expect(avances.some((t) => t.includes("copia de seguridad"))).toBe(true);
+    expect(avances.some((t) => /Documentos: 1 de 1/.test(t))).toBe(true);
+    expect(await db.select().from(adjuntos).where(eq(adjuntos.id, docBorrado.id))).toHaveLength(0);
+    // Cancelada antes del primer lote: no borra nada
+    const { docBorrado: otro } = await escenario();
+    await expect(purgar(db, admin.idUsuario, { categoria: "documentos", todo: true, confirmacion: "PURGAR" }, { avance: () => undefined, cancelada: () => true })).rejects.toThrow(/Se ha parado a mitad/);
+    expect(await db.select().from(adjuntos).where(eq(adjuntos.id, otro.id))).toHaveLength(1);
+    expect(borrado.id_expediente).toBeGreaterThan(0);
+  });
+
   it.skipIf(!hayPg)("purgar a fondo borra lo eliminado con todo lo suyo y respeta lo vigente", { timeout: 120_000 }, async () => {
     const { admin, vigente, borrado, docVigente } = await escenario();
     // Sin la palabra de confirmación no se hace nada

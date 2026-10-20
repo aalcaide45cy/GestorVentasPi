@@ -6,6 +6,7 @@ import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBlo
 import { HttpError } from "@/lib/auth/sesion";
 import { borrarTodosLosFicheros } from "./lecturas-pedidos";
 import { crearCopia } from "@/lib/servicios/copias";
+import { TareaCancelada, type ContextoTarea } from "./tareas";
 
 export interface FilaAnomalia {
   id: number;
@@ -331,9 +332,10 @@ export const esquemaLimpieza = z.object({
  * Borra los huérfanos indicados en una sola transacción; devuelve cuántos registros se eliminaron. Antes se guarda una copia de
  * seguridad «previa» completa (si no se puede, no se borra nada). Las líneas de liquidación nunca se borran: son históricas.
  */
-export async function limpiarBbdd(ej: Ejecutor, entrada: z.infer<typeof esquemaLimpieza>, idAdmin: number | null = null): Promise<number> {
+export async function limpiarBbdd(ej: Ejecutor, entrada: z.infer<typeof esquemaLimpieza>, idAdmin: number | null = null, progreso: Pick<ContextoTarea, "avance" | "cancelada"> = { avance: () => undefined, cancelada: () => false }): Promise<number> {
   const hayQueBorrar = entrada.cleanEmails.length + entrada.cleanTelefonos.length + entrada.cleanUserTiendas.length + entrada.cleanImportRegistros.length + entrada.cleanAdjuntos.length + entrada.cleanAdjuntosEliminados.length > 0;
   if (hayQueBorrar && idAdmin !== null) {
+    progreso.avance(0, 0, "Haciendo la copia de seguridad previa…");
     try {
       await crearCopia(ej, "previa", idAdmin, "Antes de limpiar la base de datos (registros huérfanos). Restáurala si algo no era lo que esperabas.");
     } catch (e) {
@@ -354,18 +356,35 @@ export async function limpiarBbdd(ej: Ejecutor, entrada: z.infer<typeof esquemaL
     if (entrada.cleanImportRegistros.length > 0) {
       total += (await tx.delete(importacionesRegistros).where(inArray(importacionesRegistros.id, entrada.cleanImportRegistros)).returning({ id: importacionesRegistros.id })).length;
     }
+    // Los documentos pesan mucho: se borran de 20 en 20 y se va contando el avance (todo sigue siendo una sola transacción)
+    const totalDocs = entrada.cleanAdjuntos.length + entrada.cleanAdjuntosEliminados.length;
+    let docsHechos = 0;
+    const avanceDocs = () => progreso.avance(docsHechos, totalDocs, `Borrando documentos: ${docsHechos.toLocaleString("es-ES")} de ${totalDocs.toLocaleString("es-ES")}`);
+    if (totalDocs > 0) avanceDocs();
     if (entrada.cleanAdjuntos.length > 0) {
       // Solo los que siguen sin vincular: nunca un adjunto de un expediente o cliente
-      const r = await tx.execute(sql`delete from adjuntos where id in (${sql.join(entrada.cleanAdjuntos.map((i) => sql`${i}`), sql`, `)}) and ambito = 'pendiente' returning id`);
-      total += r.rows.length;
+      for (let i = 0; i < entrada.cleanAdjuntos.length; i += 20) {
+        if (progreso.cancelada()) throw new TareaCancelada("Cancelado: no se ha borrado nada (la limpieza es una sola operación)");
+        const trozo = entrada.cleanAdjuntos.slice(i, i + 20);
+        const r = await tx.execute(sql`delete from adjuntos where id in (${sql.join(trozo.map((x) => sql`${x}`), sql`, `)}) and ambito = 'pendiente' returning id`);
+        total += r.rows.length;
+        docsHechos += trozo.length;
+        avanceDocs();
+      }
     }
     if (entrada.cleanAdjuntosEliminados.length > 0) {
       // Solo los de verdad de algo eliminado (se vuelve a comprobar aquí): nunca un documento de un expediente o cliente vigente
-      const lista = sql.join(entrada.cleanAdjuntosEliminados.map((i) => sql`${i}`), sql`, `);
-      const permitidos = sql`a.id in (${lista}) and (a.eliminado_en is not null or (a.ambito <> 'pendiente' and (exists (select 1 from expedientes e where e.id_expediente = a.id_expediente and e.eliminado_en is not null) or (a.id_expediente is null and exists (select 1 from clientes c where c.id = a.id_cliente and c.eliminado_en is not null)))))`;
-      await tx.execute(sql`update clientes set foto_adjunto_id = null where foto_adjunto_id in (select a.id from adjuntos a where ${permitidos})`);
-      const r = await tx.execute(sql`delete from adjuntos a where ${permitidos} returning a.id`);
-      total += r.rows.length;
+      for (let i = 0; i < entrada.cleanAdjuntosEliminados.length; i += 20) {
+        if (progreso.cancelada()) throw new TareaCancelada("Cancelado: no se ha borrado nada (la limpieza es una sola operación)");
+        const trozo = entrada.cleanAdjuntosEliminados.slice(i, i + 20);
+        const lista = sql.join(trozo.map((x) => sql`${x}`), sql`, `);
+        const permitidos = sql`a.id in (${lista}) and (a.eliminado_en is not null or (a.ambito <> 'pendiente' and (exists (select 1 from expedientes e where e.id_expediente = a.id_expediente and e.eliminado_en is not null) or (a.id_expediente is null and exists (select 1 from clientes c where c.id = a.id_cliente and c.eliminado_en is not null)))))`;
+        await tx.execute(sql`update clientes set foto_adjunto_id = null where foto_adjunto_id in (select a.id from adjuntos a where ${permitidos})`);
+        const r = await tx.execute(sql`delete from adjuntos a where ${permitidos} returning a.id`);
+        total += r.rows.length;
+        docsHechos += trozo.length;
+        avanceDocs();
+      }
     }
     return total;
   });

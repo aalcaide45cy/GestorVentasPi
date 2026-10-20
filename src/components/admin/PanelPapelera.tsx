@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
-import { llamar, textoError } from "@/components/comisiones/api";
+import { textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { tamanoLegible } from "@/components/datos/DatosSeccion";
-import type { Categoria, DocumentoDeFila, FilaPapelera, InfoCategoria, ResultadoCompactado, ResultadoPurga } from "@/lib/servicios/papelera";
+import type { Categoria, DocumentoDeFila, FilaPapelera, InfoCategoria } from "@/lib/servicios/papelera";
 import { TEXTO_SEGUNDO_CLIC, useDobleConfirmacion } from "@/components/useDobleConfirmacion";
+import { alTerminarTarea, lanzarTarea } from "@/lib/tareas-cliente";
 
 interface Resumen {
   categorias: InfoCategoria[];
@@ -227,8 +228,8 @@ export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, a
     if (!ids) return;
     setTrabajando(true);
     try {
-      const { data } = await llamar<ResultadoPurga>("/api/admin/papelera", { method: "POST", cuerpo: { categoria, ids, confirmacion: "PURGAR" } });
-      mostrar(`✅ ${data.purgados.toLocaleString("es-ES")} purgados${data.bloqueados > 0 ? ` y ${data.bloqueados} que se han dejado porque algo los usa aún` : ""}. Copia previa: ${data.copiaPrevia ?? "—"}. Si quieres que el disco recupere el espacio, usa «Compactar base de datos» en la Papelera.`, data.purgados === 0 ? "aviso" : undefined, 12000);
+      await lanzarTarea("/api/admin/papelera", { categoria, ids, confirmacion: "PURGAR" });
+      mostrar("La purga sigue en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
       setIds(null);
       alTerminar();
       alCerrar();
@@ -274,17 +275,17 @@ export default function PanelPapelera() {
     recargar();
     router.refresh();
   };
-  const resumenPurga = (r: ResultadoPurga): string => `${r.purgados.toLocaleString("es-ES")} purgados${r.bloqueados > 0 ? ` y ${r.bloqueados} que se han dejado porque algo los usa aún` : ""}. Copia previa: ${r.copiaPrevia ?? "—"}.`;
+  // Al terminar una purga o la compactación (que van en segundo plano) se ponen al día los números de la pantalla
+  useEffect(() => alTerminarTarea((t) => { if (t.tipo === "papelera") refrescar(); }));
 
   const ejecutarPurga = async () => {
     if (!purga) return;
     setTrabajando(true);
     try {
-      const { data } = await llamar<ResultadoPurga>("/api/admin/papelera", { method: "POST", cuerpo: { categoria: purga.info.categoria, ...(purga.ids ? { ids: purga.ids } : { todo: true }), ...(purga.dias !== null ? { antesDeDias: purga.dias } : {}), confirmacion: "PURGAR" } });
-      mostrar(`✅ ${resumenPurga(data)} Si quieres que el disco recupere el espacio, pulsa «Compactar base de datos».`, data.purgados === 0 ? "aviso" : undefined, 12000);
+      await lanzarTarea("/api/admin/papelera", { categoria: purga.info.categoria, ...(purga.ids ? { ids: purga.ids } : { todo: true }), ...(purga.dias !== null ? { antesDeDias: purga.dias } : {}), confirmacion: "PURGAR" });
+      mostrar("La purga sigue en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
       setPurga(null);
       setVer(null);
-      refrescar();
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {
@@ -295,10 +296,9 @@ export default function PanelPapelera() {
   const ejecutarAFondo = async () => {
     setTrabajando(true);
     try {
-      const { data } = await llamar<ResultadoPurga & { compactado: ResultadoCompactado | null }>("/api/admin/papelera", { method: "POST", cuerpo: { accion: "a_fondo", confirmacion: "PURGAR A FONDO", incluirSinVincular: sinVincular, conservarHistorial, vaciarAuditoria } });
-      mostrar(`✅ Purga a fondo hecha: ${data.detalle.length > 0 ? data.detalle.join(", ") : "no había nada que purgar"}${data.bloqueados > 0 ? `; ${data.bloqueados} se han dejado porque algo los usa aún` : ""}. ${data.compactado ? `La base pasó de ${tamano(data.compactado.antes)} a ${tamano(data.compactado.despues)}.` : ""} Copia previa: ${data.copiaPrevia}.`, undefined, 15000);
+      await lanzarTarea("/api/admin/papelera", { accion: "a_fondo", confirmacion: "PURGAR A FONDO", incluirSinVincular: sinVincular, conservarHistorial, vaciarAuditoria });
+      mostrar("La purga a fondo sigue en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
       setAFondo(false);
-      refrescar();
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {
@@ -310,9 +310,8 @@ export default function PanelPapelera() {
     if (!window.confirm("Se va a compactar la base de datos: el espacio de todo lo borrado vuelve al disco. Las tablas afectadas quedan bloqueadas unos segundos (puede tardar un poco si hay documentos grandes). No se borra ningún dato. ¿Continuar?")) return;
     setCompactando(true);
     try {
-      const { data } = await llamar<ResultadoCompactado>("/api/admin/papelera", { method: "POST", cuerpo: { accion: "compactar" } });
-      mostrar(`✅ Base de datos compactada: de ${tamano(data.antes)} a ${tamano(data.despues)}.`);
-      refrescar();
+      await lanzarTarea("/api/admin/papelera", { accion: "compactar" });
+      mostrar("La base de datos se está compactando en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {
