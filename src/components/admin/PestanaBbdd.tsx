@@ -31,7 +31,7 @@ const tarjeta = { padding: "16px", background: "rgba(255, 255, 255, 0.02)", bord
 /** Pestaña «BBDD»: limpieza de huérfanos con copia previa y ajustes de interfaz. */
 export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
   const router = useRouter();
-  const { mostrar, confirmar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const [analizando, setAnalizando] = useState(false);
   const [limpiando, setLimpiando] = useState(false);
   const [analisis, setAnalisis] = useState<AnalisisBbdd | null>(null);
@@ -84,7 +84,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
         cleanAdjuntos: d.orphanAdjuntos.map((a) => a.id),
         cleanAdjuntosEliminados: d.orphanAdjuntosEliminados.map((a) => a.id),
       });
-      mostrar("La limpieza sigue en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La limpieza está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error al limpiar la base de datos.", "error");
     } finally {

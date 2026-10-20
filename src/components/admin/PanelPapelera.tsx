@@ -221,7 +221,7 @@ function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar
  * confirmación. Lo usan la Papelera y las tarjetas del análisis que hablan de documentos, clientes y expedientes eliminados.
  */
 export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, alCerrar, alTerminar }: { categoria: Categoria; titulo: string; explicacion: string; alPurga?: string; motivo?: string; alCerrar: () => void; alTerminar: () => void }) {
-  const { mostrar } = useToast();
+  const { mostrar, notificar } = useToast();
   const [ids, setIds] = useState<string[] | null>(null);
   const [trabajando, setTrabajando] = useState(false);
   const purgar = async () => {
@@ -229,7 +229,7 @@ export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, a
     setTrabajando(true);
     try {
       await lanzarTarea("/api/admin/papelera", { categoria, ids, confirmacion: "PURGAR" });
-      mostrar("La purga sigue en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La purga está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
       setIds(null);
       alTerminar();
       alCerrar();
@@ -259,7 +259,7 @@ export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, a
 /** «Papelera y purga»: todo lo que sigue guardado aunque se haya eliminado, con control total para verlo, descargarlo y borrarlo de verdad. */
 export default function PanelPapelera() {
   const router = useRouter();
-  const { mostrar, confirmar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const { datos, recargar } = useCarga<Resumen>("/api/admin/papelera", VACIO);
   const [ver, setVer] = useState<InfoCategoria | null>(null);
   const [purga, setPurga] = useState<{ info: InfoCategoria; ids: string[] | null; dias: number | null } | null>(null);
@@ -283,7 +283,7 @@ export default function PanelPapelera() {
     setTrabajando(true);
     try {
       await lanzarTarea("/api/admin/papelera", { categoria: purga.info.categoria, ...(purga.ids ? { ids: purga.ids } : { todo: true }), ...(purga.dias !== null ? { antesDeDias: purga.dias } : {}), confirmacion: "PURGAR" });
-      mostrar("La purga sigue en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La purga está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
       setPurga(null);
       setVer(null);
     } catch (e) {
@@ -297,7 +297,7 @@ export default function PanelPapelera() {
     setTrabajando(true);
     try {
       await lanzarTarea("/api/admin/papelera", { accion: "a_fondo", confirmacion: "PURGAR A FONDO", incluirSinVincular: sinVincular, conservarHistorial, vaciarAuditoria });
-      mostrar("La purga a fondo sigue en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La purga a fondo está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
       setAFondo(false);
     } catch (e) {
       mostrar(textoError(e), "error");
@@ -311,7 +311,7 @@ export default function PanelPapelera() {
     setCompactando(true);
     try {
       await lanzarTarea("/api/admin/papelera", { accion: "compactar" });
-      mostrar("La base de datos se está compactando en segundo plano: puedes seguir usando la aplicación. Verás el avance arriba y un aviso al terminar.");
+      void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La base de datos se está compactando.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {
