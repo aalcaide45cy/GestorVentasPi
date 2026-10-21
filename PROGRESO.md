@@ -518,3 +518,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.6.4 (21/10/2026)
 - Completar datos desde listados: la columna «Fra. prevista» se reconoce como fecha de facturación y, también en los usados (VO), se propone como tal. La regla automática de 1.6.2 sirve de valor inicial.
+
+## Versión 1.6.5 (21/10/2026)
+- El círculo rojo de «Comisiones» en el menú explica al pasar el ratón qué cuenta y es pulsable: abre una ventana con una tabla (vendedor, mes, qué pasa) y un botón «Ir» que abre el cotejo de pagos en ese mes y con ese vendedor.

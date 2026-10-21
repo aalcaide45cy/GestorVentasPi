@@ -70,9 +70,24 @@ const esMes = (m: string | null | undefined): m is string => /^\d{4}-(0[1-9]|1[0
  */
 export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, esAdministrador }: Props) {
   const { mostrar, confirmar } = useToast();
-  const [idVendedor, setIdVendedor] = useState(idUsuarioActual);
-  const { datos, recargar } = useCarga<DatosCotejo>(`/api/cotejo?usuario=${idVendedor}`, { coches: [], pagos: [], rejillas: [] });
+  const [idElegido, setIdVendedor] = useState<number | null>(null);
   const [mesGuardado, guardarMes] = usePreferencia("cotejo-mes");
+  // Si se llega desde el aviso del menú (círculo rojo de «Comisiones»), se abre ya con el vendedor de ese aviso; al salir se olvida
+  const [vendedorAviso, guardarVendedorAviso] = usePreferencia("cotejo-vendedor");
+  const montado = useRef(false);
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+      // (con un instante de margen: el modo estricto de desarrollo desmonta y vuelve a montar al instante)
+      setTimeout(() => {
+        if (!montado.current) guardarVendedorAviso("");
+      }, 50);
+    };
+  }, [guardarVendedorAviso]);
+  const idAviso = esAdministrador && vendedorAviso && vendedores.some((v) => v.id === Number(vendedorAviso)) ? Number(vendedorAviso) : null;
+  const idVendedor = idElegido ?? idAviso ?? idUsuarioActual;
+  const { datos, recargar } = useCarga<DatosCotejo>(`/api/cotejo?usuario=${idVendedor}`, { coches: [], pagos: [], rejillas: [] });
   const mes = esMes(mesGuardado) ? mesGuardado : mesActual();
   // Las hojas en lectura y los borradores viven fuera del componente: siguen su curso aunque se cambie de pestaña
   const { hojas, borradores } = useSyncExternalStore(suscribirRejillas, leerRejillas, () => SIN_ESTADO);

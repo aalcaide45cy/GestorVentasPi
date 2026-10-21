@@ -8,8 +8,10 @@ import BotonAyuda from "@/components/BotonAyuda";
 import BotonApagar, { BotonReiniciarServidor } from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
+import Modal from "@/components/Modal";
+import type { AvisoRejilla } from "@/lib/servicios/rejillas";
 import { CLAVE_ABIERTO, CLAVE_MOSTRAR_LABORATORIO } from "@/components/LaboratorioComisiones";
-import { usePreferencia } from "@/lib/preferencias";
+import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
 import { fijarMenuAbierto, useMovil } from "@/lib/movil";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
 
@@ -40,6 +42,10 @@ interface EnlaceNavProps {
   colapsado: boolean;
   /** Contador rojo (p. ej. validaciones pendientes). */
   insignia?: number;
+  /** Texto que explica qué cuenta el contador al pasar el ratón. */
+  ayudaInsignia?: string;
+  /** Si se da, el contador es pulsable (abre el detalle de lo que lo provoca). */
+  alPulsarInsignia?: () => void;
   children: ReactNode;
 }
 
@@ -56,7 +62,7 @@ function EnlaceNav({ guia, ...props }: EnlaceNavProps & { alPulsar?: () => void;
   );
 }
 
-function EnlaceNavBase({ href, titulo, colapsado, insignia, children, alPulsar, activo, ayuda, punto }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string; punto?: string }) {
+function EnlaceNavBase({ href, titulo, colapsado, insignia, ayudaInsignia, alPulsarInsignia, children, alPulsar, activo, ayuda, punto }: EnlaceNavProps & { alPulsar?: () => void; activo?: boolean; ayuda?: string; punto?: string }) {
   const ruta = usePathname();
   if (alPulsar) {
     return (
@@ -99,8 +105,13 @@ function EnlaceNavBase({ href, titulo, colapsado, insignia, children, alPulsar, 
       {punto && <span aria-label={punto} style={{ marginLeft: colapsado ? 0 : "auto", width: "10px", height: "10px", borderRadius: "50%", background: "var(--danger, #ef4444)", boxShadow: "0 0 6px var(--danger, #ef4444)", flexShrink: 0 }} />}
       {insignia !== undefined && insignia > 0 && (
         <span
-          title={`${insignia} validación(es) de comisiones pendiente(s)`}
-          style={{ marginLeft: colapsado ? 0 : "auto", background: "var(--danger, #ef4444)", color: "#fff", borderRadius: "999px", fontSize: "0.7rem", fontWeight: 700, minWidth: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 6px" }}
+          role={alPulsarInsignia ? "button" : undefined}
+          tabIndex={alPulsarInsignia ? 0 : undefined}
+          title={ayudaInsignia ?? `${insignia} aviso(s) pendiente(s)`}
+          aria-label={ayudaInsignia ?? `${insignia} aviso(s) pendiente(s)`}
+          onClick={alPulsarInsignia ? (e) => { e.preventDefault(); e.stopPropagation(); alPulsarInsignia(); } : undefined}
+          onKeyDown={alPulsarInsignia ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); alPulsarInsignia(); } } : undefined}
+          style={{ marginLeft: colapsado ? 0 : "auto", background: "var(--danger, #ef4444)", color: "#fff", borderRadius: "999px", fontSize: "0.7rem", fontWeight: 700, minWidth: "20px", height: "20px", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 6px", cursor: alPulsarInsignia ? "pointer" : undefined }}
         >
           {insignia}
         </span>
@@ -179,7 +190,16 @@ export default function Sidebar({ user, version }: SidebarProps) {
   const rol = normalizarRol(user.rol);
   const isAdmin = esAdministrador(rol);
   const isVendedorOrUp = esRolActivo(rol);
-  const { datos: avisosRejilla } = useCarga<{ total: number } | null>(isVendedorOrUp ? "/api/comisiones/rejillas/avisos" : null, null);
+  const { datos: avisosRejilla } = useCarga<{ total: number; avisos: AvisoRejilla[] } | null>(isVendedorOrUp ? "/api/comisiones/rejillas/avisos" : null, null);
+  const [verAvisos, setVerAvisos] = useState(false);
+  const irAlAviso = (a: AvisoRejilla) => {
+    // El cotejo se abre ya en el mes (y el vendedor) del aviso
+    guardarPreferencia("cotejo-pestana", "mes");
+    guardarPreferencia("cotejo-mes", a.mes);
+    guardarPreferencia("cotejo-vendedor", String(a.idUsuario));
+    setVerAvisos(false);
+    router.push("/dashboard/cotejo-pagos");
+  };
   const inicial = (user.nombre ?? "?").trim().charAt(0).toUpperCase() || "?";
 
   // En el servidor y en el primer pintado vale expandida (la preferencia es null hasta hidratar).
@@ -444,7 +464,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
 
           {isVendedorOrUp && (
             <>
-              <EnlaceNav href="/dashboard/comisiones" titulo="Comisiones" guia="menu.comisiones" colapsado={isCollapsed} insignia={avisosRejilla?.total}>
+              <EnlaceNav href="/dashboard/comisiones" titulo="Comisiones" guia="menu.comisiones" colapsado={isCollapsed} insignia={avisosRejilla?.total} ayudaInsignia={`${avisosRejilla?.total ?? 0} validación(es) de comisiones pendiente(s): rejillas de la empresa sin subir o con coches sin resolver. Pulsa el círculo para ver cuáles son.`} alPulsarInsignia={() => setVerAvisos(true)}>
                 <line x1="12" y1="1" x2="12" y2="23" />
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </EnlaceNav>
@@ -549,6 +569,53 @@ export default function Sidebar({ user, version }: SidebarProps) {
         </div>
       </div>
     </aside>
+    {verAvisos && (
+      <Modal
+        titulo="✅ Validaciones de comisiones pendientes"
+        ancho="820px"
+        pie={
+          <button type="button" className="btn btn-secondary" onClick={() => setVerAvisos(false)}>
+            Cerrar
+          </button>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.9rem" }}>
+          <div style={{ color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            El círculo rojo de «Comisiones» cuenta los meses cuya liquidación ya está cobrada y todavía no se ha comprobado con la hoja de la empresa: o falta subir la rejilla, o tiene coches sin resolver. Pulsa «Ir» para abrir el cotejo en ese mes.
+          </div>
+          {(avisosRejilla?.avisos.length ?? 0) === 0 ? (
+            <div style={{ color: "var(--text-muted)" }}>No hay validaciones pendientes.</div>
+          ) : (
+            <div className="table-container">
+              <table className="table-premium">
+                <thead>
+                  <tr>
+                    {isAdmin && <th>Vendedor</th>}
+                    <th>Mes</th>
+                    <th>Qué pasa</th>
+                    <th style={{ textAlign: "center" }}>Ir</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {avisosRejilla?.avisos.map((a) => (
+                    <tr key={`${a.idUsuario}-${a.mes}-${a.tipo}`}>
+                      {isAdmin && <td>{a.vendedor ?? `Usuario ${a.idUsuario}`}</td>}
+                      <td style={{ whiteSpace: "nowrap" }}>{a.mes}</td>
+                      <td>{a.detalle}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <button type="button" className="btn btn-primary" style={{ padding: "4px 12px", fontSize: "0.8rem" }} onClick={() => irAlAviso(a)} title="Abre el cotejo de pagos en este mes">
+                          Ir
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Modal>
+    )}
     </>
   );
 }
