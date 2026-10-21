@@ -208,6 +208,7 @@ describe("modelos abreviados", () => {
     ["Modelo:  RENAULT 4 E-TECH", 2],
     ["Modelo:  R4 Evolution", 2],
     ["Modelo:  RENAULT CLIO Techno", 3],
+    ["Modelo:  Renault Renault 5 E-Tech techno 150 25.000,00 €", 1],
   ])("%s", (linea, id) => {
     expect(parsearPedido(["CLIENTE", linea].join("\n"), cat).idModelo).toBe(id);
   });

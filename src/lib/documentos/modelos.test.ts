@@ -41,6 +41,14 @@ describe("proponerMarcaModelo: solo marca y modelo", () => {
     expect(proponerMarcaModelo("DACIA NUEVO SPRING Extreme", vacio)).toMatchObject({ marca: "Dacia", modelo: "Spring" });
   });
 
+  it("la marca repetida («Renault Renault 5») cuenta una vez y «5» es el modelo «R5» del catálogo", () => {
+    const conR5: CatalogoParaProponer = { marcas: [{ id: 2, nombre: "Renault", modelos: [{ id: 30, nombre: "R5" }, { id: 31, nombre: "Clio" }] }] };
+    expect(proponerMarcaModelo("Renault Renault 5 E-Tech techno 150", conR5)).toMatchObject({ marca: "Renault", modelo: "R5", idModelo: 30 });
+    expect(proponerMarcaModelo("RENAULT Renault 5 Iconic five", conR5)).toMatchObject({ marca: "Renault", modelo: "R5", idModelo: 30 });
+    // Sin R5 en el catálogo propone «5», no «Renault»
+    expect(proponerMarcaModelo("Renault Renault 5 E-Tech", vacio)).toMatchObject({ marca: "Renault", modelo: "5", idModelo: null });
+  });
+
   it("modelos compuestos nuevos (Grand Scenic) y marcas desconocidas", () => {
     expect(proponerMarcaModelo("RENAULT GRAND SCENIC Techno", vacio)).toMatchObject({ modelo: "Grand Scenic" });
     expect(proponerMarcaModelo("XPENG G6 Long Range", vacio)).toMatchObject({ marca: "Xpeng", modelo: "G6" });

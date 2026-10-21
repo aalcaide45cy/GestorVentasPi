@@ -256,6 +256,8 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
     if (texto) e.modeloLinea = texto.replace(/^(\S+)\s+\1\b/i, "$1");
   }
 
+  // Hay pedidos que repiten la marca («RENAULT Renault 5 E-Tech»: la marca y luego el nombre del modelo, que también empieza por la marca): se queda una sola
+  if (e.modeloLinea) e.modeloLinea = e.modeloLinea.replace(/^(\S+)\s+\1\b/i, "$1");
   // El OCR pega a veces el modelo con la versión («ARKANAesprit» por «ARKANA esprit»): se separa donde las mayúsculas dan paso a minúsculas
   if (e.modeloLinea) e.modeloLinea = e.modeloLinea.replace(/\b([A-ZÁÉÍÓÚÑ]{4,})([a-záéíóúñ]{3,})\b/g, "$1 $2");
   // Si la linea del modelo solo trae el importe (el nombre se perdio en el escaneo), no hay modelo

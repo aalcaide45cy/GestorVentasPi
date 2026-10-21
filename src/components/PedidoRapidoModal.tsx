@@ -151,6 +151,27 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
     };
   }, [dniEditado, nombreEditado, mostrar]);
 
+  // Posible duplicado: se mira al abrir el pedido y cada vez que cambian los datos que lo identifican (no solo al pulsar «Crear»), y se avisa en la propia ventana
+  const [duplicados, setDuplicados] = useState<{ idExpediente: number; motivo: string; cliente?: string | null }[]>([]);
+  const claveDuplicado = [valores.vin, valores.matricula, valores.dni, nombreEditado, valores.fecha, eleccion ? eleccion.idModelo : modelo].join("|");
+  useEffect(() => {
+    let vivo = true;
+    const espera = setTimeout(() => {
+      llamar<{ idExpediente: number; motivo: string; cliente?: string | null }[]>("/api/documentos/similares", {
+        method: "POST",
+        cuerpo: { vin: valores.vin, matricula: valores.matricula, dni: valores.dni, cliente: nombreEditado, fechaExpediente: valores.fecha || hoyIsoCliente(), idModelo: eleccion ? eleccion.idModelo : modelo === "" ? null : modelo },
+      })
+        .then((r) => vivo && setDuplicados(r.data))
+        .catch(() => vivo && setDuplicados([]));
+    }, 500);
+    return () => {
+      vivo = false;
+      clearTimeout(espera);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveDuplicado]);
+  const parecidos = [...(pedido.similares ?? []), ...duplicados].filter((x, i, a) => a.findIndex((y) => y.idExpediente === x.idExpediente) === i);
+
   const modelosPlanos = marcas.flatMap((m) => m.modelos.map((x) => ({ id: x.id_modelo, texto: `${m.nombre} ${x.nombre_modelo}` })));
   const idModeloFinal = eleccion ? eleccion.idModelo : modelo === "" ? null : modelo;
   const tipoFinal = eleccion ? eleccion.tipo.id_tipo_de_venta : tipo === "" ? null : tipo;
@@ -486,9 +507,23 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             <strong style={{ wordBreak: "break-word" }}>{d.modeloTexto || "—"}</strong>
           </div>
         </div>
-        {(pedido.similares ?? []).length > 0 && (
-          <div style={{ color: "var(--warning)", fontSize: "0.85rem", border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)", padding: "8px 10px" }}>
-            ⚠️ Ya existe un expediente parecido: {(pedido.similares ?? []).map((x) => `nº ${x.idExpediente} (${x.motivo}${x.cliente ? `, ${x.cliente}` : ""})`).join("; ")}. Puedes continuar, pero comprueba que no lo duplicas.
+        {parecidos.length > 0 && (
+          <div role="alert" style={{ fontSize: "0.88rem", border: "2px solid var(--danger)", background: "rgba(239, 68, 68, 0.1)", borderRadius: "var(--radius-sm)", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <strong style={{ color: "var(--danger)" }}>🚨 Posible duplicado: este pedido ya parece estar creado</strong>
+            {parecidos.map((x) => (
+              <div key={x.idExpediente} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                <span>
+                  Expediente <b>#EXP-{String(x.idExpediente).padStart(4, "0")}</b> · {x.motivo}
+                  {x.cliente ? ` · ${x.cliente}` : ""}
+                </span>
+                <a href={`/dashboard/expedientes/editar/${x.idExpediente}`} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.8rem" }}>
+                  Abrir en otra pestaña
+                </a>
+              </div>
+            ))}
+            <span style={{ color: "var(--text-secondary)", fontSize: "0.82rem" }}>
+              {permitirDuplicadosAhora() ? "Puedes crearlo igualmente porque tienes activada la opción de permitir duplicados." : "No se creará mientras exista ese expediente. Ábrelo para completarlo, o descarta este pedido."}
+            </span>
           </div>
         )}
         {d.avisos.length > 0 && <div style={{ color: "var(--warning)", fontSize: "0.82rem" }}>⚠️ {d.avisos[0]}</div>}

@@ -33,6 +33,7 @@ import { EtiquetaClase, EtiquetaMarca, PuntoMarca } from "./etiquetas";
 import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, FONDO_FECHA_B, TextoCopiable, mensajeDeError, type CampoFecha } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
+import ModalDuplicados from "./expedientes/ModalDuplicados";
 import ModalCompletarDatos from "./expedientes/ModalCompletarDatos";
 import ModalContrasteListado from "./expedientes/ModalContrasteListado";
 import { leerListadoVentas, type ResultadoContraste } from "@/lib/contraste-listado";
@@ -335,6 +336,7 @@ export default function ExpedientesList({
   const seleccionActiva = modoSeleccion.activo;
   const borradoActivo = modoBorrado.activo;
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
+  const [verDuplicados, setVerDuplicados] = useState(false);
   const [edicionMasiva, setEdicionMasiva] = useState(false);
 
   const [ordenCampo, setOrdenCampo] = useState("fecha_expediente");
@@ -1054,7 +1056,11 @@ export default function ExpedientesList({
         >
           🗂️ Importar y exportar
         </button>
+        <button type="button" className="btn btn-secondary" onClick={() => setVerDuplicados(true)} style={{ padding: "6px 14px", fontSize: "0.85rem" }} title="Busca expedientes duplicados: mismo bastidor, misma matrícula, o mismo cliente y modelo. Solo lee, no cambia nada">
+          🔎 Detectar duplicados
+        </button>
       </div>
+      {verDuplicados && <ModalDuplicados alCerrar={() => setVerDuplicados(false)} />}
 
       {menuDatos && (
         <Modal

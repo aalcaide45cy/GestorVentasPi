@@ -49,11 +49,44 @@ const botonBloqueo = (activo: boolean, fondo: string, color: string) =>
     gap: "6px",
   }) as const;
 
-const columnasVentas: ColumnaTabla<ExpedienteDto>[] = [
+/** Un expediente del cliente con la señal de si parece repetido entre los suyos (mismo bastidor, matrícula, o mismo modelo y fecha de pedido). */
+type VentaConAviso = ExpedienteDto & { __duplicado?: string };
+
+const normalizarClave = (t: string | null) => (t ?? "").replace(/[\s-]/g, "").toUpperCase();
+const SIN_DATO_VENTA = new Set(["", "ND", "N/D", "NA", "N/A", "0"]);
+function marcarDuplicadas(lista: ExpedienteDto[]): VentaConAviso[] {
+  const motivo = new Map<number, string>();
+  const claves: { motivo: string; clave: (e: ExpedienteDto) => string | null }[] = [
+    { motivo: "mismo bastidor", clave: (e) => (SIN_DATO_VENTA.has(normalizarClave(e.vin)) ? null : normalizarClave(e.vin)) },
+    { motivo: "misma matrícula", clave: (e) => (SIN_DATO_VENTA.has(normalizarClave(e.matricula)) ? null : normalizarClave(e.matricula)) },
+    { motivo: "mismo modelo y fecha de pedido", clave: (e) => (e.id_modelo && e.fecha_expediente ? `${e.id_modelo}|${e.fecha_expediente}` : null) },
+  ];
+  for (const c of claves) {
+    const grupos = new Map<string, ExpedienteDto[]>();
+    for (const e of lista) {
+      const k = c.clave(e);
+      if (k !== null) (grupos.get(k) ?? grupos.set(k, []).get(k)!).push(e);
+    }
+    for (const g of grupos.values()) if (g.length > 1) for (const e of g) if (!motivo.has(e.id_expediente)) motivo.set(e.id_expediente, `${c.motivo} que ${g.filter((o) => o !== e).map((o) => `#EXP-${String(o.id_expediente).padStart(4, "0")}`).join(", ")}`);
+  }
+  return lista.map((e) => ({ ...e, __duplicado: motivo.get(e.id_expediente) }));
+}
+
+const columnasVentas: ColumnaTabla<VentaConAviso>[] = [
   { clave: "codigo", etiqueta: "Código", valor: (e) => e.id_expediente, celda: (e) => <b style={{ color: "var(--primary)" }}>#EXP-{String(e.id_expediente).padStart(4, "0")}</b> },
-  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { vacio: "N/D", punto: true }),
+  ...columnasVehiculo<VentaConAviso>((e) => datosVehiculoDeExpediente(e), { vacio: "N/D", punto: true }),
   { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => e.matricula || "N/D" },
-  { clave: "fecha", etiqueta: "Fecha", valor: (e) => e.fecha_expediente ?? "", celda: (e) => (e.fecha_expediente ? formatDate(e.fecha_expediente) : "N/D") },
+  { clave: "fecha", etiqueta: "Fecha pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => (e.fecha_expediente ? formatDate(e.fecha_expediente) : "N/D") },
+  { clave: "vin", etiqueta: "Bastidor", valor: (e) => e.vin ?? "", celda: (e) => e.vin || "N/D" },
+  { clave: "f_afect", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => (e.fecha_afectacion ? formatDate(e.fecha_afectacion) : "—") },
+  { clave: "f_rci", etiqueta: "F. RCI", valor: (e) => e.fecha_rci ?? "", celda: (e) => (e.fecha_rci ? formatDate(e.fecha_rci) : "—") },
+  { clave: "f_mat", etiqueta: "F. matriculación", valor: (e) => e.fecha_matriculacion ?? "", celda: (e) => (e.fecha_matriculacion ? formatDate(e.fecha_matriculacion) : "—") },
+  { clave: "f_fact", etiqueta: "F. facturación", valor: (e) => e.fecha_facturacion ?? "", celda: (e) => (e.fecha_facturacion ? formatDate(e.fecha_facturacion) : "—") },
+  { clave: "f_entrega", etiqueta: "F. entrega", valor: (e) => e.fecha_entrega ?? "", celda: (e) => (e.fecha_entrega ? formatDate(e.fecha_entrega) : "—") },
+  { clave: "vendedor", etiqueta: "Vendedor", valor: (e) => e.usuario?.nombre ?? "" },
+  { clave: "intranet", etiqueta: "Intranet", valor: (e) => e.estado_intranet ?? "", oculta: true },
+  { clave: "comentarios", etiqueta: "Comentarios", valor: (e) => e.comentarios ?? "", oculta: true },
+  { clave: "aviso", etiqueta: "Aviso", valor: (e) => (e.__duplicado ? "Posible duplicado" : ""), celda: (e) => (e.__duplicado ? <span title={e.__duplicado} style={{ color: "var(--danger)", fontWeight: 700 }}>⚠️ Posible duplicado</span> : "") },
   {
     clave: "editar",
     etiqueta: "Editar",
@@ -83,6 +116,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [cargando, setCargando] = useState(false);
   const [ventasDe, setVentasDe] = useState<ClienteItem | null>(null);
   const [ventas, setVentas] = useState<ExpedienteDto[] | null>(null);
+  const ventasConAviso = useMemo(() => (ventas ? marcarDuplicadas(ventas) : null), [ventas]);
 
   const [marcados, setMarcados] = useState<number[]>([]);
   const [aBorrar, setABorrar] = useState<ClienteItem | null>(null);
@@ -922,25 +956,31 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
         <Modal
           titulo={
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-              <span>Expedientes de {ventasDe.nombre}</span>
+              <span>
+                Expedientes de {ventasDe.nombre}
+                {ventas !== null && ` · ${ventas.length} ${ventas.length === 1 ? "expediente" : "expedientes"}`}
+                {ventasConAviso && ventasConAviso.some((v) => v.__duplicado) && <span style={{ color: "var(--danger)", fontSize: "0.9rem" }}> · ⚠️ {ventasConAviso.filter((v) => v.__duplicado).length} posibles duplicados</span>}
+              </span>
               <button type="button" className="btn btn-secondary" onClick={() => setVentasDe(null)} style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}>
                 Cerrar
               </button>
             </div>
           }
-          ancho="800px"
+          ancho="1400px"
           tamanoTitulo="1.25rem"
         >
-          {ventas === null ? (
+          {ventasConAviso === null ? (
             <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>Cargando...</p>
           ) : (
-            <TablaDatos<ExpedienteDto>
+            <TablaDatos<VentaConAviso>
               id="cliente-ventas"
               columnas={columnasVentas}
-              filas={ventas}
+              filas={ventasConAviso}
               clave={(e) => e.id_expediente}
-              placeholder="Buscar por código, vehículo, matrícula…"
+              estiloFila={(e) => (e.__duplicado ? { background: "rgba(239, 68, 68, 0.08)" } : {})}
+              placeholder="Buscar por código, vehículo, matrícula, bastidor, vendedor…"
               vacio="No hay expedientes asociados a este cliente."
+              alto="min(60vh, 640px)"
             />
           )}
         </Modal>

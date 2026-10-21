@@ -27,6 +27,11 @@ export function aliasDeModelo(nombre: string, marca: string | null): string[] {
     alias.add(`${inicial} ${nucleo}`);
     alias.add(`${inicial}-${nucleo}`);
   }
+  // Un modelo de catálogo escrito con la inicial («R5», «R 4») también se escribe en el pedido con la marca y el número («Renault 5»)
+  if (m) {
+    const abreviado = new RegExp(`^${m[0]}[ -]?(\\d.*)$`).exec(nucleo);
+    if (abreviado) alias.add(`${m} ${abreviado[1]}`);
+  }
   return [...alias].filter((a) => a.length >= 2);
 }
 
@@ -131,6 +136,8 @@ export function proponerMarcaModelo(texto: string, catalogo: CatalogoParaPropone
     }
   }
   let resto = palabras.slice(usadas);
+  // La marca repetida («Renault Renault 5») cuenta una sola vez
+  while (marcaNombre !== null && resto.length > 0 && sinAcentos(resto[0]) === sinAcentos(marcaNombre)) resto = resto.slice(1);
   if (marcaNombre === null) {
     // Abreviaturas de modelo sin marca: «R5», «R4» son Renault 5, Renault 4
     const r = /^R(\d{1,2})$/.exec(n(0));
@@ -155,9 +162,12 @@ export function proponerMarcaModelo(texto: string, catalogo: CatalogoParaPropone
   const restoN = resto.map((w) => sinAcentos(w));
   let existente: { id: number; nombre: string } | null = null;
   let mejor = 0;
+  const inicial = sinAcentos(marca)[0] ?? "";
   for (const m of marcaCat?.modelos ?? []) {
     const tokens = nucleoModelo(m.nombre, marca).split(" ");
-    if (tokens.length > mejor && tokens.every((t, i) => restoN[i] === t)) {
+    // «R5» (modelo de catálogo) equivale a «5» tras la marca («Renault 5»)
+    const igual = (t: string, r: string | undefined, i: number) => t === r || (i === 0 && r !== undefined && /^\d/.test(r) && t === `${inicial}${r}`);
+    if (tokens.length > mejor && tokens.every((t, i) => igual(t, restoN[i], i))) {
       existente = m;
       mejor = tokens.length;
     }
