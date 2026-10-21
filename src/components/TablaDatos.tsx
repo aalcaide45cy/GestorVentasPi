@@ -53,11 +53,16 @@ interface Props<T> {
   alVerFilas?: (filas: T[]) => void;
   /** Con muchas filas se pintan por bloques de este tamaño (con un botón para ver más): la búsqueda y el orden siguen contando todas. */
   bloque?: number;
+  /** Alto máximo de la zona de la tabla (por defecto, 55 % de la pantalla con tope de 420 px). En pantallas dedicadas a una sola tabla conviene `PANTALLA_COMPLETA`. */
+  alto?: string;
 }
 
 const sinAcentos = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial, alVerFilas, bloque }: Props<T>) {
+/** Para pantallas que son solo una tabla: ocupa el alto que queda bajo el título y los filtros (mínimo 420 px). */
+export const PANTALLA_COMPLETA = "max(420px, calc(100vh - 330px))";
+
+export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial, alVerFilas, bloque, alto }: Props<T>) {
   const relleno = compacta ? "5px 6px" : "6px 8px";
   const defecto = useMemo<Config>(() => ({ orden: columnas.map((c) => c.clave), visibles: Object.fromEntries(columnas.map((c) => [c.clave, !c.oculta])) }), [columnas]);
   const [guardado, fijar] = usePreferencia(`tabla-${id}`);
@@ -127,7 +132,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
       {visibles.length === 0 ? (
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>{filas.length === 0 ? vacio : "Ningún resultado con esa búsqueda."}</p>
       ) : (
-        <div className="tabla-scroll" style={{ ["--alto-tabla" as string]: "min(55vh, 420px)" }}>
+        <div className="tabla-scroll" style={{ ["--alto-tabla" as string]: alto ?? "min(55vh, 420px)" }}>
           <table style={{ width: "100%", fontSize: "0.82rem", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr style={{ color: "var(--text-secondary)" }}>

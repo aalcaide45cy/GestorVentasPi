@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import TablaDatos, { PANTALLA_COMPLETA, type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
@@ -150,7 +150,7 @@ export default function LogLecturasClient() {
           </button>
         ))}
       </div>
-      <TablaDatos<RegistroLectura> id="log-lecturas" columnas={columnas} filas={filas} clave={(f) => f.id} placeholder="Buscar por documento, cliente, nº de pedido, error…" vacio="No hay lecturas con este filtro." />
+      <TablaDatos<RegistroLectura> id="log-lecturas" alto={PANTALLA_COMPLETA} columnas={columnas} filas={filas} clave={(f) => f.id} placeholder="Buscar por documento, cliente, nº de pedido, error…" vacio="No hay lecturas con este filtro." />
     </div>
   );
 }

@@ -521,3 +521,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.6.5 (21/10/2026)
 - El círculo rojo de «Comisiones» en el menú explica al pasar el ratón qué cuenta y es pulsable: abre una ventana con una tabla (vendedor, mes, qué pasa) y un botón «Ir» que abre el cotejo de pagos en ese mes y con ese vendedor.
+
+## Versión 1.6.6 (21/10/2026)
+- Log de lecturas: la tabla ocupa todo el alto que queda bajo el título y los filtros (antes se cortaba a 420 px dejando media pantalla vacía). `TablaDatos` admite el parámetro `alto` y la constante `PANTALLA_COMPLETA` para pantallas que son solo una tabla.
