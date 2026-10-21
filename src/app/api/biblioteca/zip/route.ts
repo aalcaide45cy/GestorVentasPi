@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /** Descarga varios archivos de la biblioteca juntos en un .zip: `?ids=1,2,3`. */
 export const GET = manejar(async (req: Request) => {
   await requireSession("no_invitado");
-  const ids = (new URL(req.url).searchParams.get("ids") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 200);
+  const ids = (new URL(req.url).searchParams.get("ids") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
   if (ids.length === 0) throw new HttpError(400, "Faltan los archivos a descargar");
   const entradas: { nombre: string; datos: Buffer }[] = [];
   for (const id of ids) {

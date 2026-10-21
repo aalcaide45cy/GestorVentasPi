@@ -10,6 +10,7 @@ import VistaPreviaBiblioteca from "@/components/biblioteca/VistaPreviaBiblioteca
 import { useCarga } from "@/components/comisiones/useCarga";
 import { CATEGORIAS, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 import { ETIQUETAS, tamanoLegible, type RespuestaListado } from "@/lib/biblioteca-cliente";
+import { llamarComoTarea } from "@/lib/tareas-cliente";
 import { formatDate } from "@/lib/date-utils";
 import type { ArchivoBibliotecaDto } from "@/lib/servicios/biblioteca";
 
@@ -33,6 +34,8 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
   const [filtro, setFiltro] = useState<"todas" | CategoriaBiblioteca>("todas");
   const [pendientes, setPendientes] = useState<File[] | null>(null);
   const [viendo, setViendo] = useState<ArchivoBibliotecaDto | null>(null);
+  /** Qué acción de peso está en marcha (para dejar los botones parados y que se vea que algo ocurre). */
+  const [haciendo, setHaciendo] = useState<string | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
@@ -55,14 +58,17 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
   };
 
   const cambiar = async (ids: number[], cambios: { nombre?: string; categoria?: CategoriaBiblioteca; idCliente?: number | null; idExpediente?: number | null }, ok?: string) => {
+    setHaciendo(ids.length === 1 ? "Guardando el cambio…" : `Aplicando el cambio a ${ids.length} archivos…`);
     try {
       await llamar("/api/biblioteca", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, ...cambios }) });
       setEditando(null);
       setAsignando(null);
-      if (ok) mostrar(ok);
+      mostrar(ok ?? (ids.length === 1 ? "Cambio guardado." : `Cambio aplicado a ${ids.length} archivos.`));
       recargar();
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "No se ha podido cambiar el archivo.", "error");
+    } finally {
+      setHaciendo(null);
     }
   };
 
@@ -70,29 +76,51 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
     if (lista.length === 0) return;
     const texto = lista.length === 1 ? `¿Borro «${lista[0].nombre}» de la biblioteca?` : `¿Borro ${lista.length} archivos de la biblioteca?`;
     if (!(await confirmar({ texto: `${texto} Los pedidos o pagos que ya hayas creado con ellos no cambian.`, peligro: true }))) return;
+    setHaciendo(`Borrando ${lista.length === 1 ? "el archivo" : `${lista.length} archivos`}…`);
+    mostrar(`🗑️ Borrando ${lista.length === 1 ? "el archivo" : `${lista.length} archivos`}… Se hace en segundo plano: puedes seguir usando la aplicación y verás el avance arriba.`, "aviso", 5000);
     try {
-      await llamar("/api/biblioteca", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: lista.map((f) => f.id) }) });
-      mostrar(lista.length === 1 ? "Archivo borrado de la biblioteca." : `${lista.length} archivos borrados de la biblioteca.`);
+      // En segundo plano y por lotes: una sola orden enorme con muchos archivos grandes bloquearía la base de datos
+      const r = await llamarComoTarea<{ borrados: number }>("/api/biblioteca/borrar", { ids: lista.map((f) => f.id) }, (t) => setHaciendo(t.total > 0 ? `Borrando… ${t.hecho} de ${t.total}` : "Borrando…"));
+      mostrar(r.borrados === 1 ? "Archivo borrado de la biblioteca." : `${r.borrados} archivos borrados de la biblioteca.`);
       setMarcados(new Set());
-      recargar();
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "No se ha podido borrar.", "error");
+    } finally {
+      setHaciendo(null);
+      recargar();
     }
   };
 
-  const descargar = (lista: ArchivoBibliotecaDto[]) => {
+  const descargar = async (lista: ArchivoBibliotecaDto[]) => {
     if (lista.length === 0) return;
-    const a = document.createElement("a");
+    const guardarComo = (url: string, nombre: string) => {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nombre;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
     if (lista.length === 1) {
-      a.href = `/api/biblioteca?id=${lista[0].id}`;
-      a.download = lista[0].nombre;
-    } else {
-      a.href = `/api/biblioteca/zip?ids=${lista.map((f) => f.id).join(",")}`;
-      a.download = "biblioteca.zip";
+      guardarComo(`/api/biblioteca?id=${lista[0].id}`, lista[0].nombre);
+      mostrar(`⬇️ Descargando «${lista[0].nombre}»…`, "aviso", 3000);
+      return;
     }
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // El servidor prepara el .zip antes de empezar a enviarlo: se baja aquí para poder avisar mientras tanto y si falla
+    setHaciendo(`Preparando el .zip de ${lista.length} archivos…`);
+    mostrar(`⬇️ Preparando el .zip de ${lista.length} archivos… la descarga empezará sola al terminar.`, "aviso", 5000);
+    try {
+      const r = await fetch(`/api/biblioteca/zip?ids=${lista.map((f) => f.id).join(",")}`, { credentials: "same-origin" });
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { message?: string }).message ?? `Error ${r.status}`);
+      const url = URL.createObjectURL(await r.blob());
+      guardarComo(url, `biblioteca_${new Date().toISOString().slice(0, 10)}.zip`);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      mostrar(`.zip con ${lista.length} archivos descargado.`);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se ha podido preparar el .zip.", "error");
+    } finally {
+      setHaciendo(null);
+    }
   };
 
   const alternar = (id: number) =>
@@ -175,7 +203,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
           <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setViendo(f)} title="Ver el documento sin descargarlo" aria-label="Ver">
             👁️
           </button>
-          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => descargar([f])} title="Descargar el archivo a tu equipo" aria-label="Descargar">
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => void descargar([f])} title="Descargar el archivo a tu equipo" aria-label="Descargar">
             ⬇️
           </button>
           <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setAsignando([f.id])} title="Asignar el archivo a un cliente o a un expediente" aria-label="Asignar">
@@ -184,7 +212,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
           <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setEditando({ id: f.id, nombre: f.nombre })} title="Renombrar el archivo" aria-label="Renombrar">
             ✏️
           </button>
-          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => void borrar([f])} title="Borrar el archivo de la biblioteca" aria-label="Borrar">
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => void borrar([f])} disabled={!!haciendo} title="Borrar el archivo de la biblioteca" aria-label="Borrar">
             🗑️
           </button>
         </span>
@@ -244,13 +272,18 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
         <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} onClick={() => setMarcados(new Set(visibles.map((f) => f.id)))} disabled={visibles.length === 0} title="Marca todos los archivos que se ven ahora en la tabla (con los filtros y la búsqueda aplicados)">
           ☑ Marcar los {visibles.length} que se ven
         </button>
+        {haciendo && (
+          <b role="status" style={{ color: "var(--warning)", fontSize: "0.9rem" }}>
+            ⏳ {haciendo}
+          </b>
+        )}
         {marcados.size > 0 && (
           <>
             <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} onClick={() => setMarcados(new Set())}>
               Quitar marcas
             </button>
             <b style={{ color: "var(--primary)", fontSize: "0.9rem" }}>{elegidos.length} marcado(s):</b>
-            <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} onClick={() => descargar(elegidos)} title={elegidos.length > 1 ? "Descarga todos los marcados juntos en un archivo .zip" : "Descarga el archivo"}>
+            <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} onClick={() => void descargar(elegidos)} disabled={!!haciendo} title={elegidos.length > 1 ? "Descarga todos los marcados juntos en un archivo .zip" : "Descarga el archivo"}>
               ⬇️ Descargar{elegidos.length > 1 ? " (.zip)" : ""}
             </button>
             <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} onClick={() => setAsignando(elegidos.map((f) => f.id))}>
@@ -267,7 +300,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
                 </option>
               ))}
             </select>
-            <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", color: "var(--danger)" }} onClick={() => void borrar(elegidos)}>
+            <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", color: "var(--danger)" }} onClick={() => void borrar(elegidos)} disabled={!!haciendo}>
               🗑️ Borrar
             </button>
           </>
