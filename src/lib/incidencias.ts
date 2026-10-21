@@ -42,7 +42,8 @@ const MAX_DETALLE = 8000;
  */
 export function limpiarSensible(texto: string): string {
   return texto
-    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, "<correo>")
+    // Un correo acaba en un dominio con letras («ana@correo.es»): «pg@9.0» (una versión) no lo es
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}\b/g, "<correo>")
     .replace(/\b[XYZxyz]?\d{7,8}[A-Za-z]\b/g, "<documento>")
     .replace(/\b(?:\d[ -]?){9,}\b/g, "<número>")
     .replace(/\b(Bearer|Basic)\s+[\w.~+/=-]{10,}/gi, "$1 <token>")

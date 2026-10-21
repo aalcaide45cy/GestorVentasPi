@@ -101,6 +101,13 @@ export function incidenciaDeLinea(texto: string): void {
   if (/^(Error no controlado en la API|Petición con error|No se pudo guardar una incidencia|\[browser\])/.test(t)) return;
   const origen: OrigenIncidencia = /^Tarea «/.test(t) ? "tarea" : /^Lectura de (pedido|pago|dni)/i.test(t) ? "lectura" : "servidor";
   const [primera, ...resto] = t.split(/\r?\n/);
+  // Los avisos de Node («(node:1234) DeprecationWarning: …») llegan por la misma vía pero no son errores: salen como aviso, y sin el número de proceso
+  // (que cambia en cada arranque y haría que el mismo aviso no se agrupara)
+  const aviso = /^\(node:\d+\) (\w*Warning)\b/.exec(primera);
+  if (aviso) {
+    emitirIncidencia({ origen, nivel: "aviso", titulo: primera.replace(/^\(node:\d+\) /, ""), detalle: resto.length > 0 ? resto.join("\n") : null });
+    return;
+  }
   emitirIncidencia({ origen, titulo: primera, detalle: resto.length > 0 ? resto.join("\n") : null });
 }
 

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/components/Modal";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import VistaPreviaBiblioteca from "@/components/biblioteca/VistaPreviaBiblioteca";
 import { useToast } from "@/components/Toast";
 import ModalSubidaBiblioteca from "@/components/biblioteca/ModalSubidaBiblioteca";
 import { archivoDeBiblioteca, ETIQUETAS, listarBiblioteca, tamanoLegible } from "@/lib/biblioteca-cliente";
@@ -41,13 +43,20 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
   const { mostrar } = useToast();
   const [lista, setLista] = useState<ArchivoBibliotecaDto[] | null>(null);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
-  const [texto, setTexto] = useState("");
   /** Qué se enseña: lo de esta zona (por defecto), todo, o un tipo concreto. */
   const [filtro, setFiltro] = useState<"zona" | "todos" | CategoriaBiblioteca>("zona");
   const [trabajando, setTrabajando] = useState(false);
   const [version, setVersion] = useState(0);
   const [nuevos, setNuevos] = useState<File[] | null>(null);
+  const [viendo, setViendo] = useState<ArchivoBibliotecaDto | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
+  /** Filas que se ven en la tabla con la búsqueda y el orden de ahora (para «Marcar los que se ven»). */
+  const vistas = useRef<ArchivoBibliotecaDto[]>([]);
+  const [nVistas, setNVistas] = useState(0);
+  const alVerFilas = useCallback((f: ArchivoBibliotecaDto[]) => {
+    vistas.current = f;
+    setNVistas((n) => (n === f.length ? n : f.length));
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -65,22 +74,57 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
 
-  const delTipo = (f: ArchivoBibliotecaDto) => (filtro === "todos" ? true : filtro === "zona" ? categorias.includes(f.categoria) : f.categoria === filtro);
-  const visibles = useMemo(() => (lista ?? []).filter((f) => delTipo(f) && f.nombre.toLowerCase().includes(texto.trim().toLowerCase())),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lista, texto, filtro]);
   const cuenta = (a: ArchivoBibliotecaDto[], c: "zona" | "todos" | CategoriaBiblioteca) => a.filter((f) => (c === "todos" ? true : c === "zona" ? categorias.includes(f.categoria) : f.categoria === c)).length;
-  const alternar = (id: number) =>
-    setMarcados((prev) => {
-      const n = new Set(multiple ? prev : []);
-      if (prev.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  const todosMarcados = visibles.length > 0 && visibles.every((f) => marcados.has(f.id));
+  const filasTabla = useMemo(() => (lista ?? []).filter((f) => (filtro === "todos" ? true : filtro === "zona" ? categorias.includes(f.categoria) : f.categoria === filtro)), [lista, filtro, categorias]);
+  const alternar = useCallback(
+    (id: number) =>
+      setMarcados((prev) => {
+        const n = new Set(multiple ? prev : []);
+        if (prev.has(id)) n.delete(id);
+        else n.add(id);
+        return n;
+      }),
+    [multiple],
+  );
 
+  const columnas = useMemo<ColumnaTabla<ArchivoBibliotecaDto>[]>(
+    () => [
+      {
+        clave: "marca",
+        etiqueta: "Elegir",
+        cabecera: "☑",
+        valor: (f) => (marcados.has(f.id) ? 0 : 1),
+        celda: (f) => <input type="checkbox" checked={marcados.has(f.id)} onChange={() => alternar(f.id)} aria-label={`Elegir ${f.nombre}`} />,
+        ancho: 40,
+        ayuda: "Ordena poniendo primero los elegidos",
+      },
+      {
+        clave: "nombre",
+        etiqueta: "Archivo",
+        valor: (f) => f.nombre,
+        celda: (f) => (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.8rem" }} onClick={() => setViendo(f)} title="Ver el contenido del archivo" aria-label={`Ver ${f.nombre}`}>
+              👁️
+            </button>
+            <span onClick={() => alternar(f.id)} style={{ cursor: "pointer" }}>
+              {f.nombre}
+            </span>
+          </span>
+        ),
+        ancho: 320,
+      },
+      { clave: "tipo", etiqueta: "Tipo", valor: (f) => ETIQUETAS[f.categoria] },
+      { clave: "formato", etiqueta: "Formato", valor: (f) => (f.nombre.includes(".") ? (f.nombre.split(".").pop() ?? "").toUpperCase() : "—") },
+      { clave: "tamano", etiqueta: "Tamaño", valor: (f) => f.tamano, celda: (f) => tamanoLegible(f.tamano) },
+      { clave: "guardado", etiqueta: "Guardado", valor: (f) => f.creadoEn, celda: (f) => formatDate(f.creadoEn.slice(0, 10)) },
+      { clave: "asignado", etiqueta: "Asignado a", valor: (f) => f.asignadoA ?? "Sin asignar" },
+    ],
+    [marcados, alternar],
+  );
+
+  const elegidos = (lista ?? []).filter((f) => marcados.has(f.id));
   const usar = async () => {
-    const elegidos = (lista ?? []).filter((f) => marcados.has(f.id));
     if (elegidos.length === 0) return;
     setTrabajando(true);
     try {
@@ -101,81 +145,73 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
   };
 
   const nombresCategorias = categorias.map((c) => ETIQUETAS[c]).join(", ");
+  const nTotal = filasTabla.length;
 
   return (
     <>
-    <Modal
-      titulo={`📚 Elegir de la biblioteca${lista === null ? "" : ` · ${visibles.length} ${visibles.length === 1 ? "archivo" : "archivos"}${marcados.size > 0 ? ` · ${marcados.size} ${marcados.size === 1 ? "elegido" : "elegidos"}` : ""}`}`}
-      ancho="760px"
-      pie={
-        <>
-          <Link href="/dashboard/herramientas?p=biblioteca" className="btn btn-secondary" style={{ marginRight: "auto" }} title="Abre la biblioteca para ver, renombrar o borrar archivos">
-            Abrir la biblioteca
-          </Link>
-          <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>
-            Cancelar
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => void usar()} disabled={trabajando || marcados.size === 0}>
-            {trabajando ? "Abriendo…" : marcados.size > 0 ? `Usar ${marcados.size} archivo${marcados.size === 1 ? "" : "s"}` : "Elige archivos"}
-          </button>
-        </>
-      }
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.9rem" }}>
-        <div style={{ color: "var(--text-secondary)" }}>
-          Se usan igual que si los hubieras elegido en tu equipo. Por defecto salen los de esta zona (<b>{nombresCategorias}</b>); cambia el tipo para ver otros, o elige «Todos».
-        </div>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>TIPO</span>
-          {([["zona", `De esta zona (${cuenta(lista ?? [], "zona")})`], ["todos", `Todos (${(lista ?? []).length})`], ...CATEGORIAS.map((c) => [c, `${ETIQUETAS[c]} (${cuenta(lista ?? [], c)})`])] as [typeof filtro, string][]).map(([id, etiqueta]) => (
-            <button key={id} type="button" className={filtro === id ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setFiltro(id)}>
-              {etiqueta}
+      <Modal
+        titulo={`📚 Elegir de la biblioteca${lista === null ? "" : ` · ${nTotal} ${nTotal === 1 ? "archivo" : "archivos"}${marcados.size > 0 ? ` · ${marcados.size} ${marcados.size === 1 ? "elegido" : "elegidos"}` : ""}`}`}
+        ancho="1300px"
+        pie={
+          <>
+            <Link href="/dashboard/herramientas?p=biblioteca" className="btn btn-secondary" style={{ marginRight: "auto" }} title="Abre la biblioteca para ver, renombrar o borrar archivos">
+              Abrir la biblioteca
+            </Link>
+            <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>
+              Cancelar
             </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-          <input className="form-input" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="🔎 Buscar por nombre…" style={{ flex: 1, minWidth: "180px", padding: "6px 10px" }} />
-          <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.82rem" }} disabled={trabajando} onClick={() => entrada.current?.click()} title="Guarda archivos nuevos en la biblioteca para tenerlos siempre a mano">
-            ➕ Añadir a la biblioteca
-          </button>
-          <input ref={entrada} type="file" multiple style={{ display: "none" }} onChange={(e) => anadir(e.target.files)} />
-        </div>
-        {lista === null ? (
-          <div style={{ color: "var(--text-muted)" }}>Cargando…</div>
-        ) : visibles.length === 0 ? (
-          <div style={{ color: "var(--text-muted)" }}>{lista.length === 0 ? "Todavía no hay archivos en la biblioteca. Usa «Añadir a la biblioteca»." : texto.trim() ? "Ningún archivo coincide con la búsqueda." : "No hay archivos de este tipo. Prueba con «Todos» u otro tipo."}</div>
-        ) : (
-          <div className="table-container" style={{ maxHeight: "50vh", overflow: "auto" }}>
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th style={{ width: "36px" }}>
-                    {multiple && <input type="checkbox" checked={todosMarcados} onChange={(e) => setMarcados(e.target.checked ? new Set(visibles.map((f) => f.id)) : new Set())} title="Marcar o desmarcar todos los que se ven" />}
-                  </th>
-                  <th>Archivo</th>
-                  <th>Tipo</th>
-                  <th style={{ textAlign: "right" }}>Tamaño</th>
-                  <th>Guardado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibles.map((f) => (
-                  <tr key={f.id} onClick={() => alternar(f.id)} style={{ cursor: "pointer", background: marcados.has(f.id) ? "rgba(var(--primary-rgb), 0.08)" : undefined }}>
-                    <td>
-                      <input type="checkbox" checked={marcados.has(f.id)} onChange={() => alternar(f.id)} onClick={(e) => e.stopPropagation()} aria-label={`Elegir ${f.nombre}`} />
-                    </td>
-                    <td style={{ wordBreak: "break-word" }}>{f.nombre}</td>
-                    <td>{ETIQUETAS[f.categoria]}</td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{tamanoLegible(f.tamano)}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>{formatDate(f.creadoEn.slice(0, 10))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <button type="button" className="btn btn-primary" onClick={() => void usar()} disabled={trabajando || marcados.size === 0}>
+              {trabajando ? "Abriendo…" : marcados.size > 0 ? `Usar ${marcados.size} archivo${marcados.size === 1 ? "" : "s"}` : "Elige archivos"}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.9rem" }}>
+          <div style={{ color: "var(--text-secondary)" }}>
+            Se usan igual que si los hubieras elegido en tu equipo. Por defecto salen los de esta zona (<b>{nombresCategorias}</b>); cambia el tipo para ver otros, o elige «Todos». Ordena por cualquier columna, busca y elige de golpe todos los que se ven.
           </div>
-        )}
-      </div>
-    </Modal>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>TIPO</span>
+            {([["zona", `De esta zona (${cuenta(lista ?? [], "zona")})`], ["todos", `Todos (${(lista ?? []).length})`], ...CATEGORIAS.map((c) => [c, `${ETIQUETAS[c]} (${cuenta(lista ?? [], c)})`])] as [typeof filtro, string][]).map(([id, etiqueta]) => (
+              <button key={id} type="button" className={filtro === id ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setFiltro(id)}>
+                {etiqueta}
+              </button>
+            ))}
+            <span style={{ marginLeft: "auto", display: "inline-flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              {multiple && (
+                <>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={nVistas === 0} onClick={() => setMarcados((prev) => new Set([...prev, ...vistas.current.map((f) => f.id)]))} title="Marca todos los archivos que se ven ahora en la tabla (con el tipo y la búsqueda aplicados), sin quitar los que ya tenías marcados">
+                    ☑ Marcar los {nVistas} que se ven
+                  </button>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={marcados.size === 0} onClick={() => setMarcados(new Set())}>
+                    Quitar marcas
+                  </button>
+                </>
+              )}
+              <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} disabled={trabajando} onClick={() => entrada.current?.click()} title="Guarda archivos nuevos en la biblioteca para tenerlos siempre a mano">
+                ➕ Añadir a la biblioteca
+              </button>
+              <input ref={entrada} type="file" multiple style={{ display: "none" }} onChange={(e) => anadir(e.target.files)} />
+            </span>
+          </div>
+          {lista === null ? (
+            <div style={{ color: "var(--text-muted)" }}>Cargando…</div>
+          ) : (
+            <TablaDatos<ArchivoBibliotecaDto>
+              id="elegir-biblioteca"
+              columnas={columnas}
+              filas={filasTabla}
+              clave={(f) => f.id}
+              placeholder="Buscar por nombre, tipo, formato, asignación…"
+              vacio={lista.length === 0 ? "Todavía no hay archivos en la biblioteca. Usa «Añadir a la biblioteca»." : "No hay archivos de este tipo. Prueba con «Todos» u otro tipo."}
+              alto="min(52vh, 560px)"
+              bloque={200}
+              alVerFilas={alVerFilas}
+              compacta
+            />
+          )}
+        </div>
+      </Modal>
       {nuevos && (
         <ModalSubidaBiblioteca
           archivos={nuevos}
@@ -186,6 +222,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
           }}
         />
       )}
+      {viendo && <VistaPreviaBiblioteca archivo={viendo} alCerrar={() => setViendo(null)} />}
     </>
   );
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { claveDeFallo, informeDe, limpiarSensible, prepararEvento } from "./incidencias";
+import { claveDeFallo, informeDe, limpiarSensible, prepararEvento, type EventoIncidencia } from "./incidencias";
+import { instalarReceptorIncidencias } from "./incidencias-hook";
+import { incidenciaDeLinea } from "./registro-servidor";
 
 describe("incidencias: utilidades", () => {
   it("quita correos, documentos, números largos y claves de lo que se guarda", () => {
@@ -8,6 +10,22 @@ describe("incidencias: utilidades", () => {
     expect(t).toContain("<correo>");
     expect(t).toContain("<documento>");
     expect(t).toContain("password=<oculto>");
+  });
+
+  it("no toma una versión como un correo («pg@9.0»)", () => {
+    expect(limpiarSensible("se eliminará en pg@9.0. Usa async/await")).toContain("pg@9.0");
+    expect(limpiarSensible("escribe a ana@correo.es")).toContain("<correo>");
+  });
+
+  it("un aviso de Node llega como aviso (no como error) y sin el número de proceso", () => {
+    const vistos: EventoIncidencia[] = [];
+    instalarReceptorIncidencias((e) => vistos.push(e));
+    incidenciaDeLinea("(node:2370668) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated\n(Use `node --trace-deprecation ...` to show where)");
+    incidenciaDeLinea("Algo ha salido mal de verdad");
+    instalarReceptorIncidencias(() => undefined);
+    expect(vistos[0]).toMatchObject({ nivel: "aviso", titulo: expect.stringMatching(/^DeprecationWarning: Calling client/) });
+    expect(vistos[0].titulo).not.toMatch(/2370668/);
+    expect(vistos[1].nivel).toBeUndefined();
   });
 
   it("junta como el mismo fallo los que solo cambian en números e identificadores", () => {

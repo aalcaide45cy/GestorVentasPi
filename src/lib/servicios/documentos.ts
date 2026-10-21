@@ -256,7 +256,7 @@ const clave = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(
  */
 export async function crearModeloDePedido(ej: Ejecutor, entrada: z.infer<typeof esquemaCrearModeloPedido>): Promise<{ id_modelo: number; id_marca: number; marca_creada: boolean; modelo_creado: boolean }> {
   return ej.transaction(async (tx) => {
-    const cat = await leerCatalogos(tx);
+    const cat = await leerCatalogos(tx, true);
     const marca = cat.marcas.find((m) => clave(m.nombre) === clave(entrada.marca));
     const marcaCreada = !marca;
     let idMarca = marca?.id_marca;

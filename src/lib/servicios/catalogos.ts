@@ -126,14 +126,19 @@ export const esquemaAjuste = z.object({
 /* Lectura                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function leerCatalogos(ej: Ejecutor) {
-  const [ms, mos, tvs, evs, ts] = await Promise.all([
-    ej.select().from(marcas).where(isNull(marcas.eliminadoEn)).orderBy(asc(marcas.nombre)),
-    ej.select().from(modelos).where(isNull(modelos.eliminadoEn)).orderBy(asc(modelos.nombreModelo)),
-    ej.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn)).orderBy(asc(tipoDeVenta.orden), asc(tipoDeVenta.nombreTipoVenta)),
-    ej.select().from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn)).orderBy(asc(estadoVehiculo.nombreEstadoVehiculo)),
-    ej.select().from(tiendas).where(isNull(tiendas.eliminadoEn)).orderBy(asc(tiendas.nombre)),
-  ]);
+/**
+ * Con `enTransaccion` las consultas van una detrás de otra: una transacción usa una sola conexión y lanzarle varias a la vez hace que `pg` avise
+ * («Calling client.query() when the client is already executing a query») y, en versiones futuras, falle.
+ */
+export async function leerCatalogos(ej: Ejecutor, enTransaccion = false) {
+  const consultas = [
+    () => ej.select().from(marcas).where(isNull(marcas.eliminadoEn)).orderBy(asc(marcas.nombre)),
+    () => ej.select().from(modelos).where(isNull(modelos.eliminadoEn)).orderBy(asc(modelos.nombreModelo)),
+    () => ej.select().from(tipoDeVenta).where(isNull(tipoDeVenta.eliminadoEn)).orderBy(asc(tipoDeVenta.orden), asc(tipoDeVenta.nombreTipoVenta)),
+    () => ej.select().from(estadoVehiculo).where(isNull(estadoVehiculo.eliminadoEn)).orderBy(asc(estadoVehiculo.nombreEstadoVehiculo)),
+    () => ej.select().from(tiendas).where(isNull(tiendas.eliminadoEn)).orderBy(asc(tiendas.nombre)),
+  ] as const;
+  const [ms, mos, tvs, evs, ts] = enTransaccion ? [await consultas[0](), await consultas[1](), await consultas[2](), await consultas[3](), await consultas[4]()] as const : await Promise.all([consultas[0](), consultas[1](), consultas[2](), consultas[3](), consultas[4]()]);
   return {
     marcas: ms.map(marcaDto),
     modelos: mos.map((m) => modeloDto(m)),

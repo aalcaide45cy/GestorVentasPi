@@ -588,3 +588,7 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.5 (21/10/2026)
 - **Ventana «Guardar en la biblioteca» más grande y con tabla de las del proyecto** (`TablaDatos`): ordenar por cualquier columna, búsqueda, «Columnas y vistas», más datos (formato, tamaño, fecha de modificación, carpeta oculta por defecto, estado al guardar), filtro por tipo con contadores y «Poner a los que se ven» para cambiar el tipo de golpe a lo que el filtro o la búsqueda dejan a la vista. Pensada para cientos de archivos (se pintan de 150 en 150 y el progreso no repinta la tabla en cada avance). El título de la ventana muestra el número de archivos, igual que «Elegir de la biblioteca» (archivos que se ven y elegidos).
+
+## Versión 1.11.6 (21/10/2026)
+- **«Elegir de la biblioteca» con la tabla del proyecto**: ventana más grande, buscador, orden por cualquier columna, «Columnas y vistas», más datos (formato, tamaño, fecha, asignación), vista previa con el ojo, «Marcar los N que se ven» (suma a lo ya marcado) y «Quitar marcas». El título lleva el número de archivos y de elegidos.
+- **Incidencias: los avisos de Node ya no salen como error.** «(node:1234) DeprecationWarning…» entra como aviso y sin el número de proceso (así se agrupa con sus repetidas), y una versión como «pg@9.0» ya no se oculta como si fuera un correo. La causa real del aviso (consultas lanzadas a la vez sobre la misma transacción al crear expedientes desde pedidos) está corregida: `leerCatalogos(tx, true)` las hace una detrás de otra.
