@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { usePreferencia } from "@/lib/preferencias";
 import PanelColumnas from "@/components/expedientes/PanelColumnas";
 
@@ -113,7 +113,13 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
     return lista;
   }, [filas, texto, orden, columnas, textoExtra]);
 
+  // Solo se avisa cuando cambian de verdad las filas que se ven (mismas filas en el mismo orden = nada que avisar). Sin esto, quien guarda las filas
+  // en un estado suyo (`alVerFilas={setVisibles}`) con columnas creadas en cada pintado provocaba un bucle infinito de repintados.
+  const avisadas = useRef<T[] | null>(null);
   useEffect(() => {
+    const antes = avisadas.current;
+    if (antes && antes.length === visibles.length && antes.every((f, i) => f === visibles[i])) return;
+    avisadas.current = visibles;
     alVerFilas?.(visibles);
   }, [visibles, alVerFilas]);
 

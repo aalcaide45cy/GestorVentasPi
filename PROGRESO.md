@@ -595,3 +595,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.7 (21/10/2026)
 - **Lo que se arrastra al OCR también se guarda en la biblioteca**: los pedidos y los pagos de RCI que se arrastran (o eligen en el equipo) a las zonas de lectura se guardan además, en segundo plano y de uno en uno, en la biblioteca (tipo «pedido» o «pago_rci»), sin repetir lo que ya está (mismo nombre y tamaño) y sin avisos si falla (leer el documento es lo importante). Casilla «📚 Guardar también en la biblioteca…» en Herramientas › Subir pedidos y pagos (activada por defecto; se recuerda en el navegador). Antes solo entraban en la biblioteca los archivos añadidos a mano.
+
+## Versión 1.11.8 (21/10/2026)
+- **Arreglo: «Maximum update depth exceeded» en la biblioteca** (`TablaDatos` ↔ `BibliotecaClient`): `TablaDatos` avisaba de las filas que se ven (`alVerFilas`) en cada pintado, y quien las guardaba en un estado propio (como la Biblioteca) podía entrar en un bucle de repintados. Ahora solo avisa cuando cambian de verdad (otras filas u otro orden); mismas filas = no avisa. No pude reproducir el bucle en mi copia (con pocos archivos), así que el arreglo es de causa y no solo del síntoma, pero no está comprobado con tus datos.
