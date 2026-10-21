@@ -143,6 +143,19 @@ describe("importación Excel", () => {
     const r2 = await procesarActualizacionesExcel(db, admin, esquemaProcesarExcel.parse({ filename: "a.xlsx", updates: [upd] }));
     expect(r2.modificados).toBe(0);
   });
+
+  it("como tarea: informa del avance y, si se cancela, no deja ningún cambio", async () => {
+    const admin = await prepararCliente();
+    const [v] = await verificarFilasExcel(db, [{ rowIdx: 0, cliente: "Marta Gil" }]);
+    if (v.status !== "ok") throw new Error("Se esperaba ok");
+    const upd = { id_cliente: v.id_cliente, id_expediente: v.id_expediente, bastidor: "BASTIDOR9", matricula: "1111AAA" };
+    const entrada = esquemaProcesarExcel.parse({ filename: "t.xlsx", updates: [upd, upd] });
+    const avances: number[] = [];
+    await expect(procesarActualizacionesExcel(db, admin, entrada, { avance: (h) => avances.push(h), cancelada: () => avances.length >= 1 })).rejects.toThrow(/cancelada/i);
+    expect(avances).toEqual([0]);
+    const [e] = await listarExpedientes(db);
+    expect(e.vin).not.toBe("BASTIDOR9");
+  });
 });
 
 describe("importación CSV de clientes", () => {

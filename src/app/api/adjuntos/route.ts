@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
-import { errorJson, leerIdQuery, manejar } from "@/lib/http";
+import { errorJson, leerIdQuery, leerIdsParaBorrar, manejar } from "@/lib/http";
 import { MAX_BYTES_ADJUNTO, TIPOS_ADJUNTO, eliminarAdjunto, guardarAdjunto, leerAdjunto, listarAdjuntos, type TipoAdjunto } from "@/lib/servicios/adjuntos";
 
 export const dynamic = "force-dynamic";
@@ -56,10 +56,24 @@ export const POST = manejar(async (req: Request) => {
   return NextResponse.json({ success: true, data: adjunto }, { status: 201 });
 });
 
+/** `?id=N` quita uno; con un cuerpo `{ ids: [...] }` quita varios en una sola petición (devuelve cuántos y cuáles no se han podido quitar). */
 export const DELETE = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
   const id = leerIdQuery(req);
-  if (!id) return errorJson(400, "Falta el ID");
-  await eliminarAdjunto(db, u, id);
-  return NextResponse.json({ success: true });
+  if (id) {
+    await eliminarAdjunto(db, u, id);
+    return NextResponse.json({ success: true });
+  }
+  const ids = [...new Set(await leerIdsParaBorrar(req))];
+  let borrados = 0;
+  const fallos: string[] = [];
+  for (const unico of ids) {
+    try {
+      await eliminarAdjunto(db, u, unico);
+      borrados++;
+    } catch (e) {
+      fallos.push(e instanceof Error ? e.message : "Error desconocido");
+    }
+  }
+  return NextResponse.json({ success: true, data: { borrados, fallos } });
 });

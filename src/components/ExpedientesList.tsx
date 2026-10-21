@@ -2,6 +2,7 @@
 
 import { CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_DESDE, CLAVE_SELECCION_MINUTOS, formatoCuentaAtras, useModoTemporal } from "@/lib/modo-temporal";
 import { avisarCambioDeDatos } from "@/lib/datos-version";
+import { llamarComoTarea } from "@/lib/tareas-cliente";
 import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
@@ -645,13 +646,9 @@ export default function ExpedientesList({
   const ejecutarImportacionExcel = async (lista: ActualizacionExcel[], archivo: string) => {
     setImportandoExcel(true);
     try {
-      const res = await fetch("/api/expedientes/importar-excel/procesar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates: lista, filename: archivo, permitir_duplicados: permitirDuplicadosAhora() }),
-      });
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al procesar los datos de Excel."));
-      const r = (await res.json()) as { message?: string };
+      // En segundo plano (una importación grande tarda): la barra de arriba enseña el avance y se puede cancelar sin que cambie nada
+      mostrar(`📥 Importando ${lista.length} filas de «${archivo}» en segundo plano… puedes seguir usando la aplicación.`, "aviso", 5000);
+      const r = await llamarComoTarea<{ message?: string }>("/api/expedientes/importar-excel/procesar", { updates: lista, filename: archivo, permitir_duplicados: permitirDuplicadosAhora() });
       mostrar(r.message ?? "Importación realizada.");
       router.refresh();
     } catch (e) {

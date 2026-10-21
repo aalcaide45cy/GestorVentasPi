@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
+import { avisarCambioDeDatosTrasPausa } from "@/lib/datos-version";
 import { alTerminarTarea, cancelarTareaServidor, descartarTareaServidor, leerTareas, refrescarTareas, suscribirTareas } from "@/lib/tareas-cliente";
 import type { TareaDto } from "@/lib/servicios/tareas";
 
@@ -66,6 +67,8 @@ export default function IndicadorTareas() {
   useEffect(
     () =>
       alTerminarTarea((t) => {
+        // Lo que haya hecho la tarea (borrar, crear, importar…) se refleja en pantalla sin recargar
+        avisarCambioDeDatosTrasPausa(200);
         // La rejilla leída aparece en su pantalla: no hace falta avisar de que terminó bien
         if (t.tipo === "rejilla" && t.estado === "terminada") {
           void descartarTareaServidor(t.id);

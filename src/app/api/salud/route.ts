@@ -19,7 +19,7 @@ export async function GET() {
   }
   try {
     await db.execute(sql`select 1`);
-    return NextResponse.json({ ok: true, restauracion });
+    return NextResponse.json({ ok: true, restauracion, modo: process.env.NODE_ENV === "production" ? "normal" : "desarrollo" });
   } catch {
     return NextResponse.json({ ok: false, restauracion }, { status: 503 });
   }

@@ -105,13 +105,17 @@ export default function VisorAdjuntos({ idCliente, idExpediente, titulo = "📎 
     if (!await confirmar({ texto: `${texto} Dejarán de verse, pero los ficheros se conservan en la base de datos.` })) return;
     setBorrando(true);
     let fallos = 0;
-    for (const a of lista) {
-      try {
-        await llamar(`/api/adjuntos?id=${a.id}`, { method: "DELETE" });
-      } catch (e) {
-        fallos++;
-        mostrar(textoError(e), "error");
+    try {
+      // Una sola petición para todos (no una por documento)
+      if (lista.length === 1) await llamar(`/api/adjuntos?id=${lista[0].id}`, { method: "DELETE" });
+      else {
+        const r = await llamar<{ borrados: number; fallos: string[] }>("/api/adjuntos", { method: "DELETE", cuerpo: { ids: lista.map((a) => a.id) } });
+        fallos = r.data.fallos.length;
+        if (fallos > 0) mostrar(`${fallos} no se han podido quitar: ${r.data.fallos[0]}`, "error");
       }
+    } catch (e) {
+      fallos = lista.length;
+      mostrar(textoError(e), "error");
     }
     setBorrando(false);
     setMarcados(new Set());

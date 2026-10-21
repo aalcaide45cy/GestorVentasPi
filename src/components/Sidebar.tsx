@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import BarraHistorial from "@/components/BarraHistorial";
 import BotonAyuda from "@/components/BotonAyuda";
-import BotonApagar, { BotonReiniciarServidor } from "@/components/BotonApagar";
+import BotonApagar, { BotonCambiarModo, BotonReiniciarServidor } from "@/components/BotonApagar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
 import Modal from "@/components/Modal";
@@ -162,6 +162,7 @@ function GrupoSistema({ colapsado }: { colapsado: boolean }) {
       {abierto && (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           <BotonReiniciarServidor colapsado={colapsado} />
+          <BotonCambiarModo colapsado={colapsado} />
           <BotonApagar colapsado={colapsado} />
         </div>
       )}

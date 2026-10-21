@@ -14,6 +14,19 @@ export function avisarCambioDeDatos(): void {
   oyentes.forEach((avisar) => avisar());
 }
 
+let pendiente: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Avisa del cambio de datos cuando pasa un momento sin más cambios (una operación con muchas peticiones, como crear cien expedientes, solo
+ * provoca una recarga al final). Lo llaman las escrituras a la API para que listas, contadores y avisos se pongan al día sin recargar la página.
+ */
+export function avisarCambioDeDatosTrasPausa(esperaMs = 600): void {
+  if (pendiente) clearTimeout(pendiente);
+  pendiente = setTimeout(() => {
+    pendiente = null;
+    avisarCambioDeDatos();
+  }, esperaMs);
+}
+
 export function useVersionDatos(): number {
   return useSyncExternalStore(
     (avisar) => {

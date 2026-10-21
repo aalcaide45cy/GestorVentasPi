@@ -77,6 +77,32 @@ export const DELETE = manejar(async (req: Request) => {
     return NextResponse.json({ success: true, borradas, aviso });
   }
   const id = leerIdQuery(req);
+  // Varias a la vez: `{ ids: [...] }` en el cuerpo; una sola petición y una sola llamada a Google Drive con todas
+  if (!id && (req.headers.get("content-type") ?? "").includes("json")) {
+    const { ids } = await leerJson(req, z.object({ ids: z.array(z.number().int().positive()).min(1) }));
+    let borradas = 0;
+    const fallos: string[] = [];
+    const idsDrive: string[] = [];
+    for (const unico of [...new Set(ids)]) {
+      try {
+        const { driveFileId } = await borrarCopia(db, unico);
+        if (driveFileId) idsDrive.push(driveFileId);
+        borradas++;
+      } catch (e) {
+        fallos.push(e instanceof Error ? e.message : "Error desconocido");
+      }
+    }
+    let avisoDrive: string | null = null;
+    if (idsDrive.length > 0) {
+      try {
+        await borrarEnDrive(db, idsDrive);
+      } catch {
+        avisoDrive = "Se borraron las copias locales, pero no se pudieron borrar las de Google Drive.";
+      }
+    }
+    await auditar({ idUsuario: admin.idUsuario, accion: "copias_borradas_en_lote", entidad: "copias_seguridad", detalle: { borradas } });
+    return NextResponse.json({ success: true, data: { borradas, fallos, aviso: avisoDrive } });
+  }
   if (!id) return errorJson(400, "Falta el ID de la copia");
   const { driveFileId } = await borrarCopia(db, id);
   let aviso: string | null = null;

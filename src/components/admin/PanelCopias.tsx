@@ -172,19 +172,11 @@ export default function PanelCopias() {
     const enDrive = seleccion.filter((c) => c.enDrive).length;
     if (!await confirmar({ texto: `¿Borrar ${seleccion.length} copia(s) de seguridad?${enDrive > 0 ? ` ${enDrive} también se borrarán de Google Drive.` : ""} Esta acción no se puede deshacer.${aviso}`, peligro: true })) return;
     void accion("lote-borrar", async () => {
-      let hechas = 0;
-      const fallos: string[] = [];
-      for (const c of seleccion) {
-        try {
-          await llamar(`/api/admin/copias?id=${c.id}`, { method: "DELETE" });
-          hechas++;
-        } catch (e) {
-          fallos.push(`${c.nombre}: ${textoError(e)}`);
-        }
-      }
+      // Una sola petición con todas (no una por copia)
+      const { data } = await llamar<{ borradas: number; fallos: string[]; aviso: string | null }>("/api/admin/copias", { method: "DELETE", cuerpo: { ids: seleccion.map((c) => c.id) } });
       setMarcadas([]);
-      if (fallos.length > 0) throw new Error(`Se borraron ${hechas} y fallaron ${fallos.length}. ${fallos[0]}`);
-      return `${hechas} copia(s) borrada(s).`;
+      if (data.fallos.length > 0) throw new Error(`Se borraron ${data.borradas} y fallaron ${data.fallos.length}. ${data.fallos[0]}`);
+      return `${data.borradas} copia(s) borrada(s).${data.aviso ? ` ${data.aviso}` : ""}`;
     });
   };
 

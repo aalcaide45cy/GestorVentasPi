@@ -21,6 +21,7 @@ import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "@/lib/fec
 import { aDto, relacionesExpediente } from "./expedientes";
 import { elegirModeloExistente } from "@/lib/documentos/modelos";
 import { escaparLike, hoyIso } from "./comun";
+import { TareaCancelada } from "./tareas";
 
 /* ------------------------------------------------------------------ */
 /* Esquemas                                                            */
@@ -416,14 +417,21 @@ export async function procesarActualizacionesExcel(
   ej: Ejecutor,
   usuario: UsuarioActual,
   entrada: EntradaProcesarExcel,
+  /** Para el avance de la tarea en segundo plano; si `cancelada()` es true se deshace todo (es una sola transacción). */
+  seguimiento?: { avance: (hecho: number, total: number) => void; cancelada: () => boolean },
 ): Promise<{ procesados: number; modificados: number; omitidos: number; mensaje: string }> {
   return ej.transaction(async (tx) => {
     const bloque = await crearBloque(tx, usuario, entrada.filename || "archivo_excel.xlsx", "Excel");
     let procesados = 0;
     let modificados = 0;
     let omitidos = 0;
+    let visto = 0;
 
     for (const u of entrada.updates) {
+      if (seguimiento) {
+        if (seguimiento.cancelada()) throw new TareaCancelada("Importación cancelada: no se ha cambiado nada");
+        seguimiento.avance(visto++, entrada.updates.length);
+      }
       if (!u.id_cliente || !u.id_expediente) {
         omitidos++;
         continue;

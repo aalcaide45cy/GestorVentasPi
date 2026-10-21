@@ -4,6 +4,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 import IndicadorRecursos from "@/components/IndicadorRecursos";
 import CampanaNotificaciones from "@/components/CampanaNotificaciones";
 import IndicadorTareas from "@/components/IndicadorTareas";
+import RefrescoDeDatos from "@/components/RefrescoDeDatos";
 import BotonMenuMovil from "@/components/BotonMenuMovil";
 import AyudaBotones from "@/components/AyudaBotones";
 import LaboratorioComisiones from "@/components/LaboratorioComisiones";
@@ -86,6 +87,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <ToastProvider>
       <OverlaySubida />
       <VigilanteFallos version={versionDeLaApp()} />
+      <RefrescoDeDatos />
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-app)", position: "relative" }}>
         <div className="glow-bg"></div>
 

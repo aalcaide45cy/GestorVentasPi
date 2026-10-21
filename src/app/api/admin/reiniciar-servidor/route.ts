@@ -30,7 +30,8 @@ export const POST = manejar(async (req: Request) => {
     setTimeout(() => process.exit(0), 800);
   } else if (process.platform === "win32") {
     const guion = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", "reiniciar-dev.ps1");
-    spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", guion, "-Puerto", String(process.env.PORT ?? 3000), "-Carpeta", process.cwd()], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    // Con `cmd /c start` el script queda fuera del árbol de este servidor (que el propio script cierra); `detached` con powershell.exe no lo ejecuta
+    spawn("cmd.exe", ["/c", "start", "", "/min", "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", guion, "-Puerto", String(process.env.PORT ?? 3000), "-Carpeta", process.cwd()], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   } else {
     throw new HttpError(409, "El reinicio del servidor de desarrollo solo está preparado para Windows. Reinícialo a mano con npm run dev.");
   }

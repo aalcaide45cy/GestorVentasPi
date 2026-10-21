@@ -1,3 +1,5 @@
+import { avisarCambioDeDatosTrasPausa } from "@/lib/datos-version";
+
 /** Llamada JSON a la API con el formato `{ success, data }` / `{ message }`. */
 export async function llamar<T>(url: string, init?: { method?: string; cuerpo?: unknown }): Promise<{ data: T; extra: Record<string, unknown> }> {
   const r = await fetch(url, {
@@ -13,6 +15,8 @@ export async function llamar<T>(url: string, init?: { method?: string; cuerpo?: 
     /* respuesta sin cuerpo */
   }
   if (!r.ok) throw new Error(typeof json.message === "string" ? json.message : `Error ${r.status}`);
+  // Una escritura que ha salido bien: todo lo que se enseña se vuelve a pedir solo (sin recargar la página)
+  if (init?.method && init.method !== "GET") avisarCambioDeDatosTrasPausa();
   return { data: json.data as T, extra: json };
 }
 
