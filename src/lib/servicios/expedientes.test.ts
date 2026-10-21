@@ -129,6 +129,17 @@ describe("actualizar y borrar expedientes", () => {
     expect((await obtenerExpediente(db, b.id_expediente))?.fecha_facturacion).toBe("2026-10-15");
   });
 
+  it("en un VO la facturación es la fecha RCI o, si es de contado, el último día del mes del pedido, y la sigue mientras no se fije a mano", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const exp = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { estado_nombre: "usado", fecha_expediente: "2026-04-03" } }));
+    expect((await obtenerExpediente(db, exp.id_expediente))?.fecha_facturacion).toBe("2026-04-30");
+    await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: exp.id_expediente, expediente: { fecha_rci: "2026-05-12" } }));
+    expect((await obtenerExpediente(db, exp.id_expediente))?.fecha_facturacion).toBe("2026-05-12");
+    await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: exp.id_expediente, expediente: { fecha_facturacion: "2026-06-01" } }));
+    await actualizarExpedientes(db, admin, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: exp.id_expediente, expediente: { fecha_rci: "2026-05-20" } }));
+    expect((await obtenerExpediente(db, exp.id_expediente))?.fecha_facturacion).toBe("2026-06-01");
+  });
+
   it("la edición en lote cambia el tipo de venta solo de los ids indicados", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const a = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: {} }));

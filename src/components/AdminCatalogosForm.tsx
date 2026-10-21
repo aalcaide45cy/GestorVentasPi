@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { Seccion } from "@/lib/servicios/intercambio";
 import type { EstadoVehiculoDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
@@ -23,11 +23,14 @@ interface Props {
   tiendasIniciales: TiendaDto[];
   tiendaPredeterminadaIdInicial: number | null;
   mostrarBotonesCsv: boolean;
+  /** Gestión de usuarios y roles (se pinta en la primera pestaña). */
+  panelUsuarios: ReactNode;
 }
 
-type Pestana = "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "bbdd" | "temas";
+type Pestana = "usuarios" | "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "bbdd" | "temas";
 
 const PESTANAS: { clave: Pestana; etiqueta: string }[] = [
+  { clave: "usuarios", etiqueta: "👥 Usuarios" },
   { clave: "marcas", etiqueta: "🏷️ Marcas" },
   { clave: "modelos", etiqueta: "🚙 Modelos" },
   { clave: "tiendas", etiqueta: "🏢 Tiendas" },
@@ -48,10 +51,11 @@ export default function AdminCatalogosForm({
   tiendasIniciales,
   tiendaPredeterminadaIdInicial,
   mostrarBotonesCsv,
+  panelUsuarios,
 }: Props) {
   // La pestaña abierta se recuerda: al recargar la página no vuelve a «Marcas»
   const [pestanaGuardada, setPestanaGuardada] = usePreferencia("config-pestana");
-  const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaGuardada) ? (pestanaGuardada as Pestana) : "marcas";
+  const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaGuardada) ? (pestanaGuardada as Pestana) : "usuarios";
   const setPestana = (p: Pestana) => setPestanaGuardada(p);
   const router = useRouter();
   const [marcas, setMarcas] = useState(marcasIniciales);
@@ -71,10 +75,10 @@ export default function AdminCatalogosForm({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-      <div style={{ display: "flex", justifyContent: "center", gap: "10px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "8px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", flexWrap: "wrap" }}>
         {PESTANAS.map((p) => (
-          <span key={p.clave} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            <button type="button" className={`btn ${pestana === p.clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setPestana(p.clave)} style={{ padding: "10px 20px", fontSize: "0.9rem" }}>
+          <span key={p.clave} style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+            <button type="button" className={`btn ${pestana === p.clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setPestana(p.clave)} style={{ padding: "9px 11px", fontSize: "0.88rem" }}>
               {p.etiqueta}
             </button>
             <BotonAyuda guia={`config.${p.clave}`} />
@@ -89,6 +93,7 @@ export default function AdminCatalogosForm({
         </div>
       )}
 
+      {pestana === "usuarios" && panelUsuarios}
       {pestana === "marcas" && <PestanaMarcas marcas={marcas} setMarcas={setMarcas} />}
       {pestana === "modelos" && <PestanaModelos marcas={marcas} setMarcas={setMarcas} />}
       {pestana === "tiendas" && <PestanaTiendas tiendas={tiendas} setTiendas={setTiendas} predeterminadaId={predeterminadaId} setPredeterminadaId={setPredeterminadaId} />}

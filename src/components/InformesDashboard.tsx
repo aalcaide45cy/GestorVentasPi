@@ -100,7 +100,7 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <div>
-        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>📊 Detalle y Análisis Estadístico</h1>
+        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Detalle y Análisis Estadístico</h1>
         <p style={{ color: "var(--text-secondary)" }}>Rendimiento de ventas, comisiones y ratios de penetración financiera.</p>
       </div>
 

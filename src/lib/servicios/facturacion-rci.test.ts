@@ -22,10 +22,12 @@ describe("facturación de un VN", () => {
     expect(e.fecha_facturacion).toBe("2026-09-10");
   });
 
-  it("en un VO no se rellena sola", async () => {
+  it("en un VO no sigue a la matriculación: es la RCI o el fin de mes del pedido", async () => {
     const admin = await crearUsuarioPrueba("administrador");
-    const e = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { fecha_matriculacion: "2026-09-10", id_estado_vehiculo: await estadoDe("Usado") } }));
-    expect(e.fecha_facturacion).toBeNull();
+    const e = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { fecha_matriculacion: "2026-09-10", fecha_expediente: "2026-08-05", id_estado_vehiculo: await estadoDe("Usado") } }));
+    expect(e.fecha_facturacion).toBe("2026-08-31");
+    const r = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { fecha_matriculacion: "2026-09-10", fecha_expediente: "2026-08-05", fecha_rci: "2026-09-02", id_estado_vehiculo: await estadoDe("Usado") } }));
+    expect(r.fecha_facturacion).toBe("2026-09-02");
   });
 
   it("al matricular después (lápiz) la facturación acompaña, y si se cambia a mano se respeta", async () => {

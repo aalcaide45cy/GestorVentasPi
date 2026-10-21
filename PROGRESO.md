@@ -506,3 +506,9 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **Dashboard plegable**: «Últimos expedientes», «Subir pedidos y pagos», «Pedidos leídos y estado de las lecturas» y «Crear un expediente con un clic» se pliegan y se despliegan con su botón (se recuerda).
 - **Cotejo de pagos**: la lectura de rejillas es ahora una cola con estado visible por hoja (en cola, leyendo, leída, con error), que sigue aunque se cambie de pestaña o de pantalla; cada hoja y cada borrador tienen «🔄 Releer» y el selector «Leer con» (otro motor solo para esa lectura). Los borradores sobreviven a recargar la página. Los pasos (1 Sube la hoja · 2 Revisa lo leído · 3 Guarda) salen marcados y el carril de meses enseña un solo aviso por mes con su leyenda.
 - Herramienta nueva: `scripts/prueba-interfaz-real.ps1` monta una copia del servidor sobre un **clon** de la base real (puerto 3101) para revisar con los datos tal como están.
+
+## Versión 1.6.2 (21/10/2026)
+- Cabecera de Expedientes: las columnas de fechas ya son opacas como las demás (1.6.1). Clientes: edición en masa de seleccionados (tienda, población, código postal, domicilio y comentarios).
+- **VO**: la facturación por defecto es la RCI o, si es de contado, el último día del mes del pedido (`src/lib/facturacion-vo.ts`, aplicada al crear y al editar en `expedientes-escritura.ts`). No se ha rellenado en masa lo antiguo.
+- Revisión de la interfaz con la copia del servidor sobre el clon de la base real (1500 y 390 px): Clientes con una sola ventana «Importar y exportar» (antes duplicaba botones y mostraba la copia global JSON en la barra); Configuración con pestaña «Usuarios» primero (el catálogo ya no queda bajo la tabla de usuarios) y pestañas en una sola fila; acciones de usuarios sin recortar; títulos de Cotejo, Informes y Log de lecturas con el mismo tamaño y sin emoji suelto.
+- Pendiente: relleno de la facturación de los VO antiguos si el propietario lo pide.

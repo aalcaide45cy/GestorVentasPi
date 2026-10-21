@@ -4,6 +4,8 @@ import { señalarCampo } from "@/lib/resaltar";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
+import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
+import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import Modal, { ModalConfirmar } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { construirCsvClientes, interpretarCsvClientes } from "@/lib/csv-clientes";
@@ -87,6 +89,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [aBorrar, setABorrar] = useState<ClienteItem | null>(null);
   const [borradoMasivo, setBorradoMasivo] = useState(false);
   const [edicionMasiva, setEdicionMasiva] = useState(false);
+  const [menuDatos, setMenuDatos] = useState(false);
   const [seleccionActiva, setSeleccionActiva] = useState(false);
   const [borradoActivo, setBorradoActivo] = useState(false);
 
@@ -526,14 +529,15 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           <button type="button" className="btn btn-primary" onClick={abrirCrear} style={{ padding: "10px 20px" }}>
             + Registrar Nuevo Cliente
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(false)} style={{ padding: "8px 14px", fontSize: "0.85rem" }}>
-            📤 Exportar SOLO clientes (CSV)
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setMenuDatos(true)}
+            style={{ padding: "10px 16px", fontSize: "0.85rem" }}
+            title="Importar y exportar clientes (CSV), copias internas y copia de seguridad: todo en una sola ventana, con la explicación de cada opción"
+          >
+            🗂️ Importar y exportar
           </button>
-          <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            📥 Importar CSV
-            <input type="file" accept=".csv" onChange={importarCsv} style={{ display: "none" }} disabled={cargando} />
-          </label>
-          {userRole === "administrador" && <BotonesBackup deshabilitado={cargando} />}
         </div>
       </div>
 
@@ -738,6 +742,68 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           alConfirmar={() => void eliminar([aBorrar.id])}
           alCancelar={() => setABorrar(null)}
         />
+      )}
+
+      {menuDatos && (
+        <Modal
+          titulo="🗂️ Importar y exportar clientes"
+          ancho="860px"
+          pie={
+            <button type="button" className="btn btn-secondary" onClick={() => setMenuDatos(false)}>
+              Cerrar
+            </button>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px", fontSize: "0.9rem" }}>
+            <GrupoDatos titulo="📥 Traer clientes" ayuda="Para añadir clientes desde fuera de la aplicación.">
+              <OpcionDatos
+                icono="📥"
+                titulo="Importar CSV"
+                texto="Carga clientes desde un archivo CSV exportado antes con esta aplicación."
+                ayuda="Elige un archivo .csv con el formato de «Exportar SOLO clientes (CSV)». Crea los clientes nuevos y no duplica los que ya existen."
+                archivo=".csv"
+                deshabilitado={cargando}
+                alElegir={(e) => {
+                  setMenuDatos(false);
+                  void importarCsv(e);
+                }}
+              />
+            </GrupoDatos>
+            <GrupoDatos titulo="📤 Sacar clientes" ayuda="Descarga un archivo con los clientes.">
+              <OpcionDatos
+                icono="📤"
+                titulo="Exportar SOLO clientes: todos (CSV)"
+                texto="Descarga todos los clientes (los que ves con los filtros actuales) en un CSV que se abre con Excel."
+                ayuda="Descarga un archivo .csv en tu equipo con los clientes de la tabla. No cambia nada en la aplicación."
+                alPulsar={() => {
+                  setMenuDatos(false);
+                  exportarCsv(false);
+                }}
+              />
+              <OpcionDatos
+                icono="☑️"
+                titulo="Exportar SOLO clientes: los seleccionados (CSV)"
+                texto={marcados.length > 0 ? `Descarga solo los ${marcados.length} clientes que has marcado.` : "Primero activa «Selección» en la barra y marca los clientes que quieras."}
+                ayuda="Descarga solo los clientes marcados. Requiere activar la selección masiva y marcar alguno."
+                deshabilitado={marcados.length === 0}
+                alPulsar={() => {
+                  setMenuDatos(false);
+                  exportarCsv(true);
+                }}
+              />
+            </GrupoDatos>
+            {userRole === "administrador" && (
+              <GrupoDatos titulo="🗄️ Copias y traspaso entre instalaciones" ayuda="Solo administradores. Para guardar, recuperar o llevar los clientes a otro equipo.">
+                <CajaDatos titulo="📁 Clientes en archivo JSON y copias internas" texto="Exporta o importa solo los clientes (con vista previa y copia de seguridad automática) y guarda copias internas de esta sección dentro de la aplicación para restaurarlas cuando quieras.">
+                  <BotonesDatosSeccion seccion="clientes" alCambiar={() => router.refresh()} />
+                </CajaDatos>
+                <CajaDatos titulo="💾 Datos básicos de la aplicación (JSON)" texto="Incluye tiendas, usuarios, clientes, expedientes y catálogos, pero NO planes, liquidaciones, puntos ni documentos; trae contraseñas cifradas y secretos del doble factor, así que guárdalo en un sitio seguro. La copia de TODO es la .dump de Configuración › BBDD.">
+                  <BotonesBackup deshabilitado={cargando} />
+                </CajaDatos>
+              </GrupoDatos>
+            )}
+          </div>
+        </Modal>
       )}
 
       {edicionMasiva && (

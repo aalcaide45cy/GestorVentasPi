@@ -104,6 +104,17 @@ export const GUIAS: Record<string, Guia> = {
   },
 
   /* ---------------- Configuración ---------------- */
+  "config.usuarios": {
+    titulo: "Usuarios y roles",
+    queEs: "Las personas que entran en la aplicación, su rol y su acceso: crea usuarios, cambia su rol, suspéndelos, restablece su doble factor o su contraseña.",
+    pasos: [
+      "Pulsa «Registrar Nuevo Usuario» para dar de alta a alguien.",
+      "Cambia el rol desde el desplegable de su fila (administrador, director, jefe de tienda, vendedor…).",
+      "«Suspender» impide el acceso sin borrar nada; «Cerrar sesiones» saca al usuario de todos sus dispositivos.",
+      "«Reset 2FA» y «Contraseña temporal» sirven cuando alguien pierde el móvil o la contraseña.",
+    ],
+    ojo: ["Suspender no borra datos: el usuario y sus expedientes se conservan."],
+  },
   "config.marcas": {
     titulo: "Marcas",
     queEs: "Las marcas de coches con las que trabajas. De ellas cuelgan los modelos, y desde aquí eliges cuáles tienen sistema de comisiones y cuáles salen en el acceso rápido al crear expedientes.",

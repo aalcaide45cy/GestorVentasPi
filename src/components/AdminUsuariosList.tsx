@@ -292,7 +292,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
       ) },
     { clave: "acciones", etiqueta: "Acciones", valor: () => "", celda: (u) => (
         <>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", minWidth: "220px" }}>
             {u.id_usuario !== currentUserId && (
               <button
                 type="button"

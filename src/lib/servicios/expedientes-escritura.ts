@@ -16,6 +16,7 @@ import { actualizarCliente, buscarPorDni, crearCliente } from "./clientes";
 import { asegurarCopiaReciente } from "./copias";
 import { hoyIso } from "./comun";
 import { MAX_COPIAS_TOTAL, UMBRAL_COPIA_PREVIA, type EntradaActualizarExpediente, type EntradaCrearExpediente, type EntradaDuplicarExpedientes } from "./expedientes";
+import { facturacionPorDefectoVo } from "@/lib/facturacion-vo";
 import { obtenerExpediente } from "./expedientes-lectura";
 import { conRecalculo, type ResumenRecalculo } from "./liquidaciones";
 
@@ -102,8 +103,8 @@ export async function crearExpediente(
         fechaMatriculacion: e.fecha_matriculacion ?? null,
         fechaEntrega: e.fecha_entrega ?? null,
         fechaRci: e.fecha_rci ?? null,
-        // En un VN la facturación es, por defecto, la de matriculación
-        fechaFacturacion: e.fecha_facturacion ?? (estadoNuevo?.clase === "VN" ? (e.fecha_matriculacion ?? null) : null),
+        // En un VN la facturación es, por defecto, la de matriculación; en un VO, la de la RCI (o el fin de mes del pedido si es de contado)
+        fechaFacturacion: e.fecha_facturacion ?? (estadoNuevo?.clase === "VN" ? (e.fecha_matriculacion ?? null) : estadoNuevo?.clase === "VO" ? facturacionPorDefectoVo(e.fecha_rci, e.fecha_expediente ?? hoyIso()) : null),
         matricula: e.matricula ?? null,
         vin: e.vin ?? null,
         comentarios: e.comentarios ?? null,
@@ -182,10 +183,10 @@ function avisoRciObligatoria(nombreTipo: string, idExpediente?: number, accion: 
  * Devuelve las facturaciones que hay que fijar después de aplicar el cambio, agrupadas por valor.
  */
 async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizables, avisos: AvisoGuardado[]): Promise<{ ids: number[]; fecha: string | null }[]> {
-  const toca = set.fechaMatriculacion !== undefined || set.fechaFacturacion !== undefined || set.fechaRci !== undefined || set.idTipoDeVenta !== undefined || set.idEstadoVehiculo !== undefined;
+  const toca = set.fechaMatriculacion !== undefined || set.fechaExpediente !== undefined || set.fechaFacturacion !== undefined || set.fechaRci !== undefined || set.idTipoDeVenta !== undefined || set.idEstadoVehiculo !== undefined;
   if (!toca || ids.length === 0) return [];
   const filas = await tx
-    .select({ id: expedientes.idExpediente, mat: expedientes.fechaMatriculacion, rci: expedientes.fechaRci, fact: expedientes.fechaFacturacion, tipo: expedientes.idTipoDeVenta, estado: expedientes.idEstadoVehiculo })
+    .select({ id: expedientes.idExpediente, mat: expedientes.fechaMatriculacion, rci: expedientes.fechaRci, fexp: expedientes.fechaExpediente, fact: expedientes.fechaFacturacion, tipo: expedientes.idTipoDeVenta, estado: expedientes.idEstadoVehiculo })
     .from(expedientes)
     .where(and(inArray(expedientes.idExpediente, ids), isNull(expedientes.eliminadoEn)));
   const tipos = new Map((await tx.select().from(tipoDeVenta)).map((t) => [t.idTipoDeVenta, t]));
@@ -207,6 +208,12 @@ async function prepararFechas(tx: Ejecutor, ids: number[], set: CamposActualizab
     if (clase === "VN" && !manual && (f.fact === null || f.fact === f.mat) && (mat ?? null) !== f.fact) {
       const clave = mat ?? null;
       grupos.set(clave, [...(grupos.get(clave) ?? []), f.id]);
+    }
+    // En un VO la facturación sigue a la RCI (o al fin de mes del pedido) mientras no se haya fijado a mano otra fecha
+    if (clase === "VO" && !manual) {
+      const antes = facturacionPorDefectoVo(f.rci, f.fexp);
+      const despues = facturacionPorDefectoVo(rci, set.fechaExpediente !== undefined ? set.fechaExpediente : f.fexp);
+      if ((f.fact === null || f.fact === antes) && despues !== f.fact) grupos.set(despues, [...(grupos.get(despues) ?? []), f.id]);
     }
   }
   return [...grupos].map(([fecha, idsGrupo]) => ({ ids: idsGrupo, fecha }));

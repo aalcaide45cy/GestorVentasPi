@@ -20,11 +20,11 @@ export default async function CotejoPagosPage() {
   ]);
   const lista = vendedores.map((v) => ({ id: v.id, nombre: v.nombre ?? `Usuario ${v.id}`, tipo: v.tipo }));
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-        <div>
-          <h1 style={{ fontSize: "1.4rem", marginBottom: "2px" }}>Cotejo de pagos</h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Todo para comprobar que la empresa te ha pagado lo que toca: tu mes, la hoja de la empresa y tu nómina.</p>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px" }}>
+        <div style={{ flex: "1 1 420px" }}>
+          <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Cotejo de pagos</h1>
+          <p style={{ color: "var(--text-secondary)" }}>Todo para comprobar que la empresa te ha pagado lo que toca: tu mes, la hoja de la empresa y tu nómina.</p>
         </div>
         {esAdministrador(user.rol) && <BotonesDatosSeccion seccion="rejillas" />}
       </div>

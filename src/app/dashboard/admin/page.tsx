@@ -36,24 +36,25 @@ export default async function AdminPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: "40px" }}>
       <div>
         <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Panel de Configuración y Control</h1>
-        <p style={{ color: "var(--text-secondary)" }}>Administra los roles de los usuarios del sistema y supervisa el catálogo de vehículos.</p>
+        <p style={{ color: "var(--text-secondary)" }}>Usuarios y roles, catálogos de vehículos, ajustes y mantenimiento de la aplicación.</p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "40px" }}>
-        <div className="glass-panel" style={{ padding: "32px" }}>
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            Gestión de Usuarios y Roles
-          </h2>
-          <AdminUsuariosList usuariosIniciales={usuarios} currentUserId={user.idUsuario} />
-        </div>
-
         <AdminCatalogosForm
+          panelUsuarios={
+            <div className="glass-panel" style={{ padding: "32px" }}>
+              <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Gestión de Usuarios y Roles
+              </h2>
+              <AdminUsuariosList usuariosIniciales={usuarios} currentUserId={user.idUsuario} />
+            </div>
+          }
           marcasIniciales={marcas}
           tiposVentaIniciales={catalogos.tiposVenta}
           estadosIniciales={catalogos.estados}

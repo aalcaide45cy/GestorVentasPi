@@ -136,11 +136,11 @@ export default function LogLecturasClient() {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "0 0 40px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px", padding: "0 0 40px" }}>
       <div>
-        <h1 style={{ margin: 0 }}>📄 Log de lecturas de pedidos</h1>
-        <p style={{ color: "var(--text-secondary)", margin: "6px 0 0", lineHeight: 1.5 }}>
-          Qué ha pasado con cada PDF o foto que has subido para leer, durante los últimos tres meses: si se leyó, si se ignoró por no ser un pedido, si falló la lectura y qué se hizo después (expediente creado, completado o quitado de la cola). Sirve para localizar un pedido que no entró en la cola o un dato mal leído. De lo ignorado no se guarda el fichero, solo el principio de lo que se leyó para ver por qué; si en realidad era un pedido, vuelve a cargarlo.
+        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Log de lecturas de pedidos</h1>
+        <p style={{ color: "var(--text-secondary)" }} title="De lo ignorado no se guarda el fichero, solo el principio de lo que se leyó para ver por qué; si en realidad era un pedido, vuelve a cargarlo.">
+          Qué ha pasado con cada PDF o foto que has subido para leer en los últimos tres meses: si se leyó, se ignoró o falló, y qué se hizo después. Sirve para localizar un pedido que no entró en la cola o un dato mal leído.
         </p>
       </div>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>

@@ -7,6 +7,7 @@ import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSPrope
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
+import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
 import PanelColumnas, { normalizarOrden, type ConfigColumnas } from "@/components/expedientes/PanelColumnas";
 import { ModalConfirmar } from "@/components/Modal";
@@ -1141,16 +1142,12 @@ export default function ExpedientesList({
 
             {esAdministrador && (
               <GrupoDatos titulo="🗄️ Copias y traspaso entre instalaciones" ayuda="Solo administradores. Para guardar, recuperar o llevar los expedientes a otro equipo.">
-                <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ fontWeight: 600 }}>📁 Expedientes en archivo JSON y copias internas</div>
-                  <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Exporta o importa solo los expedientes (con vista previa y copia de seguridad automática) y guarda copias internas de esta sección dentro de la aplicación para restaurarlas cuando quieras.</div>
+                <CajaDatos titulo="📁 Expedientes en archivo JSON y copias internas" texto="Exporta o importa solo los expedientes (con vista previa y copia de seguridad automática) y guarda copias internas de esta sección dentro de la aplicación para restaurarlas cuando quieras.">
                   <BotonesDatosSeccion seccion="expedientes" />
-                </div>
-                <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ fontWeight: 600 }}>💾 Datos básicos de la aplicación (JSON)</div>
-                  <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Incluye tiendas, usuarios, clientes, expedientes y catálogos, pero NO planes, liquidaciones, puntos ni documentos; trae contraseñas cifradas y secretos del doble factor, así que guárdalo en un sitio seguro. La copia de TODO es la .dump de Configuración › BBDD.</div>
+                </CajaDatos>
+                <CajaDatos titulo="💾 Datos básicos de la aplicación (JSON)" texto="Incluye tiendas, usuarios, clientes, expedientes y catálogos, pero NO planes, liquidaciones, puntos ni documentos; trae contraseñas cifradas y secretos del doble factor, así que guárdalo en un sitio seguro. La copia de TODO es la .dump de Configuración › BBDD.">
                   <BotonesBackup deshabilitado={cargando} />
-                </div>
+                </CajaDatos>
               </GrupoDatos>
             )}
           </div>
@@ -1839,47 +1836,3 @@ function aActualizacion(fila: FilaExcel, idCliente: number, idExpediente: number
     f_entrega: fila.f_entrega,
   };
 }
-
-/* ---------------- Piezas de la ventana «Importar y exportar» ---------------- */
-
-function GrupoDatos({ titulo, ayuda, children }: { titulo: string; ayuda: string; children: ReactNode }) {
-  return (
-    <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div style={{ display: "flex", gap: "10px", alignItems: "baseline", flexWrap: "wrap", borderBottom: "1px solid var(--border-light)", paddingBottom: "4px" }}>
-        <b>{titulo}</b>
-        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{ayuda}</span>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "10px" }} className="rejilla-propia">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-/** Una opción: botón (o selector de archivo) con su nombre y una frase que explica qué hace. */
-function OpcionDatos({ icono, titulo, texto, ayuda, archivo, deshabilitado, alElegir, alPulsar }: { icono: string; titulo: string; texto: string; ayuda: string; archivo?: string; deshabilitado?: boolean; alElegir?: (e: ChangeEvent<HTMLInputElement>) => void; alPulsar?: () => void }) {
-  const estilo: CSSProperties = { display: "flex", gap: "10px", alignItems: "flex-start", textAlign: "left", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px", background: "rgba(255, 255, 255, 0.03)", color: "var(--text-primary)", cursor: deshabilitado ? "not-allowed" : "pointer", opacity: deshabilitado ? 0.5 : 1, width: "100%" };
-  const contenido = (
-    <>
-      <span style={{ fontSize: "1.3rem" }}>{icono}</span>
-      <span>
-        <b style={{ display: "block" }}>{titulo}</b>
-        <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>{texto}</span>
-      </span>
-    </>
-  );
-  if (archivo) {
-    return (
-      <label style={estilo} title={ayuda}>
-        {contenido}
-        <input type="file" accept={archivo} onChange={alElegir} style={{ display: "none" }} disabled={deshabilitado} />
-      </label>
-    );
-  }
-  return (
-    <button type="button" style={estilo} title={ayuda} disabled={deshabilitado} onClick={alPulsar}>
-      {contenido}
-    </button>
-  );
-}
-
