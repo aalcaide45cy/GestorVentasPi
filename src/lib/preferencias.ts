@@ -37,6 +37,13 @@ export const CLAVE_VENTANA_SOLO_SI_NUEVO = "pedidos-ventana-solo-si-falta-marca-
 export const CLAVE_RETRASO_FOTO = "foto-cliente-retraso-segundos";
 export const RETRASO_FOTO_POR_DEFECTO = 3;
 
+/**
+ * Preferencia del navegador: guardar también en la biblioteca los pedidos y pagos de RCI que se arrastran a las zonas de lectura (el archivo queda
+ * guardado una vez para volver a usarlo sin buscarlo). Por defecto, activada (vale «false» si se desactiva).
+ */
+export const CLAVE_GUARDAR_EN_BIBLIOTECA = "biblioteca-guardar-al-leer";
+export const guardarEnBibliotecaAlLeerAhora = (): boolean => leer(CLAVE_GUARDAR_EN_BIBLIOTECA) !== "false";
+
 /** Lectura puntual (fuera de componentes): ¿se permiten expedientes duplicados en este navegador? */
 export function permitirDuplicadosAhora(): boolean {
   return leer(CLAVE_PERMITIR_DUPLICADOS) === "true";

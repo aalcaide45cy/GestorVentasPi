@@ -10,7 +10,7 @@ import TarjetaZona from "@/components/herramientas/TarjetaZona";
 import ZonaPagosRci from "@/components/pagos-rci/ZonaPagosRci";
 import type { TipoVentaDto, VendedorDto } from "@/lib/dto";
 import { colaVacia, leerCola, suscribirCola } from "@/lib/pedidos-cola";
-import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_GUARDAR_EN_BIBLIOTECA, guardarPreferencia, usePreferencia } from "@/lib/preferencias";
 import { useState } from "react";
 import BibliotecaClient from "../biblioteca/BibliotecaClient";
 import LogLecturasClient from "../log-lecturas/LogLecturasClient";
@@ -50,6 +50,7 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
   const pestana = PESTANAS.find((p) => p.id === activa) ?? PESTANAS[0];
   const enCola = useSyncExternalStore(suscribirCola, leerCola, colaVacia).items.length;
   const [vendedorId, setVendedorId] = useState(idUsuario);
+  const [guardarEnBib, fijarGuardarEnBib] = usePreferencia(CLAVE_GUARDAR_EN_BIBLIOTECA);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -87,6 +88,10 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
           <div style={{ padding: "8px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)" }}>
             <ControlesLectura parte="motor" />
           </div>
+          <label style={{ display: "flex", gap: "8px", alignItems: "center", cursor: "pointer", fontSize: "0.88rem" }} title="Cada pedido o pago de RCI que arrastres, además de leerse, se guarda una vez en la biblioteca para volver a usarlo sin buscarlo. Los que ya estén (mismo nombre y tamaño) no se repiten. Se recuerda en este navegador.">
+            <input type="checkbox" checked={guardarEnBib !== "false"} onChange={(e) => fijarGuardarEnBib(e.target.checked ? "true" : "false")} style={{ accentColor: "var(--primary)" }} />
+            📚 Guardar también en la biblioteca los pedidos y pagos que arrastre aquí
+          </label>
           <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
             {enCola > 0 ? (
               <>
