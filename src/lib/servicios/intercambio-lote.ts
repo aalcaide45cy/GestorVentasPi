@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { HttpError } from "@/lib/auth/sesion";
-import { FORMATO, INFO_SECCIONES, SECCIONES, exportarSeccion, importarSeccion, type Informe, type Modo, type Paquete, type Seccion } from "./intercambio";
+import { INFO_SECCIONES, SECCIONES, exportarSeccion, importarSeccion, type Informe, type Modo, type Paquete, type Seccion } from "./intercambio";
 
 /**
  * Exportar todo en un solo JSON e importarlo en lote: el archivo lleva una sección tras otra (las mismas de siempre) y al importar se
@@ -39,7 +39,8 @@ export async function exportarLote(ej: Ejecutor, secciones: Seccion[], version?:
 
 const esquemaLote = z.object({
   app: z.literal("GestorVentasPi", { error: "El archivo no es una exportación de GestorVentasPi." }),
-  formato: z.literal(FORMATO_LOTE),
+  // Cualquier versión del formato de lote (gv-lote-1, -2…): lo que no se conoce se ignora en lugar de dar error
+  formato: z.string().regex(/^gv-lote-[0-9]+$/),
   exportadoEn: z.string().optional(),
   version: z.string().optional(),
   secciones: z.array(z.object({ seccion: z.enum(SECCIONES), datos: z.array(z.unknown()) }).passthrough()),
@@ -48,7 +49,7 @@ const esquemaLote = z.object({
 /** Acepta un archivo de lote o el de una sola sección (se trata como un lote de una). */
 export function leerLote(entrada: unknown): Lote {
   const crudo = entrada as { formato?: unknown } | null;
-  if (crudo && typeof crudo === "object" && crudo.formato === FORMATO) {
+  if (crudo && typeof crudo === "object" && typeof crudo.formato === "string" && /^gv-seccion-[0-9]+$/.test(crudo.formato)) {
     const p = entrada as Paquete;
     if (!SECCIONES.includes(p.seccion) || !Array.isArray(p.datos)) throw new HttpError(400, "El archivo no es una exportación válida de GestorVentasPi.");
     return { app: "GestorVentasPi", formato: FORMATO_LOTE, exportadoEn: p.exportadoEn ?? "", secciones: [p] };

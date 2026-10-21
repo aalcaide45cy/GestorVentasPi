@@ -846,6 +846,23 @@ export const plantillasPlan = pgTable(
   (t) => [uniqueIndex("plantillas_plan_ambito_nombre_uq").on(t.ambito, t.nombre)],
 );
 
+/**
+ * Paletas de colores guardadas: los colores de tipos de venta (botones de creación rápida), marcas y estados, por nombre, para poder
+ * cambiar de un conjunto a otro, exportarlo e importarlo. El formato lleva versión y tolera campos nuevos o que falten.
+ */
+export const plantillasColores = pgTable(
+  "plantillas_colores",
+  {
+    id: serial("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+    descripcion: text("descripcion"),
+    datos: jsonb("datos").$type<unknown>().notNull(),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadaEn: timestamp("actualizada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("plantillas_colores_nombre_uq").on(t.nombre)],
+);
+
 /** Conexión con Google Drive: solo se guarda el refresh token, cifrado. */
 export const conexionDrive = pgTable("conexion_drive", {
   id: integer("id").primaryKey().default(1),

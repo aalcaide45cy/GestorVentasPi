@@ -64,6 +64,13 @@ describe("exportar e importar por secciones", () => {
     expect(await activos()).toBe(1);
   });
 
+  it("acepta un archivo de una versión más nueva del formato, ignorando lo que no conoce", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const i = await importarSeccion(db, admin.idUsuario, { app: "GestorVentasPi", formato: "gv-seccion-2", campoFuturo: { x: 1 }, seccion: "clientes", datos: [{ dni: "11111111H", nombre: "Ana", campoNuevo: "ignorado" }] }, "anadir", false);
+    expect(i.total).toBe(1);
+    await expect(importarSeccion(db, admin.idUsuario, { app: "GestorVentasPi", formato: "otra-cosa-1", seccion: "clientes", datos: [] }, "anadir", false)).rejects.toMatchObject({ status: 400 });
+  });
+
   it("clientes: lo exportado se vuelve a importar sin cambios (ida y vuelta)", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const [t] = await db.insert(tiendas).values({ nombre: "Rivas", ciudad: "Madrid" }).returning();

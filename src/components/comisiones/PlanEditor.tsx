@@ -7,6 +7,7 @@ import { useToast } from "@/components/Toast";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 import { llamar, textoError } from "./api";
 import PlantillasPlan from "./PlantillasPlan";
+import { conAjustesPorDefecto } from "@/lib/plantillas-plan/defecto";
 import TabLiquidacion from "./TabLiquidacion";
 import TabModelos from "./TabModelos";
 import TabNotas from "./TabNotas";
@@ -119,7 +120,13 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
     return () => borrarBorrador(claveBorrador);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [plan, setPlanEstado] = useState<Plan>(borrador?.plan ?? inicial ?? PLAN_VACIO());
+  // Un plan nuevo nace con los ajustes por defecto (tramos, tarifas VN por modelo y opciones de usados); una copia o un plan abierto, con los suyos
+  const [nuevoConDefecto] = useState(() => (borrador || inicial ? null : conAjustesPorDefecto(PLAN_VACIO(), { marcas: cat.marcas, modelos: cat.modelos, vendedores: cat.vendedores.map((v) => ({ id: v.id, nombre: v.nombre })) })));
+  const [plan, setPlanEstado] = useState<Plan>(borrador?.plan ?? inicial ?? nuevoConDefecto?.plan ?? PLAN_VACIO());
+  useEffect(() => {
+    if (nuevoConDefecto && nuevoConDefecto.tarifas > 0) mostrar(`Plan nuevo con los ajustes por defecto (tramos, ${nuevoConDefecto.tarifas} tarifas VN por modelo y opciones de usados). Cámbialos si hace falta y pulsa «Guardar Cambios».`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [guardado, setGuardado] = useState(JSON.stringify(inicial && inicial.idPlan !== 0 ? inicial : null));
   const [pestana, setPestana] = useState<IdPestana>(borrador?.pestana && PESTANAS.some((p) => p.id === borrador.pestana) ? borrador.pestana : PESTANAS.some((p) => p.id === pestanaInicial) ? (pestanaInicial as IdPestana) : "resumen");
   const [guardando, setGuardando] = useState(false);

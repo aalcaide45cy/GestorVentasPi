@@ -156,7 +156,8 @@ export const GUIAS: Record<string, Guia> = {
     titulo: "Pagos (tipos de venta)",
     queEs: "Las formas de pago: Contado, Crédito, Preference… Cada una tiene un color y dos reglas que afectan a las comisiones.",
     pasos: [
-      "Elige el color con el que se verá cada tipo de pago en las listas.",
+      "Elige el color con el que se verá cada tipo de pago en las listas y en los botones de creación rápida de expedientes.",
+      "«🎨 Paletas de colores» guarda los colores de los pagos, marcas y estados como una paleta, para cambiar de una a otra, exportarla a un archivo o importarla; «Por defecto» vuelve a rojo, ámbar y azul.",
       "«Exige fecha RCI al matricular»: si está en Sí, un expediente de ese pago no se puede matricular sin la fecha de la financiera.",
       "«Suma a la tasa de intervención»: si está en Sí, los expedientes de ese pago cuentan para la tasa de intervención financiera del mes (en el mes de su fecha RCI).",
     ],

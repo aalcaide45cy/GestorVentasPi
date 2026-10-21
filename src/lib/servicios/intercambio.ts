@@ -115,7 +115,7 @@ const motivoZod = (e: z.ZodError) => e.issues.map((i) => `${i.path.join(".") || 
 
 export interface Paquete {
   app: "GestorVentasPi";
-  formato: typeof FORMATO;
+  formato: string;
   seccion: Seccion;
   exportadoEn: string;
   registros: number;
@@ -132,7 +132,8 @@ interface MapasPlan {
 
 const esquemaPaquete = z.object({
   app: z.literal("GestorVentasPi", { error: "El archivo no es una exportación de GestorVentasPi." }),
-  formato: z.literal(FORMATO, { error: "El formato del archivo no es compatible con esta versión." }),
+  // Se acepta cualquier versión del formato (gv-seccion-1, -2…): lo que esta versión no conoce de un archivo más nuevo se ignora en lugar de dar error
+  formato: z.string().regex(/^gv-seccion-\d+$/, { error: "El formato del archivo no es compatible con esta versión." }),
   seccion: z.enum(SECCIONES),
   exportadoEn: z.string().optional(),
   registros: z.number().optional(),

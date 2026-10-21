@@ -536,3 +536,9 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.7.1 (21/10/2026)
 - Biblioteca: cada archivo se puede **asignar a un cliente o a un expediente** (ventana de búsqueda; al asignar un expediente queda también el cliente), con filtros por asignación (todos, sin asignar, asignados, a un cliente, a un expediente) y por tipo, selección múltiple y acciones sobre lo marcado: descargar (varios en un .zip), asignar, quitar asignación, cambiar tipo y borrar. Migración `0044`.
+
+## Versión 1.8.0 (21/10/2026)
+- **Plan nuevo con ajustes por defecto**: al pulsar «Nuevo plan» el plan nace con los ajustes de los planes actuales (tramos X-4…X+3, tarifas VN de los 20 modelos con sus dos líneas por tasa, opciones de usados y tasas) en lugar de vacío. No es un plan guardado ni se carga en la base de datos: está en el código (`src/lib/plantillas-plan/defecto.ts`), y marcas y modelos se buscan por nombre (los que no existan se omiten). Sin vendedores, fechas ni nombre. La financiación de abril de 2026 (5 líneas) no se ha incluido porque los planes posteriores no la tienen.
+- **Colores por defecto**: la semilla de pagos deja Contado en rojo (`#ff0000`), Crédito en ámbar (`#e69d00`) y Preference en azul (`#3b82f6`), como están ahora (y el modelo Striker de Dacia en el acceso rápido). Se aplican al crear la base o tras «Borrar todos los datos».
+- **Paletas de colores** (Configuración › Marcas, Pagos y Estados › «🎨 Paletas de colores»): guardar los colores de ahora, aplicar una paleta (la «Por defecto» o las guardadas), renombrar, borrar, exportar a archivo e importar. Formato `gv-paleta` con versión y lectura tolerante (ignora lo que no entiende y avisa en lugar de dar error). Migración `0045`.
+- Las plantillas de planes de comisionamiento (guardar, exportar e importar) ya existían (Comisiones › Plantillas… y Configuración › BBDD › Exportar e importar › Plantillas de planes).

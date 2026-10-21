@@ -74,7 +74,7 @@ describe("vaciar la base de datos", () => {
     expect(nombres).toEqual(["Dacia", "Hyundai", "Peugeot", "Renault", "Toyota"]);
     const dacia = (await db.select().from(marcas)).find((m) => m.nombre === "Dacia");
     expect(dacia).toMatchObject({ sistemaComisiones: true, accesoRapido: true });
-    expect(await total(modelos)).toBe(28);
+    expect(await total(modelos)).toBe(29);
   });
 
   it.skipIf(!hayPg)("con eliminarOtrosUsuarios solo queda la cuenta del administrador", async () => {

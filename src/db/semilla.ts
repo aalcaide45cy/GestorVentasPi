@@ -12,9 +12,9 @@ const ESTADOS_INICIALES = [
 ] as const;
 
 const TIPOS_VENTA_INICIALES = [
-  { nombre: "Contado", categoria: "CONTADO", color: "#22c55e", orden: 1, requiereRci: false },
-  { nombre: "Crédito", categoria: "CREDITO", color: "#3b82f6", orden: 2, requiereRci: true },
-  { nombre: "Preference", categoria: "PREFERENCE", color: "#a855f7", orden: 3, requiereRci: true },
+  { nombre: "Contado", categoria: "CONTADO", color: "#ff0000", orden: 1, requiereRci: false },
+  { nombre: "Crédito", categoria: "CREDITO", color: "#e69d00", orden: 2, requiereRci: true },
+  { nombre: "Preference", categoria: "PREFERENCE", color: "#3b82f6", orden: 3, requiereRci: true },
 ] as const;
 
 /**
@@ -72,7 +72,7 @@ interface MarcaInicial {
 }
 
 const MARCAS_INICIALES: MarcaInicial[] = [
-  { nombre: "Dacia", comisiones: true, modelos: [["Sandero", 1], ["Sandero Stepway", 2], ["Jogger", 3], ["Duster", 4], ["Bigster", 5], ["Spring", 6]] },
+  { nombre: "Dacia", comisiones: true, modelos: [["Sandero", 1], ["Sandero Stepway", 2], ["Jogger", 3], ["Duster", 4], ["Bigster", 5], ["Spring", 6], ["Striker", 7]] },
   {
     nombre: "Renault",
     comisiones: true,

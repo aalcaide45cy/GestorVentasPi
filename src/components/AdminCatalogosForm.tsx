@@ -7,6 +7,7 @@ import type { EstadoVehiculoDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import { BotonesDatosSeccion } from "./datos/DatosSeccion";
 import BotonAyuda from "./BotonAyuda";
+import PanelPaletas from "./admin/PanelPaletas";
 import PestanaBbdd from "./admin/PestanaBbdd";
 import PestanaEstados from "./admin/PestanaEstados";
 import PestanaExpedientes from "./admin/PestanaExpedientes";
@@ -58,6 +59,7 @@ export default function AdminCatalogosForm({
   const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaGuardada) ? (pestanaGuardada as Pestana) : "usuarios";
   const setPestana = (p: Pestana) => setPestanaGuardada(p);
   const router = useRouter();
+  const [verPaletas, setVerPaletas] = useState(false);
   const [marcas, setMarcas] = useState(marcasIniciales);
   const [tipos, setTipos] = useState(tiposVentaIniciales);
   const [estados, setEstados] = useState(estadosIniciales);
@@ -88,11 +90,17 @@ export default function AdminCatalogosForm({
 
       {SECCION_DE_PESTANA[pestana] && (
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "-12px" }}>
+          {["marcas", "pagos", "estados"].includes(pestana) && (
+            <button type="button" className="btn btn-secondary" onClick={() => setVerPaletas(true)} style={{ padding: "8px 14px", fontSize: "0.85rem", marginRight: "auto" }} title="Guarda, aplica, exporta e importa los colores de los pagos (botones de creación rápida), marcas y estados">
+              🎨 Paletas de colores
+            </button>
+          )}
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Datos de esta pestaña:</span>
           <BotonesDatosSeccion key={pestana} seccion={SECCION_DE_PESTANA[pestana]} alCambiar={() => router.refresh()} />
         </div>
       )}
 
+      {verPaletas && <PanelPaletas alCerrar={() => setVerPaletas(false)} />}
       {pestana === "usuarios" && panelUsuarios}
       {pestana === "marcas" && <PestanaMarcas marcas={marcas} setMarcas={setMarcas} />}
       {pestana === "modelos" && <PestanaModelos marcas={marcas} setMarcas={setMarcas} />}
