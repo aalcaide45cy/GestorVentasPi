@@ -104,12 +104,14 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
     const ok = await ejecutar(async () => {
       for (const f of cambios) {
         const nuevo = ordenesTemporales[f.modelo.id_modelo];
-        await llamar("/api/admin/catalogos", "PUT", { tipo: "modelo", id: f.modelo.id_modelo, nombre_modelo: f.modelo.nombre_modelo, acceso_rapido: !!f.modelo.acceso_rapido, orden_acceso_rapido: nuevo }, "Error al guardar el orden");
+        // Poner un número de orden a un modelo que aún no está en el acceso rápido (p. ej. uno creado al leer un pedido) lo añade
+        const activa = !!f.modelo.acceso_rapido || nuevo > 0;
+        await llamar("/api/admin/catalogos", "PUT", { tipo: "modelo", id: f.modelo.id_modelo, nombre_modelo: f.modelo.nombre_modelo, acceso_rapido: activa, orden_acceso_rapido: nuevo }, "Error al guardar el orden");
       }
       setMarcas((prev) =>
         prev.map((x) => ({
           ...x,
-          modelos: x.modelos.map((y) => (ordenesTemporales[y.id_modelo] !== undefined ? { ...y, orden_acceso_rapido: ordenesTemporales[y.id_modelo] } : y)),
+          modelos: x.modelos.map((y) => (ordenesTemporales[y.id_modelo] !== undefined ? { ...y, orden_acceso_rapido: ordenesTemporales[y.id_modelo], acceso_rapido: !!y.acceso_rapido || ordenesTemporales[y.id_modelo] > 0 } : y)),
         })),
       );
     }, "Orden de modelos guardado correctamente");
@@ -210,19 +212,17 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
                   </button>
                 </td>
                 <td>
-                  {m.acceso_rapido ? (
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={ordenesTemporales[m.id_modelo] ?? m.orden_acceso_rapido ?? 0}
-                      onChange={(e) => setOrdenesTemporales({ ...ordenesTemporales, [m.id_modelo]: Number(e.target.value) })}
-                      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                      style={{ width: "70px", padding: "4px 8px", fontSize: "0.85rem", textAlign: "center" }}
-                      disabled={cargando}
-                    />
-                  ) : (
-                    <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>—</span>
-                  )}
+                  <input
+                    type="number"
+                    min={0}
+                    className="form-input"
+                    value={ordenesTemporales[m.id_modelo] ?? m.orden_acceso_rapido ?? 0}
+                    onChange={(e) => setOrdenesTemporales({ ...ordenesTemporales, [m.id_modelo]: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
+                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                    style={{ width: "70px", padding: "4px 8px", fontSize: "0.85rem", textAlign: "center", opacity: m.acceso_rapido || (ordenesTemporales[m.id_modelo] ?? 0) > 0 ? 1 : 0.55 }}
+                    title={m.acceso_rapido ? "Posición en el acceso rápido del Dashboard" : "Este modelo no está en el acceso rápido: si le pones un número mayor que 0 se añade"}
+                    disabled={cargando}
+                  />
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: "10px" }}>

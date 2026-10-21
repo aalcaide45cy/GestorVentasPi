@@ -601,3 +601,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.9 (21/10/2026)
 - **Expedientes: se elige solo con la casilla.** Pulsar en cualquier otra parte de la fila ya no marca el expediente. Con **Mayús** pulsada, la casilla marca (o desmarca) de golpe todos los que hay entre el último que se tocó y este, en el orden en que se ven en la tabla (también entre páginas).
+
+## Versión 1.11.10 (21/10/2026)
+- **Modelos: el número de «Orden Dashboard» se puede poner en cualquier modelo.** Antes solo se podía editar en los modelos con acceso rápido «Sí»; uno creado al leer un pedido (acceso rápido «No») enseñaba «—» y no dejaba ponerle número. Ahora todos tienen su casilla de número (apagada si no están en el acceso rápido) y, al poner un número mayor que 0 y pulsar «Guardar Orden», el modelo pasa a acceso rápido «Sí» con ese orden.
