@@ -529,3 +529,7 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - Cotejo de pagos: una hoja leída cuyo mes se adivina por sus coches se **guarda sola** (nunca sustituye una rejilla ya guardada de ese mes: en ese caso queda como borrador y se avisa). Antes había que pulsar «Guardar rejilla» y «Mis rejillas» salía vacía.
 - «Mi mes»: la fila larga de botones por mes se sustituye por un botón «📆 Calendario…» que abre un calendario amplio con un botón por día y una bolita de color por coche (sin pagar, dudoso, sin rejilla, pagado), los doce meses del año con su aviso, y filtros por resultado, tipo (VN/VO) y texto. Elegir un día filtra la tabla del cotejo (chip «Solo el …»).
 - El vendedor elegido en el cotejo se recuerda al cambiar de pestaña.
+
+## Versión 1.7.0 (21/10/2026)
+- **Biblioteca de archivos** (menú «Biblioteca», `/dashboard/biblioteca`): se guardan una vez pedidos, pagos de RCI, rejillas, listados Excel y otros archivos (cifrados en la base de datos, con migración `0043`; no se duplican los idénticos) y se pueden renombrar, cambiar de tipo, descargar y borrar.
+- En cada zona de subida hay un botón «📚 Elegir de la biblioteca» que entrega los archivos elegidos como si se hubieran subido desde el equipo: pedidos y pagos de RCI (Dashboard), rejillas y listados (Cotejo de pagos), y Excel de Expedientes (importar, contrastar y completar datos desde listados).

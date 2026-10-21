@@ -1010,6 +1010,35 @@ export const adjuntosDatos = pgTable("adjuntos_datos", {
 });
 
 /**
+ * Biblioteca de archivos de trabajo (pedidos, pagos de RCI, rejillas, listados Excel…): se guardan una vez en el servidor y desde cualquier
+ * zona de subida se pueden elegir sin volver a buscarlos en el equipo. El contenido (cifrado) vive aparte, en `biblioteca_datos`.
+ */
+export const biblioteca = pgTable(
+  "biblioteca",
+  {
+    id: serial("id").primaryKey(),
+    /** pedido | pago_rci | rejilla | listado | otro */
+    categoria: varchar("categoria", { length: 12 }).notNull().default("otro"),
+    nombre: text("nombre").notNull(),
+    mime: varchar("mime", { length: 120 }).notNull(),
+    tamano: integer("tamano").notNull(),
+    /** SHA-256 del contenido: el mismo archivo no se guarda dos veces. */
+    huella: varchar("huella", { length: 64 }).notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+  },
+  (t) => [uniqueIndex("biblioteca_huella_idx").on(t.huella)],
+);
+
+export const bibliotecaDatos = pgTable("biblioteca_datos", {
+  idArchivo: integer("id_archivo")
+    .primaryKey()
+    .references(() => biblioteca.id, { onDelete: "cascade" }),
+  /** Contenido cifrado con AES-256-GCM (clave derivada de APP_SECRET). */
+  datos: bytea("datos").notNull(),
+});
+
+/**
  * Lista persistente de pedidos subidos para leer con OCR. Cada PDF o foto se guarda (cifrado) nada más subirse y lo van
  * cogiendo los lectores en paralelo; si el servidor se reinicia, lo pendiente se retoma. `datos` se borra al terminar
  * (un pedido pasa a ser un adjunto; lo que no es un pedido no se conserva).

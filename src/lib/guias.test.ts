@@ -7,7 +7,7 @@ const PESTANAS = [
   ...["analisis", "papelera", "datos", "copias", "sistema", "rendimiento", "registro", "peligro"].map((c) => `config.bbdd.${c}`),
   ...["lista", "modos", "foto"].map((c) => `config.expedientes.${c}`),
   ...["oscuros", "claros", "originales"].map((c) => `config.temas.${c}`),
-  ...["dashboard", "expedientes", "clientes", "configuracion", "comisiones", "cotejo", "informes", "log-importacion", "log-lecturas", "laboratorio"].map((c) => `menu.${c}`),
+  ...["dashboard", "expedientes", "clientes", "biblioteca", "configuracion", "comisiones", "cotejo", "informes", "log-importacion", "log-lecturas", "laboratorio"].map((c) => `menu.${c}`),
   ...["resumen", "objetivo", "modelos", "usados", "reglas", "bonus", "penalizaciones", "liquidacion", "notas"].map((c) => `plan.${c}`),
 ];
 

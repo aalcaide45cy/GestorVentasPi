@@ -46,6 +46,16 @@ export const GUIAS: Record<string, Guia> = {
     pasos: ["Busca un cliente por nombre, correo, teléfono o documento.", "Pulsa un cliente para ver o editar su ficha y sus expedientes.", "Al dejar el ratón sobre un nombre se ve su foto (tomada del DNI), si la hay."],
     ojo: ["Un cliente se crea al hacer un expediente o al leer su pedido; también se puede crear a mano."],
   },
+  "menu.biblioteca": {
+    titulo: "Biblioteca",
+    queEs: "Un almacén de archivos de trabajo (pedidos, pagos de RCI, rejillas y listados Excel) para guardarlos una vez y usarlos las veces que haga falta sin volver a buscarlos en tu equipo.",
+    pasos: [
+      "Pulsa «Añadir archivos» (o arrástralos): se guardan y se propone su tipo por el nombre; puedes cambiarlo en la tabla.",
+      "En cada zona de subida (pedidos y pagos del Dashboard, rejillas del Cotejo, Excel de Expedientes) pulsa «📚 Elegir de la biblioteca» y marca los que quieras.",
+      "Con «Renombrar» o «Borrar» ordenas la biblioteca; «Descargar» te devuelve el archivo.",
+    ],
+    ojo: ["Elegir un archivo de la biblioteca hace lo mismo que subirlo desde tu equipo (se lee con el OCR igualmente), pero sin buscarlo ni volver a transferirlo desde tu equipo.", "Los archivos se guardan cifrados dentro de la base de datos, así que van incluidos en las copias de seguridad."],
+  },
   "menu.configuracion": {
     titulo: "Configuración",
     queEs: "Todo lo que se ajusta de la aplicación, solo para administradores: usuarios y roles, marcas y modelos, tiendas, tipos de pago, estados, preferencias, base de datos y tema.",

@@ -16,6 +16,7 @@ import SelectorMotorRelectura, { useMotorDeRelectura } from "@/components/docume
 import { columnasVehiculo } from "@/components/etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
 import type { DatosCotejo } from "@/lib/servicios/cotejo";
+import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
 import CalendarioCotejo from "./CalendarioCotejo";
 import MiMes from "./MiMes";
 
@@ -213,7 +214,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   };
 
   /* ---------------- Listados del fabricante (Excel) ---------------- */
-  const subirListados = async (archivos: FileList | null) => {
+  const subirListados = async (archivos: FileList | File[] | null) => {
     if (!archivos) return;
     try {
       const nuevos: Listado[] = [];
@@ -455,7 +456,8 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
             {hojasEnCurso > 0 ? `📄 Subir más hojas (${hojasEnCurso} en lectura)` : borradorMes || rejillaMes ? "📄 Subir otra hoja (PDF o foto)" : `📄 Subir la rejilla de ${mesCorto(mes)} (PDF o foto)`}
             <input type="file" multiple accept=".pdf,image/*" style={{ display: "none" }} onChange={(e) => { subirRejillas(e.target.files); e.target.value = ""; }} />
           </label>
-          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Puedes subir varias a la vez o arrastrarlas aquí: se leen en segundo plano, de una en una (puedes cambiar de pestaña). No se guarda nada hasta que pulses «Guardar rejilla».</div>
+          <BotonBiblioteca categorias={["rejilla"]} alElegir={(a) => subirRejillas(a)} />
+          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Puedes subir varias a la vez o arrastrarlas aquí: se leen en segundo plano, de una en una (puedes cambiar de pestaña). Si el mes de la hoja se reconoce por sus coches, se guarda sola; si no, revisa las matrículas y pulsa «Guardar rejilla».</div>
           <SelectorMotorRelectura etiqueta="Leer con" />
 
           {otrosBorradores.length > 0 && (
@@ -541,6 +543,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
               📊 Subir listados (Excel)
               <input type="file" multiple accept=".xlsx,.xls" style={{ display: "none" }} onChange={(e) => { void subirListados(e.target.files); e.target.value = ""; }} />
             </label>
+            <BotonBiblioteca categorias={["listado"]} alElegir={(a) => subirListados(a)} />
             {listados.map((l, i) => (
               <span key={i} className="glass-panel" style={{ padding: "6px 10px", fontSize: "0.85rem", display: "inline-flex", gap: "8px", alignItems: "center" }}>
                 {l.nombre} · {l.coches.length} filas

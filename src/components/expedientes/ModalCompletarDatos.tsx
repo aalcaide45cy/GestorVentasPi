@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import Modal from "@/components/Modal";
+import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
+import { eventoDeArchivos } from "@/lib/biblioteca-cliente";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import VisorPedido from "@/components/documentos/VisorPedido";
@@ -347,6 +349,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
             {trabajando ? "Trabajando…" : listados.length > 0 ? "Elegir otros archivos" : "Elegir archivos (.xlsx, .xls, .csv)"}
             <input type="file" accept=".xlsx,.xls,.csv" multiple hidden disabled={trabajando} onChange={(e) => void leerArchivos(e)} />
           </label>
+          <BotonBiblioteca categorias={["listado"]} deshabilitado={trabajando} alElegir={(a) => leerArchivos(eventoDeArchivos<ChangeEvent<HTMLInputElement>>(a))} />
 
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center", fontSize: "0.85rem" }}>
             <b>Localizar cada expediente por:</b>

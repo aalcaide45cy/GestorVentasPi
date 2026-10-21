@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
+import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
 import { recogerPendientes, registrarAvisos, solicitarCancelacion, subirPedidos } from "@/lib/lecturas-pedidos-cliente";
 import ControlesLectura from "./ControlesLectura";
 import { clasificarFichero, leerDniDeFichero } from "./BotonLeerDocumento";
@@ -77,7 +78,7 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
   const lectura = useSyncExternalStore(suscribirLectura, leerLectura, () => null);
   const archivos = useRef<HTMLInputElement>(null);
   const carpeta = useRef<HTMLInputElement>(null);
-  const elegidos = (lista: FileList | null) => {
+  const elegidos = (lista: FileList | File[] | null) => {
     const ficheros = Array.from(lista ?? []).filter((f) => f.type.startsWith("image/") || f.type === "application/pdf" || /\.(pdf|jpe?g|png|webp)$/i.test(f.name));
     if (ficheros.length > 0) void leer(ficheros);
   };
@@ -90,6 +91,7 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
         <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.82rem" }} disabled={subiendo} onClick={() => carpeta.current?.click()} title="Elige una carpeta entera: se cargan todos los PDF y fotos que haya dentro, y lo que no sea un pedido se ignora">
           📁 Cargar carpeta
         </button>
+        <BotonBiblioteca categorias={["pedido"]} deshabilitado={subiendo} alElegir={(a) => elegidos(a)} />
         <input ref={archivos} type="file" multiple accept="image/*,.pdf,application/pdf" style={{ display: "none" }} onChange={(e) => { elegidos(e.target.files); e.target.value = ""; }} />
         <input ref={carpeta} type="file" multiple style={{ display: "none" }} {...({ webkitdirectory: "", directory: "" } as Record<string, string>)} onChange={(e) => { elegidos(e.target.files); e.target.value = ""; }} />
       </div>

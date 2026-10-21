@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
+import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
 import ZonaSoltar from "@/components/documentos/ZonaSoltar";
 import { subirPagosRci } from "@/lib/pagos-rci-cliente";
 import type { PagoRciDto } from "@/lib/servicios/pagos-rci";
@@ -59,6 +60,7 @@ export default function ZonaPagosRci() {
         <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.82rem" }} disabled={ocupado} onClick={() => carpeta.current?.click()} title="Elige una carpeta entera: se cogen los pagos de la financiera y el resto se ignora">
           📁 Cargar carpeta
         </button>
+        <BotonBiblioteca categorias={["pago_rci"]} deshabilitado={ocupado} alElegir={(a) => subir(a)} />
         <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.82rem" }} onClick={() => setAbierto(true)} title="Ver los pagos subidos: aplicados, pendientes de decidir e ignorados">
           📋 Ver pagos{pendientes > 0 ? ` (${pendientes} pendientes)` : ""}
         </button>

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BotonesBackup from "@/components/BotonesBackup";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
+import { eventoDeArchivos } from "@/lib/biblioteca-cliente";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
 import PanelColumnas, { normalizarOrden, type ConfigColumnas } from "@/components/expedientes/PanelColumnas";
 import { ModalConfirmar } from "@/components/Modal";
@@ -1069,6 +1070,14 @@ export default function ExpedientesList({
                   setMenuDatos(false);
                   void importarExcel(e);
                 }}
+                biblioteca={{
+                  categorias: ["listado"],
+                  multiple: false,
+                  alElegir: (a) => {
+                    setMenuDatos(false);
+                    void importarExcel(eventoDeArchivos<ChangeEvent<HTMLInputElement>>(a));
+                  },
+                }}
               />
               {mostrarBotonesCsv && (
                 <OpcionDatos
@@ -1110,6 +1119,14 @@ export default function ExpedientesList({
                 alElegir={(e) => {
                   setMenuDatos(false);
                   void contrastarListado(e);
+                }}
+                biblioteca={{
+                  categorias: ["listado"],
+                  multiple: false,
+                  alElegir: (a) => {
+                    setMenuDatos(false);
+                    void contrastarListado(eventoDeArchivos<ChangeEvent<HTMLInputElement>>(a));
+                  },
                 }}
               />
             </GrupoDatos>
