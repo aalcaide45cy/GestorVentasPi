@@ -1,7 +1,8 @@
 # Cambia el servidor del PC entre modo desarrollo (npm run dev: se actualiza solo al tocar el codigo) y modo normal
 # (npm run build + npm start: mas rapido, es como corre en la Raspberry). Solo para el PC de desarrollo.
+# "start" = reiniciar el modo normal SIN volver a compilar (lo usa "Reiniciar servidor" cuando ya esta en modo normal).
 # Cierra el servidor que escucha en el puerto, compila si hace falta y lo vuelve a lanzar. Si la compilacion falla, vuelve al modo desarrollo.
-param([Parameter(Mandatory = $true)][ValidateSet("dev", "build")][string]$Modo, [int]$Puerto = 3000, [string]$Carpeta = (Split-Path -Parent $PSScriptRoot))
+param([Parameter(Mandatory = $true)][ValidateSet("dev", "build", "start")][string]$Modo, [int]$Puerto = 3000, [string]$Carpeta = (Split-Path -Parent $PSScriptRoot))
 $registro = Join-Path $env:TEMP "gestorventas-modo.log"
 function Anotar($t) { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $t" | Add-Content -Path $registro -Encoding utf8 }
 # El servidor que lanza este script hereda variables suyas (NODE_ENV=development, NEXT_*...) que romperian la compilacion o el arranque del otro modo
@@ -49,14 +50,18 @@ if ($Modo -eq "dev") {
   exit 0
 }
 
-# Modo normal: compilar (aqui esta la espera larga), aplicar las migraciones y arrancar
-Anotar "Compilando (npm run build)..."
+# Modo normal: compilar (aqui esta la espera larga; con "start" se salta), aplicar las migraciones y arrancar
 $salidaBuild = Join-Path $env:TEMP "gestorventas-build.log"
-$p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run build > `"$salidaBuild`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden -PassThru -Wait
-if ($p.ExitCode -ne 0) {
-  Anotar "La compilacion ha fallado (codigo $($p.ExitCode)); detalle en $salidaBuild. Se vuelve al modo desarrollo."
-  Lanzar "npm run dev" (Join-Path $env:TEMP "gestorventas-dev-$Puerto.log")
-  exit 1
+if ($Modo -eq "build") {
+  Anotar "Compilando (npm run build)..."
+  $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run build > `"$salidaBuild`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden -PassThru -Wait
+  if ($p.ExitCode -ne 0) {
+    Anotar "La compilacion ha fallado (codigo $($p.ExitCode)); detalle en $salidaBuild. Se vuelve al modo desarrollo."
+    Lanzar "npm run dev" (Join-Path $env:TEMP "gestorventas-dev-$Puerto.log")
+    exit 1
+  }
+} else {
+  Anotar "Reinicio en modo normal sin recompilar"
 }
 Anotar "Compilado. Aplicando migraciones y arrancando npm start"
 $m = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run db:migrate > `"$(Join-Path $env:TEMP 'gestorventas-migrar.log')`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden -PassThru -Wait
