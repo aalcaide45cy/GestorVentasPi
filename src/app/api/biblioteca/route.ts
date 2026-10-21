@@ -17,11 +17,13 @@ export const GET = manejar(async (req: Request) => {
   if (id) {
     const r = await leerArchivo(db, id);
     if (!r) return errorJson(404, "Archivo no encontrado");
+    // `ver=1`: se enseña en la propia página (PDF, imágenes y texto); el resto de tipos siempre se descargan, nunca se ejecutan en el navegador
+    const enLinea = new URL(req.url).searchParams.get("ver") === "1" && /^(application\/pdf|image\/(png|jpe?g|webp|gif|bmp|tiff?)|text\/(plain|csv))$/.test(r.meta.mime);
     return new NextResponse(new Uint8Array(r.datos), {
       headers: {
         "Content-Type": r.meta.mime,
         "Content-Length": String(r.datos.length),
-        "Content-Disposition": `attachment; filename="${nombreSeguro(r.meta.nombre)}"`,
+        "Content-Disposition": `${enLinea ? "inline" : "attachment"}; filename="${nombreSeguro(r.meta.nombre)}"`,
         "Cache-Control": "private, max-age=60",
         "X-Content-Type-Options": "nosniff",
       },

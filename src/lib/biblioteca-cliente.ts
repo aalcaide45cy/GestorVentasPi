@@ -27,7 +27,7 @@ export async function listarBiblioteca(categorias?: CategoriaBiblioteca[]): Prom
 }
 
 /** Guarda un archivo en la biblioteca; `repetido` es true si ya estaba (mismo contenido). */
-export function subirABiblioteca(archivo: File, categoria?: CategoriaBiblioteca, alAvanzar?: (enviado: number, total: number) => void): Promise<{ archivo: ArchivoBibliotecaDto; repetido: boolean }> {
+export function subirABiblioteca(archivo: File, categoria?: CategoriaBiblioteca, alAvanzar?: (enviado: number, total: number) => void, senal?: AbortSignal): Promise<{ archivo: ArchivoBibliotecaDto; repetido: boolean }> {
   const q = new URLSearchParams({ nombre: archivo.name });
   if (categoria) q.set("categoria", categoria);
   const fallo = `No se ha podido guardar «${archivo.name}».`;
@@ -40,6 +40,8 @@ export function subirABiblioteca(archivo: File, categoria?: CategoriaBiblioteca,
     x.upload.onprogress = (e) => {
       if (e.lengthComputable) alAvanzar?.(e.loaded, e.total);
     };
+    x.onabort = () => rechazar(new DOMException("Subida cancelada", "AbortError"));
+    senal?.addEventListener("abort", () => x.abort(), { once: true });
     x.onerror = () => rechazar(new Error(`${fallo} Se ha perdido la conexión con el servidor.`));
     x.onload = () => {
       let cuerpo: { data?: { archivo: ArchivoBibliotecaDto; repetido: boolean }; message?: string } = {};
@@ -53,8 +55,16 @@ export function subirABiblioteca(archivo: File, categoria?: CategoriaBiblioteca,
         resolver(cuerpo.data);
       } else rechazar(new Error(cuerpo.message ?? fallo));
     };
+    if (senal?.aborted) return rechazar(new DOMException("Subida cancelada", "AbortError"));
     x.send(archivo);
   });
+}
+
+/** Borra archivos de la biblioteca por su id (se usa al cancelar una subida y querer quitar lo ya guardado). */
+export async function borrarDeBiblioteca(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  const r = await fetch("/api/biblioteca", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+  if (!r.ok) throw new Error(await mensaje(r, "No se han podido quitar los archivos guardados."));
 }
 
 /** Baja un archivo de la biblioteca y lo entrega como `File`, igual que si se hubiera elegido en el equipo. */

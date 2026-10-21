@@ -81,10 +81,12 @@ const nextConfig: NextConfig = {
   experimental: { proxyClientMaxBodySize: "600mb" },
   async headers() {
     return [
-      { source: "/((?!api/adjuntos|api/admin/papelera/documento).*)", headers: cabeceras },
+      { source: "/((?!api/adjuntos|api/admin/papelera/documento|api/biblioteca).*)", headers: cabeceras },
       { source: "/api/adjuntos", headers: cabecerasAdjuntos(cabeceras) },
       // La vista previa de la Papelera (solo administrador) también se enseña en un iframe del mismo origen
       { source: "/api/admin/papelera/documento", headers: cabecerasAdjuntos(cabeceras) },
+      // Igual la vista previa de la Biblioteca (PDF e imágenes en un iframe del mismo origen)
+      { source: "/api/biblioteca", headers: cabecerasAdjuntos(cabeceras) },
     ];
   },
 };

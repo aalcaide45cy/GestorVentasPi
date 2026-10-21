@@ -6,6 +6,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import TablaDatos, { PANTALLA_COMPLETA, type ColumnaTabla } from "@/components/TablaDatos";
 import ModalSubidaBiblioteca from "@/components/biblioteca/ModalSubidaBiblioteca";
+import VistaPreviaBiblioteca from "@/components/biblioteca/VistaPreviaBiblioteca";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { CATEGORIAS, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 import { ETIQUETAS, tamanoLegible, type RespuestaListado } from "@/lib/biblioteca-cliente";
@@ -31,6 +32,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
   const [asignacion, setAsignacion] = useState<FiltroAsignacion>("todas");
   const [filtro, setFiltro] = useState<"todas" | CategoriaBiblioteca>("todas");
   const [pendientes, setPendientes] = useState<File[] | null>(null);
+  const [viendo, setViendo] = useState<ArchivoBibliotecaDto | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
@@ -170,6 +172,9 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
       valor: () => "",
       celda: (f) => (
         <span style={{ display: "inline-flex", gap: "6px", whiteSpace: "nowrap" }}>
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setViendo(f)} title="Ver el documento sin descargarlo" aria-label="Ver">
+            👁️
+          </button>
           <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => descargar([f])} title="Descargar el archivo a tu equipo" aria-label="Descargar">
             ⬇️
           </button>
@@ -293,6 +298,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
           }}
         />
       )}
+      {viendo && <VistaPreviaBiblioteca archivo={viendo} alCerrar={() => setViendo(null)} />}
       {asignando && <ModalAsignar cantidad={asignando.length} alCancelar={() => setAsignando(null)} alAsignar={(cambios, texto) => void cambiar(asignando, cambios, texto)} />}
     </div>
   );
