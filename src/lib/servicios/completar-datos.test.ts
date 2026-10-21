@@ -58,6 +58,12 @@ describe("completar datos desde un listado", () => {
     expect(campos).toContain("fecha_entrega");
   });
 
+  it("en un usado la fecha de facturación sale de la «Fra. prevista» del listado", async () => {
+    const { admin } = await escenario("VO");
+    const r = await previsualizarCompletado(db, admin, [fila({ bastidor: "UU1DJF00477657076", fFactura: "2026-10-31" })]);
+    expect(r.filas[0].propuestas.find((p) => p.campo === "fecha_facturacion")).toMatchObject({ nuevo: "2026-10-31", tipo: "rellenar" });
+  });
+
   it("encuentra al cliente por NIF aunque uno traiga ceros delante y otro no, y limpia la matrícula del listado", async () => {
     const { admin, exp, cli } = await escenario();
     await db.update(clientes).set({ dni: "03217951K" }).where(eq(clientes.id, cli.id));

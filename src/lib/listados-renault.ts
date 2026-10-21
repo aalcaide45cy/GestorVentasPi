@@ -61,7 +61,7 @@ const SINONIMOS: Record<string, string[]> = {
   fAfectacion: ["f. afect", "f. afectacion", "fecha afectacion", "afectacion"],
   fMatriculacion: ["fecha matriculacion", "f. matriculacion", "f. mat", "fecha de matriculacion"],
   fEntrega: ["entrega fijada", "fecha entrega", "f. entrega", "fecha de entrega"],
-  fFactura: ["fecha factura", "f. factura", "fecha de factura", "fecha facturacion"],
+  fFactura: ["fecha factura", "f. factura", "fecha de factura", "fecha facturacion", "fra. prevista", "fra prevista", "fecha fra. prevista", "factura prevista"],
   email: ["email cliente", "email", "correo cliente", "correo", "e-mail"],
   telefono: ["telefono", "movil", "tfno", "tel."],
 };

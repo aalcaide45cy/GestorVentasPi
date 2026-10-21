@@ -480,7 +480,8 @@ export async function previsualizarCompletado(
       proponer("fecha_matriculacion", exp.fechaMatriculacion, fechaMatriculacion, "Cambia el mes en que cuenta el coche para las comisiones");
     }
     proponer("fecha_entrega", exp.fechaEntrega, f.fEntrega);
-    if (!esVo) proponer("fecha_facturacion", exp.fechaFacturacion, f.fFactura, "Cambia el mes en que cuenta el coche para las comisiones");
+    // En un usado la facturación es la «Fra. prevista» del listado (cuenta para comisionar); en un nuevo, la fecha de factura
+    proponer("fecha_facturacion", exp.fechaFacturacion, f.fFactura, "Cambia el mes en que cuenta el coche para las comisiones");
     // El documento solo se corrige si de verdad es otro: «03217951K» y «3217951K» son el mismo
     // El estado del listado queda guardado para poder filtrar y revisar a mano (anulados, archivados…)
     const estadoListado = f.estado.trim().slice(0, 40);

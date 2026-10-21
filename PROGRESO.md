@@ -515,3 +515,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.6.3 (21/10/2026)
 - Planes de comisionamiento: los seis botones de plantillas (aplicar, guardar y gestionar, por pestaña y del plan completo) se sustituyen por un solo botón «📚 Plantillas…» que abre una ventana con las opciones explicadas, igual que «Importar y exportar». La pestaña VN conserva su barra de plantillas de tarifas, ahora con su etiqueta. Las pestañas del plan usan el mismo aspecto que las subpestañas de Configuración, y el texto del Resumen explica la facturación de los VO.
+
+## Versión 1.6.4 (21/10/2026)
+- Completar datos desde listados: la columna «Fra. prevista» se reconoce como fecha de facturación y, también en los usados (VO), se propone como tal. La regla automática de 1.6.2 sirve de valor inicial.
