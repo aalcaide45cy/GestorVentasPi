@@ -576,3 +576,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.1 (21/10/2026)
 - **«Reiniciar servidor» conserva el modo**: en el PC con Windows, si el servidor está en modo normal, reiniciar lo relanza en modo normal sin recompilar (`scripts/cambiar-modo.ps1 -Modo start`); en desarrollo, en desarrollo. Antes, en modo normal el proceso se cerraba y nadie lo volvía a levantar (solo Docker lo hace). Probado en una copia: vuelve en unos 50 s en el mismo modo. El modo no se «guarda» en ningún sitio: el reinicio repite el modo en que está. Si el equipo se apaga y vuelve a encenderse, no arranca nada solo (como antes).
+
+## Versión 1.11.2 (21/10/2026)
+- **`start.bat`** (raíz del proyecto, solo Windows): arranca el servidor en el **último modo** en que estuvo. El servidor anota su modo al arrancar (`.ultimo-modo`, ignorado por git) y `start.bat` lo lee: modo normal → compila antes solo si no hay compilación o el código es más nuevo que ella, aplica migraciones y hace `npm start`; modo desarrollo → `npm run dev`. `start.bat dev` o `start.bat normal` fuerzan uno. Si no había ninguno anotado, desarrollo; si compilar o migrar falla, cae a desarrollo; si ya hay algo escuchando en el puerto, no arranca otro. Probado en una copia (sin archivo, normal forzado y último modo).

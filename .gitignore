@@ -23,3 +23,6 @@ next-env.d.ts
 dist/
 dist-instalador/
 para-sd/
+
+# Modo en que arranco el servidor la ultima vez (start.bat)
+.ultimo-modo

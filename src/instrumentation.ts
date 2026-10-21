@@ -12,6 +12,15 @@ export async function register(): Promise<void> {
     const { db: bdIncidencias } = await import("./db");
     const { instalarIncidencias } = await import("./lib/servicios/incidencias");
     instalarIncidencias(bdIncidencias, process.env.npm_package_version ?? null);
+    // En el PC con Windows se anota el modo en que arranca el servidor para que start.bat lo arranque igual la proxima vez
+    if (process.platform === "win32") {
+      try {
+        const { writeFile } = await import("node:fs/promises");
+        await writeFile(".ultimo-modo", process.env.NODE_ENV === "production" ? "normal" : "dev", "utf8");
+      } catch {
+        /* sin permiso de escritura: no pasa nada, start.bat usara el modo desarrollo */
+      }
+    }
     // Una instalación sin usuarios deja a la vista el código con el que crear al primer administrador
     const { db } = await import("./db");
     const { anunciarPrimerArranque } = await import("./lib/servicios/primer-arranque");
