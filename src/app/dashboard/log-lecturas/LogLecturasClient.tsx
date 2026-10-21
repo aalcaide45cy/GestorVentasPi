@@ -28,7 +28,7 @@ const fechaHora = (iso: string) => new Date(iso).toLocaleString("es-ES", { dateS
  * Registro de lecturas de pedidos (últimos tres meses): qué pasó con cada PDF o foto que se subió. Sirve para localizar fallos
  * de lectura, ver si algún expediente no se creó o si un documento no llegó a la cola, y rescatar a la cola lo ignorado.
  */
-export default function LogLecturasClient() {
+export default function LogLecturasClient({ incrustada = false }: { incrustada?: boolean }) {
   const { mostrar } = useToast();
   const { datos, recargar } = useCarga<RegistroLectura[]>("/api/documentos/lecturas?registro=1", []);
   const [filtro, setFiltro] = useState<Filtro>("problemas");
@@ -137,12 +137,14 @@ export default function LogLecturasClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px", padding: "0 0 40px" }}>
+      {!incrustada && (
       <div>
         <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Log de lecturas de pedidos</h1>
         <p style={{ color: "var(--text-secondary)" }} title="De lo ignorado no se guarda el fichero, solo el principio de lo que se leyó para ver por qué; si en realidad era un pedido, vuelve a cargarlo.">
           Qué ha pasado con cada PDF o foto que has subido para leer en los últimos tres meses: si se leyó, se ignoró o falló, y qué se hizo después. Sirve para localizar un pedido que no entró en la cola o un dato mal leído.
         </p>
       </div>
+      )}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         {botones.map(([f, texto]) => (
           <button key={f} type="button" className={filtro === f ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "6px 14px" }} onClick={() => setFiltro(f)}>

@@ -85,7 +85,7 @@ const TEXTOS: Record<Categoria, Pick<InfoCategoria, "titulo" | "explicacion" | "
   lecturas: {
     titulo: "Registro de lecturas de pedidos",
     explicacion: "Una fila por cada documento subido para leer (leído, descartado, cancelado o con error) con lo que se leyó de él. Se limpia solo a los 90 días.",
-    alPurgar: "Se pierde el registro (Log Lecturas). Los pedidos ya aplicados a expedientes no se tocan.",
+    alPurgar: "Se pierde el registro (Herramientas › Historial de lecturas). Los pedidos ya aplicados a expedientes no se tocan.",
     porFilas: false,
     porAntiguedad: true,
   },

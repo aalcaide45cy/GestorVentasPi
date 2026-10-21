@@ -1,12 +1,6 @@
 import { redirect } from "next/navigation";
-import { esRolActivo } from "@/lib/auth/permisos";
-import { getCurrentUser } from "@/lib/auth/sesion";
-import LogLecturasClient from "./LogLecturasClient";
 
-export const dynamic = "force-dynamic";
-
-export default async function LogLecturasPage() {
-  const user = await getCurrentUser();
-  if (!user || !esRolActivo(user.rol)) redirect("/dashboard");
-  return <LogLecturasClient />;
+/** El historial de lecturas vive ahora en Herramientas (pestaña «Historial de lecturas»). */
+export default function LogLecturasPage() {
+  redirect("/dashboard/herramientas?p=historial");
 }

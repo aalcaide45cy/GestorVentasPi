@@ -2,12 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { clientes, marcas, modelos, tiendas, usuarios } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { vaciarBaseDeDatos } from "./mantenimiento";
+import { guardarArchivo, cambiarArchivos, listarArchivos } from "./biblioteca";
+import { analizarBbdd, vaciarBaseDeDatos } from "./mantenimiento";
 
 /** La copia previa usa pg_dump: local o, si no hay, el del contenedor de desarrollo (como en copias.test.ts). */
 function configurarPg(): boolean {
@@ -75,6 +76,32 @@ describe("vaciar la base de datos", () => {
     const dacia = (await db.select().from(marcas)).find((m) => m.nombre === "Dacia");
     expect(dacia).toMatchObject({ sistemaComisiones: true, accesoRapido: true });
     expect(await total(modelos)).toBe(29);
+  });
+
+  it.skipIf(!hayPg)("«Borrar todos los datos» no toca la biblioteca de archivos (solo quita su asignación)", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const [cli] = await db.insert(clientes).values({ clienteId: "c-bib", nombre: "Ana Pérez" }).returning();
+    const a = await guardarArchivo(db, { datos: Buffer.from("%PDF-1.4 pedido de prueba"), nombre: "pedido.pdf", creadoPor: admin.idUsuario });
+    const b = await guardarArchivo(db, { datos: Buffer.from("hoja"), nombre: "listado.xlsx", creadoPor: admin.idUsuario });
+    await cambiarArchivos(db, [a.archivo.id], { idCliente: cli.id });
+    // El análisis de la base de datos los enseña, pero solo para verlos (no se pueden limpiar desde ahí)
+    const analisis = await analizarBbdd(db);
+    expect(analisis.categorias.find((c) => c.id === "bib_archivos")).toMatchObject({ tipo: "revisar", cantidad: 2 });
+    await vaciarBaseDeDatos(db, admin.idUsuario, { confirmacion: "BORRAR TODO" });
+    expect(await total(clientes)).toBe(0);
+    const lista = await listarArchivos(db);
+    expect(lista.map((f) => f.id).sort()).toEqual([a.archivo.id, b.archivo.id].sort());
+    expect(lista.every((f) => f.asignadoA === null)).toBe(true);
+  });
+
+  it.skipIf(!hayPg)("al borrar un cliente suelto, sus archivos de la biblioteca quedan sin asignar", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    const [cli] = await db.insert(clientes).values({ clienteId: "c-bib2", nombre: "Luis Gil" }).returning();
+    const a = await guardarArchivo(db, { datos: Buffer.from("%PDF-1.4 otro pedido"), nombre: "otro.pdf", creadoPor: admin.idUsuario });
+    await cambiarArchivos(db, [a.archivo.id], { idCliente: cli.id });
+    await db.delete(clientes).where(eq(clientes.id, cli.id));
+    const lista = await listarArchivos(db);
+    expect(lista.find((f) => f.id === a.archivo.id)?.asignadoA).toBeNull();
   });
 
   it.skipIf(!hayPg)("con eliminarOtrosUsuarios solo queda la cuenta del administrador", async () => {

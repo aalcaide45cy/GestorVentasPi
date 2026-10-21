@@ -112,7 +112,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
       ancho="760px"
       pie={
         <>
-          <Link href="/dashboard/biblioteca" className="btn btn-secondary" style={{ marginRight: "auto" }} title="Abre la biblioteca para ver, renombrar o borrar archivos">
+          <Link href="/dashboard/herramientas?p=biblioteca" className="btn btn-secondary" style={{ marginRight: "auto" }} title="Abre la biblioteca para ver, renombrar o borrar archivos">
             Abrir la biblioteca
           </Link>
           <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={trabajando}>

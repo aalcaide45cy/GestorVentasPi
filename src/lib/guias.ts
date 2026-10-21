@@ -46,15 +46,17 @@ export const GUIAS: Record<string, Guia> = {
     pasos: ["Busca un cliente por nombre, correo, teléfono o documento.", "Pulsa un cliente para ver o editar su ficha y sus expedientes.", "Al dejar el ratón sobre un nombre se ve su foto (tomada del DNI), si la hay."],
     ojo: ["Un cliente se crea al hacer un expediente o al leer su pedido; también se puede crear a mano."],
   },
-  "menu.biblioteca": {
-    titulo: "Biblioteca",
-    queEs: "Un almacén de archivos de trabajo (pedidos, pagos de RCI, rejillas y listados Excel) para guardarlos una vez y usarlos las veces que haga falta sin volver a buscarlos en tu equipo.",
+  "menu.herramientas": {
+    titulo: "Herramientas",
+    queEs: "Todo lo que lee, guarda o prepara documentos, en un solo sitio y con pestañas: subir pedidos y pagos de RCI, la cola de pedidos leídos, la biblioteca de archivos y el historial de lecturas.",
     pasos: [
-      "Pulsa «Añadir archivos» (o arrástralos): se guardan y se propone su tipo por el nombre; puedes cambiarlo en la tabla.",
-      "En cada zona de subida (pedidos y pagos del Dashboard, rejillas del Cotejo, Excel de Expedientes) pulsa «📚 Elegir de la biblioteca» y marca los que quieras.",
+      "«Subir pedidos y pagos»: arrastra los PDF o fotos y elige el motor de lectura (OCR).",
+      "«Cola de pedidos»: revisa los pedidos leídos y crea sus expedientes.",
+      "«Biblioteca»: archivos guardados una vez (pedidos, pagos de RCI, rejillas, Excel). En cada zona de subida (pedidos y pagos, rejillas del Cotejo, Excel de Expedientes) pulsa «📚 Elegir de la biblioteca» y marca los que quieras.",
+      "«Historial de lecturas»: qué pasó con cada PDF o foto que subiste.",
       "Con «Renombrar» o «Borrar» ordenas la biblioteca; «Descargar» te devuelve el archivo.",
     ],
-    ojo: ["Elegir un archivo de la biblioteca hace lo mismo que subirlo desde tu equipo (se lee con el OCR igualmente), pero sin buscarlo ni volver a transferirlo desde tu equipo.", "Los archivos se guardan cifrados dentro de la base de datos, así que van incluidos en las copias de seguridad."],
+    ojo: ["«Borrar todos los datos» no toca la biblioteca: sus archivos solo se quitan desde ella.", "Elegir un archivo de la biblioteca hace lo mismo que subirlo desde tu equipo (se lee con el OCR igualmente), pero sin buscarlo ni volver a transferirlo desde tu equipo.", "Los archivos se guardan cifrados dentro de la base de datos, así que van incluidos en las copias de seguridad."],
   },
   "menu.configuracion": {
     titulo: "Configuración",
@@ -100,8 +102,8 @@ export const GUIAS: Record<string, Guia> = {
     pasos: ["Cada línea es una importación: archivo, fecha y cuántos registros cambió.", "Abre una para ver qué se creó o cambió, registro a registro.", "«Deshacer importación» devuelve los datos a como estaban antes de esa carga."],
     ojo: ["Quitar una línea del historial no deshace los datos importados: para eso está «Deshacer importación»."],
   },
-  "menu.log-lecturas": {
-    titulo: "Log de lecturas de pedidos",
+  "herramientas.historial": {
+    titulo: "Historial de lecturas de pedidos",
     queEs: "Qué ha pasado con cada PDF o foto que has subido para leer, durante los últimos tres meses.",
     pasos: ["Filtra por resultado: leído, ignorado por no ser un pedido, fallido…", "Cada línea dice qué se hizo después: expediente creado, completado o quitado de la cola.", "Sirve para localizar un pedido que no entró en la cola o un dato mal leído."],
     ojo: ["De lo ignorado no se guarda el fichero, solo el principio de lo que se leyó."],

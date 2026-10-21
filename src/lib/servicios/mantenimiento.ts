@@ -204,6 +204,11 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
     { id: "lim_adjuntos", titulo: "Archivos subidos que nunca se vincularon", explicacion: `PDF o fotos subidos que no se asociaron a ningún cliente o expediente (por ejemplo, de un pedido leído y cancelado), sean de hace un rato o de hace meses. Si alguno sigue en tu cola de pedidos, ese pedido ya no se podrá usar. Ocupan ${mb(Number(bytesSinVincular))}. Se pueden borrar.`, tipo: "limpiable", cantidad: adjuntosViejos.length, filas: adjuntosViejos.slice(0, LIMITE_FILAS).map((a) => ({ id: a.id, texto: a.nombre, detalle: "Subido y sin vincular a nada" })) },
 
     await cat(
+      { id: "bib_archivos", titulo: "Archivos de la biblioteca", explicacion: "Los archivos de trabajo guardados en Herramientas › Biblioteca (pedidos, pagos de RCI, rejillas, Excel). «Borrar todos los datos» no los toca y esta limpieza tampoco: solo se quitan desde la propia biblioteca. Aquí se ven para saber cuántos hay y cuánto ocupan.", tipo: "revisar" },
+      sql`select count(*)::int as n from biblioteca`,
+      sql`select b.id, b.nombre as texto, case b.categoria when 'pedido' then 'Pedido' when 'pago_rci' then 'Pago RCI' when 'rejilla' then 'Rejilla' when 'listado' then 'Listado Excel' else 'Otro' end || ' · ' || round(b.tamano / 1024.0)::int || ' KB' || case when b.id_expediente is not null then ' · del expediente ' || b.id_expediente when b.id_cliente is not null then ' · de un cliente' else ' · sin asignar' end as detalle from biblioteca b order by b.creado_en desc limit ${lim}`,
+    ),
+    await cat(
       { id: "exp_sin_cliente", titulo: "Expedientes sin cliente", explicacion: "Expedientes activos que no tienen ningún cliente asociado.", tipo: "revisar" },
       sql`select count(*)::int as n from expedientes e where ${activos} and e.id_cliente is null`,
       sql`select e.id_expediente as id, 'Exp. ' || e.id_expediente || coalesce(' · ' || e.matricula, '') as texto, 'Sin cliente' as detalle from expedientes e where ${activos} and e.id_cliente is null order by e.id_expediente limit ${lim}`,
@@ -418,6 +423,8 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
   // Todo en una sola transacción, también la recarga de los catálogos: si algo falla, no se borra nada
   try {
   await ej.transaction(async (tx) => {
+    // La biblioteca de archivos no se toca (sin claves foráneas, el TRUNCATE … CASCADE no llega a ella): solo se quita su asignación
+    await tx.execute(sql`update biblioteca set id_cliente = null, id_expediente = null`);
     // TRUNCATE no activa los disparadores de protección. Las tablas de comisiones y lo que cuelga de expedientes primero.
     await tx.execute(
       sql.raw(

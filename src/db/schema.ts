@@ -1043,9 +1043,13 @@ export const biblioteca = pgTable(
     huella: varchar("huella", { length: 64 }).notNull(),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
-    /** Cliente o expediente al que se ha asignado el archivo (si es de un expediente, también va el cliente de ese expediente). */
-    idCliente: integer("id_cliente").references(() => clientes.id, { onDelete: "set null" }),
-    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
+    /**
+     * Cliente o expediente al que se ha asignado el archivo (si es de un expediente, también va el cliente de ese expediente). Sin clave foránea a
+     * propósito: «Borrar todos los datos» usa TRUNCATE … CASCADE y una clave foránea arrastraría la biblioteca; así los archivos sobreviven y solo se
+     * quita la asignación (lo hace `vaciarBaseDeDatos`).
+     */
+    idCliente: integer("id_cliente"),
+    idExpediente: integer("id_expediente"),
   },
   (t) => [uniqueIndex("biblioteca_huella_idx").on(t.huella), index("biblioteca_cliente_idx").on(t.idCliente), index("biblioteca_expediente_idx").on(t.idExpediente)],
 );

@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import Link from "next/link";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Plegable } from "@/components/admin/estructura";
 import { useToast } from "@/components/Toast";
 import type { MarcaDto, ModeloDto, TipoVentaDto, VendedorDto } from "@/lib/dto";
 import { colaVacia, leerCola, suscribirCola, type EleccionRapida } from "@/lib/pedidos-cola";
 import ColaPedidos from "./ColaPedidos";
-import ControlesLectura from "./documentos/ControlesLectura";
-import ZonaPagosRci from "./pagos-rci/ZonaPagosRci";
-import { useLeerPedidos, ZonaPedidos } from "./documentos/leerPedidos";
+import { useLeerPedidos } from "./documentos/leerPedidos";
 import { mensajeDeError } from "./expedientes/comun";
 
 export interface MarcaConModelos extends MarcaDto {
@@ -322,24 +321,15 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       </div>
 
       {/* Cada zona se pliega y se despliega con su botón (se recuerda en este navegador): el panel entero era demasiado para verlo de golpe */}
-      <Plegable id="dash-documentos" titulo="📥 Subir pedidos y pagos de la financiera" resumen="Arrastra los PDF o fotos; el motor de lectura se elige abajo">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "14px" }}>
-        <TarjetaZona titulo="📄 Pedidos de clientes" ayuda="Arrastra los pedidos (PDF o foto): se leen y crean expedientes en la cola de pedidos. Lo que no sea un pedido se ignora.">
-          <ZonaPedidos compacta />
-        </TarjetaZona>
-        <TarjetaZona titulo="💳 Pagos de la financiera (RCI)" ayuda="Arrastra los pagos de RCI (PDF o foto): la fecha de pago fija la fecha RCI de su expediente. Lo que no sea un pago se ignora.">
-          <ZonaPagosRci />
-        </TarjetaZona>
-      </div>
-      <div style={{ padding: "8px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)" }}>
-        <ControlesLectura parte="motor" />
-      </div>
-      </Plegable>
-
-      <Plegable id="dash-cola" titulo="📋 Pedidos leídos y estado de las lecturas" resumen={enCola > 0 ? `${enCola} pedido${enCola === 1 ? "" : "s"} esperando en la cola` : "La cola de pedidos, lo que se está leyendo y lo ignorado"}>
-        <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
-        {enCola === 0 && <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.85rem" }}>No hay pedidos leídos esperando en la cola. Sube pedidos arriba y aparecerán aquí según se vayan leyendo.</p>}
-      </Plegable>
+      {/* Subir pedidos y pagos, la cola y las lecturas viven ahora en Herramientas; aquí solo queda un aviso si hay pedidos esperando */}
+      {enCola > 0 && (
+        <Plegable id="dash-cola" titulo="📋 Pedidos leídos esperando" resumen={`${enCola} pedido${enCola === 1 ? "" : "s"} en la cola`}>
+          <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
+          <Link href="/dashboard/herramientas?p=docs" style={{ fontSize: "0.82rem", color: "var(--primary)" }}>
+            Subir más pedidos y pagos en Herramientas
+          </Link>
+        </Plegable>
+      )}
 
       <Plegable id="dash-modelos" titulo="⚡ Crear un expediente con un clic" resumen="Elige modelo y forma de pago, o arrastra aquí el pedido de un cliente">
       <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", justifyContent: "center", width: "100%" }}>
@@ -413,15 +403,5 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
 
     </div>
-  );
-}
-
-/** Tarjeta de una zona de arrastrar (pedidos, pagos de RCI…): título, ayuda al pasar el ratón y su contenido, todas con el mismo aspecto. */
-function TarjetaZona({ titulo, ayuda, children }: { titulo: string; ayuda: string; children: ReactNode }) {
-  return (
-    <section title={ayuda} style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "12px 14px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)", minWidth: 0 }}>
-      <h3 style={{ margin: 0, fontSize: "0.92rem", fontWeight: 700 }}>{titulo}</h3>
-      {children}
-    </section>
   );
 }

@@ -24,7 +24,7 @@ const TEXTO_ASIGNACION: Record<FiltroAsignacion, string> = { todas: "Todos", sin
 const cumple = (f: ArchivoBibliotecaDto, a: FiltroAsignacion): boolean => (a === "todas" ? true : a === "sin" ? !f.idCliente && !f.idExpediente : a === "con" ? !!(f.idCliente || f.idExpediente) : a === "cliente" ? !!f.idCliente && !f.idExpediente : !!f.idExpediente);
 
 /** «Biblioteca»: los archivos de trabajo (pedidos, pagos de RCI, rejillas, listados Excel) guardados en el servidor para no volver a subirlos. */
-export default function BibliotecaClient() {
+export default function BibliotecaClient({ incrustada = false }: { incrustada?: boolean }) {
   const { mostrar, confirmar } = useToast();
   const { datos, recargar } = useCarga<RespuestaListado | null>("/api/biblioteca", null);
   const [asignacion, setAsignacion] = useState<FiltroAsignacion>("todas");
@@ -212,10 +212,14 @@ export default function BibliotecaClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <div>
-        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Biblioteca de archivos</h1>
-        <p style={{ color: "var(--text-secondary)" }}>Guarda aquí pedidos, pagos de RCI, rejillas y listados Excel una sola vez. Después, en cada zona de subida, pulsa «📚 Elegir de la biblioteca» y no tendrás que buscarlos en tu equipo. También puedes asignar cada archivo a un cliente o a un expediente.</p>
-      </div>
+      {incrustada ? (
+        <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.88rem" }}>Guarda aquí pedidos, pagos de RCI, rejillas y listados Excel una sola vez. Después, en cada zona de subida, pulsa «📚 Elegir de la biblioteca» y no tendrás que buscarlos en tu equipo. «Borrar todos los datos» no los toca. También puedes asignar cada archivo a un cliente o a un expediente.</p>
+      ) : (
+        <div>
+          <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Biblioteca de archivos</h1>
+          <p style={{ color: "var(--text-secondary)" }}>Guarda aquí pedidos, pagos de RCI, rejillas y listados Excel una sola vez. Después, en cada zona de subida, pulsa «📚 Elegir de la biblioteca» y no tendrás que buscarlos en tu equipo. También puedes asignar cada archivo a un cliente o a un expediente.</p>
+        </div>
+      )}
 
       <section
         className="glass-panel"
