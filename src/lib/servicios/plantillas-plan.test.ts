@@ -30,6 +30,7 @@ const plan = (extra: Partial<PlanEditable> = {}): PlanEditable => ({
   penalizacionDescripcion: null,
   notas: null,
   vendedores: [],
+  reglasObjetivo: [],
   promociones: [],
   puntosModelo: [],
   tasas: [],

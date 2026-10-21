@@ -6,6 +6,7 @@ import ComisionesManager from "@/components/comisiones/ComisionesManager";
 import { esAdministrador, esRolActivo } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
 import { leerCatalogos } from "@/lib/servicios/catalogos";
+import { leerObjetivoDefecto } from "@/lib/servicios/objetivo-defecto";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function ComisionesPage() {
           marcas: marcasComisiones.map((m) => ({ id: m.id_marca, nombre: m.nombre })),
           modelos: catalogos.modelos.filter((m) => m.marca_id !== null && idsMarcas.has(m.marca_id)).map((m) => ({ id: m.id_modelo, nombre: m.nombre_modelo, marcaId: m.marca_id })),
           vendedores: vendedores.map((v) => ({ id: v.id, nombre: v.nombre ?? `Usuario ${v.id}`, tipo: v.tipo })),
+          objetivoDefecto: await leerObjetivoDefecto(db),
         }}
       />
     </div>

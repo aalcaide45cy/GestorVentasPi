@@ -78,6 +78,19 @@ export const esquemaPlanBase = z.object({
     penalizacionDescripcion: z.string().max(1000).nullable().default(null),
     notas: z.string().max(5000).nullable().default(null),
     vendedores: z.array(z.object({ idUsuario: z.number().int().positive(), objetivoBase: entero.min(0), arrastre: entero.default(0) })).default([]),
+    /** Reglas que suben o bajan el objetivo X según los coches del mes (puntos en centésimas; negativos lo bajan). */
+    reglasObjetivo: z
+      .array(
+        z.object({
+          nombre: z.string().trim().max(200).default(""),
+          activa: z.boolean().default(true),
+          metrica: z.enum(["vo", "vn", "total"]).default("vo"),
+          comparador: z.enum(["menos_de", "al_menos"]).default("menos_de"),
+          cantidad: entero.min(0).max(999).default(1),
+          puntos: entero.min(-100000).max(100000).default(0),
+        }),
+      )
+      .default([]),
     promociones: z
       .array(
         z.object({
@@ -213,6 +226,7 @@ export async function leerPlan(ej: Ejecutor, idPlan: number): Promise<PlanEditab
     penalizacionDescripcion: p.penalizacionDescripcion,
     notas: p.notas,
     vendedores: vend.map((v) => ({ idUsuario: v.idUsuario, objetivoBase: v.objetivoBase, arrastre: v.arrastre })),
+    reglasObjetivo: p.reglasObjetivo,
     promociones: promos.map((x) => ({ id: x.id, nombre: x.nombre, puntosEspeciales: x.puntosEspeciales, minimoUnidades: x.minimoUnidades, puntosSiNoCumple: x.puntosSiNoCumple })),
     puntosModelo: pm.map((x) => ({ idModelo: x.idModelo, puntos: x.puntos })),
     tasas: tasas.map((x) => ({ idMarca: x.idMarca, tipoTasa: x.tipoTasa as "porcentaje", objetivo: x.objetivo, puntosDefecto: x.puntosDefecto })),
@@ -315,6 +329,7 @@ export async function guardarPlan(ej: Ejecutor, idPlan: number | null, entrada: 
       penalizacionTitulo: p.penalizacionTitulo,
       penalizacionDescripcion: p.penalizacionDescripcion,
       notas: p.notas,
+      reglasObjetivo: p.reglasObjetivo,
     };
     if (id === null) {
       id = (await tx.insert(commissionPlans).values(base).returning({ id: commissionPlans.idPlan }))[0].id;

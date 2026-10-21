@@ -236,3 +236,23 @@ describe("auditoría: casos límite", () => {
     expect(manuales.map((m) => [m.nombre, m.clave])).toEqual([["Bonus manual", claves[0]]]);
   });
 });
+
+describe("planes: reglas del objetivo y objetivo por defecto", () => {
+  it("las reglas del objetivo se guardan, se leen y entran en el cálculo", async () => {
+    const { plan } = await base();
+    const guardado = await guardarPlan(db, plan.idPlan, { ...plan, reglasObjetivo: [{ nombre: "Sin usados", metrica: "vo", comparador: "menos_de", cantidad: 1, puntos: 100 }] });
+    expect(guardado.plan.reglasObjetivo).toEqual([{ nombre: "Sin usados", activa: true, metrica: "vo", comparador: "menos_de", cantidad: 1, puntos: 100 }]);
+    expect((await leerPlan(db, plan.idPlan))?.reglasObjetivo).toHaveLength(1);
+    expect((await guardarPlan(db, plan.idPlan, { ...guardado.plan, reglasObjetivo: [] })).plan.reglasObjetivo).toEqual([]);
+  });
+
+  it("el objetivo por defecto es 13 puntos hasta que se cambia", async () => {
+    const { leerObjetivoDefecto, guardarObjetivoDefecto } = await import("./objetivo-defecto");
+    expect(await leerObjetivoDefecto(db)).toBe(1300);
+    await guardarObjetivoDefecto(db, { objetivo: 1500 });
+    expect(await leerObjetivoDefecto(db)).toBe(1500);
+    await guardarObjetivoDefecto(db, { objetivo: 1450 });
+    expect(await leerObjetivoDefecto(db)).toBe(1450);
+    await expect(guardarObjetivoDefecto(db, { objetivo: -1 })).rejects.toThrow();
+  });
+});

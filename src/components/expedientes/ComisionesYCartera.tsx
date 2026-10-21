@@ -238,7 +238,8 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
     const resumen: FilaResumen[] = [
       { concepto: "Objetivo base", valor: puntos(resultado.objetivoBase), nota: "Puntos fijados en el plan para este vendedor" },
       { concepto: "Arrastre", valor: puntos(resultado.objetivoArrastre), nota: "Puntos que se arrastran de meses anteriores" },
-      { concepto: "Objetivo X", valor: puntos(resultado.objetivoX), nota: "Base + arrastre" },
+      ...(resultado.objetivoAjustes ?? []).map((a): FilaResumen => ({ concepto: `Regla: ${a.nombre}`, valor: puntos(a.puntos), nota: "Regla del plan que cambia el objetivo de este mes" })),
+      { concepto: "Objetivo X", valor: puntos(resultado.objetivoX), nota: (resultado.objetivoAjustes ?? []).length > 0 ? "Base + arrastre + reglas del plan" : "Base + arrastre" },
     ];
     contenido = <TablaDatos<FilaResumen> id="detalle-objetivo" columnas={columnasResumen} filas={resumen} clave={(f) => f.concepto} />;
   } else if (tipo === "penalizacion" || tipo === "neto") {

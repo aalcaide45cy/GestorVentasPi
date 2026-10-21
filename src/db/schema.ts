@@ -239,6 +239,16 @@ export interface ConceptoEspecial {
   cobrado: boolean;
 }
 
+/** Regla de un plan que sube o baja el objetivo X según los coches del mes (ver `ReglaObjetivoMotor`). */
+export interface ReglaObjetivoPlan {
+  nombre: string;
+  activa: boolean;
+  metrica: "vo" | "vn" | "total";
+  comparador: "menos_de" | "al_menos";
+  cantidad: number;
+  puntos: number;
+}
+
 export const expedientes = pgTable(
   "expedientes",
   {
@@ -460,6 +470,8 @@ export const commissionPlans = pgTable("commission_plans", {
   penalizacionTitulo: text("penalizacion_titulo"),
   penalizacionDescripcion: text("penalizacion_descripcion"),
   notas: text("notas"),
+  /** Reglas que suben o bajan el objetivo X de un vendedor según los coches del mes (p. ej. «sin ningún usado, +1 punto»). */
+  reglasObjetivo: jsonb("reglas_objetivo").$type<ReglaObjetivoPlan[]>().notNull().default([]),
 });
 
 export const commissionPlanVendedores = pgTable(

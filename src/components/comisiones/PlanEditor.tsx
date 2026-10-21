@@ -37,7 +37,7 @@ const INTRO: Record<IdPestana, string> = {
   resumen:
     "Datos generales del plan: nombre, fechas y vendedores. Un plan vale para los meses entre «F. inicio» y «F. fin». Cada coche cuenta en el mes de su fecha de facturación (en un VN, por defecto igual a la de matriculación; en un VO, la de la RCI o, si es de contado, el último día del mes del pedido; sin facturación, la de matriculación). La fecha de entrega es solo un apunte y no afecta a nada.",
   objetivo:
-    "Los puntos que debe sumar cada vendedor en el mes (Objetivo X = base + arrastre). Con los puntos reales (nuevos y usados) se calcula el tramo del mes, de −4 a +3, y el tramo decide cuánto se cobra por cada coche nuevo en la pestaña VN. Aquí también se fijan los puntos por defecto de cada marca y modelo, la tasa de intervención y las promociones de puntos.",
+    "Los puntos que debe sumar cada vendedor en el mes (Objetivo X = base + arrastre). Con los puntos reales (nuevos y usados) se calcula el tramo del mes, de −4 a +3, y el tramo decide cuánto se cobra por cada coche nuevo en la pestaña VN. Aquí también se fija el objetivo por defecto de un vendedor nuevo, las reglas que suben o bajan el objetivo según lo que venda cada mes, los puntos por defecto de cada marca y modelo, la tasa de intervención y las promociones de puntos.",
   modelos:
     "Lo que cobra el vendedor por cada coche NUEVO (VN), según el modelo, el tramo del mes y si se cumple la tasa de intervención de la marca. Esta pestaña no afecta a los usados: para ellos mira «Usados / VO».",
   usados:
@@ -92,6 +92,7 @@ const PLAN_VACIO = (): Plan => {
     penalizacionDescripcion: null,
     notas: null,
     vendedores: [],
+    reglasObjetivo: [],
     promociones: [],
     puntosModelo: [],
     tasas: [],

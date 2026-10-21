@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import { useToast } from "@/components/Toast";
 import { useCarga } from "@/components/comisiones/useCarga";
+import { mensajeDeError } from "@/components/expedientes/comun";
+import { avisarCambioDeDatos } from "@/lib/datos-version";
 import { formatDate } from "@/lib/date-utils";
 import type { FilaDuplicado, MotivoDuplicado, ResultadoDuplicados } from "@/lib/servicios/duplicados";
 
@@ -31,11 +34,49 @@ const GRAVEDAD: Record<MotivoDuplicado, { color: string; texto: string }> = {
 
 /**
  * «Detectar duplicados»: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo, y los enseña agrupados en una tabla
- * (ordenable, con buscador y columnas a elegir) para abrirlos y decidir cuál sobra. Solo lee: no borra ni cambia nada.
+ * (ordenable, con buscador y columnas a elegir) para abrirlos y decidir cuál sobra. Buscar no cambia nada; lo que se marca y se manda a la
+ * papelera se puede recuperar desde Herramientas › Papelera.
  */
 export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) {
+  const { mostrar, confirmar } = useToast();
   const { datos, recargar } = useCarga<ResultadoDuplicados | null>("/api/expedientes/duplicados", null);
   const [motivo, setMotivo] = useState<"todos" | MotivoDuplicado>("todos");
+  const [marcados, setMarcados] = useState<Set<number>>(new Set());
+  const [enviando, setEnviando] = useState(false);
+  const alternar = (id: number) =>
+    setMarcados((m) => {
+      const n = new Set(m);
+      if (!n.delete(id)) n.add(id);
+      return n;
+    });
+
+  /** Marca, en los grupos seguros (bastidor, matrícula, mismo pedido), todos menos el expediente más antiguo de cada uno. */
+  const marcarSobrantes = () => {
+    const ids = new Set<number>();
+    for (const g of datos?.grupos ?? []) if (g.motivo !== "cliente_modelo") g.filas.slice(1).forEach((f) => ids.add(f.id));
+    setMarcados(ids);
+  };
+
+  const aLaPapelera = async () => {
+    const ids = [...marcados];
+    if (ids.length === 0) return;
+    if (!(await confirmar({ texto: `Se van a mandar ${ids.length} expediente${ids.length === 1 ? "" : "s"} a la papelera.
+
+No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras estén allí no cuentan en las comisiones. ¿Continuar?`, peligro: true }))) return;
+    setEnviando(true);
+    try {
+      const res = await fetch("/api/expedientes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se han podido mandar a la papelera."));
+      mostrar(`${ids.length} expediente${ids.length === 1 ? "" : "s"} en la papelera (recuperables desde Herramientas › Papelera).`, "exito");
+      setMarcados(new Set());
+      avisarCambioDeDatos();
+      recargar();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se han podido mandar a la papelera.", "error");
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const filas = useMemo<Fila[]>(
     () => (datos?.grupos ?? []).flatMap((g) => g.filas.map((f) => ({ ...f, grupo: g.grupo, motivo: g.motivo, clave: g.clave, motivoTexto: MOTIVOS[g.motivo] }))),
@@ -46,6 +87,7 @@ export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) 
 
   const columnas = useMemo<ColumnaTabla<Fila>[]>(
     () => [
+      { clave: "marca", etiqueta: "Papelera", valor: (f) => (marcados.has(f.id) ? 1 : 0), celda: (f) => <input type="checkbox" checked={marcados.has(f.id)} onChange={() => alternar(f.id)} aria-label={`Marcar el expediente ${f.id} para la papelera`} />, ancho: 70, ayuda: "Marca los expedientes que sobran para mandarlos a la papelera" },
       { clave: "grupo", etiqueta: "Grupo", valor: (f) => f.grupo, celda: (f) => <b style={{ color: GRAVEDAD[f.motivo].color }}>#{f.grupo}</b>, ancho: 60, ayuda: "Los expedientes con el mismo número de grupo se parecen entre sí" },
       { clave: "motivo", etiqueta: "Motivo", valor: (f) => f.motivoTexto, celda: (f) => <span title={GRAVEDAD[f.motivo].texto} style={{ color: GRAVEDAD[f.motivo].color, fontWeight: 600 }}>{f.motivoTexto}</span> },
       { clave: "comun", etiqueta: "Lo que comparten", valor: (f) => f.clave },
@@ -61,7 +103,7 @@ export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) 
       { clave: "vendedor", etiqueta: "Vendedor", valor: (f) => f.vendedor ?? "" },
       { clave: "copia", etiqueta: "Copia", valor: (f) => (f.copiaDe ? `Copia de #${f.copiaDe}` : ""), oculta: true },
     ],
-    [],
+    [marcados],
   );
 
   const n = visibles.length;
@@ -71,8 +113,11 @@ export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) 
       ancho="1400px"
       pie={
         <>
-          <button type="button" className="btn btn-secondary" onClick={recargar} title="Vuelve a buscar con los datos de ahora">
+          <button type="button" className="btn btn-secondary" onClick={recargar} disabled={enviando} title="Vuelve a buscar con los datos de ahora">
             🔄 Volver a buscar
+          </button>
+          <button type="button" className="btn btn-danger" onClick={() => void aLaPapelera()} disabled={enviando || marcados.size === 0} title="Los marcados se pueden recuperar desde Herramientas › Papelera">
+            {enviando ? "Enviando…" : `🗑️ Mandar a la papelera (${marcados.size})`}
           </button>
           <button type="button" className="btn btn-primary" onClick={alCerrar}>
             Cerrar
@@ -82,7 +127,7 @@ export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) 
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.9rem" }}>
         <div style={{ color: "var(--text-secondary)" }}>
-          Busca entre {datos ? datos.revisados : "todos los"} expedientes los que comparten bastidor, matrícula, o cliente y modelo. Cada grupo reúne los que se parecen: ábrelos (#EXP, en otra pestaña) y decide cuál sobra. Aquí no se borra nada. Las copias hechas a propósito con «Duplicar» no se cuentan.
+          Busca entre {datos ? datos.revisados : "todos los"} expedientes los que comparten bastidor, matrícula, o cliente y modelo. Cada grupo reúne los que se parecen: ábrelos (#EXP, en otra pestaña) y decide cuál sobra. Marca los que sobran y mándalos a la papelera (se pueden recuperar desde Herramientas › Papelera). Las copias hechas a propósito con «Duplicar» no se cuentan.
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>VER</span>
@@ -95,6 +140,17 @@ export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) 
             </button>
           ))}
         </div>
+        {datos !== null && datos.grupos.length > 0 && (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={marcarSobrantes} title="En los grupos de bastidor, matrícula y mismo pedido deja sin marcar el expediente más antiguo y marca los demás">
+              ✅ Marcar los sobrantes seguros
+            </button>
+            <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setMarcados(new Set())} disabled={marcados.size === 0}>
+              Quitar marcas
+            </button>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{marcados.size} marcado{marcados.size === 1 ? "" : "s"}. Revisa la lista antes de mandarlos a la papelera.</span>
+          </div>
+        )}
         {datos === null ? (
           <div style={{ color: "var(--text-muted)" }}>Buscando…</div>
         ) : datos.grupos.length === 0 ? (

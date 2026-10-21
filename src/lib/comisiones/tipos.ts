@@ -183,6 +183,22 @@ export interface ObjetivoVendedorMotor {
   arrastre: Centesimas;
 }
 
+/**
+ * Regla que sube o baja el objetivo X de un vendedor en un mes según los coches que cuentan ese mes
+ * (por ejemplo «si no vende ningún usado, el objetivo sube 1 punto»).
+ */
+export interface ReglaObjetivoMotor {
+  nombre?: string;
+  activa?: boolean;
+  /** Qué coches se cuentan: usados (VO), nuevos (VN) o todos (matriculados). */
+  metrica: "vo" | "vn" | "total";
+  /** «menos_de»: se cumple con menos de `cantidad` coches; «al_menos»: con `cantidad` o más. */
+  comparador: "menos_de" | "al_menos";
+  cantidad: number;
+  /** Puntos (centésimas) que se suman al objetivo X cuando se cumple; negativos lo bajan. */
+  puntos: Centesimas;
+}
+
 export interface PlanMotor {
   idPlan: number;
   nombre?: string;
@@ -199,6 +215,8 @@ export interface PlanMotor {
   voPuntos?: Centesimas | null;
   /** Objetivo X por vendedor (clave = id del vendedor). */
   objetivos: Record<number, ObjetivoVendedorMotor>;
+  /** Reglas que ajustan el objetivo X según los coches del mes (opcionales). */
+  reglasObjetivo?: ReglaObjetivoMotor[];
   puntosPorDefectoModelo: Record<number, Centesimas>;
   puntosPorDefectoMarca: Record<number, Centesimas>;
   promociones: PromocionMotor[];
@@ -339,6 +357,8 @@ export interface ResultadoMes {
   /** Objetivo X del vendedor = base + arrastre. */
   objetivoBase: Centesimas;
   objetivoArrastre: Centesimas;
+  /** Reglas del plan que han cambiado el objetivo X este mes (ya incluidas en `objetivoX`). */
+  objetivoAjustes?: { nombre: string; puntos: Centesimas }[];
   lineas: LineaExpediente[];
   bruto: Centimos;
   penalizacion: Centimos;

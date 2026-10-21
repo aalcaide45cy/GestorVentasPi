@@ -477,7 +477,7 @@ function analizar(s: Omit<Instantanea, "hallazgos">, hist: Muestra[]): Hallazgo[
     if (s.bd.conexiones.esperando > 0) h.push({ nivel: "medio", texto: `${s.bd.conexiones.esperando} consulta(s) esperando un bloqueo de otra.` });
     if (s.bd.aciertoCachePct !== null && s.bd.aciertoCachePct < 95) h.push({ nivel: "medio", texto: `La base de datos acierta ${s.bd.aciertoCachePct} % de las lecturas en memoria (lo sano es más del 99 %): lee mucho del disco. Puede faltar memoria para la base de datos (shared_buffers = ${s.bd.sharedBuffers}).` });
     const muertas = s.bd.tablasGrandes.filter((t) => t.filasMuertas > 20000);
-    if (muertas.length > 0) h.push({ nivel: "medio", texto: `Hay muchas filas muertas sin limpiar en ${muertas.map((t) => t.tabla).join(", ")}: conviene «Compactar base de datos» en Papelera y purga.` });
+    if (muertas.length > 0) h.push({ nivel: "medio", texto: `Hay muchas filas muertas sin limpiar en ${muertas.map((t) => t.tabla).join(", ")}: conviene «Compactar base de datos» en Herramientas › Papelera.` });
   }
   if (s.disco.libreGb !== null && s.disco.totalGb) {
     const pct = (s.disco.libreGb / s.disco.totalGb) * 100;

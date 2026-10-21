@@ -6,6 +6,8 @@ import ColaPedidos from "@/components/ColaPedidos";
 import type { MarcaConModelos } from "@/components/QuickExpedienteCreator";
 import ControlesLectura from "@/components/documentos/ControlesLectura";
 import { ZonaPedidos } from "@/components/documentos/leerPedidos";
+import PanelPapelera from "@/components/admin/PanelPapelera";
+import BotonAyuda from "@/components/BotonAyuda";
 import TarjetaZona from "@/components/herramientas/TarjetaZona";
 import ZonaPagosRci from "@/components/pagos-rci/ZonaPagosRci";
 import type { TipoVentaDto, VendedorDto } from "@/lib/dto";
@@ -20,6 +22,7 @@ const PESTANAS = [
   { id: "cola", icono: "📋", titulo: "Cola de pedidos", ayuda: "Los pedidos ya leídos que esperan para crearse como expedientes, lo que se está leyendo y lo ignorado." },
   { id: "biblioteca", icono: "📚", titulo: "Biblioteca", ayuda: "Tus archivos de trabajo guardados una vez (pedidos, pagos de RCI, rejillas, Excel) para usarlos cuando quieras sin volver a buscarlos." },
   { id: "historial", icono: "📜", titulo: "Historial de lecturas", ayuda: "Qué ha pasado con cada PDF o foto que has subido para leer: si se leyó, se ignoró o falló." },
+  { id: "papelera", icono: "🗑️", titulo: "Papelera", ayuda: "Todo lo eliminado que sigue guardado (expedientes, clientes, documentos…): verlo, recuperarlo, descargarlo y purgarlo de verdad. Solo para administradores.", soloAdmin: true },
 ] as const;
 type IdPestana = (typeof PESTANAS)[number]["id"];
 
@@ -46,8 +49,9 @@ function PestanaDelEnlace() {
  */
 export default function HerramientasClient({ marcas, tiposVenta, vendedores, idUsuario, esAdmin }: Props) {
   const [guardada, guardar] = usePreferencia("herramientas-pestana");
-  const activa: IdPestana = PESTANAS.some((p) => p.id === guardada) ? (guardada as IdPestana) : "docs";
-  const pestana = PESTANAS.find((p) => p.id === activa) ?? PESTANAS[0];
+  const visibles = PESTANAS.filter((p) => esAdmin || !("soloAdmin" in p));
+  const activa: IdPestana = visibles.some((p) => p.id === guardada) ? (guardada as IdPestana) : "docs";
+  const pestana = visibles.find((p) => p.id === activa) ?? visibles[0];
   const enCola = useSyncExternalStore(suscribirCola, leerCola, colaVacia).items.length;
   const [vendedorId, setVendedorId] = useState(idUsuario);
 
@@ -58,11 +62,11 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
       </Suspense>
       <div>
         <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Herramientas</h1>
-        <p style={{ color: "var(--text-secondary)" }}>Lectura de pedidos y pagos de la financiera, cola de pedidos, biblioteca de archivos e historial de lecturas, todo en un solo sitio.</p>
+        <p style={{ color: "var(--text-secondary)" }}>Lectura de pedidos y pagos de la financiera, cola de pedidos, biblioteca de archivos, historial de lecturas y papelera, todo en un solo sitio.</p>
       </div>
 
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }} role="tablist">
-        {PESTANAS.map((p) => {
+        {visibles.map((p) => {
           const seleccionada = p.id === activa;
           return (
             <button key={p.id} type="button" role="tab" aria-selected={seleccionada} className={seleccionada ? "btn btn-primary" : "btn btn-secondary"} onClick={() => guardar(p.id)} title={p.ayuda}>
@@ -72,7 +76,7 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
           );
         })}
       </div>
-      {activa !== "biblioteca" && <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>{pestana.ayuda}</p>}
+      {activa !== "biblioteca" && <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>{pestana.ayuda}{activa === "papelera" && <> <BotonAyuda guia="herramientas.papelera" /></>}</p>}
 
       {activa === "docs" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -125,6 +129,11 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
 
       {activa === "biblioteca" && <BibliotecaClient incrustada />}
       {activa === "historial" && <LogLecturasClient incrustada />}
+      {activa === "papelera" && esAdmin && (
+        <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          <PanelPapelera />
+        </div>
+      )}
     </div>
   );
 }

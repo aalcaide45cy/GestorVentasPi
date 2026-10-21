@@ -1,0 +1,1 @@
+ALTER TABLE "commission_plans" ADD COLUMN "reglas_objetivo" jsonb DEFAULT '[]'::jsonb NOT NULL;

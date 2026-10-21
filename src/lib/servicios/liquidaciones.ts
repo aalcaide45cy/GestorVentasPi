@@ -116,6 +116,7 @@ export async function cargarPlan(ej: Ejecutor, idPlan: number): Promise<PlanMoto
     tasaIncluyeVo: p.tasaIncluyeVo,
     tasaVo: { tipoTasa: p.tasaVoTipo === "unidades" ? "unidades" : "porcentaje", objetivo: p.tasaVoObjetivo },
     objetivos: Object.fromEntries(vend.map((v) => [v.idUsuario, { base: v.objetivoBase, arrastre: v.arrastre }])),
+    reglasObjetivo: p.reglasObjetivo,
     puntosPorDefectoModelo: Object.fromEntries(puntosModelo.map((x) => [x.idModelo, x.puntos])),
     puntosPorDefectoMarca: Object.fromEntries(tasas.map((x) => [x.idMarca, x.puntosDefecto])),
     promociones: promos.map((x) => ({ id: x.id, nombre: x.nombre, puntosEspeciales: x.puntosEspeciales, minimoUnidades: x.minimoUnidades, puntosSiNoCumple: x.puntosSiNoCumple })),

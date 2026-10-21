@@ -38,7 +38,7 @@ export const GUIAS: Record<string, Guia> = {
       "«Selección» y «Eliminación» están bloqueadas por seguridad: pulsa el candado para activarlas un rato y poder actuar sobre varios expedientes.",
       "«Importar y exportar» saca los expedientes a un archivo, los trae de otro, y completa datos desde los Excel de la intranet.",
     ],
-    ojo: ["Lo eliminado va a la papelera (Configuración › BBDD › Papelera) y se puede recuperar.", "Los cambios recientes se pueden deshacer con «Deshacer» de la barra lateral."],
+    ojo: ["Lo eliminado va a la papelera (Herramientas › Papelera) y se puede recuperar.", "Los cambios recientes se pueden deshacer con «Deshacer» de la barra lateral."],
   },
   "menu.clientes": {
     titulo: "Clientes",
@@ -64,7 +64,7 @@ export const GUIAS: Record<string, Guia> = {
     pasos: [
       "«Gestión de usuarios y roles»: alta de usuarios, cambio de rol, bloqueo, restablecer contraseña o doble factor.",
       "Debajo, las pestañas (Marcas, Modelos, Tiendas, Pagos, Estados, Expedientes, BBDD y Tema), cada una con su propia «i» de guía.",
-      "En BBDD están las copias de seguridad, la papelera, las actualizaciones y el estado del equipo.",
+      "En BBDD están las copias de seguridad, las actualizaciones y el estado del equipo (la papelera está en Herramientas).",
     ],
     ojo: ["Un punto rojo junto a «Configuración» avisa de que hay demasiadas copias de seguridad.", "Lo que cambias aquí afecta a todos los usuarios."],
   },
@@ -147,7 +147,7 @@ export const GUIAS: Record<string, Guia> = {
       "Activa «Sistema de comisiones» en las marcas que cuentan en tu plan de comisionamiento (Renault y Dacia, por ejemplo).",
       "Puedes poner un símbolo propio (un punto, una coma, un emoticono) para reconocer la marca en las listas.",
     ],
-    ojo: ["Si borras una marca, también se borran sus modelos; van a la papelera y se pueden recuperar desde Configuración › BBDD › Papelera.", "Con los botones de arriba de la sección puedes exportar o importar las marcas y modelos."],
+    ojo: ["Si borras una marca, también se borran sus modelos; van a la papelera y se pueden recuperar desde Herramientas › Papelera.", "Con los botones de arriba de la sección puedes exportar o importar las marcas y modelos."],
   },
   "config.modelos": {
     titulo: "Modelos",
@@ -163,7 +163,7 @@ export const GUIAS: Record<string, Guia> = {
     titulo: "Tiendas",
     queEs: "Los puntos de venta físicos. Cada expediente pertenece a una tienda, y una de ellas es la predeterminada.",
     pasos: ["Añade cada tienda con su nombre.", "Marca como predeterminada la que usas casi siempre: saldrá ya elegida al crear expedientes.", "Edita o borra con los botones de cada fila."],
-    ojo: ["Una tienda borrada va a la papelera y se puede recuperar desde Configuración › BBDD › Papelera."],
+    ojo: ["Una tienda borrada va a la papelera y se puede recuperar desde Herramientas › Papelera."],
   },
   "config.pagos": {
     titulo: "Pagos (tipos de venta)",
@@ -193,7 +193,7 @@ export const GUIAS: Record<string, Guia> = {
   },
   "config.bbdd": {
     titulo: "BBDD (base de datos y sistema)",
-    queEs: "El mantenimiento de la aplicación: revisar la base de datos, la papelera, las copias de seguridad, las actualizaciones y el estado del equipo. Solo para administradores.",
+    queEs: "El mantenimiento de la aplicación: revisar la base de datos, las copias de seguridad, las actualizaciones y el estado del equipo. Solo para administradores.",
     pasos: ["Elige una subpestaña según lo que necesites; cada una tiene su propia «i» con la guía.", "Antes de borrar o restaurar algo importante, haz una copia de seguridad en «Copias de seguridad»."],
     ojo: ["Lo que hagas aquí afecta a todos los usuarios."],
   },
@@ -216,7 +216,7 @@ export const GUIAS: Record<string, Guia> = {
     pasos: ["Pulsa «Analizar» y espera el resultado.", "Revisa cada grupo: la aplicación explica qué ha encontrado y qué se puede hacer.", "Usa «Limpiar» solo en lo que estés seguro de querer quitar."],
     ojo: ["La limpieza guarda antes una copia de seguridad. Los cambios grandes se hacen como tarea en segundo plano, con barra de progreso arriba."],
   },
-  "config.bbdd.papelera": {
+  "herramientas.papelera": {
     titulo: "Papelera y purga",
     queEs: "Todo lo que has eliminado sigue guardado aquí hasta que lo purgues de verdad. Puedes verlo, descargarlo y recuperarlo.",
     pasos: ["Elige la sección (expedientes, clientes, documentos…) y mira lo eliminado.", "Restaura lo que borraste por error.", "«Purgar» borra de verdad y libera espacio; en cantidades grandes se hace por lotes y en segundo plano.", "«Compactar» devuelve al disco el espacio que dejaron los registros purgados."],

@@ -9,7 +9,7 @@ import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { AnalisisBbdd, CategoriaAnomalia, FilaAnomalia } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
 import PanelDatos from "./PanelDatos";
-import PanelPapelera, { GestorFilas } from "./PanelPapelera";
+import { GestorFilas } from "./PanelPapelera";
 import { SubPestanas } from "./estructura";
 import { guardarPreferencia } from "@/lib/preferencias";
 import { alTerminarTarea, lanzarTarea } from "@/lib/tareas-cliente";
@@ -164,7 +164,6 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
         guiaBase="config.bbdd"
         pestanas={[
           { clave: "analisis", etiqueta: "🔍 Análisis y limpieza", ayuda: "Busca registros huérfanos y cosas a revisar en la base de datos", insignia: analisis ? analisis.stats.totalAnomalies + analisis.stats.totalARevisar : undefined },
-          { clave: "papelera", etiqueta: "🗑️ Papelera y purga", ayuda: "Todo lo eliminado que sigue guardado: verlo, descargarlo y purgarlo de verdad" },
           { clave: "datos", etiqueta: "📦 Exportar e importar", ayuda: "Exportar, importar y guardar copias internas de cada sección de datos" },
           { clave: "copias", etiqueta: "💾 Copias de seguridad", ayuda: "Copias completas .dump, descarga, restauración y Google Drive" },
           { clave: "sistema", etiqueta: "⚙️ Sistema", ayuda: "Actualizar la aplicación y opciones de interfaz" },
@@ -231,11 +230,6 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
                   <TablaDatos<FilaAnomalia> id={`bbdd-${abierta.id}`} columnas={columnasDe(abierta)} filas={abierta.filas} clave={(f) => `${abierta.id}-${f.id}-${f.detalle}`} compacta placeholder="Buscar…" />
                 </Modal>
               )}
-              </>
-            )}
-            {pestana === "papelera" && (
-              <>
-              <PanelPapelera />
               </>
             )}
             {pestana === "datos" && (

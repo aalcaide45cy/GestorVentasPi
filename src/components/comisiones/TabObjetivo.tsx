@@ -1,10 +1,32 @@
 "use client";
 
+import { useState } from "react";
+import { useToast } from "@/components/Toast";
+import { llamar, textoError } from "./api";
 import EditorTasas from "./EditorTasas";
 import { BotonMini, InputCentesimas, InputEntero, Seccion } from "./campos";
 import type { PropsPestana } from "./tipos";
 
+const METRICAS = { vo: "usados (VO)", vn: "coches nuevos (VN)", total: "coches en total (matriculados)" } as const;
+
 export default function TabObjetivo({ plan, setPlan, cat }: PropsPestana) {
+  const { mostrar } = useToast();
+  // Objetivo con el que entra un vendedor nuevo: el que se guarda en Ajustes (13 puntos hasta que se cambie)
+  const [guardadoDefecto, setGuardadoDefecto] = useState(cat.objetivoDefecto ?? 1300);
+  const [defecto, setDefecto] = useState(cat.objetivoDefecto ?? 1300);
+  const [guardandoDefecto, setGuardandoDefecto] = useState(false);
+  const guardarDefecto = async () => {
+    setGuardandoDefecto(true);
+    try {
+      await llamar("/api/comisiones/objetivo-defecto", { method: "PUT", cuerpo: { objetivo: defecto } });
+      setGuardadoDefecto(defecto);
+      mostrar("Objetivo por defecto guardado: los vendedores que añadas a un plan entrarán con él.", "exito");
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setGuardandoDefecto(false);
+    }
+  };
   const libres = cat.vendedores.filter((v) => !plan.vendedores.some((x) => x.idUsuario === v.id));
   const nombreV = (id: number) => cat.vendedores.find((v) => v.id === id)?.nombre ?? `Usuario ${id}`;
   const marcasUsadas = cat.marcas.filter((m) => !plan.tasas.some((t) => t.idMarca === m.id));
@@ -22,7 +44,7 @@ export default function TabObjetivo({ plan, setPlan, cat }: PropsPestana) {
               value=""
               onChange={(e) => {
                 const id = Number(e.target.value);
-                if (id) setPlan((p) => ({ ...p, vendedores: [...p.vendedores, { idUsuario: id, objetivoBase: 1300, arrastre: 0 }] }));
+                if (id) setPlan((p) => ({ ...p, vendedores: [...p.vendedores, { idUsuario: id, objetivoBase: defecto, arrastre: 0 }] }));
               }}
             >
               <option value="">+ Añadir vendedor…</option>
@@ -35,6 +57,15 @@ export default function TabObjetivo({ plan, setPlan, cat }: PropsPestana) {
           )
         }
       >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", padding: "10px 14px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
+          <label className="form-label" style={{ margin: 0 }} title="Se usa al añadir un vendedor a un plan. Los vendedores que ya están en un plan no cambian.">
+            🎯 Objetivo por defecto de un vendedor nuevo
+          </label>
+          <InputCentesimas valor={defecto} onChange={(n) => setDefecto(n ?? 0)} sufijo="puntos" />
+          <BotonMini onClick={() => void guardarDefecto()} titulo="Guarda este valor para todos los planes nuevos">
+            {guardandoDefecto ? "Guardando…" : defecto === guardadoDefecto ? "Guardado" : "Guardar como predeterminado"}
+          </BotonMini>
+        </div>
         <div className="table-container">
           <table className="table-premium">
             <thead>
@@ -74,6 +105,45 @@ export default function TabObjetivo({ plan, setPlan, cat }: PropsPestana) {
             </tbody>
           </table>
         </div>
+      </Seccion>
+
+      <Seccion
+        titulo="Reglas que suben o bajan el objetivo del mes"
+        ayuda="Para meses en los que el objetivo cambia según lo que vende cada vendedor: por ejemplo, «si vende menos de 1 usado, el objetivo sube 1 punto». Cuentan los coches que suman ese mes (por su fecha de facturación o matriculación). Puedes poner puntos negativos para bajarlo. El objetivo X del mes = base + arrastre + lo que sumen las reglas que se cumplan."
+        acciones={
+          <BotonMini onClick={() => setPlan((p) => ({ ...p, reglasObjetivo: [...p.reglasObjetivo, { nombre: "", activa: true, metrica: "vo", comparador: "menos_de", cantidad: 1, puntos: 100 }] }))}>+ Nueva regla</BotonMini>
+        }
+      >
+        {plan.reglasObjetivo.length === 0 && <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.85rem" }}>No hay reglas: el objetivo de cada vendedor es siempre su objetivo base + arrastre.</p>}
+        {plan.reglasObjetivo.map((r, i) => {
+          const cambiar = (c: Partial<typeof r>) => setPlan((p) => ({ ...p, reglasObjetivo: p.reglasObjetivo.map((x, j) => (j === i ? { ...x, ...c } : x)) }));
+          return (
+            <div key={i} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", opacity: r.activa ? 1 : 0.55 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem" }} title="Una regla desactivada no se aplica">
+                <input type="checkbox" checked={r.activa} onChange={(e) => cambiar({ activa: e.target.checked })} /> Activa
+              </label>
+              <input className="form-input" style={{ width: "190px" }} placeholder="Nombre (opcional)" value={r.nombre} onChange={(e) => cambiar({ nombre: e.target.value })} />
+              <span>Si el vendedor suma</span>
+              <select className="form-input" style={{ width: "auto" }} value={r.comparador} onChange={(e) => cambiar({ comparador: e.target.value as "menos_de" })}>
+                <option value="menos_de">menos de</option>
+                <option value="al_menos">al menos</option>
+              </select>
+              <InputEntero valor={r.cantidad} min={0} max={999} onChange={(n) => cambiar({ cantidad: n })} />
+              <select className="form-input" style={{ width: "auto" }} value={r.metrica} onChange={(e) => cambiar({ metrica: e.target.value as "vo" })}>
+                {(Object.keys(METRICAS) as (keyof typeof METRICAS)[]).map((k) => (
+                  <option key={k} value={k}>
+                    {METRICAS[k]}
+                  </option>
+                ))}
+              </select>
+              <span>en el mes, el objetivo</span>
+              <InputCentesimas valor={r.puntos} onChange={(n) => cambiar({ puntos: n ?? 0 })} sufijo="puntos (+ sube, − baja)" />
+              <BotonMini peligro onClick={() => setPlan((p) => ({ ...p, reglasObjetivo: p.reglasObjetivo.filter((_, j) => j !== i) }))}>
+                Quitar
+              </BotonMini>
+            </div>
+          );
+        })}
       </Seccion>
 
       <Seccion

@@ -6,6 +6,8 @@ export interface CatalogosComisiones {
   marcas: { id: number; nombre: string }[];
   modelos: { id: number; nombre: string; marcaId: number | null }[];
   vendedores: { id: number; nombre: string; tipo: string }[];
+  /** Objetivo (centésimas) con el que entra un vendedor nuevo en un plan; ajustable en la pestaña Objetivo. */
+  objetivoDefecto?: number;
 }
 
 export interface PropsPestana {

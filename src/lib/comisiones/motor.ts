@@ -5,6 +5,7 @@ import type {
   CondicionTasa,
   Centimos,
   Centesimas,
+  Clase,
   ConceptoLinea,
   EventoLibro,
   ExpedienteMotor,
@@ -14,6 +15,7 @@ import type {
   PatronVoMotor,
   PlanMotor,
   ReglaBonusMotor,
+  ReglaObjetivoMotor,
   ReglaPreferenceMotor,
   ConceptoId,
   EventoConcepto,
@@ -75,6 +77,20 @@ export function seleccionarPlan(planes: PlanMotor[], mes: Mes): PlanMotor | null
   if (candidatos.length === 0) return null;
   const rango = (p: PlanMotor) => (p.estado === "activo" ? 1 : 0);
   return [...candidatos].sort((a, b) => rango(b) - rango(a) || b.fechaInicio.localeCompare(a.fechaInicio) || b.idPlan - a.idPlan)[0];
+}
+
+/** Las reglas de objetivo que se cumplen con los coches que cuentan este mes (`clases` = la clase de cada coche). */
+export function ajustesDeObjetivo(reglas: ReglaObjetivoMotor[], clases: Clase[]): { nombre: string; puntos: Centesimas }[] {
+  const cuenta = { vo: clases.filter((c) => c === "VO").length, vn: clases.filter((c) => c === "VN").length, total: clases.length };
+  const texto = { vo: "usados", vn: "coches nuevos", total: "coches" } as const;
+  const res: { nombre: string; puntos: Centesimas }[] = [];
+  for (const r of reglas) {
+    if (r.activa === false || !Number.isInteger(r.puntos) || r.puntos === 0) continue;
+    const n = cuenta[r.metrica];
+    if (!(r.comparador === "menos_de" ? n < r.cantidad : n >= r.cantidad)) continue;
+    res.push({ nombre: r.nombre?.trim() || `${r.comparador === "menos_de" ? "Menos de" : "Al menos"} ${r.cantidad} ${texto[r.metrica]}`, puntos: r.puntos });
+  }
+  return res;
 }
 
 function resultadoVacio(mes: Mes, idVendedor: number, idPlan: number | null, aviso: string): ResultadoMes {
@@ -155,7 +171,9 @@ export function calcularMes(
   /* Objetivo X del vendedor */
   const obj = plan.objetivos[vendedor.id];
   if (!obj) avisos.push(`El vendedor no tiene objetivo en el plan «${plan.nombre ?? plan.idPlan}»: objetivo X = 0`);
-  const objetivoX = obj ? obj.base + obj.arrastre : 0;
+  // Reglas del plan que suben o bajan el objetivo según los coches del mes (antes de calcular el tramo)
+  const objetivoAjustes = obj ? ajustesDeObjetivo(plan.reglasObjetivo ?? [], cuentan.map((i) => i.e.clase)) : [];
+  const objetivoX = obj ? Math.max(0, obj.base + obj.arrastre + objetivoAjustes.reduce((s, a) => s + a.puntos, 0)) : 0;
 
   /* Avisos de fechas que faltan (solo si el expediente tiene algún otro evento en el mes) */
   for (const i of infos) {
@@ -333,6 +351,7 @@ export function calcularMes(
     financiacionesFueraDeMes,
     objetivoBase: obj ? obj.base : 0,
     objetivoArrastre: obj ? obj.arrastre : 0,
+    objetivoAjustes,
     lineas: lineasOrd,
     bruto,
     penalizacion,
