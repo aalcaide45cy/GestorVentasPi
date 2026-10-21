@@ -598,3 +598,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.8 (21/10/2026)
 - **Arreglo: «Maximum update depth exceeded» en la biblioteca** (`TablaDatos` ↔ `BibliotecaClient`): `TablaDatos` avisaba de las filas que se ven (`alVerFilas`) en cada pintado, y quien las guardaba en un estado propio (como la Biblioteca) podía entrar en un bucle de repintados. Ahora solo avisa cuando cambian de verdad (otras filas u otro orden); mismas filas = no avisa. No pude reproducir el bucle en mi copia (con pocos archivos), así que el arreglo es de causa y no solo del síntoma, pero no está comprobado con tus datos.
+
+## Versión 1.11.9 (21/10/2026)
+- **Expedientes: se elige solo con la casilla.** Pulsar en cualquier otra parte de la fila ya no marca el expediente. Con **Mayús** pulsada, la casilla marca (o desmarca) de golpe todos los que hay entre el último que se tocó y este, en el orden en que se ven en la tabla (también entre páginas).

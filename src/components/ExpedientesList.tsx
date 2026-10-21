@@ -4,7 +4,7 @@ import { CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_DESDE, CLAV
 import { avisarCambioDeDatos } from "@/lib/datos-version";
 import { llamarComoTarea } from "@/lib/tareas-cliente";
 import { aspectoVehiculo } from "@/lib/aspecto";
-import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
@@ -603,8 +603,21 @@ export default function ExpedientesList({
 
   /* ---------------- Selección ---------------- */
   const seleccionarTodos = (marcado: boolean) => setSeleccionados(marcado ? filtrados.map((e) => e.id_expediente) : []);
-  const seleccionarUno = (id: number, marcado: boolean) =>
-    setSeleccionados((prev) => (marcado ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id)));
+  /** Último expediente marcado o desmarcado con su casilla: el punto de partida de un rango con Mayús. */
+  const ultimaMarca = useRef<number | null>(null);
+  /**
+   * Se elige solo con la casilla (pulsar en otra parte de la fila no elige). Con Mayús pulsada, la casilla marca (o desmarca) de golpe todos los que hay
+   * entre el último que se tocó y este, en el orden en que se ven en la tabla.
+   */
+  const seleccionarUno = (id: number, marcado: boolean, conMayus = false) => {
+    const desde = ultimaMarca.current;
+    ultimaMarca.current = id;
+    const orden = ordenados.map((e) => e.id_expediente);
+    const a = desde === null ? -1 : orden.indexOf(desde);
+    const b = orden.indexOf(id);
+    const ids = conMayus && a >= 0 && b >= 0 ? orden.slice(Math.min(a, b), Math.max(a, b) + 1) : [id];
+    setSeleccionados((prev) => (marcado ? [...prev, ...ids.filter((x) => !prev.includes(x))] : prev.filter((x) => !ids.includes(x))));
+  };
 
   /* ---------------- Acciones ---------------- */
   const exportarCsv = (soloSeleccionados: boolean) => {
@@ -1479,12 +1492,7 @@ export default function ExpedientesList({
                 return (
                   <tr
                     key={exp.id_expediente}
-                    onClick={(ev) => {
-                      if (!seleccionActiva) return;
-                      if ((ev.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
-                      seleccionarUno(exp.id_expediente, !marcada);
-                    }}
-                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : undefined, cursor: seleccionActiva ? "pointer" : "default", opacity: exp.deshabilitado ? 0.5 : undefined }}
+                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : undefined, opacity: exp.deshabilitado ? 0.5 : undefined }}
                     title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : undefined}
                   >
                     {seleccionActiva && (
@@ -1492,7 +1500,11 @@ export default function ExpedientesList({
                         <input
                           type="checkbox"
                           checked={marcada}
-                          onChange={(e) => seleccionarUno(exp.id_expediente, e.target.checked)}
+                          onMouseDown={(e) => {
+                            if (e.shiftKey) e.preventDefault();
+                          }}
+                          onChange={(e) => seleccionarUno(exp.id_expediente, e.target.checked, (e.nativeEvent as MouseEvent).shiftKey === true)}
+                          title="Elige este expediente. Con Mayús pulsada, elige de golpe todos los que hay entre el último que tocaste y este"
                           style={{ width: "16px", height: "16px", cursor: "pointer" }}
                         />
                       </td>
