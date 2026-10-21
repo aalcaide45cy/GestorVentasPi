@@ -582,3 +582,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.3 (21/10/2026)
 - **Ojo 👁️ en la ventana «Guardar en la biblioteca»**: cada archivo elegido se puede ver (PDF, imagen, texto/CSV y Excel por hojas) antes de guardarlo. Imágenes, texto y Excel se leen en el propio navegador; un PDF se deja unos minutos solo en memoria del servidor (`POST /api/biblioteca/previa`, máximo 12 a la vez, solo para quien lo pidió, nunca en base de datos ni disco) porque el navegador no puede enseñar un PDF propio dentro de la aplicación sin una dirección del servidor. Las demás rutas de `/api/biblioteca/*` (zip, borrar) recuperan las cabeceras de seguridad normales en `next.config.ts`.
+
+## Versión 1.11.4 (21/10/2026)
+- **«Elegir de la biblioteca» con filtro por tipo**: la ventana ya no se limita a los tipos de la zona. Por defecto sigue saliendo lo de esa zona, pero hay botones con contador para «Todos» y para cada tipo (pedidos, pagos de RCI, rejillas, listados Excel, otros), la columna «Tipo» siempre se ve, y la casilla de la cabecera marca todos los que se ven con el filtro y la búsqueda. Así se pueden elegir de golpe, por ejemplo, todos los pedidos de la biblioteca y pasarlos en lote por el OCR de la zona de pedidos.

@@ -7,6 +7,7 @@ import { useToast } from "@/components/Toast";
 import ModalSubidaBiblioteca from "@/components/biblioteca/ModalSubidaBiblioteca";
 import { archivoDeBiblioteca, ETIQUETAS, listarBiblioteca, tamanoLegible } from "@/lib/biblioteca-cliente";
 import { formatDate } from "@/lib/date-utils";
+import { CATEGORIAS } from "@/lib/biblioteca-categorias";
 import type { ArchivoBibliotecaDto, CategoriaBiblioteca } from "@/lib/servicios/biblioteca";
 
 interface Props {
@@ -41,6 +42,8 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
   const [lista, setLista] = useState<ArchivoBibliotecaDto[] | null>(null);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [texto, setTexto] = useState("");
+  /** Qué se enseña: lo de esta zona (por defecto), todo, o un tipo concreto. */
+  const [filtro, setFiltro] = useState<"zona" | "todos" | CategoriaBiblioteca>("zona");
   const [trabajando, setTrabajando] = useState(false);
   const [version, setVersion] = useState(0);
   const [nuevos, setNuevos] = useState<File[] | null>(null);
@@ -48,7 +51,8 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
 
   useEffect(() => {
     let vivo = true;
-    listarBiblioteca(categorias)
+    // Se pide todo y se filtra aquí: así se puede cambiar de tipo sin volver a pedirlo
+    listarBiblioteca()
       .then((r) => vivo && setLista(r.archivos))
       .catch((e: unknown) => {
         if (!vivo) return;
@@ -61,7 +65,11 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
 
-  const visibles = useMemo(() => (lista ?? []).filter((f) => f.nombre.toLowerCase().includes(texto.trim().toLowerCase())), [lista, texto]);
+  const delTipo = (f: ArchivoBibliotecaDto) => (filtro === "todos" ? true : filtro === "zona" ? categorias.includes(f.categoria) : f.categoria === filtro);
+  const visibles = useMemo(() => (lista ?? []).filter((f) => delTipo(f) && f.nombre.toLowerCase().includes(texto.trim().toLowerCase())),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lista, texto, filtro]);
+  const cuenta = (a: ArchivoBibliotecaDto[], c: "zona" | "todos" | CategoriaBiblioteca) => a.filter((f) => (c === "todos" ? true : c === "zona" ? categorias.includes(f.categoria) : f.categoria === c)).length;
   const alternar = (id: number) =>
     setMarcados((prev) => {
       const n = new Set(multiple ? prev : []);
@@ -115,7 +123,15 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.9rem" }}>
         <div style={{ color: "var(--text-secondary)" }}>
-          Archivos guardados de: <b>{nombresCategorias}</b>. Se usan igual que si los hubieras elegido en tu equipo.
+          Se usan igual que si los hubieras elegido en tu equipo. Por defecto salen los de esta zona (<b>{nombresCategorias}</b>); cambia el tipo para ver otros, o elige «Todos».
+        </div>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>TIPO</span>
+          {([["zona", `De esta zona (${cuenta(lista ?? [], "zona")})`], ["todos", `Todos (${(lista ?? []).length})`], ...CATEGORIAS.map((c) => [c, `${ETIQUETAS[c]} (${cuenta(lista ?? [], c)})`])] as [typeof filtro, string][]).map(([id, etiqueta]) => (
+            <button key={id} type="button" className={filtro === id ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setFiltro(id)}>
+              {etiqueta}
+            </button>
+          ))}
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <input className="form-input" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="🔎 Buscar por nombre…" style={{ flex: 1, minWidth: "180px", padding: "6px 10px" }} />
@@ -127,7 +143,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
         {lista === null ? (
           <div style={{ color: "var(--text-muted)" }}>Cargando…</div>
         ) : visibles.length === 0 ? (
-          <div style={{ color: "var(--text-muted)" }}>{lista.length === 0 ? "Todavía no hay archivos de este tipo en la biblioteca. Usa «Añadir a la biblioteca»." : "Ningún archivo coincide con la búsqueda."}</div>
+          <div style={{ color: "var(--text-muted)" }}>{lista.length === 0 ? "Todavía no hay archivos en la biblioteca. Usa «Añadir a la biblioteca»." : texto.trim() ? "Ningún archivo coincide con la búsqueda." : "No hay archivos de este tipo. Prueba con «Todos» u otro tipo."}</div>
         ) : (
           <div className="table-container" style={{ maxHeight: "50vh", overflow: "auto" }}>
             <table className="table-premium">
@@ -137,7 +153,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
                     {multiple && <input type="checkbox" checked={todosMarcados} onChange={(e) => setMarcados(e.target.checked ? new Set(visibles.map((f) => f.id)) : new Set())} title="Marcar o desmarcar todos los que se ven" />}
                   </th>
                   <th>Archivo</th>
-                  {categorias.length > 1 && <th>Tipo</th>}
+                  <th>Tipo</th>
                   <th style={{ textAlign: "right" }}>Tamaño</th>
                   <th>Guardado</th>
                 </tr>
@@ -149,7 +165,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
                       <input type="checkbox" checked={marcados.has(f.id)} onChange={() => alternar(f.id)} onClick={(e) => e.stopPropagation()} aria-label={`Elegir ${f.nombre}`} />
                     </td>
                     <td style={{ wordBreak: "break-word" }}>{f.nombre}</td>
-                    {categorias.length > 1 && <td>{ETIQUETAS[f.categoria]}</td>}
+                    <td>{ETIQUETAS[f.categoria]}</td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{tamanoLegible(f.tamano)}</td>
                     <td style={{ whiteSpace: "nowrap" }}>{formatDate(f.creadoEn.slice(0, 10))}</td>
                   </tr>
