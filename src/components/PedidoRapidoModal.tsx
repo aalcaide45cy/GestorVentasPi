@@ -416,24 +416,24 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
               </button>
             </div>
           </div>
-          {/* Fila 2: qué hacer con el pedido. A la izquierda lo que lo quita; a la derecha, salir y crear */}
+          {/* Pie en dos filas alineadas: arriba, salir de este pedido (descartarlo a la izquierda, cerrar a la derecha); abajo, crear (todos los demás y este, a la derecha) */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
               🗑 Descartar este pedido
             </button>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
-              <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
-                ↩ Cerrar (queda en la cola)
+            <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
+              ↩ Cerrar (queda en la cola)
+            </button>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            {total > 1 && (
+              <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
+                {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
               </button>
-              {total > 1 && (
-                <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
-                  {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
-                </button>
-              )}
-              <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
-                {trabajando ? "Creando…" : "Crear expediente"}
-              </button>
-            </div>
+            )}
+            <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
+              {trabajando ? "Creando…" : "Crear expediente"}
+            </button>
           </div>
         </div>
       }

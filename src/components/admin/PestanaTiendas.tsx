@@ -13,7 +13,7 @@ interface Props {
 
 /** Pestaña «Tiendas». */
 export default function PestanaTiendas({ tiendas, setTiendas, predeterminadaId, setPredeterminadaId }: Props) {
-  const { cargando, llamar, ejecutar } = usePeticion();
+  const { cargando, llamar, ejecutar, confirmar } = usePeticion();
   const orden = useOrden("id");
   const [nombre, setNombre] = useState("");
   const [ciudad, setCiudad] = useState("");
@@ -45,8 +45,8 @@ export default function PestanaTiendas({ tiendas, setTiendas, predeterminadaId, 
     if (ok) setEditando(null);
   };
 
-  const eliminar = (t: TiendaDto) => {
-    if (!confirm("¿Seguro que deseas eliminar esta tienda física?")) return;
+  const eliminar = async (t: TiendaDto) => {
+    if (!(await confirmar({ texto: `¿Eliminar la tienda «${t.nombre}»? Dejará de poder elegirse; lo que ya la tiene la conserva.`, peligro: true }))) return;
     void ejecutar(async () => {
       await llamar("/api/admin/tiendas", "DELETE", { id_tienda: t.id_tienda }, "Error al eliminar tienda");
       setTiendas((prev) => prev.filter((x) => x.id_tienda !== t.id_tienda));

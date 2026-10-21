@@ -12,12 +12,14 @@ export interface DatosPanel {
   tiendas: TiendaDto[];
   tiposVenta: TipoVentaDto[];
   marcasAccesoRapido: MarcaConModelos[];
+  /** Todo el catálogo de marcas y modelos (para elegir modelo al revisar un pedido leído, también los que no están en el acceso rápido). */
+  marcasCatalogo: MarcaConModelos[];
   vendedores: { id_usuario: number; nombre: string }[];
 }
 
 /** Datos auxiliares del panel principal (todo acotado: 5 expedientes y catálogos). */
 export async function cargarDatosPanel(ej: Ejecutor): Promise<DatosPanel> {
-  const [filasRecientes, ts, tvs, ms, vendedores] = await Promise.all([
+  const [filasRecientes, ts, tvs, ms, todasMarcas, vendedores] = await Promise.all([
     ej.query.expedientes.findMany({
       where: isNull(expedientes.eliminadoEn),
       orderBy: [desc(expedientes.idExpediente)],
@@ -36,6 +38,11 @@ export async function cargarDatosPanel(ej: Ejecutor): Promise<DatosPanel> {
       },
       orderBy: [asc(marcas.nombre)],
     }),
+    ej.query.marcas.findMany({
+      where: isNull(marcas.eliminadoEn),
+      with: { modelos: { where: isNull(modelos.eliminadoEn), orderBy: [asc(modelos.nombreModelo)] } },
+      orderBy: [asc(marcas.nombre)],
+    }),
     listarVendedores(ej),
   ]);
 
@@ -44,6 +51,7 @@ export async function cargarDatosPanel(ej: Ejecutor): Promise<DatosPanel> {
     tiendas: ts.map(tiendaDto),
     tiposVenta: tvs.map(tipoVentaDto),
     marcasAccesoRapido: ms.map((m) => ({ ...marcaDto(m), modelos: m.modelos.map((mo) => modeloDto(mo)) })),
+    marcasCatalogo: todasMarcas.map((m) => ({ ...marcaDto(m), modelos: m.modelos.map((mo) => modeloDto(mo)) })),
     vendedores,
   };
 }

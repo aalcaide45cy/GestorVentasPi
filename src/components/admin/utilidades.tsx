@@ -38,7 +38,7 @@ export function Cabecera({ etiqueta, campo, orden, ancho }: { etiqueta: string; 
 /** Peticiones JSON a la API de administración con aviso de éxito/error y refresco de datos. */
 export function usePeticion() {
   const router = useRouter();
-  const { mostrar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const [cargando, setCargando] = useState(false);
 
   async function llamar<T = unknown>(url: string, metodo: "POST" | "PUT" | "DELETE", cuerpo: object, porDefecto: string): Promise<T> {
@@ -63,7 +63,7 @@ export function usePeticion() {
     }
   }
 
-  return { cargando, llamar, ejecutar, mostrar };
+  return { cargando, llamar, ejecutar, mostrar, confirmar, notificar };
 }
 
 export const estiloPanel = { padding: "28px", display: "flex", flexDirection: "column", gap: "24px" } as const;

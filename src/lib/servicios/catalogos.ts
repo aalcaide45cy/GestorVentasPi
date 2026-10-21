@@ -288,6 +288,18 @@ export async function usosDeModelo(ej: Ejecutor, idModelo: number): Promise<numb
   return n;
 }
 
+/** Expedientes (también los eliminados) que usan algún modelo de una marca, con el desglose por modelo. */
+export async function usosDeMarca(ej: Ejecutor, idMarca: number): Promise<{ expedientes: number; modelos: { id: number; nombre: string; usos: number }[] }> {
+  const filas = await ej
+    .select({ id: modelos.idModelo, nombre: modelos.nombreModelo, usos: count(expedientes.idExpediente) })
+    .from(modelos)
+    .leftJoin(expedientes, eq(expedientes.idModelo, modelos.idModelo))
+    .where(and(eq(modelos.marcaId, idMarca), isNull(modelos.eliminadoEn)))
+    .groupBy(modelos.idModelo, modelos.nombreModelo);
+  const conUsos = filas.filter((f) => f.usos > 0).sort((a, b) => b.usos - a.usos);
+  return { expedientes: conUsos.reduce((s, f) => s + f.usos, 0), modelos: conUsos };
+}
+
 /**
  * Borrado lógico: la fila se conserva (con `eliminado_en`) y desaparece de los selectores y listados de catálogo,
  * pero los expedientes que la usan siguen apuntando a ella (nombre, estadísticas e histórico intactos).
@@ -299,6 +311,11 @@ export async function eliminarCatalogo(ej: Ejecutor, e: EntradaEliminarCatalogo)
       if (e.toggleActivo) {
         await ej.update(marcas).set({ activo: !!e.activo }).where(eq(marcas.idMarca, e.id));
         return "Estado de la marca actualizado";
+      }
+      // Una marca con expedientes no se borra de golpe: primero hay que decidir a qué modelo pasa cada grupo (eliminando sus modelos uno a uno)
+      const usosMarca = await usosDeMarca(ej, e.id);
+      if (usosMarca.expedientes > 0) {
+        throw new HttpError(409, `La marca tiene ${usosMarca.expedientes} expediente${usosMarca.expedientes === 1 ? "" : "s"} (${usosMarca.modelos.map((m) => `${m.nombre}: ${m.usos}`).join(", ")}). Elimina antes esos modelos y elige a cuál pasan sus expedientes.`);
       }
       await ej.transaction(async (tx) => {
         await tx.update(modelos).set({ eliminadoEn: ahora }).where(and(eq(modelos.marcaId, e.id), isNull(modelos.eliminadoEn)));

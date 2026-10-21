@@ -187,6 +187,11 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
 
   useGuardarBorrador("expediente-nuevo", () => ({ dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, asignado, marca, modelo, tipoVenta, estado, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, pendientes, nombresPend }), hayCambios());
   const cambiosRef = useRef(hayCambios);
+  const { confirmar } = useToast();
+  const confirmarRef = useRef(confirmar);
+  useEffect(() => {
+    confirmarRef.current = confirmar;
+  });
   useEffect(() => {
     cambiosRef.current = hayCambios;
   });
@@ -200,10 +205,15 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
     const alPulsarEnlace = (ev: MouseEvent) => {
       const ancla = (ev.target as HTMLElement).closest("a");
       if (ancla && ancla.href && ancla.host === window.location.host && cambiosRef.current()) {
-        if (!window.confirm("Tienes cambios sin guardar en el expediente. ¿Estás seguro de que deseas salir sin guardar?")) {
-          ev.preventDefault();
-          ev.stopPropagation();
-        }
+        // Se frena el enlace y se pregunta con la ventana de la aplicación; si se confirma, se va al sitio al que llevaba
+        ev.preventDefault();
+        ev.stopPropagation();
+        const destino = ancla.href;
+        void confirmarRef.current({ texto: "Tienes cambios sin guardar en el expediente. ¿Salir sin guardar?", aceptar: "Salir sin guardar", cancelar: "Seguir editando", peligro: true }).then((salir) => {
+          if (!salir) return;
+          cambiosRef.current = () => false;
+          window.location.assign(destino);
+        });
       }
     };
     window.addEventListener("beforeunload", antesDeSalir);

@@ -11,5 +11,5 @@ export default async function HerramientasPage() {
   const user = await getCurrentUser();
   if (!user || !esRolActivo(user.rol)) redirect("/dashboard");
   const datos = await cargarDatosPanel(db);
-  return <HerramientasClient marcas={datos.marcasAccesoRapido} tiposVenta={datos.tiposVenta} vendedores={datos.vendedores} idUsuario={user.idUsuario} esAdmin={esAdministrador(user.rol)} />;
+  return <HerramientasClient marcas={datos.marcasCatalogo} tiposVenta={datos.tiposVenta} vendedores={datos.vendedores} idUsuario={user.idUsuario} esAdmin={esAdministrador(user.rol)} />;
 }

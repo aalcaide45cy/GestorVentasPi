@@ -47,7 +47,7 @@ function SelectorSubtipo({ valor, alCambiar, opciones, pequeno }: { valor: strin
 /** Pestaña «Estados» del vehículo. Solo uno puede ser el predeterminado. */
 export default function PestanaEstados({ estados, setEstados }: Props) {
   const router = useRouter();
-  const { cargando, llamar, ejecutar } = usePeticion();
+  const { cargando, llamar, ejecutar, confirmar } = usePeticion();
   const orden = useOrden("id");
   const [nombre, setNombre] = useState("");
   const [predeterminado, setPredeterminado] = useState(false);
@@ -149,8 +149,8 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
       aplicar(n);
     }, e.predeterminado ? "Estado ya no es predeterminado" : "Estado establecido como predeterminado");
 
-  const eliminar = (e: EstadoVehiculoDto) => {
-    if (!confirm("¿Seguro que deseas eliminar este estado de vehículo?")) return;
+  const eliminar = async (e: EstadoVehiculoDto) => {
+    if (!(await confirmar({ texto: `¿Eliminar el estado «${e.nombre_estado_vehiculo}»? Los expedientes que ya lo tienen lo conservan.`, peligro: true }))) return;
     void ejecutar(async () => {
       await llamar("/api/admin/catalogos", "DELETE", { tipo: "estado_vehiculo", id: e.id_estado_vehiculo }, "Error al eliminar");
       setEstados((prev) => prev.filter((x) => x.id_estado_vehiculo !== e.id_estado_vehiculo));

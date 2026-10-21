@@ -604,3 +604,9 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.10 (21/10/2026)
 - **Modelos: el número de «Orden Dashboard» se puede poner en cualquier modelo.** Antes solo se podía editar en los modelos con acceso rápido «Sí»; uno creado al leer un pedido (acceso rápido «No») enseñaba «—» y no dejaba ponerle número. Ahora todos tienen su casilla de número (apagada si no están en el acceso rápido) y, al poner un número mayor que 0 y pulsar «Guardar Orden», el modelo pasa a acceso rápido «Sí» con ese orden.
+
+## Versión 1.11.11 (21/10/2026)
+- **«Pedido leído»: botones del pie ordenados.** Dos filas alineadas: arriba, salir de este pedido («Descartar este pedido» a la izquierda y «Cerrar (queda en la cola)» a la derecha); abajo, crear («Crear todos los demás» y «Crear expediente», a la derecha). Antes se partían sin orden en varias líneas.
+- **Los modelos creados al revisar un pedido salen en el siguiente.** La cola de pedidos solo conocía las marcas y modelos con acceso rápido (los que crea un pedido no lo tienen), así que el segundo pedido no podía elegir el modelo que acababas de crear en el primero. Ahora conoce todo el catálogo (`marcasCatalogo` en `cargarDatosPanel`); los botones de creación rápida siguen usando solo el acceso rápido.
+- **Eliminar marcas, modelos, formas de pago, estados y tiendas ya no usa el aviso feo del navegador** (`confirm`): usa la ventana de la aplicación, con el nombre de lo que se elimina. Lo mismo al salir de «Nuevo expediente» con cambios sin guardar.
+- **Una marca con expedientes no se elimina de golpe.** El servidor lo rechaza (409) y la pantalla avisa de cuántos expedientes hay y de qué modelos (`usosDeMarca`, `PATCH /api/admin/catalogos?usos_marca=`); hay que eliminar antes esos modelos, que ya preguntan a cuál pasan sus expedientes. Los modelos ya comprobaban sus expedientes.

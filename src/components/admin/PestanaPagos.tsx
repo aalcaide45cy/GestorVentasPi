@@ -11,7 +11,7 @@ interface Props {
 
 /** Pestaña «Pagos» (tipos de venta): nombre, color y orden en el panel. La categoría se deduce del nombre. */
 export default function PestanaPagos({ tipos, setTipos }: Props) {
-  const { cargando, llamar, ejecutar } = usePeticion();
+  const { cargando, llamar, ejecutar, confirmar } = usePeticion();
   const orden = useOrden("id");
   const [nombre, setNombre] = useState("");
   const [color, setColor] = useState("#3b82f6");
@@ -96,8 +96,8 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
     if (ok) setOrdenes({});
   };
 
-  const eliminar = (t: TipoVentaDto) => {
-    if (!confirm("¿Seguro que deseas eliminar este tipo de venta?")) return;
+  const eliminar = async (t: TipoVentaDto) => {
+    if (!(await confirmar({ texto: `¿Eliminar la forma de pago «${t.nombre_tipo_venta}»? Los expedientes que ya la tienen la conservan.`, peligro: true }))) return;
     void ejecutar(async () => {
       await llamar("/api/admin/catalogos", "DELETE", { tipo: "tipo_venta", id: t.id_tipo_de_venta }, "Error al eliminar");
       setTipos((prev) => prev.filter((x) => x.id_tipo_de_venta !== t.id_tipo_de_venta));

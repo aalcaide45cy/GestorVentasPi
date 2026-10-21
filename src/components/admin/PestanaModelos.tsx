@@ -24,7 +24,7 @@ interface FilaModelo {
 /** Pestaña «Modelos»: marcas con sistema de comisiones primero y el resto agrupado. */
 export default function PestanaModelos({ marcas, setMarcas }: Props) {
   const router = useRouter();
-  const { cargando, llamar, ejecutar } = usePeticion();
+  const { cargando, llamar, ejecutar, confirmar } = usePeticion();
   const orden = useOrden("orden_acceso_rapido");
   const [marcaNueva, setMarcaNueva] = useState<number | "">("");
   const [nombre, setNombre] = useState("");
@@ -143,7 +143,7 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
       setReasignando({ fila: f, usos });
       return;
     }
-    if (!confirm("¿Seguro que deseas eliminar este modelo? Se borrará del catálogo.")) return;
+    if (!(await confirmar({ texto: `¿Eliminar el modelo «${f.modelo.nombre_modelo}»? Se borrará del catálogo (no hay expedientes que lo usen).`, peligro: true }))) return;
     void ejecutar(async () => {
       await llamar("/api/admin/catalogos", "DELETE", { tipo: "modelo", id: f.modelo.id_modelo }, "Error al eliminar modelo");
       quitarDeLista(f);

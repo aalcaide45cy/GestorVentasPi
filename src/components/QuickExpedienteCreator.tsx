@@ -17,6 +17,8 @@ export interface MarcaConModelos extends MarcaDto {
 
 interface Props {
   marcas: MarcaConModelos[];
+  /** Todo el catálogo, para la cola de pedidos (por defecto, lo mismo que `marcas`). */
+  marcasCatalogo?: MarcaConModelos[];
   tiposVenta: TipoVentaDto[];
   vendedores: VendedorDto[];
   currentUserId: number;
@@ -50,7 +52,7 @@ const estiloTituloMarca = {
 } as const;
 
 /** Acceso rápido: un clic crea un expediente con ese modelo y tipo de venta. */
-export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores, currentUserId }: Props) {
+export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVenta, vendedores, currentUserId }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
   const [cargandoModelo, setCargandoModelo] = useState<number | "VO" | null>(null);
@@ -324,7 +326,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       {/* Subir pedidos y pagos, la cola y las lecturas viven ahora en Herramientas; aquí solo queda un aviso si hay pedidos esperando */}
       {enCola > 0 && (
         <Plegable id="dash-cola" titulo="📋 Pedidos leídos esperando" resumen={`${enCola} pedido${enCola === 1 ? "" : "s"} en la cola`}>
-          <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
+          <ColaPedidos marcas={marcasCatalogo ?? marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
           <Link href="/dashboard/herramientas?p=docs" style={{ fontSize: "0.82rem", color: "var(--primary)" }}>
             Subir más pedidos y pagos en Herramientas
           </Link>

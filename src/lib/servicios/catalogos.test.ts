@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { actualizarCatalogo, crearCatalogo, crearTienda, eliminarCatalogo, eliminarTienda, leerCatalogos } from "./catalogos";
+import { actualizarCatalogo, crearCatalogo, crearTienda, eliminarCatalogo, eliminarTienda, leerCatalogos, usosDeMarca } from "./catalogos";
 import { esquemaCrearExpediente } from "./expedientes";
 import { listarExpedientes } from "./expedientes-lectura";
 import { crearExpediente } from "./expedientes-escritura";
@@ -86,18 +86,19 @@ describe("marcas, modelos y tiendas", () => {
     expect(despues.modelos.some((m) => m.id_modelo === modelo.id_modelo)).toBe(false); // se borran con la marca
   });
 
-  it("eliminar una marca o modelo con expedientes los archiva sin desasociar el expediente", async () => {
+  it("una marca con expedientes no se elimina: avisa cuántos y de qué modelos", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const marca = (await crearCatalogo(db, { tipo: "marca", nombre: "Kia" })) as { id_marca: number };
     const modelo = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Ceed" })) as { id_modelo: number };
     await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_modelo: modelo.id_modelo } }));
+    expect(await usosDeMarca(db, marca.id_marca)).toEqual({ expedientes: 1, modelos: [{ id: modelo.id_modelo, nombre: "Ceed", usos: 1 }] });
+    await expect(eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca })).rejects.toMatchObject({ status: 409, message: expect.stringContaining("Ceed: 1") });
+    expect((await leerCatalogos(db)).marcas.some((m) => m.id_marca === marca.id_marca)).toBe(true);
+    // Eliminando antes el modelo (pasando sus expedientes a «sin modelo») ya se puede eliminar la marca, y el expediente sigue existiendo
+    await eliminarCatalogo(db, { tipo: "modelo", id: modelo.id_modelo, sin_modelo: true });
     await eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca });
-    const cat = await leerCatalogos(db);
-    expect(cat.marcas.some((m) => m.id_marca === marca.id_marca)).toBe(false);
-    expect(cat.modelos.some((m) => m.id_modelo === modelo.id_modelo)).toBe(false);
-    const [exp] = await listarExpedientes(db);
-    expect(exp.id_modelo).toBe(modelo.id_modelo);
-    expect(exp.modelo?.nombre_modelo).toBe("Ceed");
+    expect((await leerCatalogos(db)).marcas.some((m) => m.id_marca === marca.id_marca)).toBe(false);
+    expect(await listarExpedientes(db)).toHaveLength(1);
   });
 
   it("desactivar una marca no la borra", async () => {

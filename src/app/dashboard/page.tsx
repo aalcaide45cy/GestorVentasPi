@@ -247,6 +247,7 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
 
       <QuickExpedienteCreator
         marcas={datos.marcasAccesoRapido}
+        marcasCatalogo={datos.marcasCatalogo}
         tiposVenta={datos.tiposVenta}
         vendedores={datos.vendedores}
         currentUserId={userId}
