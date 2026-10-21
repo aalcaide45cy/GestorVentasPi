@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { biblioteca, bibliotecaDatos, clientes, expedientes } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
-import { adivinarCategoria, CATEGORIAS, ETIQUETA_CATEGORIA, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
+import { adivinarCategoria, CATEGORIAS, ETIQUETA_CATEGORIA, nombreAutomatico, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 
 /**
  * Biblioteca de archivos de trabajo: pedidos, pagos de RCI, rejillas, listados Excel… Se guardan una vez (cifrados, en la base de datos, así
@@ -62,6 +62,67 @@ export async function guardarArchivo(
     await tx.insert(bibliotecaDatos).values({ idArchivo: fila.id, datos: cifrarBuffer(e.datos) });
     return { archivo: aDto(fila), repetido: false };
   });
+}
+
+/** Un nombre que no use otro archivo de la biblioteca (distinto de `huella`): si ya existe, «Nombre (2).pdf», «Nombre (3).pdf»… */
+async function nombreLibre(ej: Ejecutor, nombre: string, huella: string): Promise<string> {
+  const punto = nombre.lastIndexOf(".");
+  const base = punto > 0 ? nombre.slice(0, punto) : nombre;
+  const extension = punto > 0 ? nombre.slice(punto) : "";
+  for (let n = 1; n < 500; n++) {
+    const candidato = n === 1 ? nombre : `${base} (${n})${extension}`;
+    const [otro] = await ej.select({ id: biblioteca.id }).from(biblioteca).where(and(eq(biblioteca.nombre, candidato), ne(biblioteca.huella, huella)));
+    if (!otro) return candidato;
+  }
+  return nombre;
+}
+
+export interface EntradaCopiaAutomatica {
+  datos: Buffer;
+  nombreOriginal: string;
+  mime?: string;
+  categoria: CategoriaBiblioteca;
+  /** Lo leído del documento, para ponerle nombre: cliente y fecha (AAAA-MM-DD) en pedidos y pagos; mes (AAAA-MM) en rejillas. */
+  cliente?: string | null;
+  fecha?: string | null;
+  mes?: string | null;
+  creadoPor: number | null;
+}
+
+/**
+ * Guarda en la biblioteca un documento que se acaba de leer (pedido, pago de RCI, rejilla), con el nombre «Tipo - Cliente - Fecha». Si ya estaba
+ * (mismo contenido) no lo duplica: lo renombra. Nunca falla hacia fuera: leer el documento es lo importante y esto es un extra.
+ */
+export async function guardarCopiaAutomatica(ej: Ejecutor, e: EntradaCopiaAutomatica): Promise<void> {
+  try {
+    const automatico = nombreAutomatico({ categoria: e.categoria, cliente: e.cliente, fecha: e.fecha, mes: e.mes, nombreOriginal: e.nombreOriginal });
+    const huella = createHash("sha256").update(e.datos).digest("hex");
+    const [ya] = await ej.select().from(biblioteca).where(eq(biblioteca.huella, huella));
+    if (ya) {
+      if (automatico && ya.nombre !== automatico) {
+        await ej.update(biblioteca).set({ nombre: await nombreLibre(ej, automatico, huella), categoria: e.categoria }).where(eq(biblioteca.id, ya.id));
+      }
+      return;
+    }
+    const nombre = await nombreLibre(ej, automatico ?? e.nombreOriginal.trim().slice(0, 200), huella);
+    await guardarArchivo(ej, { datos: e.datos, nombre, mime: e.mime, categoria: e.categoria, creadoPor: e.creadoPor });
+  } catch (err) {
+    console.warn("No se ha podido guardar el documento en la biblioteca:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** Pone a un archivo ya guardado el nombre «Tipo - Cliente - Fecha» con lo que se ha leído de él. Devuelve el nombre nuevo o null si no hay datos para ponerlo. */
+export async function renombrarSegunLectura(ej: Ejecutor, id: number, leido: { cliente?: string | null; fecha?: string | null; mes?: string | null }, categoria?: CategoriaBiblioteca): Promise<string | null> {
+  const [f] = await ej.select().from(biblioteca).where(eq(biblioteca.id, id));
+  if (!f) return null;
+  const cat = categoria ?? (f.categoria as CategoriaBiblioteca);
+  const automatico = nombreAutomatico({ categoria: cat, ...leido, nombreOriginal: f.nombre });
+  if (!automatico) return null;
+  // Si al leerlo resulta ser de otro tipo que el que tenía (un PDF se toma por pedido por defecto), también se corrige el tipo
+  if (automatico === f.nombre && cat === f.categoria) return f.nombre;
+  const nombre = automatico === f.nombre ? f.nombre : await nombreLibre(ej, automatico, f.huella);
+  await ej.update(biblioteca).set({ nombre, categoria: cat }).where(eq(biblioteca.id, id));
+  return nombre;
 }
 
 export async function listarArchivos(ej: Ejecutor, categorias?: CategoriaBiblioteca[]): Promise<ArchivoBibliotecaDto[]> {

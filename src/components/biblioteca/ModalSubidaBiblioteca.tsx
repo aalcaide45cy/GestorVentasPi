@@ -7,6 +7,7 @@ import VistaPreviaBiblioteca from "@/components/biblioteca/VistaPreviaBiblioteca
 import { borrarDeBiblioteca, ETIQUETAS, subirABiblioteca, tamanoLegible } from "@/lib/biblioteca-cliente";
 import { adivinarCategoria, CATEGORIAS, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 import { formatDate } from "@/lib/date-utils";
+import { lanzarTarea } from "@/lib/tareas-cliente";
 
 interface Props {
   archivos: File[];
@@ -59,6 +60,9 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
   const [errorFinal, setErrorFinal] = useState<string | null>(null);
   const [viendo, setViendo] = useState<File | null>(null);
   const [filtro, setFiltro] = useState<"todos" | CategoriaBiblioteca>("todos");
+  /** Tras guardar, leer con OCR los pedidos, pagos de RCI y rejillas para ponerles el nombre «Tipo - Cliente - Fecha» (en segundo plano). */
+  const [renombrar, setRenombrar] = useState(true);
+  const [avisoRenombrado, setAvisoRenombrado] = useState<string | null>(null);
   const pausaRef = useRef(false);
   const cancelarRef = useRef(false);
   const control = useRef<AbortController | null>(null);
@@ -67,6 +71,8 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
   const [nGuardados, setNGuardados] = useState(0);
   /** Ids de lo que esta tanda ha guardado como nuevo (para poder quitarlo al cancelar). */
   const idsNuevos = useRef<number[]>([]);
+  /** De esos, los que se pueden leer para ponerles nombre (PDF y fotos: pedidos, pagos de RCI y rejillas). */
+  const idsLegibles = useRef<number[]>([]);
   /** Bytes enviados por archivo, en una referencia y con repintado espaciado: con cientos de archivos cada aviso de progreso repintaría toda la tabla. */
   const enviado = useRef<number[]>(archivos.map(() => 0));
   const [, repintar] = useReducer((n: number) => n + 1, 0);
@@ -127,6 +133,7 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
             guardados.current++;
             setNGuardados(guardados.current);
             idsNuevos.current.push(r.archivo.id);
+            if (r.archivo.categoria !== "listado" && (r.archivo.mime === "application/pdf" || r.archivo.mime.startsWith("image/"))) idsLegibles.current.push(r.archivo.id);
             poner(i, { estado: "nuevo", idGuardado: r.archivo.id });
           }
           avanzar(i, Math.max(1, filas[i].archivo.size));
@@ -143,6 +150,18 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
       }
     }
     repintar();
+    // Los guardados que se pueden leer (pedidos, pagos y rejillas) se renombran en segundo plano leyéndolos con OCR
+    if (renombrar && !cancelarRef.current) {
+      const idsUsados = [...idsLegibles.current];
+      if (idsUsados.length > 0) {
+        try {
+          await lanzarTarea("/api/biblioteca/renombrar", { ids: idsUsados });
+          setAvisoRenombrado(`Se están renombrando ${idsUsados.length} archivo${idsUsados.length === 1 ? "" : "s"} leyéndolos en segundo plano (verás el avance arriba y los nombres se irán actualizando en la biblioteca).`);
+        } catch (e) {
+          setAvisoRenombrado(`Guardados, pero no se ha podido empezar a renombrarlos: ${e instanceof Error ? e.message : "error"}`);
+        }
+      }
+    }
     setFase("fin");
   };
 
@@ -293,6 +312,10 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
               <div style={{ color: "var(--text-secondary)" }}>
                 El tipo se propone por el nombre y el formato (Excel = listado, «rci» o «pago» = pago de RCI, «rejilla» o «comisión» = rejilla; un PDF o foto sin más pistas = pedido) y decide en qué zonas de subida aparece luego; se puede cambiar después. Ordena por cualquier columna, busca, y cambia el tipo de golpe a los archivos que ves.
               </div>
+              <label style={{ display: "flex", gap: "8px", alignItems: "center", cursor: "pointer" }} title="Después de guardar, la aplicación lee cada pedido, pago de RCI y rejilla con OCR y les pone el nombre «Pedido - Cliente - Fecha», «Pago RCI - Cliente - Fecha» o «Rejilla - Mes Año». Va en segundo plano y no cambia nada si no consigue leer un documento.">
+                <input type="checkbox" checked={renombrar} onChange={(e) => setRenombrar(e.target.checked)} style={{ accentColor: "var(--primary)" }} />
+                🏷️ Renombrar los pedidos, pagos de RCI y rejillas leyéndolos (OCR): «Tipo - Cliente - Fecha»
+              </label>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                 <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>VER</span>
                 <button type="button" className={filtro === "todos" ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setFiltro("todos")}>
@@ -337,6 +360,7 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
                 <div style={{ height: "100%", width: `${porcentaje}%`, background: errores > 0 && fase === "fin" ? "var(--danger)" : "var(--primary)", transition: "width 0.2s" }} />
               </div>
               {preguntaCancelar && <div style={{ marginTop: "10px", padding: "10px 12px", border: "1px solid var(--danger)", borderRadius: "var(--radius-sm)" }}>La subida está parada mientras eliges. Se han guardado {nGuardados} {plural(nGuardados, "archivo nuevo", "archivos nuevos")}: ¿los dejo en la biblioteca o los elimino? También puedes seguir subiendo.</div>}
+              {fase === "fin" && avisoRenombrado && <div style={{ marginTop: "8px", color: "var(--text-secondary)" }}>🏷️ {avisoRenombrado}</div>}
               {fase === "fin" && (
                 <div style={{ marginTop: "8px", color: errores > 0 || errorFinal ? "var(--danger)" : "var(--text-secondary)" }}>
                   {nuevos} {plural(nuevos, "guardado", "guardados")}

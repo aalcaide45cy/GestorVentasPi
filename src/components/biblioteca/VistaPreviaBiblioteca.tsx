@@ -95,6 +95,7 @@ export default function VistaPreviaBiblioteca({ archivo, local, alCerrar }: { ar
       {vista === null && <div style={{ color: "var(--text-muted)" }}>Abriendo…</div>}
       {vista?.tipo === "pdf" && !url && <div style={{ color: "var(--text-muted)" }}>Preparando la vista previa…</div>}
       {vista?.tipo === "pdf" && url && <iframe title={archivo.nombre} src={url} style={{ width: "100%", height: "70vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />}
+      {vista?.tipo === "pdf" && url && <div style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>¿No se ve el documento? Pulsa «Abrir en pestaña nueva».</div>}
       {vista?.tipo === "imagen" && url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt={archivo.nombre} style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", alignSelf: "center", borderRadius: "var(--radius-sm)" }} />

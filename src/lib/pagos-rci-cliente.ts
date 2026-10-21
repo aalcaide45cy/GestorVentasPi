@@ -1,4 +1,3 @@
-import { guardarCopiaEnBiblioteca } from "@/lib/biblioteca-cliente";
 import type { PagoRciDto } from "@/lib/servicios/pagos-rci";
 
 /** Error de la API de pagos de RCI con su código (el 409 significa «el documento no coincide»: se puede forzar). */
@@ -32,7 +31,6 @@ export interface ResumenSubidaPagos {
 
 /** Sube muchos pagos (de dos en dos) y cuenta qué ha pasado con cada uno. `alProgreso` recibe los que van hechos. */
 export async function subirPagosRci(ficheros: File[], alProgreso: (hechos: number, total: number) => void): Promise<ResumenSubidaPagos> {
-  guardarCopiaEnBiblioteca(ficheros, "pago_rci");
   const r: ResumenSubidaPagos = { aplicados: 0, pendientes: 0, ignorados: 0, duplicados: 0, errores: [] };
   let siguiente = 0;
   let hechos = 0;

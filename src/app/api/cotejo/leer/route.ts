@@ -4,7 +4,15 @@ import { manejar } from "@/lib/http";
 import { encolar } from "@/lib/servicios/tareas";
 import { MAX_BYTES_OCR } from "@/lib/servicios/ocr";
 import { MOTORES, conMotor, type MotorOcr } from "@/lib/servicios/ocr-ajustes";
-import { leerMatriculasDeFichero } from "@/lib/servicios/ocr-rejilla";
+import { db } from "@/db";
+import { guardarCopiaAutomatica } from "@/lib/servicios/biblioteca";
+import { leerMatriculasDeFichero, type LecturaHoja } from "@/lib/servicios/ocr-rejilla";
+
+/** Tras leer una rejilla, queda en la biblioteca como «Rejilla - Abril 2024» (con el mes que lleva escrito abajo a la izquierda); si hay varias hojas, con todos sus meses. */
+async function guardarRejilla(datos: Buffer, nombre: string, paginas: LecturaHoja[], idUsuario: number): Promise<void> {
+  const meses = [...new Set(paginas.map((p) => p.mes).filter((m): m is string => !!m))];
+  await guardarCopiaAutomatica(db, { datos, nombreOriginal: nombre, categoria: "rejilla", mes: meses[0] ?? null, creadoPor: idUsuario });
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -30,11 +38,13 @@ export const POST = manejar(async (req: Request) => {
     const tarea = encolar({ tipo: "rejilla", titulo: `Leer la rejilla «${nombre}»`, idUsuario: u.idUsuario }, async (ctx) => {
       ctx.avance(0, 1, "Leyendo las matrículas de la hoja…");
       const paginas = await conMotor(motor, () => leerMatriculasDeFichero(datos));
+      await guardarRejilla(datos, nombre, paginas, u.idUsuario);
       ctx.avance(1, 1);
       return { paginas };
     });
     return NextResponse.json({ success: true, tarea: tarea.id }, { status: 202 });
   }
   const paginas = await conMotor(motor, () => leerMatriculasDeFichero(datos));
+  await guardarRejilla(datos, (q.get("nombre") ?? "rejilla").slice(0, 120), paginas, u.idUsuario);
   return NextResponse.json({ success: true, data: { paginas } });
 });

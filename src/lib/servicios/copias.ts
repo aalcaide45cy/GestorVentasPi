@@ -5,11 +5,11 @@ import { readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { sembrar } from "@/db/semilla";
-import { ajustes, conexionDrive, copiasSeguridad, plantillasPlan, plantillasTarifasVn } from "@/db/schema";
+import { ajustes, codigosRecuperacion, conexionDrive, copiasSeguridad, emailsUsuarios, plantillasPlan, plantillasTarifasVn, telefonosUsuarios, usuarios } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { ajustarCifradoTrasRestaurar, asegurarComprobacion, prepararPortabilidad } from "./clave-recuperacion";
@@ -740,6 +740,11 @@ export const esquemaRestaurar = z.object({
   claveOrigen: z.string().max(500).optional(),
   /** Copia de otra instalación sin la clave: se restaura igualmente, sin los documentos ni el doble factor (que usan la clave de la otra instalación). */
   sinClave: z.boolean().optional(),
+  /**
+   * Qué usuarios quedan al restaurar. «conservar» (por defecto): los de ESTA instalación mantienen su contraseña, su doble factor, su rol y su estado
+   * (la copia aporta los datos, no las cuentas de acceso). «copia»: se usan las cuentas tal como estaban en la copia.
+   */
+  usuarios: z.enum(["conservar", "copia"]).optional(),
 });
 
 async function pgRestore(ruta: string): Promise<void> {
@@ -759,6 +764,68 @@ async function pgRestore(ruta: string): Promise<void> {
  * Las plantillas (de tarifas y de planes) son del administrador y no dependen de los datos: se guardan antes de restaurar una
  * copia y se reponen después las que la copia no traía (así restaurar una copia antigua no las hace desaparecer).
  */
+/**
+ * Las cuentas de acceso de ESTA instalación (contraseña, doble factor, rol…) se guardan antes de restaurar: la copia trae las suyas y, sin esto, restaurar
+ * en otro equipo (por ejemplo, la copia del PC en el Mac) cambiaría las contraseñas y los códigos del doble factor de todos.
+ */
+async function guardarUsuarios(ej: Ejecutor) {
+  return {
+    usuarios: await ej.select().from(usuarios),
+    emails: await ej.select().from(emailsUsuarios),
+    telefonos: await ej.select().from(telefonosUsuarios),
+    codigos: await ej.select().from(codigosRecuperacion),
+  };
+}
+
+/**
+ * Tras restaurar, devuelve a los usuarios de esta instalación sus credenciales y su configuración. Se emparejan por el correo de acceso: si la copia también
+ * lo traía se actualiza su fila (así sigue enlazada a sus expedientes), y si no, se vuelve a crear. Los usuarios que solo están en la copia se quedan como
+ * venían. Sus contactos y códigos de recuperación se reponen también.
+ */
+export async function reponerUsuarios(ej: Ejecutor, g: Awaited<ReturnType<typeof guardarUsuarios>>): Promise<{ actualizados: number; recreados: number }> {
+  let actualizados = 0;
+  let recreados = 0;
+  await ej.transaction(async (tx) => {
+    const traidos = new Map((await tx.select().from(usuarios)).map((u) => [u.loginEmail.toLowerCase(), u]));
+    const idNuevo = new Map<number, number>();
+    for (const u of g.usuarios) {
+      const valores = {
+        passwordHash: u.passwordHash,
+        debeCambiarPassword: u.debeCambiarPassword,
+        totpSecretoCifrado: u.totpSecretoCifrado,
+        totpActivo: u.totpActivo,
+        totpUltimoContador: u.totpUltimoContador,
+        intentosFallidos: u.intentosFallidos,
+        bloqueadoHasta: u.bloqueadoHasta,
+        nombre: u.nombre,
+        rol: u.rol,
+        bloqueado: u.bloqueado,
+        tipoVendedor: u.tipoVendedor,
+        patronVo: u.patronVo,
+      };
+      const existente = traidos.get(u.loginEmail.toLowerCase());
+      if (existente) {
+        await tx.update(usuarios).set(valores).where(eq(usuarios.idUsuario, existente.idUsuario));
+        idNuevo.set(u.idUsuario, existente.idUsuario);
+        actualizados++;
+      } else {
+        const [n] = await tx.insert(usuarios).values({ loginEmail: u.loginEmail, creadoEn: u.creadoEn, fechaDeRegistro: u.fechaDeRegistro, ...valores }).returning({ id: usuarios.idUsuario });
+        idNuevo.set(u.idUsuario, n.id);
+        recreados++;
+      }
+    }
+    const ids = [...idNuevo.values()];
+    if (ids.length === 0) return;
+    await tx.delete(emailsUsuarios).where(inArray(emailsUsuarios.idUsuario, ids));
+    await tx.delete(telefonosUsuarios).where(inArray(telefonosUsuarios.idUsuario, ids));
+    await tx.delete(codigosRecuperacion).where(inArray(codigosRecuperacion.idUsuario, ids));
+    for (const e of g.emails) if (e.idUsuario !== null && idNuevo.has(e.idUsuario)) await tx.insert(emailsUsuarios).values({ idUsuario: idNuevo.get(e.idUsuario), email: e.email, tipoEmail: e.tipoEmail });
+    for (const t of g.telefonos) if (t.idUsuario !== null && idNuevo.has(t.idUsuario)) await tx.insert(telefonosUsuarios).values({ idUsuario: idNuevo.get(t.idUsuario), telefono: t.telefono, tipoTelefono: t.tipoTelefono });
+    for (const c of g.codigos) if (idNuevo.has(c.idUsuario)) await tx.insert(codigosRecuperacion).values({ idUsuario: idNuevo.get(c.idUsuario) as number, codigoHash: c.codigoHash, usadoEn: c.usadoEn });
+  });
+  return { actualizados, recreados };
+}
+
 async function guardarPlantillas(ej: Ejecutor) {
   return { tarifas: await ej.select().from(plantillasTarifasVn), planes: await ej.select().from(plantillasPlan) };
 }
@@ -822,6 +889,7 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
     previa = await crearCopia(ej, "previa", idAdmin, notaPrevia);
     const rutaPrevia = path.join(/*turbopackIgnore: true*/ dirCopias(), previa.nombre);
     const plantillas = await guardarPlantillas(ej);
+    const cuentas = entrada.usuarios === "copia" ? null : await guardarUsuarios(ej);
     try {
       alAvanzar?.("Restaurando los datos de la copia (es lo que más tarda)");
       await pgRestore(ruta);
@@ -830,6 +898,11 @@ export async function restaurarCopiaCompleta(ej: Ejecutor, idAdmin: number, entr
       await reponerPlantillas(ej, plantillas);
       // Si la copia viene de otra instalación, sus datos cifrados se vuelven a cifrar con la clave de esta (o se deshace todo)
       recifrado = (await ajustarCifradoTrasRestaurar(ej, entrada.claveOrigen, entrada.sinClave === true)).recifrado;
+      // Después de recifrar: las credenciales guardadas ya están cifradas con la clave de esta instalación
+      if (cuentas) {
+        alAvanzar?.("Devolviendo a los usuarios de esta instalación su contraseña y su doble factor");
+        await reponerUsuarios(ej, cuentas);
+      }
     } catch (e) {
       // Vuelta atrás: se restaura el estado anterior
       await pgRestore(rutaPrevia).catch(() => undefined);

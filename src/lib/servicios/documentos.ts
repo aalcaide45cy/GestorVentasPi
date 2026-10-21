@@ -9,6 +9,7 @@ import { parsearPedido, type DatosPedido } from "@/lib/documentos/pedido";
 import type { RegionFoto } from "@/lib/documentos/tarjetas";
 import { HttpError } from "@/lib/auth/sesion";
 import { guardarAdjunto, leerAdjunto, MAX_BYTES_ADJUNTO, detectarMime, type AdjuntoDto } from "./adjuntos";
+import { guardarCopiaAutomatica } from "./biblioteca";
 import { leerCatalogos } from "./catalogos";
 import { leerTarjetasDeImagen, type TarjetaLeida } from "./dni-lectura";
 import { detectarTarjetas } from "@/lib/documentos/tarjetas";
@@ -188,7 +189,36 @@ export async function leerDocumentoAutomatico(ej: Ejecutor, idUsuario: number, n
 export async function leerPedido(ej: Ejecutor, idUsuario: number, nombreFichero: string, datos: Buffer, permitirDuplicados = false, opciones: { paralelo?: boolean } = {}): Promise<ResultadoPedido> {
   const { datos: parsed, similares, metodo } = await analizarPedido(ej, datos, permitirDuplicados, opciones);
   const adjunto = await guardarAdjunto(ej, { datos, nombre: nombreFichero, tipo: "pedido", creadoPor: idUsuario });
+  // Además queda en la biblioteca, con el nombre «Pedido - Cliente - Fecha»
+  await guardarCopiaAutomatica(ej, { datos, nombreOriginal: nombreFichero, categoria: "pedido", cliente: parsed.cliente, fecha: parsed.fechaExpediente, creadoPor: idUsuario });
   return { datos: parsed, similares, adjunto, metodo };
+}
+
+/**
+ * ¿El nombre del cliente leído parece cortado o mal leído? Sin apellidos, con trozos sueltos de una o dos letras (salvo partículas como «de» o «la»),
+ * con cifras o símbolos, o sin casi letras. Con eso se decide volver a leer el pedido con otro motor de OCR.
+ */
+export function nombreSospechoso(nombre: string | null | undefined): boolean {
+  const n = (nombre ?? "").trim();
+  if (n.length < 5) return true;
+  if (/[0-9@#$%&*+=<>|\\_~^]/.test(n) || /[-.,]$/.test(n)) return true;
+  const palabras = n.split(/\s+/);
+  if (palabras.length < 2) return true;
+  const particulas = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "da", "do", "di", "van", "von"]);
+  const utiles = palabras.filter((p) => !particulas.has(p.toLowerCase()));
+  if (utiles.length < 2) return true;
+  return utiles.some((p) => p.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "").length < 3);
+}
+
+/** Solo el cliente y la fecha de un pedido (para poner nombre a un archivo de la biblioteca); null si el documento no es un pedido. */
+export async function leerDatosBasicosDePedido(ej: Ejecutor, datos: Buffer): Promise<{ cliente: string | null; fecha: string | null } | null> {
+  try {
+    const { datos: d } = await analizarPedido(ej, datos, true, {});
+    return { cliente: d.cliente, fecha: d.fechaExpediente };
+  } catch (e) {
+    if (e instanceof NoEsPedidoError) return null;
+    throw e;
+  }
 }
 
 /** Vuelve a leer un pedido ya guardado (con el lector tal como está ahora): no crea ningún documento nuevo. */
@@ -202,6 +232,31 @@ export async function releerPedido(ej: Ejecutor, idAdjunto: number, permitirDupl
 
 /** El análisis de un pedido (sin guardar nada): texto, datos propuestos y expedientes parecidos. */
 async function analizarPedido(ej: Ejecutor, datos: Buffer, permitirDuplicados: boolean, opciones: { paralelo?: boolean }): Promise<{ datos: DatosPedido; similares: ExpedienteSimilar[]; metodo: ResultadoPedido["metodo"] }> {
+  let r = await analizarPedidoUnaVez(ej, datos, permitirDuplicados, opciones);
+  // Si el nombre del cliente ha salido cortado o raro, se vuelve a leer solo con los otros motores de OCR y se queda la mejor lectura
+  if (r.metodo === "ocr" && nombreSospechoso(r.datos.cliente)) {
+    const { cargarAjustesOcr, MOTORES } = await import("./ocr-ajustes");
+    const { equipoOcr } = await import("./ocr-ajustes");
+    const actual = (await cargarAjustesOcr(ej)).motor;
+    const equipo = await equipoOcr().catch(() => null);
+    const otros = MOTORES.filter((m) => m !== actual && (m !== "rapido-gpu" || !!equipo?.nvidia) && (m !== "vision" || !!equipo?.macos));
+    for (const motor of otros) {
+      try {
+        const intento = await conMotor(motor, () => analizarPedidoUnaVez(ej, datos, permitirDuplicados, opciones));
+        const mejor = !nombreSospechoso(intento.datos.cliente) || (nombreSospechoso(r.datos.cliente) && (intento.datos.cliente ?? "").length > (r.datos.cliente ?? "").length);
+        if (mejor) {
+          r = { ...intento, datos: { ...intento.datos, avisos: [`El nombre del cliente salía cortado con el primer motor de lectura: se ha vuelto a leer con «${motor}».`, ...intento.datos.avisos] } };
+          if (!nombreSospechoso(r.datos.cliente)) break;
+        }
+      } catch {
+        /* ese motor no está disponible o falla: se prueba el siguiente */
+      }
+    }
+  }
+  return r;
+}
+
+async function analizarPedidoUnaVez(ej: Ejecutor, datos: Buffer, permitirDuplicados: boolean, opciones: { paralelo?: boolean }): Promise<{ datos: DatosPedido; similares: ExpedienteSimilar[]; metodo: ResultadoPedido["metodo"] }> {
   const { texto, metodo, descartado, cabecera } = await textoDeDocumento(datos, { cribar: true, paralelo: opciones.paralelo });
   if (descartado) throw new NoEsPedidoError(cabecera ?? "");
   const catalogos = await leerCatalogos(ej);

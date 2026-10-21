@@ -5,7 +5,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { copiasSeguridad, marcas, plantillasPlan, plantillasTarifasVn, sesiones } from "@/db/schema";
+import { copiasSeguridad, emailsUsuarios, marcas, plantillasPlan, plantillasTarifasVn, sesiones, usuarios } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { copiaAutomaticaSiToca } from "./planificador";
 import {
@@ -241,6 +241,33 @@ describe.skipIf(!hayPg)("copias completas con PostgreSQL", () => {
     expect(enMantenimiento()).toBe(false);
     // La copia previa queda listada tras la restauración
     expect((await listarCopias(db)).some((c) => c.tipo === "previa")).toBe(true);
+  });
+
+  it("restaurar una copia deja los usuarios de esta instalación como están (contraseña, doble factor, rol) salvo que se pida lo contrario", async () => {
+    const admin = await crearUsuarioPrueba("administrador", "Alfonso");
+    // Estado de la copia (el PC): su contraseña y su doble factor
+    await db.update(usuarios).set({ passwordHash: "hash-del-pc", totpActivo: true, rol: "administrador" }).where(eq(usuarios.idUsuario, admin.idUsuario));
+    await db.insert(emailsUsuarios).values({ idUsuario: admin.idUsuario, email: "alfonso@pc.test", tipoEmail: "Principal" });
+    const copia = await crearCopia(db, "manual", admin.idUsuario);
+    // Estado de la instalación de destino (el Mac): otra contraseña, sin doble factor activado, otro rol y un usuario más
+    await db.delete(emailsUsuarios);
+    await db.update(usuarios).set({ passwordHash: "hash-del-mac", totpActivo: false, rol: "director" }).where(eq(usuarios.idUsuario, admin.idUsuario));
+    await db.insert(usuarios).values({ loginEmail: "solo-mac@prueba.test", passwordHash: "hash-solo-mac", nombre: "Solo en el Mac", rol: "vendedor" });
+
+    await restaurarCopiaCompleta(db, admin.idUsuario, { id: copia.id });
+    const [conservado] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, admin.idUsuario));
+    expect(conservado).toMatchObject({ passwordHash: "hash-del-mac", totpActivo: false, rol: "director" });
+    expect((await db.select().from(usuarios)).some((u) => u.loginEmail === "solo-mac@prueba.test" && u.passwordHash === "hash-solo-mac")).toBe(true);
+    // Sus datos de contacto son los de esta instalación (los de la copia no se mezclan)
+    expect((await db.select().from(emailsUsuarios).where(eq(emailsUsuarios.idUsuario, admin.idUsuario))).length).toBe(0);
+
+    // Pidiendo usar los de la copia, los usuarios son los de la copia (la lista de copias se rehízo al restaurar: se busca la misma copia por su nombre)
+    const mismaCopia = (await listarCopias(db)).find((c) => c.nombre === copia.nombre);
+    if (!mismaCopia) throw new Error("La copia ya no está en la lista");
+    await restaurarCopiaCompleta(db, admin.idUsuario, { id: mismaCopia.id, usuarios: "copia" });
+    const [deCopia] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, admin.idUsuario));
+    expect(deCopia).toMatchObject({ passwordHash: "hash-del-pc", totpActivo: true, rol: "administrador" });
+    expect((await db.select().from(usuarios)).some((u) => u.loginEmail === "solo-mac@prueba.test")).toBe(false);
   });
 
   it("rechaza restaurar un fichero que no es un dump", async () => {

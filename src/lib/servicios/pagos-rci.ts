@@ -7,6 +7,7 @@ import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { parsearPagoRci, type PagoRciLeido } from "@/lib/documentos/pago-rci";
 import { claveNif, limpiarNif, nifParecido, normalizarMatricula } from "@/lib/identificadores";
 import { guardarAdjunto, leerAdjunto } from "./adjuntos";
+import { guardarCopiaAutomatica } from "./biblioteca";
 import { actualizarExpedientes, comprobarAlcance } from "./expedientes-escritura";
 import { esquemaActualizarExpediente } from "./expedientes";
 import { mirarDocumento, ocrImagenes, tipoDeFichero } from "./ocr";
@@ -258,6 +259,12 @@ async function textoDelPago(datos: Buffer): Promise<string> {
   return lineas.map((l) => l.texto).join("\n");
 }
 
+/** Solo el cliente y la fecha de un pago (para poner nombre a un archivo de la biblioteca); null si el documento no es un pago de la financiera. */
+export async function leerDatosBasicosDePago(datos: Buffer): Promise<{ cliente: string | null; fecha: string | null } | null> {
+  const leido = parsearPagoRci(await textoDelPago(datos));
+  return leido ? { cliente: leido.nombre || null, fecha: leido.fechaPago || null } : null;
+}
+
 const nulo = (t: string): string | null => (t === "" ? null : t);
 
 async function insertarPago(ej: Ejecutor, usuario: UsuarioActual, nombre: string, idAdjunto: number | null, estado: EstadoPago, motivo: string | null, l: PagoRciLeido | null) {
@@ -304,6 +311,8 @@ export async function subirPago(ej: Ejecutor, usuario: UsuarioActual, e: Entrada
 export async function procesarPago(ej: Ejecutor, usuario: UsuarioActual, e: EntradaSubirPago, texto: string): Promise<PagoRciDto> {
   const leido = parsearPagoRci(texto);
   const adj = await guardarAdjunto(ej, { datos: e.datos, nombre: e.nombre, tipo: "pago_rci", creadoPor: usuario.idUsuario });
+  // Un pago leído queda también en la biblioteca, con el nombre «Pago RCI - Cliente - Fecha»
+  if (leido) await guardarCopiaAutomatica(ej, { datos: e.datos, nombreOriginal: e.nombre, categoria: "pago_rci", cliente: leido.nombre, fecha: leido.fechaPago, creadoPor: usuario.idUsuario });
 
   if (!leido) {
     if (e.idExpediente) {

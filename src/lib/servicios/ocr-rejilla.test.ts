@@ -1,6 +1,26 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { aGris, celdaConTinta, matriculaDeTexto } from "./ocr-rejilla";
+import { aGris, celdaConTinta, matriculaDeTexto, mesDeTexto, mesLegible } from "./ocr-rejilla";
+
+describe("mesDeTexto (fecha de la rejilla, abajo a la izquierda)", () => {
+  it("lee «abril-24» y sus variantes con errores típicos del OCR", () => {
+    expect(mesDeTexto("abril-24")).toBe("2024-04");
+    expect(mesDeTexto("Abril 2024")).toBe("2024-04");
+    expect(mesDeTexto("  abr.24 ")).toBe("2024-04");
+    expect(mesDeTexto("abri1-24")).toBe("2024-04"); // 1 por l
+    expect(mesDeTexto("Septiembre-25")).toBe("2025-09");
+    expect(mesDeTexto("sept 25")).toBe("2025-09");
+    expect(mesDeTexto("04/2024")).toBe("2024-04");
+    expect(mesDeTexto("abajo a la izquierda: marzo-23 y más texto")).toBe("2023-03");
+  });
+
+  it("no se inventa fechas de números sueltos ni de años imposibles", () => {
+    expect(mesDeTexto("1.910,00 € total 24")).toBeNull();
+    expect(mesDeTexto("abril-99")).toBeNull();
+    expect(mesDeTexto("")).toBeNull();
+    expect(mesLegible("2024-04")).toBe("Abril 2024");
+  });
+});
 
 describe("matriculaDeTexto (lectura de un motor de OCR de una celda)", () => {
   it("saca la matrícula aunque el motor la lea con espacios, minúsculas o ruido alrededor", () => {

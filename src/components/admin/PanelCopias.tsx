@@ -67,7 +67,7 @@ export default function PanelCopias() {
   const [faseRestauracion, setFaseRestauracion] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<CopiaDto | null>(null);
   const [marcadas, setMarcadas] = useState<number[]>([]);
-  const [form, setForm] = useState({ claveOrigen: "", sinClave: false });
+  const [form, setForm] = useState<{ claveOrigen: string; sinClave: boolean; usuarios: "conservar" | "copia" }>({ claveOrigen: "", sinClave: false, usuarios: "conservar" });
   const [claveNueva, setClaveNueva] = useState("");
   const [cliente, setCliente] = useState({ id: "", secreto: "" });
   const urlVuelta = typeof window === "undefined" ? "" : `${window.location.origin}/api/admin/drive/callback`;
@@ -206,7 +206,7 @@ export default function PanelCopias() {
       if (!restaurar) return;
       // La restauración sigue en el servidor (en una Raspberry con una copia grande son varios minutos) y aquí se pregunta cómo va:
       // una sola petición tan larga se cortaba por el camino («Load failed»)
-      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, claveOrigen: form.claveOrigen.trim() || undefined, sinClave: form.sinClave || undefined } });
+      await llamar("/api/admin/copias/restaurar", { method: "POST", cuerpo: { id: restaurar.id, claveOrigen: form.claveOrigen.trim() || undefined, sinClave: form.sinClave || undefined, usuarios: form.usuarios } });
       const inicio = Date.now();
       let fallosSeguidos = 0;
       for (;;) {
@@ -228,7 +228,7 @@ export default function PanelCopias() {
       }
       setFaseRestauracion(null);
       setRestaurar(null);
-      setForm({ claveOrigen: "", sinClave: false });
+      setForm({ claveOrigen: "", sinClave: false, usuarios: "conservar" });
       mostrar("Copia restaurada. Vuelve a iniciar sesión.");
       setTimeout(() => router.push("/login"), 1500);
     }).finally(() => setFaseRestauracion(null));
@@ -718,6 +718,23 @@ export default function PanelCopias() {
           <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
             Se sustituirán <b>todos los datos actuales</b> por los de <code>{restaurar.nombre}</code>. Antes se hará una copia previa automática (con una nota que lo explica) y, al terminar, todas las sesiones se cerrarán. ¿Seguro?
           </p>
+          <fieldset style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <legend style={{ fontSize: "0.85rem", fontWeight: 700, padding: "0 6px" }}>👤 Usuarios y contraseñas</legend>
+            <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "0.88rem", lineHeight: 1.5, cursor: "pointer" }}>
+              <input type="radio" name="usuarios-restaurar" checked={form.usuarios === "conservar"} onChange={() => setForm({ ...form, usuarios: "conservar" })} style={{ marginTop: "3px" }} />
+              <span>
+                <b>Dejar los usuarios de esta instalación como están (recomendado)</b>
+                <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>Cada usuario conserva su contraseña, su doble factor, su rol y si está bloqueado; la copia solo aporta los datos (clientes, expedientes, comisiones…). Los usuarios que solo estén en la copia se quedan como venían.</span>
+              </span>
+            </label>
+            <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "0.88rem", lineHeight: 1.5, cursor: "pointer" }}>
+              <input type="radio" name="usuarios-restaurar" checked={form.usuarios === "copia"} onChange={() => setForm({ ...form, usuarios: "copia" })} style={{ marginTop: "3px" }} />
+              <span>
+                <b>Usar los usuarios de la copia</b>
+                <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>Contraseñas y doble factor pasan a ser los de la copia (los de ahora se pierden). Úsalo solo para volver a un estado anterior de esta misma instalación.</span>
+              </span>
+            </label>
+          </fieldset>
           <div className="form-group">
             <label className="form-label">Clave de recuperación (solo si la copia viene de OTRA instalación)</label>
             <CampoSecreto autoComplete="off" placeholder="Déjalo vacío si restauras en la misma instalación" value={form.claveOrigen} onChange={(e) => setForm({ ...form, claveOrigen: e.target.value })} title="La clave de recuperación que fijaste en la instalación donde se hizo la copia (o su APP_SECRET). Sirve para volver a cifrar los documentos y el doble factor con la clave de esta instalación" />

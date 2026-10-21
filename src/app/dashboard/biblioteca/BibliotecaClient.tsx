@@ -10,7 +10,7 @@ import VistaPreviaBiblioteca from "@/components/biblioteca/VistaPreviaBiblioteca
 import { useCarga } from "@/components/comisiones/useCarga";
 import { CATEGORIAS, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 import { ETIQUETAS, tamanoLegible, type RespuestaListado } from "@/lib/biblioteca-cliente";
-import { llamarComoTarea } from "@/lib/tareas-cliente";
+import { alTerminarTarea, lanzarTarea, llamarComoTarea } from "@/lib/tareas-cliente";
 import { formatDate } from "@/lib/date-utils";
 import type { ArchivoBibliotecaDto } from "@/lib/servicios/biblioteca";
 
@@ -88,6 +88,24 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
     } finally {
       setHaciendo(null);
       recargar();
+    }
+  };
+
+  // Al terminar el renombrado en segundo plano, la lista se pone al día sola
+  useEffect(() => alTerminarTarea((t) => { if (t.tipo === "biblioteca") recargar(); }));
+
+  /** Lee con OCR los pedidos, pagos de RCI y rejillas de la lista y les pone el nombre «Tipo - Cliente - Fecha» (tarea en segundo plano). */
+  const renombrarLeyendo = async (lista: ArchivoBibliotecaDto[]) => {
+    const ids = lista.filter((f) => f.categoria !== "listado" && (f.mime === "application/pdf" || f.mime.startsWith("image/"))).map((f) => f.id);
+    if (ids.length === 0) {
+      mostrar("Solo se pueden renombrar leyéndolos los PDF y las fotos (los Excel no se leen).", "aviso");
+      return;
+    }
+    try {
+      await lanzarTarea("/api/biblioteca/renombrar", { ids });
+      mostrar(`🏷️ Leyendo ${ids.length} archivo${ids.length === 1 ? "" : "s"} para ponerles nombre, en segundo plano: verás el avance arriba y los nombres se irán actualizando aquí.`, "aviso", 6000);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se ha podido empezar a renombrar.", "error");
     }
   };
 
@@ -209,6 +227,9 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
           <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setAsignando([f.id])} title="Asignar el archivo a un cliente o a un expediente" aria-label="Asignar">
             🔗
           </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} disabled={!!haciendo || f.categoria === "listado"} onClick={() => void renombrarLeyendo([f])} title={f.categoria === "listado" ? "Los Excel no se pueden leer para ponerles nombre" : "Leer el documento con OCR y ponerle el nombre «Tipo - Cliente - Fecha»"} aria-label="Renombrar leyendo el documento">
+            🏷️
+          </button>
           <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setEditando({ id: f.id, nombre: f.nombre })} title="Renombrar el archivo" aria-label="Renombrar">
             ✏️
           </button>
@@ -291,6 +312,9 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
             </button>
             <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} onClick={() => void cambiar(elegidos.map((f) => f.id), { idCliente: null }, "Asignación quitada.")} title="Deja los archivos marcados sin asignar a ningún cliente ni expediente">
               Quitar asignación
+            </button>
+            <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} disabled={!!haciendo} onClick={() => void renombrarLeyendo(elegidos)} title="Lee con OCR los pedidos, pagos de RCI y rejillas marcados y les pone el nombre «Pedido - Cliente - Fecha», «Pago RCI - Cliente - Fecha» o «Rejilla - Mes Año». En segundo plano.">
+              🏷️ Renombrar leyendo
             </button>
             <select className="form-input" value="" onChange={(e) => e.target.value && void cambiar(elegidos.map((f) => f.id), { categoria: e.target.value as CategoriaBiblioteca }, "Tipo cambiado.")} style={{ width: "auto", padding: "5px 10px" }} aria-label="Cambiar el tipo de los marcados">
               <option value="">Cambiar tipo…</option>

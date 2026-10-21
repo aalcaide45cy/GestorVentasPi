@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
 import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
-import { guardarCopiaEnBiblioteca } from "@/lib/biblioteca-cliente";
 import { recogerPendientes, registrarAvisos, solicitarCancelacion, subirPedidos } from "@/lib/lecturas-pedidos-cliente";
 import ControlesLectura from "./ControlesLectura";
 import { clasificarFichero, leerDniDeFichero } from "./BotonLeerDocumento";
@@ -59,7 +58,6 @@ export function useLeerPedidos() {
           return;
         }
       }
-      guardarCopiaEnBiblioteca(aSubir, "pedido");
       await subirPedidos(aSubir, { ...destino, dni });
     } finally {
       setSubiendo(false);

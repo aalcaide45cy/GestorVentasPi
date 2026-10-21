@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { clientes, expedientes } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { adivinarCategoria, cambiarArchivos, eliminarArchivos, guardarArchivo, leerArchivo, listarArchivos } from "./biblioteca";
+import { adivinarCategoria, cambiarArchivos, eliminarArchivos, guardarArchivo, guardarCopiaAutomatica, leerArchivo, listarArchivos, renombrarSegunLectura } from "./biblioteca";
 
 beforeEach(reiniciarBd);
 
@@ -23,6 +23,34 @@ describe("biblioteca de archivos", () => {
     const otra = await guardarArchivo(db, { datos, nombre: "copia.pdf", creadoPor: u.idUsuario });
     expect(otra).toMatchObject({ repetido: true, archivo: { id: a.archivo.id, nombre: "pago_rci_8000.pdf" } });
     expect((await leerArchivo(db, a.archivo.id))?.datos.equals(datos)).toBe(true);
+  });
+
+  it("guarda con el nombre «Tipo - Cliente - Fecha» lo que se lee, sin duplicar y sin pisar otros nombres", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const datos = Buffer.from("%PDF-1.4 pedido de Jose Francisco");
+    await guardarCopiaAutomatica(db, { datos, nombreOriginal: "SC332-1i26.pdf", categoria: "pedido", cliente: "JOSE FRANCISCO GOMEZ", fecha: "2026-07-07", creadoPor: u.idUsuario });
+    let lista = await listarArchivos(db);
+    expect(lista.map((f) => f.nombre)).toEqual(["Pedido - Jose Francisco Gomez - 07 Julio 2026.pdf"]);
+    // El mismo archivo otra vez: no se duplica
+    await guardarCopiaAutomatica(db, { datos, nombreOriginal: "otro-nombre.pdf", categoria: "pedido", cliente: "Jose Francisco Gomez", fecha: "2026-07-07", creadoPor: u.idUsuario });
+    expect(await listarArchivos(db)).toHaveLength(1);
+    // Otro documento distinto con el mismo cliente y fecha: «(2)»
+    await guardarCopiaAutomatica(db, { datos: Buffer.from("%PDF-1.4 otro"), nombreOriginal: "x.pdf", categoria: "pedido", cliente: "Jose Francisco Gomez", fecha: "2026-07-07", creadoPor: u.idUsuario });
+    lista = await listarArchivos(db);
+    expect(lista.map((f) => f.nombre).sort()).toEqual(["Pedido - Jose Francisco Gomez - 07 Julio 2026 (2).pdf", "Pedido - Jose Francisco Gomez - 07 Julio 2026.pdf"]);
+    // Sin cliente leído se guarda con su nombre de siempre
+    await guardarCopiaAutomatica(db, { datos: Buffer.from("%PDF-1.4 sin nombre"), nombreOriginal: "raro.pdf", categoria: "pedido", cliente: null, creadoPor: u.idUsuario });
+    expect((await listarArchivos(db)).some((f) => f.nombre === "raro.pdf")).toBe(true);
+  });
+
+  it("una rejilla se guarda como «Rejilla - Mes Año» y un archivo ya guardado se renombra con lo leído de él", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    await guardarCopiaAutomatica(db, { datos: Buffer.from("rejilla abril"), nombreOriginal: "Rejilla Comisiones - Abril 2024.pdf", categoria: "rejilla", mes: "2024-04", creadoPor: u.idUsuario });
+    expect((await listarArchivos(db))[0].nombre).toBe("Rejilla - Abril 2024.pdf");
+    const { archivo } = await guardarArchivo(db, { datos: Buffer.from("pago a mano"), nombre: "pago_rci_8000.pdf", creadoPor: u.idUsuario });
+    expect(await renombrarSegunLectura(db, archivo.id, { cliente: "ana perez lopez", fecha: "2026-05-02" })).toBe("Pago RCI - Ana Perez Lopez - 02 Mayo 2026.pdf");
+    // Sin datos para ponerle nombre no cambia
+    expect(await renombrarSegunLectura(db, archivo.id, { cliente: null })).toBeNull();
   });
 
   it("filtra por categoría, renombra, cambia de categoría y elimina", async () => {

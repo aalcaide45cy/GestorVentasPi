@@ -22,6 +22,82 @@ export interface LecturaHoja {
   matriculas: MatriculaLeida[];
   /** Giro (grados) que se aplicó a la imagen para dejarla derecha. */
   giro: number;
+  /** Mes de la rejilla (AAAA-MM), leído de la fecha que lleva escrita abajo a la izquierda («abril-24»); null si no se ha podido leer. */
+  mes?: string | null;
+}
+
+const NOMBRES_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const quitarAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+function distancia(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+/** Número de mes (1-12) de una palabra: el nombre completo, una abreviatura de 3 letras o más («abr», «sept») o el nombre con un solo error del OCR («abri1»). */
+function mesDePalabra(palabra: string): number | null {
+  const p = quitarAcentos(palabra).replace(/[^a-z]/g, "");
+  if (p.length < 3) return null;
+  const i = NOMBRES_MES.findIndex((m) => m === p || (p.length <= m.length && m.startsWith(p)) || (p.length >= 4 && distancia(p, m) <= 1));
+  return i >= 0 ? i + 1 : null;
+}
+
+/**
+ * Mes (AAAA-MM) de un texto como «abril-24», «Abril 2024», «abr.24» o «04/2024». Devuelve null si no hay una fecha reconocible. Los años de dos
+ * cifras son del 2000 en adelante; solo se aceptan del 2015 al 2045 para no confundir cualquier número con un año.
+ */
+export function mesDeTexto(texto: string): string | null {
+  const t = quitarAcentos(texto);
+  const anio = (a: string) => {
+    const n = a.length === 2 ? 2000 + Number(a) : Number(a);
+    return n >= 2015 && n <= 2045 ? n : null;
+  };
+  for (const m of t.matchAll(/([a-z0-9]{3,12})[\s._/-]*(20\d{2}|\d{2})(?!\d)/g)) {
+    const mes = mesDePalabra(m[1]);
+    const a = anio(m[2]);
+    if (mes && a) return `${a}-${String(mes).padStart(2, "0")}`;
+  }
+  for (const m of t.matchAll(/(?<!\d)(0?[1-9]|1[0-2])\s*[/.-]\s*(20\d{2}|\d{2})(?!\d)/g)) {
+    const a = anio(m[2]);
+    if (a) return `${a}-${String(Number(m[1])).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+/** Nombre del mes con mayúscula inicial («2024-04» → «Abril 2024»). */
+export function mesLegible(mes: string): string {
+  const [a, m] = mes.split("-");
+  const n = NOMBRES_MES[Number(m) - 1] ?? "";
+  return `${n.charAt(0).toUpperCase()}${n.slice(1)} ${a}`;
+}
+
+/**
+ * Lee la fecha que lleva escrita la rejilla abajo a la izquierda (con la hoja ya derecha): se recorta esa zona, se agranda y se lee; si ahí no está,
+ * se prueba con toda la mitad de abajo.
+ */
+export async function leerMesDeRejilla(imagen: Buffer, giro: number): Promise<string | null> {
+  try {
+    const derecha = await sharp(imagen, { failOn: "none" }).rotate(giro).png().toBuffer();
+    const { width = 0, height = 0 } = await sharp(derecha).metadata();
+    if (width < 200 || height < 200) return null;
+    const zonas = [
+      { left: 0, top: Math.floor(height * 0.55), width: Math.floor(width * 0.5), height: height - Math.floor(height * 0.55) },
+      { left: 0, top: Math.floor(height * 0.5), width, height: height - Math.floor(height * 0.5) },
+    ];
+    for (const z of zonas) {
+      const recorte = await sharp(derecha).extract(z).resize({ width: Math.min(3000, z.width * 2), withoutEnlargement: false }).png().toBuffer();
+      for (const psm of ["disperso", "automatico"] as const) {
+        const lineas = await ocrImagenes([recorte], { psm, motorElegido: true });
+        const mes = mesDeTexto(lineas.map((l) => l.texto).join("\n"));
+        if (mes) return mes;
+      }
+    }
+  } catch (e) {
+    console.warn("No se ha podido leer la fecha de la rejilla:", e instanceof Error ? e.message : e);
+  }
+  return null;
 }
 
 export const CARACTERES = "0123456789BCDFGHJKLMNPRSTVWXYZ";
@@ -326,9 +402,26 @@ export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoj
       if (valida) vistas.add(elegida);
       if (elegida.length >= 5) matriculas.push({ matricula: elegida, confianza, valida });
     }
-    if (matriculas.length > 0) return { matriculas, giro };
+    if (matriculas.length > 0) return { matriculas, giro, mes: await leerMesDeRejilla(imagen, giro) };
   }
-  return { matriculas: [], giro: 0 };
+  return { matriculas: [], giro: 0, mes: null };
+}
+
+/** Mes (AAAA-MM) de una rejilla escaneada leyendo solo su fecha, sin leer las matrículas: prueba los giros de un escáner hasta dar con la fecha. */
+export async function leerMesDeFichero(datos: Buffer): Promise<string | null> {
+  const tipo = tipoDeFichero(datos);
+  if (!tipo) return null;
+  return enCola(async () => {
+    await cargarAjustesOcr();
+    const imagenes = tipo === "pdf" ? (await imagenesDePdf(datos, ESCALA_LECTURA)).imagenes : [datos];
+    for (const img of imagenes) {
+      for (const giro of [270, 90, 0, 180]) {
+        const mes = await leerMesDeRejilla(img, giro);
+        if (mes) return mes;
+      }
+    }
+    return null;
+  });
 }
 
 /** Lee las matrículas de un PDF escaneado o de una imagen. Devuelve una lectura por página. */

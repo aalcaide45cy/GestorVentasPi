@@ -104,7 +104,8 @@ export function usarContextoRejillas(c: ContextoRejillas): void {
 
 const cambiarHoja = (id: string, cambio: Partial<HojaEnCola>) => emitir({ ...estado, hojas: estado.hojas.map((h) => (h.id === id ? { ...h, ...cambio } : h)) });
 
-type PaginaLeida = { matriculas: MatriculaLeida[] };
+/** `mes`: el de la fecha que lleva escrita la rejilla abajo a la izquierda (AAAA-MM), si se ha podido leer. */
+type PaginaLeida = { matriculas: MatriculaLeida[]; mes?: string | null };
 
 /** Pone la hoja en la cola del servidor y espera su turno: al terminar, deja sus borradores (uno por página). */
 async function leerHoja(id: string): Promise<void> {
@@ -127,15 +128,15 @@ async function leerHoja(id: string): Promise<void> {
       clave: `${id}-${i}`,
       idHoja: id,
       nombreArchivo: paginas.length > 1 ? `${hoja.nombre} (pág. ${i + 1})` : hoja.nombre,
-      // Si la hoja no deja adivinar su mes, se supone que es el que se estaba mirando
-      mes: sugerirMes(p.matriculas.map((m) => m.matricula), contexto.coches) ?? contexto.mes,
+      // El mes que pone la propia hoja; si no se ha podido leer, el que cuadra con sus coches; y si tampoco, el que se estaba mirando
+      mes: p.mes ?? sugerirMes(p.matriculas.map((m) => m.matricula), contexto.coches) ?? contexto.mes,
       filas: ajustarLecturas(p.matriculas.map((m) => ({ matricula: m.matricula, confianza: m.valida ? m.confianza : 0 })), conocidas),
     }));
     const total = paginas.reduce((n, p) => n + p.matriculas.length, 0);
     emitir({ hojas: estado.hojas.map((h) => (h.id === id ? { ...h, estado: total > 0 ? "leida" : "error", error: total > 0 ? undefined : "No se ha podido leer ninguna matrícula: puedes escribirlas a mano o releerla con otro motor", matriculas: total } : h)), borradores: [...estado.borradores.filter((b) => b.idHoja !== id), ...nuevos] });
     // Las hojas cuyo mes se ha adivinado por sus coches se guardan solas (si ese mes aún no tiene rejilla)
     nuevos.forEach((b, i) => {
-      if (sugerirMes(paginas[i].matriculas.map((m) => m.matricula), contexto.coches)) void guardarSola(b, hoja.idVendedor);
+      if (paginas[i].mes || sugerirMes(paginas[i].matriculas.map((m) => m.matricula), contexto.coches)) void guardarSola(b, hoja.idVendedor);
     });
   } catch (e) {
     if (estado.hojas.some((h) => h.id === id)) cambiarHoja(id, { estado: "error", error: e instanceof Error ? e.message : "No se ha podido leer la hoja" });

@@ -1,0 +1,60 @@
+import { inArray } from "drizzle-orm";
+import type { Ejecutor } from "@/db";
+import { biblioteca } from "@/db/schema";
+import { leerDatosBasicosDePedido } from "./documentos";
+import { leerArchivo, renombrarSegunLectura } from "./biblioteca";
+import { leerDatosBasicosDePago } from "./pagos-rci";
+import { leerMesDeFichero } from "./ocr-rejilla";
+import { TareaCancelada, type ContextoTarea } from "./tareas";
+
+type TipoLegible = "pedido" | "pago_rci" | "rejilla";
+
+export interface ResumenRenombrado {
+  renombrados: number;
+  /** Archivos leídos pero sin datos suficientes para ponerles nombre (no se tocan). */
+  sinDatos: number;
+  /** Excel y «otros»: no se leen. */
+  omitidos: number;
+  errores: number;
+}
+
+/**
+ * Pone a archivos de la biblioteca el nombre «Tipo - Cliente - Fecha» leyéndolos con OCR (pedidos y pagos de RCI) o «Rejilla - Mes Año» (rejillas, con la
+ * fecha que llevan abajo a la izquierda). Va de uno en uno, informa de su avance y se puede cancelar; un archivo que no se puede leer se deja como está.
+ */
+export async function renombrarPorLectura(ej: Ejecutor, ids: number[], ctx?: ContextoTarea): Promise<ResumenRenombrado> {
+  const filas = await ej.select({ id: biblioteca.id, categoria: biblioteca.categoria, nombre: biblioteca.nombre }).from(biblioteca).where(inArray(biblioteca.id, ids));
+  const r: ResumenRenombrado = { renombrados: 0, sinDatos: 0, omitidos: 0, errores: 0 };
+  for (let i = 0; i < filas.length; i++) {
+    if (ctx?.cancelada()) throw new TareaCancelada(`Cancelado: se han renombrado ${r.renombrados} de ${filas.length} archivos`);
+    const f = filas[i];
+    ctx?.avance(i, filas.length, `Leyendo «${f.nombre}» (${i + 1} de ${filas.length})`);
+    // Los Excel no se leen; los demás (pedido, pago, rejilla u otros PDF y fotos) sí
+    if (f.categoria === "listado") {
+      r.omitidos++;
+      continue;
+    }
+    try {
+      const a = await leerArchivo(ej, f.id);
+      if (!a) {
+        r.errores++;
+        continue;
+      }
+      // Se prueba primero como el tipo que tiene (o como pedido, si es otro) y después como los demás: un PDF suelto se toma por pedido y puede ser un pago o una rejilla
+      const orden = [...new Set<TipoLegible>([f.categoria === "pago_rci" || f.categoria === "rejilla" ? f.categoria : "pedido", "pedido", "pago_rci", "rejilla"])];
+      let nombre: string | null = null;
+      for (const tipo of orden) {
+        const leido = tipo === "pedido" ? await leerDatosBasicosDePedido(ej, a.datos) : tipo === "pago_rci" ? await leerDatosBasicosDePago(a.datos).catch(() => null) : { mes: await leerMesDeFichero(a.datos) };
+        nombre = leido ? await renombrarSegunLectura(ej, f.id, leido, tipo) : null;
+        if (nombre) break;
+      }
+      if (nombre) r.renombrados++;
+      else r.sinDatos++;
+    } catch (e) {
+      r.errores++;
+      console.warn(`No se ha podido leer «${f.nombre}» para renombrarlo:`, e instanceof Error ? e.message : e);
+    }
+  }
+  ctx?.avance(filas.length, filas.length, "Terminado");
+  return r;
+}

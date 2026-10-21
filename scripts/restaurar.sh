@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 # Restaura una copia .dump SIN usar la aplicación (reinstalación en una máquina nueva o app caída).
 #   ./scripts/restaurar.sh backups/gv_20261015_033000_auto.dump
+# OJO: este script sustituye TODO, también los usuarios (contraseñas y doble factor) por los de la copia. Para restaurar los datos dejando los usuarios
+# de esta instalación como están, usa la aplicación (Configuración > BBDD > Copias de seguridad > Restaurar).
 # Requiere Docker Compose con los servicios «db» (PostgreSQL) y «app». Pide confirmación.
 set -e
 cd "$(dirname "$0")/.."

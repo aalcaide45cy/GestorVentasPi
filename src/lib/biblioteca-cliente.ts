@@ -1,5 +1,4 @@
 import { ETIQUETA_CATEGORIA, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
-import { guardarEnBibliotecaAlLeerAhora } from "@/lib/preferencias";
 import type { ArchivoBibliotecaDto } from "@/lib/servicios/biblioteca";
 
 /** Piezas del navegador para la biblioteca de archivos (subir, bajar como `File` y listar). */
@@ -66,27 +65,6 @@ export async function borrarDeBiblioteca(ids: number[]): Promise<void> {
   if (ids.length === 0) return;
   const r = await fetch("/api/biblioteca", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
   if (!r.ok) throw new Error(await mensaje(r, "No se han podido quitar los archivos guardados."));
-}
-
-let colaGuardado: Promise<void> = Promise.resolve();
-
-/**
- * Guarda en la biblioteca, sin molestar, lo que se acaba de mandar a leer (pedidos o pagos de RCI), si la preferencia está activa. Va en segundo
- * plano y de uno en uno; no repite lo que ya está (mismo nombre y tamaño) ni avisa si algo falla: leer el documento es lo importante.
- */
-export function guardarCopiaEnBiblioteca(archivos: File[], categoria: CategoriaBiblioteca): void {
-  if (archivos.length === 0 || !guardarEnBibliotecaAlLeerAhora()) return;
-  colaGuardado = colaGuardado.then(async () => {
-    try {
-      const ya = new Set((await listarBiblioteca()).archivos.map((a) => `${a.nombre}|${a.tamano}`));
-      for (const f of archivos) {
-        if (ya.has(`${f.name}|${f.size}`)) continue;
-        await subirABiblioteca(f, categoria).catch((e: unknown) => console.warn("No se ha podido guardar en la biblioteca:", e instanceof Error ? e.message : e));
-      }
-    } catch (e) {
-      console.warn("No se ha podido guardar en la biblioteca:", e instanceof Error ? e.message : e);
-    }
-  });
 }
 
 /** Baja un archivo de la biblioteca y lo entrega como `File`, igual que si se hubiera elegido en el equipo. */
