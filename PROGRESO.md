@@ -524,3 +524,8 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.6.6 (21/10/2026)
 - Log de lecturas: la tabla ocupa todo el alto que queda bajo el título y los filtros (antes se cortaba a 420 px dejando media pantalla vacía). `TablaDatos` admite el parámetro `alto` y la constante `PANTALLA_COMPLETA` para pantallas que son solo una tabla.
+
+## Versión 1.6.7 (21/10/2026)
+- Cotejo de pagos: una hoja leída cuyo mes se adivina por sus coches se **guarda sola** (nunca sustituye una rejilla ya guardada de ese mes: en ese caso queda como borrador y se avisa). Antes había que pulsar «Guardar rejilla» y «Mis rejillas» salía vacía.
+- «Mi mes»: la fila larga de botones por mes se sustituye por un botón «📆 Calendario…» que abre un calendario amplio con un botón por día y una bolita de color por coche (sin pagar, dudoso, sin rejilla, pagado), los doce meses del año con su aviso, y filtros por resultado, tipo (VN/VO) y texto. Elegir un día filtra la tabla del cotejo (chip «Solo el …»).
+- El vendedor elegido en el cotejo se recuerda al cambiar de pestaña.

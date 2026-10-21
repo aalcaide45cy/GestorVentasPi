@@ -298,3 +298,25 @@ export function resumenPorMes(filas: FilaCotejo[]): Map<string, ResumenMes> {
 
 export const filasDelMes = (filas: FilaCotejo[], mes: string): FilaCotejo[] => filas.filter((f) => mesDeFila(f) === mes);
 export const filasSinMes = (filas: FilaCotejo[]): FilaCotejo[] => filas.filter((f) => mesDeFila(f) === null);
+
+/** Día (AAAA-MM-DD) en que cae un coche en el calendario: la matriculación en un nuevo y la afectación en un usado (si falta, otra fecha del coche). */
+export function diaClave(c: CocheCotejo): string | null {
+  const valida = (f: string | null) => (f && /^\d{4}-\d{2}-\d{2}/.test(f) ? f.slice(0, 10) : null);
+  return c.usado ? (valida(c.f_afectacion) ?? valida(c.f_expediente) ?? valida(c.f_entrega)) : (valida(c.f_matriculacion) ?? valida(c.f_entrega));
+}
+
+/** Filas agrupadas por día de un mes (para el calendario) y filas del mes sin coche, que no tienen día. */
+export function filasPorDia(filas: FilaCotejo[], mes: string): { dias: Map<string, FilaCotejo[]>; sinDia: FilaCotejo[] } {
+  const dias = new Map<string, FilaCotejo[]>();
+  const sinDia: FilaCotejo[] = [];
+  for (const f of filas) {
+    const dia = f.coche ? diaClave(f.coche) : null;
+    if (!dia) {
+      if (mesDeFila(f) === mes) sinDia.push(f);
+      continue;
+    }
+    if (dia.slice(0, 7) !== mes) continue;
+    dias.set(dia, [...(dias.get(dia) ?? []), f]);
+  }
+  return { dias, sinDia };
+}

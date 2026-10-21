@@ -57,6 +57,42 @@ describe("cola de lectura de rejillas", () => {
     expect(e.borradores[0].filas.map((f) => f.matricula)).toEqual(["1111ABC", "2222BCD"]);
   });
 
+  it("una hoja con el mes seguro se guarda sola si ese mes no tiene rejilla, y si ya la tiene se queda de borrador", async () => {
+    const avisos: string[] = [];
+    const puestas: { url: string; cuerpo?: string }[] = [];
+    let rejillasGuardadas: { mes: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+        if (url.startsWith("/api/cotejo/leer")) return new Response(JSON.stringify({ success: true, tarea: `t${siguiente++}` }), { status: 202 });
+        if (url.startsWith("/api/cotejo?")) return new Response(JSON.stringify({ success: true, data: { rejillas: rejillasGuardadas } }));
+        puestas.push({ url, cuerpo: init?.body });
+        return new Response(JSON.stringify({ success: true }));
+      }),
+    );
+    const c = await import("./rejillas-lectura-cliente");
+    c.usarContextoRejillas({ coches: [coche("1111ABC", "2026-04-10"), coche("2222BCD", "2026-04-20")], mes: "2026-10", idVendedor: 7, avisar: (t) => avisos.push(t) });
+    c.subirHojas([pdf("a.pdf")]);
+    await esperar();
+    resolvedores.get("t1")!(hoja(["1111ABC", "2222BCD"]));
+    await esperar(60);
+    expect(puestas).toHaveLength(1);
+    expect(puestas[0].url).toContain("/api/cotejo/rejillas?usuario=7");
+    expect(JSON.parse(puestas[0].cuerpo ?? "{}")).toMatchObject({ mes: "2026-04", matriculas: ["1111ABC", "2222BCD"] });
+    expect(c.leerRejillas().borradores).toHaveLength(0);
+    expect(avisos[0]).toContain("guardada sola");
+
+    // Con una rejilla ya guardada de ese mes no se sustituye: se queda de borrador y se avisa
+    rejillasGuardadas = [{ mes: "2026-04" }];
+    c.subirHojas([pdf("b.pdf")]);
+    await esperar();
+    resolvedores.get("t2")!(hoja(["1111ABC"]));
+    await esperar(60);
+    expect(puestas).toHaveLength(1);
+    expect(c.leerRejillas().borradores).toHaveLength(1);
+    expect(avisos[1]).toContain("ya hay una rejilla guardada");
+  });
+
   it("una hoja sin matrículas queda con error (se puede releer con otro motor) y releer sustituye su borrador", async () => {
     const c = await import("./rejillas-lectura-cliente");
     c.usarContextoRejillas({ coches: [], mes: "2026-05" });

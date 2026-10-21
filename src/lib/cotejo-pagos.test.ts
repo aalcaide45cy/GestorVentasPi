@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cotejarPagos, distancia, filasDelMes, filasSinMes, mesDeFila, mesesEsperados, resumenPorMes, sugerirMes, type CocheCotejo, type PagoRejilla } from "./cotejo-pagos";
+import { cotejarPagos, diaClave, distancia, filasPorDia, filasDelMes, filasSinMes, mesDeFila, mesesEsperados, resumenPorMes, sugerirMes, type CocheCotejo, type FilaCotejo, type PagoRejilla } from "./cotejo-pagos";
 
 const coche = (o: Partial<CocheCotejo>): CocheCotejo => ({
   origen: "app", id_expediente: 1, cliente: "Ana Ruiz", tipo_pago: "Contado", marca: "Dacia", modelo: "Sandero", matricula: "1234BCD",
@@ -119,5 +119,24 @@ describe("cotejo por meses", () => {
     expect(mesDeFila(pagado.filas[0])).toBe("2026-02");
     const falta = cotejarPagos([usado], [{ mes: "2026-02", matricula: "0000ZZZ", importe: null }, { mes: "2026-03", matricula: "0001ZZZ", importe: null }]);
     expect(mesDeFila(falta.filas.find((f) => f.matricula === "5555EEE")!)).toBe("2026-03");
+  });
+});
+
+describe("calendario del cotejo", () => {
+  const coche = (o: Partial<CocheCotejo>): CocheCotejo => ({ origen: "app", id_expediente: 1, cliente: "Ana", tipo_pago: "", marca: "", modelo: "", matricula: "1111ABC", f_expediente: null, f_afectacion: null, f_matriculacion: null, f_entrega: null, estado: "", usado: false, ...o });
+  const fila = (c: CocheCotejo | null): FilaCotejo => ({ estado: "sin_rejilla", motivo: "", coche: c, matricula: c?.matricula ?? "9999ZZZ", mesRejilla: c ? null : "2026-04", importe: null });
+
+  it("coloca cada coche en su día: matriculación en un nuevo, afectación en un usado", () => {
+    expect(diaClave(coche({ f_matriculacion: "2026-04-14", f_entrega: "2026-04-20" }))).toBe("2026-04-14");
+    expect(diaClave(coche({ usado: true, f_afectacion: "2026-04-03", f_matriculacion: "2015-01-01" }))).toBe("2026-04-03");
+    expect(diaClave(coche({}))).toBeNull();
+  });
+
+  it("agrupa por día solo los coches de ese mes y deja aparte los que no tienen día", () => {
+    const filas = [fila(coche({ f_matriculacion: "2026-04-14" })), fila(coche({ matricula: "2222BCD", f_matriculacion: "2026-04-14" })), fila(coche({ matricula: "3333CDF", f_matriculacion: "2026-05-02" })), fila(null)];
+    const { dias, sinDia } = filasPorDia(filas, "2026-04");
+    expect([...dias.keys()]).toEqual(["2026-04-14"]);
+    expect(dias.get("2026-04-14")).toHaveLength(2);
+    expect(sinDia).toHaveLength(1);
   });
 });

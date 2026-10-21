@@ -5,7 +5,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { SIN_ESTADO, editarBorrador, leerRejillas, quitarBorrador, quitarHoja, releerHoja, subirHojas, suscribirRejillas, usarContextoRejillas, type BorradorRejilla, type HojaEnCola } from "@/lib/rejillas-lectura-cliente";
-import { cotejarPagos, filasDelMes, filasSinMes, resumenPorMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
+import { cotejarPagos, diaClave, filasDelMes, filasSinMes, resumenPorMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
 import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
 import { formatDate } from "@/lib/date-utils";
 import { euros, mesActual, nombreMes, sumarMeses } from "@/lib/formato";
@@ -16,6 +16,7 @@ import SelectorMotorRelectura, { useMotorDeRelectura } from "@/components/docume
 import { columnasVehiculo } from "@/components/etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
 import type { DatosCotejo } from "@/lib/servicios/cotejo";
+import CalendarioCotejo from "./CalendarioCotejo";
 import MiMes from "./MiMes";
 
 type Borrador = BorradorRejilla;
@@ -86,7 +87,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
     };
   }, [guardarVendedorAviso]);
   const idAviso = esAdministrador && vendedorAviso && vendedores.some((v) => v.id === Number(vendedorAviso)) ? Number(vendedorAviso) : null;
-  const idVendedor = idElegido ?? idAviso ?? idUsuarioActual;
+  // El vendedor elegido se recuerda: al cambiar de pestaña y volver no se vuelve a «uno mismo»
+  const [vendedorRecordado, recordarVendedor] = usePreferencia("cotejo-vendedor-elegido");
+  const idRecordado = esAdministrador && vendedorRecordado && vendedores.some((v) => v.id === Number(vendedorRecordado)) ? Number(vendedorRecordado) : null;
+  const idVendedor = idElegido ?? idAviso ?? idRecordado ?? idUsuarioActual;
   const { datos, recargar } = useCarga<DatosCotejo>(`/api/cotejo?usuario=${idVendedor}`, { coches: [], pagos: [], rejillas: [] });
   const mes = esMes(mesGuardado) ? mesGuardado : mesActual();
   // Las hojas en lectura y los borradores viven fuera del componente: siguen su curso aunque se cambie de pestaña
@@ -98,7 +102,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   const [arrastrando, setArrastrando] = useState(false);
   const [filtro, setFiltro] = useState<"todos" | EstadoCotejo>("todos");
   const [verSinMatricula, setVerSinMatricula] = useState(false);
-  const carril = useRef<HTMLDivElement>(null);
+  const [calendario, setCalendario] = useState(false);
+  const [diaElegido, setDia] = useState<string | null>(null);
+  // El filtro de día solo vale en el mes al que pertenece (al cambiar de mes desaparece)
+  const dia = diaElegido && diaElegido.startsWith(mes) ? diaElegido : null;
 
   const cochesTodos = useMemo(() => [...datos.coches, ...listados.flatMap((l) => l.coches)], [datos.coches, listados]);
   const borradoresConMes = useMemo(() => borradores.filter((b) => esMes(b.mes)), [borradores]);
@@ -113,18 +120,13 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   const resultado = useMemo(() => cotejarPagos(cochesTodos, pagos), [cochesTodos, pagos]);
   const resumenes = useMemo(() => resumenPorMes(resultado.filas), [resultado.filas]);
 
-  // Meses que se ofrecen arriba: los que tienen coches o rejilla, el elegido y el actual
-  const meses = useMemo(() => {
-    const s = new Set<string>([...resumenes.keys(), ...resultado.mesesConRejilla, mes, mesActual()]);
-    return [...s].filter(esMes).sort();
-  }, [resumenes, resultado.mesesConRejilla, mes]);
   const mesesGuardados = useMemo(() => new Set(datos.rejillas.map((r) => r.mes)), [datos.rejillas]);
   const mesesEnBorrador = useMemo(() => new Set(borradoresConMes.map((b) => b.mes)), [borradoresConMes]);
 
   // La lectura (que sigue aunque se cambie de pestaña) necesita saber qué coches hay y qué mes se está mirando
   useEffect(() => {
-    usarContextoRejillas({ coches: cochesTodos, mes });
-  }, [cochesTodos, mes]);
+    usarContextoRejillas({ coches: cochesTodos, mes, idVendedor, avisar: mostrar });
+  }, [cochesTodos, mes, idVendedor, mostrar]);
   // Al terminar de leerse la primera hoja de una subida se salta a su mes, para ver enseguida su cotejo
   const prev = useRef(borradores.length);
   useEffect(() => {
@@ -136,13 +138,9 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
     prev.current = borradores.length;
   }, [borradores, mes, guardarMes]);
 
-  // El mes elegido se deja a la vista en el carril de meses
-  useEffect(() => {
-    carril.current?.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({ inline: "center", block: "nearest" });
-  }, [mes, meses.length]);
 
   const filasMes = useMemo(() => filasDelMes(resultado.filas, mes), [resultado.filas, mes]);
-  const filas = filasMes.filter((f) => filtro === "todos" || f.estado === filtro);
+  const filas = filasMes.filter((f) => (filtro === "todos" || f.estado === filtro) && (!dia || (f.coche && diaClave(f.coche) === dia)));
   const resumen = resumenes.get(mes) ?? { total: 0, pagados: 0, dudosos: 0, noPagados: 0, sinRejilla: 0 };
   const sinFecha = useMemo(() => filasSinMes(resultado.filas), [resultado.filas]);
   const hayRejilla = mesesGuardados.has(mes) || mesesEnBorrador.has(mes);
@@ -315,7 +313,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
           {esAdministrador && vendedores.length > 1 && (
             <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem", marginLeft: "auto" }}>
               Vendedor
-              <select className="form-input" value={idVendedor} onChange={(e) => { setIdVendedor(Number(e.target.value)); borradores.forEach((b) => quitarBorrador(b.clave)); }}>
+              <select className="form-input" value={idVendedor} onChange={(e) => { setIdVendedor(Number(e.target.value)); recordarVendedor(e.target.value); borradores.forEach((b) => quitarBorrador(b.clave)); }}>
                 {vendedores.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.nombre}
@@ -325,39 +323,42 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
             </label>
           )}
         </div>
-        {/* Carril de meses: cada uno con su rejilla y lo que falta por revisar */}
-        <div ref={carril} role="tablist" aria-label="Meses" style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "4px" }}>
-          {meses.map((m) => {
-            const r = resumenes.get(m);
-            const seleccionado = m === mes;
-            const conRejilla = mesesGuardados.has(m) || mesesEnBorrador.has(m);
-            return (
-              <button
-                key={m}
-                type="button"
-                role="tab"
-                aria-selected={seleccionado}
-                aria-current={seleccionado ? "true" : undefined}
-                onClick={() => guardarMes(m)}
-                title={`${nombreMes(m)}: ${r ? `${r.total} coche(s)` : "sin coches"} · ${mesesEnBorrador.has(m) ? "rejilla leída sin guardar" : mesesGuardados.has(m) ? "con rejilla" : "sin rejilla"}${r && r.noPagados ? ` · ${r.noPagados} sin pagar` : ""}${r && r.dudosos ? ` · ${r.dudosos} dudoso(s)` : ""}`}
-                className={seleccionado ? "btn btn-primary" : "btn btn-secondary"}
-                style={{ flexShrink: 0, padding: "5px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: "74px", fontSize: "0.82rem" }}
-              >
-                <span style={{ fontWeight: 700 }}>{mesCorto(m)}</span>
-                <span style={{ fontSize: "0.68rem", display: "flex", gap: "5px", opacity: 0.95 }}>
-                  <span title={conRejilla ? "Tiene rejilla" : "Sin rejilla"}>{mesesEnBorrador.has(m) ? "📝" : conRejilla ? "📄" : "▫️"}</span>
-                  {/* Un solo aviso por mes: lo más urgente que tiene */}
-                  {r?.noPagados ? <span>🔴{r.noPagados}</span> : r?.dudosos ? <span>🟡{r.dudosos}</span> : r?.sinRejilla ? <span>⚪{r.sinRejilla}</span> : r && r.total > 0 ? <span>🟢{r.total}</span> : null}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <span>📄 con rejilla · 📝 leída sin guardar · ▫️ sin rejilla</span>
-          <span>🔴 coches sin pagar · 🟡 dudosos · ⚪ aún sin rejilla de su mes · 🟢 todo cobrado</span>
+        {/* Calendario: todos los meses y días a la vista, con filtros */}
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          <button type="button" className="btn btn-primary" onClick={() => setCalendario(true)} title="Abre un calendario amplio con un botón por día y una bolita de color por coche, con filtros por resultado, tipo y texto">
+            📆 Calendario…
+          </button>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <span>{mesesEnBorrador.has(mes) ? "📝 rejilla leída sin guardar" : mesesGuardados.has(mes) ? "📄 con rejilla guardada" : "▫️ sin rejilla"}</span>
+            {resumen.noPagados > 0 && <span>🔴 {resumen.noPagados} sin pagar</span>}
+            {resumen.dudosos > 0 && <span>🟡 {resumen.dudosos} dudosos</span>}
+            {resumen.sinRejilla > 0 && <span>⚪ {resumen.sinRejilla} sin rejilla</span>}
+            {resumen.pagados > 0 && <span>🟢 {resumen.pagados} pagados</span>}
+          </span>
+          {dia && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setDia(null)} title="Quitar el filtro de día y ver todo el mes">
+              Solo el {formatDate(dia)} ✕
+            </button>
+          )}
         </div>
       </section>
+
+      {calendario && (
+        <CalendarioCotejo
+          filas={resultado.filas}
+          mes={mes}
+          dia={dia}
+          resumenes={resumenes}
+          mesesGuardados={mesesGuardados}
+          mesesEnBorrador={mesesEnBorrador}
+          alAplicar={(m, d) => {
+            guardarMes(m);
+            setDia(d);
+            setCalendario(false);
+          }}
+          alCerrar={() => setCalendario(false)}
+        />
+      )}
 
       {/* 2. Rejilla del mes + resultado */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: "16px", alignItems: "start" }}>
