@@ -4,6 +4,8 @@
  * servidor cuando algo tarda demasiado o falla. Nunca guarda valores de parámetros ni cuerpos de petición, solo rutas y texto de SQL.
  */
 
+import { emitirIncidencia } from "@/lib/incidencias-hook";
+
 export interface Peticion {
   en: number;
   metodo: string;
@@ -40,7 +42,10 @@ export function registrarPeticion(metodo: string, ruta: string, estadoHttp: numb
   e.peticiones.push({ en: Date.now(), metodo, ruta: normalizarRuta(ruta), estado: estadoHttp, ms: Math.round(ms) });
   if (e.peticiones.length > MAX_PETICIONES) e.peticiones.splice(0, e.peticiones.length - MAX_PETICIONES);
   if (estadoHttp >= 500) console.error(`Petición con error ${estadoHttp}: ${metodo} ${normalizarRuta(ruta)} (${Math.round(ms)} ms)`);
-  else if (ms >= UMBRAL_PETICION_LENTA_MS) console.warn(`Petición lenta (${Math.round(ms)} ms): ${metodo} ${normalizarRuta(ruta)} → ${estadoHttp}`);
+  else if (ms >= UMBRAL_PETICION_LENTA_MS) {
+    console.warn(`Petición lenta (${Math.round(ms)} ms): ${metodo} ${normalizarRuta(ruta)} → ${estadoHttp}`);
+    emitirIncidencia({ origen: "rendimiento", nivel: "aviso", titulo: `Petición lenta: ${metodo} ${normalizarRuta(ruta)}`, ruta: `${metodo} ${normalizarRuta(ruta)}`, contexto: { ms: Math.round(ms), estado: estadoHttp } });
+  }
 }
 
 export function registrarConsulta(ms: number, texto: string): void {
@@ -50,6 +55,7 @@ export function registrarConsulta(ms: number, texto: string): void {
   e.consultas.push({ en: Date.now(), ms: Math.round(ms), sql });
   if (e.consultas.length > MAX_CONSULTAS) e.consultas.splice(0, e.consultas.length - MAX_CONSULTAS);
   console.warn(`Consulta lenta (${Math.round(ms)} ms): ${sql.slice(0, 250)}`);
+  emitirIncidencia({ origen: "rendimiento", nivel: "aviso", titulo: `Consulta lenta: ${sql.slice(0, 160)}`, contexto: { ms: Math.round(ms) } });
 }
 
 export interface ResumenRuta {

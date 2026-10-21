@@ -1,6 +1,8 @@
 import { appendFile, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { format } from "node:util";
+import { emitirIncidencia } from "@/lib/incidencias-hook";
+import type { OrigenIncidencia } from "@/lib/incidencias";
 import { carpetaCopias } from "@/lib/mantenimiento";
 
 /**
@@ -67,7 +69,10 @@ export function instalarRegistroServidor(): void {
       }
       // Lo que Next escribe con `console` (peticiones, «✓ Compiled…») también es ruido, y en desarrollo anotarlo provoca el bucle de recompilar
       const texto = format(...args);
-      if (!RUIDO.test(texto.replace(ANSI, "").split(/\r?\n/)[0])) anotar(nivel === "log" ? "INFO" : nivel.toUpperCase(), texto);
+      if (!RUIDO.test(texto.replace(ANSI, "").split(/\r?\n/)[0])) {
+        anotar(nivel === "log" ? "INFO" : nivel.toUpperCase(), texto);
+        if (nivel === "error") incidenciaDeLinea(texto);
+      }
     };
   }
   for (const [flujo, nivel] of [[process.stdout, "INFO"], [process.stderr, "ERROR"]] as const) {
@@ -84,6 +89,19 @@ export function instalarRegistroServidor(): void {
       return escribirOriginal(chunk, ...resto);
     };
   }
+}
+
+/**
+ * Lo que sale con `console.error` también es una incidencia, salvo lo que ya se anota por su cuenta (errores de la API con su ruta y los propios avisos
+ * de este sistema). El origen se deduce del texto: las tareas y las lecturas fallidas tienen el suyo.
+ */
+export function incidenciaDeLinea(texto: string): void {
+  const t = texto.replace(ANSI, "");
+  // «[browser]»: el servidor de desarrollo reenvía aquí los errores de la página; ya los avisa la propia página
+  if (/^(Error no controlado en la API|Petición con error|No se pudo guardar una incidencia|\[browser\])/.test(t)) return;
+  const origen: OrigenIncidencia = /^Tarea «/.test(t) ? "tarea" : /^Lectura de (pedido|pago|dni)/i.test(t) ? "lectura" : "servidor";
+  const [primera, ...resto] = t.split(/\r?\n/);
+  emitirIncidencia({ origen, titulo: primera, detalle: resto.length > 0 ? resto.join("\n") : null });
 }
 
 const INICIO_ENTRADA = /\n(?=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[)/;

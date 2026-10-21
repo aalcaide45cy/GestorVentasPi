@@ -3,7 +3,7 @@ import { GUIAS } from "./guias";
 
 // Una guía por cada entrada del menú lateral y por cada pestaña que lleva «i»: si se añade una, hay que escribir su guía
 const PESTANAS = [
-  ...["usuarios", "marcas", "modelos", "tiendas", "pagos", "estados", "expedientes", "bbdd", "temas"].map((c) => `config.${c}`),
+  ...["usuarios", "incidencias", "marcas", "modelos", "tiendas", "pagos", "estados", "expedientes", "bbdd", "temas"].map((c) => `config.${c}`),
   ...["analisis", "papelera", "datos", "copias", "sistema", "rendimiento", "registro", "peligro"].map((c) => `config.bbdd.${c}`),
   ...["lista", "modos", "foto"].map((c) => `config.expedientes.${c}`),
   ...["oscuros", "claros", "originales"].map((c) => `config.temas.${c}`),

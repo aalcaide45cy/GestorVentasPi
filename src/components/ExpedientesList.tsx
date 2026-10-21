@@ -6,7 +6,6 @@ import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import BotonesBackup from "@/components/BotonesBackup";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import { eventoDeArchivos } from "@/lib/biblioteca-cliente";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
@@ -1160,10 +1159,7 @@ export default function ExpedientesList({
             {esAdministrador && (
               <GrupoDatos titulo="🗄️ Copias y traspaso entre instalaciones" ayuda="Solo administradores. Para guardar, recuperar o llevar los expedientes a otro equipo.">
                 <CajaDatos titulo="📁 Expedientes en archivo JSON y copias internas" texto="Exporta o importa solo los expedientes (con vista previa y copia de seguridad automática) y guarda copias internas de esta sección dentro de la aplicación para restaurarlas cuando quieras.">
-                  <BotonesDatosSeccion seccion="expedientes" />
-                </CajaDatos>
-                <CajaDatos titulo="💾 Datos básicos de la aplicación (JSON)" texto="Incluye tiendas, usuarios, clientes, expedientes y catálogos, pero NO planes, liquidaciones, puntos ni documentos; trae contraseñas cifradas y secretos del doble factor, así que guárdalo en un sitio seguro. La copia de TODO es la .dump de Configuración › BBDD.">
-                  <BotonesBackup deshabilitado={cargando} />
+                  <BotonesDatosSeccion modo="botones" seccion="expedientes" />
                 </CajaDatos>
               </GrupoDatos>
             )}

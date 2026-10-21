@@ -10,7 +10,7 @@ import { useToast } from "@/components/Toast";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
-import { BotonLeerDni, BotonLeerPedido, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import { BotonLeerDni, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import NombreConFoto from "./documentos/FotoCliente";
 import { mensajeDeError } from "./expedientes/comun";
@@ -620,9 +620,6 @@ function FormularioEditarExpediente({
               {flecha("9 18 15 12 9 6")}
             </button>
           </div>
-          <button type="button" className="btn btn-secondary" onClick={() => navegar("BACK")} disabled={cargando} style={{ height: "36px", display: "flex", alignItems: "center" }}>
-            Cancelar
-          </button>
           <button type="button" className="btn btn-primary" onClick={() => void enviar()} disabled={cargando} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             {cargando ? "Guardando..." : "Guardar Cambios"}
             {!cargando && iconoGuardar}
@@ -768,7 +765,7 @@ function FormularioEditarExpediente({
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerPedido compacta disabled={cargando} alLeer={async (r) => setPedidoLeido(r)} alLeerDni={alLeerDniSuelto} />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Para rellenar estos datos desde el pedido, suéltalo arriba, en «Leer DNI o pedido» (vale el pedido o el DNI, da igual cuál).</span>
               {pedidoLeido && (
                 <ModalPedidoEnExpediente
                   pedido={pedidoLeido}
@@ -790,7 +787,7 @@ function FormularioEditarExpediente({
                   alCancelar={() => setPedidoLeido(null)}
                 />
               )}
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido: verás una vista previa para marcar qué datos aplicar (cliente incluido). Se guarda al pulsar «Guardar Cambios».</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>De un pedido leído verás una vista previa para marcar qué datos aplicar (cliente incluido). Se guarda al pulsar «Guardar Cambios».</span>
             </div>
 
             <div className="rejilla-ficha">
@@ -969,8 +966,7 @@ function FormularioEditarExpediente({
           }}
         />
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "8px", flexWrap: "wrap" }}>
-          {volver}
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "16px", marginTop: "8px", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: "16px" }}>
             <button type="button" className="btn btn-secondary" onClick={() => navegar("BACK")} disabled={cargando}>
               Cancelar

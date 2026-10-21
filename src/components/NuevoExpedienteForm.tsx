@@ -10,7 +10,7 @@ import type { ClienteDto } from "@/lib/dto";
 import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
 import { hoyIsoCliente } from "@/lib/date-utils";
 import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
-import { BotonLeerDni, BotonLeerPedido, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import { BotonLeerDni, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import { mensajeDeError } from "./expedientes/comun";
 
 interface Opcion {
@@ -567,8 +567,7 @@ function FormularioNuevoExpediente({ marcas, modelosPorMarca, tiposVenta, estado
             )}
 
             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerPedido compacta disabled={cargando} alLeer={alLeerPedidoSuelto} alLeerDni={alLeerDniSuelto} />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sube el pedido (PDF o foto) y se rellenan bastidor, matrícula, modelo, forma de pago y fechas.</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Para rellenar estos datos desde el pedido, suéltalo arriba, en «Leer DNI o pedido» (vale el pedido o el DNI, da igual cuál).</span>
             </div>
 
             <div className="rejilla-ficha">

@@ -579,7 +579,7 @@ function ModalGestionar({ alCerrar }: { alCerrar: () => void }) {
             <div style={{ color: "var(--text-secondary)", maxWidth: "460px", lineHeight: 1.5 }}>
               La plantilla «incluida» viene con la aplicación y no se puede cambiar ni borrar, pero puedes <b>duplicarla</b> y modificar la copia. Para guardar una nueva usa «Guardar como plantilla…» desde las tarifas de un plan.
             </div>
-            <BotonesDatosSeccion seccion="plantillas_tarifas" alCambiar={recargar} />
+            <BotonesDatosSeccion modo="botones" seccion="plantillas_tarifas" alCambiar={recargar} />
           </div>
           {lista === null && <div style={{ color: "var(--text-muted)" }}>Cargando…</div>}
           {lista?.map((p) => (

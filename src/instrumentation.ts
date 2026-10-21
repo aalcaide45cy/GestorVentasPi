@@ -8,6 +8,10 @@ export async function register(): Promise<void> {
     // Mide el equipo cada 30 s (CPU, memoria, temperatura, disco…) para la pestaña «Rendimiento» y avisa en el registro si algo va mal
     const { iniciarMuestreo } = await import("./lib/rendimiento");
     iniciarMuestreo();
+    // Centro de incidencias: guarda en un solo sitio los errores y avisos del servidor, del navegador y del equipo (Configuración › Incidencias)
+    const { db: bdIncidencias } = await import("./db");
+    const { instalarIncidencias } = await import("./lib/servicios/incidencias");
+    instalarIncidencias(bdIncidencias, process.env.npm_package_version ?? null);
     // Una instalación sin usuarios deja a la vista el código con el que crear al primer administrador
     const { db } = await import("./db");
     const { anunciarPrimerArranque } = await import("./lib/servicios/primer-arranque");

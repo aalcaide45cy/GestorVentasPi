@@ -8,6 +8,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { ContenidoSeccion, InfoSeccion, Informe, Modo, ParteContenido, Seccion } from "@/lib/servicios/intercambio";
 import type { CopiaInternaDto } from "@/lib/servicios/copias-seccion";
+import { GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import { TEXTO_SEGUNDO_CLIC, useDobleConfirmacion } from "@/components/useDobleConfirmacion";
 
 /**
@@ -891,10 +892,16 @@ function ModalRestaurar({ copia, seccion, alCerrar, alTerminar }: { copia: Copia
  * Tres botones (Exportar, Importar, Copias internas) para una sección concreta. Solo los administradores los ven:
  * si la API responde que no hay permiso, no se pinta nada.
  */
-export function BotonesDatosSeccion({ seccion, alCambiar, planesIniciales }: { seccion: Seccion; alCambiar?: () => void; planesIniciales?: number[] }) {
+/**
+ * Exportar, importar y copias internas de una sección. En las cabeceras de pantalla (`modo` «menu», lo normal) es un solo botón «Importar y
+ * exportar» que abre una ventana con las tres opciones explicadas, igual que en Expedientes y Clientes; dentro de otra ventana (`modo` «botones»)
+ * salen los tres botones directamente.
+ */
+export function BotonesDatosSeccion({ seccion, alCambiar, planesIniciales, modo = "menu" }: { seccion: Seccion; alCambiar?: () => void; planesIniciales?: number[]; modo?: "menu" | "botones" }) {
   const router = useRouter();
   const [datos, setDatos] = useState<DatosPanel | null>(null);
   const [modal, setModal] = useState<"exportar" | "importar" | "copias" | null>(null);
+  const [hub, setHub] = useState(false);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -919,6 +926,53 @@ export function BotonesDatosSeccion({ seccion, alCambiar, planesIniciales }: { s
     alCambiar?.();
   };
 
+  const nombreExportar = seccion === "planes" ? "planes" : s.plural;
+  const elegir = (m: "exportar" | "importar" | "copias") => {
+    setHub(false);
+    setModal(m);
+  };
+  const ventanas = (
+    <>
+      {modal === "exportar" && <ModalExportar seccion={s} planes={datos.planes} idsIniciales={planesIniciales} alCerrar={() => setModal(null)} />}
+      {modal === "importar" && <ModalImportar seccion={s} alCerrar={() => setModal(null)} alTerminar={terminar} />}
+      {modal === "copias" && <ModalCopiasInternas seccion={seccion} secciones={datos.secciones} alCerrar={() => setModal(null)} alCambiar={terminar} />}
+    </>
+  );
+
+  if (modo === "menu") {
+    return (
+      <>
+        <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setHub(true)} title={`Exportar o importar ${nombreExportar} en un archivo y guardar copias internas, todo en una sola ventana, con la explicación de cada opción`}>
+          🗂️ Importar y exportar
+        </button>
+        {hub && (
+          <Modal
+            titulo={`🗂️ Importar y exportar ${nombreExportar}`}
+            ancho="760px"
+            pie={
+              <button type="button" className="btn btn-secondary" onClick={() => setHub(false)}>
+                Cerrar
+              </button>
+            }
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "18px", fontSize: "0.9rem" }}>
+              <GrupoDatos titulo="📤 Sacar" ayuda="Descarga un archivo; no cambia nada en la aplicación.">
+                <OpcionDatos icono="📤" titulo={`Exportar SOLO ${nombreExportar}`} texto={seccion === "planes" ? "Descarga los planes que elijas (todos o uno a uno) en un archivo .json." : `Descarga los ${s.plural} en un archivo .json.`} ayuda="No borra ni cambia nada." alPulsar={() => elegir("exportar")} />
+              </GrupoDatos>
+              {s.importable && (
+                <GrupoDatos titulo="📥 Traer y guardar" ayuda="Para recuperar datos o llevarlos a otra instalación.">
+                  <OpcionDatos icono="📥" titulo="Importar" texto={`Carga ${s.plural} desde un archivo .json exportado antes. Verás una vista previa y no se aplica nada sin tu confirmación.`} ayuda="Se hace una copia de seguridad antes de aplicar." alPulsar={() => elegir("importar")} />
+                  <OpcionDatos icono="🗂️" titulo="Copias internas" texto={`Copias de ${s.plural} guardadas dentro de la aplicación: guardar una, restaurarla, descargarla o borrarla.`} ayuda="Quedan en la propia base de datos de la aplicación." alPulsar={() => elegir("copias")} />
+                </GrupoDatos>
+              )}
+            </div>
+          </Modal>
+        )}
+        {ventanas}
+      </>
+    );
+  }
+
   return (
     <>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
@@ -936,9 +990,7 @@ export function BotonesDatosSeccion({ seccion, alCambiar, planesIniciales }: { s
           </button>
         )}
       </div>
-      {modal === "exportar" && <ModalExportar seccion={s} planes={datos.planes} idsIniciales={planesIniciales} alCerrar={() => setModal(null)} />}
-      {modal === "importar" && <ModalImportar seccion={s} alCerrar={() => setModal(null)} alTerminar={terminar} />}
-      {modal === "copias" && <ModalCopiasInternas seccion={seccion} secciones={datos.secciones} alCerrar={() => setModal(null)} alCambiar={terminar} />}
+      {ventanas}
     </>
   );
 }

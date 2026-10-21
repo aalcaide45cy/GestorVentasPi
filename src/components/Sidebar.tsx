@@ -192,6 +192,12 @@ export default function Sidebar({ user, version }: SidebarProps) {
   const isVendedorOrUp = esRolActivo(rol);
   const { datos: avisosRejilla } = useCarga<{ total: number; avisos: AvisoRejilla[] } | null>(isVendedorOrUp ? "/api/comisiones/rejillas/avisos" : null, null);
   const [verAvisos, setVerAvisos] = useState(false);
+  // Errores nuevos del centro de incidencias (solo administrador): encienden el círculo rojo de «Configuración»
+  const { datos: resumenFallos } = useCarga<{ nuevasErrores: number } | null>(isAdmin ? `/api/admin/incidencias?resumen=1&r=${ruta}` : null, null);
+  const irAIncidencias = () => {
+    guardarPreferencia("config-pestana", "incidencias");
+    router.push("/dashboard/admin");
+  };
   const irAlAviso = (a: AvisoRejilla) => {
     // El cotejo se abre ya en el mes (y el vendedor) del aviso
     guardarPreferencia("cotejo-pestana", "mes");
@@ -460,7 +466,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
           )}
 
           {isAdmin && (
-            <EnlaceNav href="/dashboard/admin" titulo="Configuración" guia="menu.configuracion" colapsado={isCollapsed} punto={avisoCopias?.excede ? (avisoCopias.motivo ?? "Hay demasiadas copias de seguridad") : undefined}>
+            <EnlaceNav href="/dashboard/admin" titulo="Configuración" guia="menu.configuracion" colapsado={isCollapsed} insignia={resumenFallos?.nuevasErrores} ayudaInsignia={`${resumenFallos?.nuevasErrores ?? 0} error(es) nuevo(s) sin revisar en Incidencias. Pulsa el círculo para verlos.`} alPulsarInsignia={irAIncidencias} punto={avisoCopias?.excede ? (avisoCopias.motivo ?? "Hay demasiadas copias de seguridad") : undefined}>
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </EnlaceNav>

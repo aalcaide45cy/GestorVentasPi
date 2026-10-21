@@ -8,6 +8,7 @@ import { usePreferencia } from "@/lib/preferencias";
 import { BotonesDatosSeccion } from "./datos/DatosSeccion";
 import BotonAyuda from "./BotonAyuda";
 import PanelPaletas from "./admin/PanelPaletas";
+import PestanaIncidencias from "./admin/PestanaIncidencias";
 import PestanaBbdd from "./admin/PestanaBbdd";
 import PestanaEstados from "./admin/PestanaEstados";
 import PestanaExpedientes from "./admin/PestanaExpedientes";
@@ -28,10 +29,11 @@ interface Props {
   panelUsuarios: ReactNode;
 }
 
-type Pestana = "usuarios" | "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "bbdd" | "temas";
+type Pestana = "usuarios" | "incidencias" | "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "bbdd" | "temas";
 
 const PESTANAS: { clave: Pestana; etiqueta: string }[] = [
   { clave: "usuarios", etiqueta: "👥 Usuarios" },
+  { clave: "incidencias", etiqueta: "🩺 Incidencias" },
   { clave: "marcas", etiqueta: "🏷️ Marcas" },
   { clave: "modelos", etiqueta: "🚙 Modelos" },
   { clave: "tiendas", etiqueta: "🏢 Tiendas" },
@@ -102,6 +104,7 @@ export default function AdminCatalogosForm({
 
       {verPaletas && <PanelPaletas alCerrar={() => setVerPaletas(false)} />}
       {pestana === "usuarios" && panelUsuarios}
+      {pestana === "incidencias" && <PestanaIncidencias />}
       {pestana === "marcas" && <PestanaMarcas marcas={marcas} setMarcas={setMarcas} />}
       {pestana === "modelos" && <PestanaModelos marcas={marcas} setMarcas={setMarcas} />}
       {pestana === "tiendas" && <PestanaTiendas tiendas={tiendas} setTiendas={setTiendas} predeterminadaId={predeterminadaId} setPredeterminadaId={setPredeterminadaId} />}

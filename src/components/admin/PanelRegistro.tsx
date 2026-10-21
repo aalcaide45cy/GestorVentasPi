@@ -74,7 +74,7 @@ export default function PanelRegistro() {
       <div>
         <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>📜 Registro del servidor</h3>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.5, margin: 0 }}>
-          Lo que el programa va anotando mientras funciona: errores, avisos y sucesos importantes (por ejemplo, por qué falló una restauración). Sirve para copiar y pegar el detalle de un problema. Se conserva al reiniciar y se rota solo al llegar a 5 MB.
+          Lo que el programa va anotando mientras funciona: errores, avisos y sucesos importantes (por ejemplo, por qué falló una restauración). Sirve para copiar y pegar el detalle de un problema. Se conserva al reiniciar y se rota solo al llegar a 5 MB. Es el detalle técnico completo; los errores y avisos de aquí salen además agrupados, con sus repeticiones y pasos previos, en Configuración › Incidencias.
         </p>
       </div>
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import PanelRegistroNotificaciones from "@/components/PanelRegistroNotificaciones";
 import { registrarNotificacion } from "@/lib/notificaciones-cliente";
+import { avisoDeErrorMostrado } from "@/lib/incidencias-cliente";
 
 type TipoToast = "exito" | "error" | "aviso";
 
@@ -85,6 +86,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           return;
         }
         const { frase, detalles } = partir(o.texto);
+        // Un aviso de error es lo que la persona vio fallar: también se anota en el centro de incidencias
+        if (item.tipo === "error") avisoDeErrorMostrado(frase);
         // Los toques fugaces (3 s o menos, como «Copiado») no tienen nada que repasar y no se anotan
         if (o.duracionMs === undefined || o.duracionMs === 0 || o.duracionMs > 3000) registrarNotificacion({ tipo: item.tipo, titulo: o.titulo ?? null, texto: frase, detalles: [...(o.detalles ?? []), ...detalles] });
         setFlotantes((prev) => [...prev, item]);

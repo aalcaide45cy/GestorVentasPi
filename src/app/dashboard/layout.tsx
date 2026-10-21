@@ -8,6 +8,8 @@ import BotonMenuMovil from "@/components/BotonMenuMovil";
 import AyudaBotones from "@/components/AyudaBotones";
 import LaboratorioComisiones from "@/components/LaboratorioComisiones";
 import OverlaySubida from "@/components/OverlaySubida";
+import BotonAvisarFallo from "@/components/incidencias/BotonAvisarFallo";
+import VigilanteFallos from "@/components/incidencias/VigilanteFallos";
 import Sidebar from "@/components/Sidebar";
 import { versionDeLaApp } from "@/lib/version";
 import { ToastProvider } from "@/components/Toast";
@@ -83,6 +85,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <ToastProvider>
       <OverlaySubida />
+      <VigilanteFallos version={versionDeLaApp()} />
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-app)", position: "relative" }}>
         <div className="glow-bg"></div>
 
@@ -115,6 +118,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <BotonMenuMovil />
             {esAdministrador(normalizarRol(user.rol)) && <IndicadorRecursos />}
             {esAdministrador(normalizarRol(user.rol)) && <IndicadorTareas />}
+            {esRolActivo(normalizarRol(user.rol)) && <BotonAvisarFallo version={versionDeLaApp()} />}
             <CampanaNotificaciones />
             <Suspense fallback={null}>
               <GlobalSearch />

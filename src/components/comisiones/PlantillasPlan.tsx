@@ -408,7 +408,7 @@ function ModalGestionar({ ambito, alCerrar }: { ambito: Ambito; alCerrar: () => 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px", fontSize: "0.9rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <div style={{ color: "var(--text-secondary)", maxWidth: "420px", lineHeight: 1.5 }}>Para cambiar lo que guarda una plantilla, aplícala a un plan, modifícalo y vuelve a guardar eligiendo «Sustituir».</div>
-            <BotonesDatosSeccion seccion="plantillas_plan" alCambiar={recargar} />
+            <BotonesDatosSeccion modo="botones" seccion="plantillas_plan" alCambiar={recargar} />
           </div>
           {lista === null && <div style={{ color: "var(--text-muted)" }}>Cargando…</div>}
           {lista?.length === 0 && <div style={{ color: "var(--text-muted)" }}>Todavía no hay plantillas en esta sección.</div>}

@@ -125,6 +125,17 @@ export const GUIAS: Record<string, Guia> = {
     ],
     ojo: ["Suspender no borra datos: el usuario y sus expedientes se conservan."],
   },
+  "config.incidencias": {
+    titulo: "Incidencias",
+    queEs: "Todo lo que falla o va mal, reunido en un solo sitio: errores del servidor y del navegador, avisos de error que ha visto alguien, tareas y lecturas fallidas, lentitud, avisos del equipo y fallos que avisa una persona con «🐞 Avisar de un fallo».",
+    pasos: [
+      "Mira «Pendientes»: lo nuevo sale en negrita. Pulsa un mensaje para ver el detalle, la captura (si la hay) y los últimos pasos que se dieron antes del fallo.",
+      "Marca las que quieras y pulsa «Resueltas» (si vuelven a ocurrir se reabren solas) o «Ignorar» (dejan de contar como pendientes).",
+      "«📋 Copiar informe» deja en el portapapeles un texto con lo que pasó, dónde, cuántas veces y los pasos previos: pásaselo a quien vaya a arreglarlo.",
+      "El círculo rojo de «Configuración» en el menú cuenta los errores nuevos; púlsalo para venir aquí.",
+    ],
+    ojo: ["Nunca se guardan contraseñas ni lo que se escribe en los formularios, y se tapan correos, documentos y números largos.", "Las cerradas se borran solas a los 45 días."],
+  },
   "config.marcas": {
     titulo: "Marcas",
     queEs: "Las marcas de coches con las que trabajas. De ellas cuelgan los modelos, y desde aquí eliges cuáles tienen sistema de comisiones y cuáles salen en el acceso rápido al crear expedientes.",

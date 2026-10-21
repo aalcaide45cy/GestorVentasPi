@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
 import { HttpError } from "@/lib/auth/sesion";
 import { conContextoHistorial, etiquetaDeAccion } from "@/lib/historial/contexto";
-import { registrarPeticion } from "@/lib/rendimiento-registro";
+import { emitirIncidencia } from "@/lib/incidencias-hook";
+import { normalizarRuta, registrarPeticion } from "@/lib/rendimiento-registro";
 
 /** Respuesta de error con el formato del original: `{ message }`. */
 export function errorJson(status: number, message: string): NextResponse {
@@ -59,14 +60,21 @@ export function manejar<A extends unknown[]>(
     // Se mide cuánto tarda cada petición para la pestaña «Rendimiento» y para anotar en el registro las lentas y las que fallan
     const inicio = performance.now();
     let respuesta: NextResponse;
+    let fallo: unknown = null;
     try {
       respuesta = cambia ? await conContextoHistorial(etiquetaDeAccion(req.method, new URL(req.url).pathname), () => fn(...args)) : await fn(...args);
     } catch (e) {
+      fallo = e;
       respuesta = responderError(e);
     }
     if (req) {
       try {
         registrarPeticion(req.method, new URL(req.url).pathname, respuesta.status, performance.now() - inicio);
+        // Un 5xx es siempre un fallo: se anota en el centro de incidencias con su ruta y su traza
+        if (respuesta.status >= 500) {
+          const ruta = `${req.method} ${normalizarRuta(new URL(req.url).pathname)}`;
+          emitirIncidencia({ origen: "servidor", titulo: fallo instanceof Error ? fallo.message : `Respuesta ${respuesta.status} en ${ruta}`, detalle: fallo instanceof Error ? fallo.stack : null, ruta });
+        }
       } catch {
         /* medir nunca debe romper una petición */
       }

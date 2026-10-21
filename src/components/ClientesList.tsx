@@ -3,7 +3,6 @@
 import { señalarCampo } from "@/lib/resaltar";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import BotonesBackup from "@/components/BotonesBackup";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import Modal, { ModalConfirmar } from "@/components/Modal";
@@ -795,10 +794,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
             {userRole === "administrador" && (
               <GrupoDatos titulo="🗄️ Copias y traspaso entre instalaciones" ayuda="Solo administradores. Para guardar, recuperar o llevar los clientes a otro equipo.">
                 <CajaDatos titulo="📁 Clientes en archivo JSON y copias internas" texto="Exporta o importa solo los clientes (con vista previa y copia de seguridad automática) y guarda copias internas de esta sección dentro de la aplicación para restaurarlas cuando quieras.">
-                  <BotonesDatosSeccion seccion="clientes" alCambiar={() => router.refresh()} />
-                </CajaDatos>
-                <CajaDatos titulo="💾 Datos básicos de la aplicación (JSON)" texto="Incluye tiendas, usuarios, clientes, expedientes y catálogos, pero NO planes, liquidaciones, puntos ni documentos; trae contraseñas cifradas y secretos del doble factor, así que guárdalo en un sitio seguro. La copia de TODO es la .dump de Configuración › BBDD.">
-                  <BotonesBackup deshabilitado={cargando} />
+                  <BotonesDatosSeccion modo="botones" seccion="clientes" alCambiar={() => router.refresh()} />
                 </CajaDatos>
               </GrupoDatos>
             )}

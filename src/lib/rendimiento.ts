@@ -4,6 +4,7 @@ import { monitorEventLoopDelay } from "node:perf_hooks";
 import os from "node:os";
 import path from "node:path";
 import { sql } from "drizzle-orm";
+import { emitirIncidencia } from "@/lib/incidencias-hook";
 import { db } from "@/db";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { identidadEquipo, type IdentidadEquipo } from "@/lib/equipo";
@@ -187,6 +188,7 @@ function avisarSiHaceFalta(i: Interno, s: Muestra, lim: Limitacion | null): void
     if (Date.now() - ultimo < 10 * 60_000) return; // como mucho cada 10 minutos
     i.avisado.set(clave, Date.now());
     console.warn(`Rendimiento: ${texto}`);
+    emitirIncidencia({ origen: "equipo", nivel: "aviso", titulo: texto });
   };
   if (s.tempC !== null && s.tempC >= 80) avisar("temp", `temperatura alta (${s.tempC} °C): el procesador reduce la velocidad`);
   if (lim && lim.ahora.length > 0) avisar("limite", `la Raspberry está limitando la velocidad: ${lim.ahora.join("; ")}`);

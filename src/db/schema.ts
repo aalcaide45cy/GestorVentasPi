@@ -1095,3 +1095,43 @@ export const lecturasPedidos = pgTable(
   },
   (t) => [index("lecturas_pedidos_estado_idx").on(t.estado, t.id), index("lecturas_pedidos_usuario_idx").on(t.idUsuario, t.huella)],
 );
+
+/**
+ * Incidencias: todo lo que falla o va mal, reunido en un solo sitio (errores del servidor y del navegador, avisos de error en pantalla, tareas
+ * fallidas, lentitud, avisos del equipo y fallos que avisa una persona). Las repetidas se juntan por `huella` y cuentan cuántas veces ocurrieron.
+ * Nunca se guardan contraseñas, tokens ni valores de formularios: solo mensajes, rutas y los pasos previos (qué botón se pulsó, qué petición fue).
+ */
+export const incidencias = pgTable(
+  "incidencias",
+  {
+    id: serial("id").primaryKey(),
+    huella: varchar("huella", { length: 40 }).notNull(),
+    /** servidor | navegador | peticion | aviso | tarea | lectura | rendimiento | equipo | manual */
+    origen: varchar("origen", { length: 16 }).notNull(),
+    /** error | aviso */
+    nivel: varchar("nivel", { length: 8 }).notNull().default("error"),
+    titulo: text("titulo").notNull(),
+    detalle: text("detalle"),
+    /** Pantalla (navegador) o ruta de la API donde ocurrió. */
+    ruta: text("ruta"),
+    contexto: jsonb("contexto").$type<Record<string, unknown>>(),
+    veces: integer("veces").notNull().default(1),
+    primeraVez: timestamp("primera_vez", { withTimezone: true }).notNull().defaultNow(),
+    ultimaVez: timestamp("ultima_vez", { withTimezone: true }).notNull().defaultNow(),
+    /** nueva | revisada | resuelta | ignorada */
+    estado: varchar("estado", { length: 10 }).notNull().default("nueva"),
+    nota: text("nota"),
+    idUsuario: integer("id_usuario").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    version: varchar("version", { length: 20 }),
+  },
+  (t) => [uniqueIndex("incidencias_huella_uq").on(t.huella), index("incidencias_estado_idx").on(t.estado, t.ultimaVez)],
+);
+
+/** Capturas de pantalla de las incidencias manuales (cifradas, aparte para no cargarlas nunca por error). */
+export const incidenciasCapturas = pgTable("incidencias_capturas", {
+  id: serial("id").primaryKey(),
+  idIncidencia: integer("id_incidencia").notNull().references(() => incidencias.id, { onDelete: "cascade" }),
+  mime: varchar("mime", { length: 40 }).notNull(),
+  datos: bytea("datos").notNull(),
+  creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+});
