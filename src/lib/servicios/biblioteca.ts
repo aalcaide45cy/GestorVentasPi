@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
-import { biblioteca, bibliotecaDatos } from "@/db/schema";
+import { biblioteca, bibliotecaDatos, clientes, expedientes } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { CATEGORIAS, ETIQUETA_CATEGORIA, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
@@ -21,6 +21,10 @@ export interface ArchivoBibliotecaDto {
   mime: string;
   tamano: number;
   creadoEn: string;
+  idCliente: number | null;
+  idExpediente: number | null;
+  /** A quién está asignado, para enseñarlo («Ana Pérez» o «#EXP-0012 · Ana Pérez»); null si no está asignado. */
+  asignadoA: string | null;
 }
 
 /** Categoría que se propone por el nombre y el tipo del archivo (se puede cambiar a mano). */
@@ -33,7 +37,17 @@ export function adivinarCategoria(nombre: string, mime = ""): CategoriaBibliotec
   return "otro";
 }
 
-const aDto = (f: typeof biblioteca.$inferSelect): ArchivoBibliotecaDto => ({ id: f.id, categoria: f.categoria as CategoriaBiblioteca, nombre: f.nombre, mime: f.mime, tamano: f.tamano, creadoEn: f.creadoEn.toISOString() });
+const aDto = (f: typeof biblioteca.$inferSelect, cliente: string | null = null): ArchivoBibliotecaDto => ({
+  id: f.id,
+  categoria: f.categoria as CategoriaBiblioteca,
+  nombre: f.nombre,
+  mime: f.mime,
+  tamano: f.tamano,
+  creadoEn: f.creadoEn.toISOString(),
+  idCliente: f.idCliente,
+  idExpediente: f.idExpediente,
+  asignadoA: f.idExpediente ? `#EXP-${String(f.idExpediente).padStart(4, "0")}${cliente ? ` · ${cliente}` : ""}` : f.idCliente ? (cliente ?? `Cliente ${f.idCliente}`) : null,
+});
 
 const MIME_POR_EXTENSION: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xls: "application/vnd.ms-excel", csv: "text/csv", txt: "text/plain" };
 const mimeDe = (nombre: string, declarado: string): string => (declarado && declarado !== "application/octet-stream" ? declarado : (MIME_POR_EXTENSION[nombre.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream"));
@@ -61,9 +75,9 @@ export async function guardarArchivo(
 }
 
 export async function listarArchivos(ej: Ejecutor, categorias?: CategoriaBiblioteca[]): Promise<ArchivoBibliotecaDto[]> {
-  const q = ej.select().from(biblioteca);
+  const q = ej.select({ f: biblioteca, cliente: clientes.nombre }).from(biblioteca).leftJoin(clientes, eq(clientes.id, biblioteca.idCliente));
   const filas = await (categorias && categorias.length > 0 ? q.where(inArray(biblioteca.categoria, categorias)) : q).orderBy(desc(biblioteca.creadoEn), desc(biblioteca.id));
-  return filas.map(aDto);
+  return filas.map((r) => aDto(r.f, r.cliente));
 }
 
 export async function leerArchivo(ej: Ejecutor, id: number): Promise<{ meta: ArchivoBibliotecaDto; datos: Buffer } | null> {
@@ -74,15 +88,39 @@ export async function leerArchivo(ej: Ejecutor, id: number): Promise<{ meta: Arc
   return { meta: aDto(f), datos: descifrarBuffer(d.datos) };
 }
 
-export async function cambiarArchivo(ej: Ejecutor, id: number, cambios: { nombre?: string; categoria?: CategoriaBiblioteca }): Promise<void> {
+/**
+ * Cambia uno o varios archivos: nombre (solo con uno), tipo y asignación. `idCliente` / `idExpediente` a null los deja sin asignar; al asignar un
+ * expediente se guarda también el cliente de ese expediente, y al asignar solo un cliente se quita el expediente.
+ */
+export async function cambiarArchivos(
+  ej: Ejecutor,
+  ids: number[],
+  cambios: { nombre?: string; categoria?: CategoriaBiblioteca; idCliente?: number | null; idExpediente?: number | null },
+): Promise<number> {
   const nombre = cambios.nombre?.trim().slice(0, 200);
   if (cambios.nombre !== undefined && !nombre) throw new HttpError(400, "El nombre no puede estar vacío.");
-  const filas = await ej
-    .update(biblioteca)
-    .set({ ...(nombre ? { nombre } : {}), ...(cambios.categoria ? { categoria: cambios.categoria } : {}) })
-    .where(eq(biblioteca.id, id))
-    .returning({ id: biblioteca.id });
-  if (filas.length === 0) throw new HttpError(404, "Archivo no encontrado");
+  if (nombre && ids.length !== 1) throw new HttpError(400, "El nombre solo se puede cambiar de uno en uno.");
+  return ej.transaction(async (tx) => {
+    const set: Partial<typeof biblioteca.$inferInsert> = { ...(nombre ? { nombre } : {}), ...(cambios.categoria ? { categoria: cambios.categoria } : {}) };
+    if (cambios.idExpediente) {
+      const [e] = await tx.select({ cliente: expedientes.idCliente }).from(expedientes).where(eq(expedientes.idExpediente, cambios.idExpediente));
+      if (!e) throw new HttpError(404, "Expediente no encontrado");
+      set.idExpediente = cambios.idExpediente;
+      set.idCliente = e.cliente ?? null;
+    } else if (cambios.idCliente) {
+      const [c] = await tx.select({ id: clientes.id }).from(clientes).where(eq(clientes.id, cambios.idCliente));
+      if (!c) throw new HttpError(404, "Cliente no encontrado");
+      set.idCliente = cambios.idCliente;
+      set.idExpediente = null;
+    } else if (cambios.idCliente === null || cambios.idExpediente === null) {
+      set.idCliente = null;
+      set.idExpediente = null;
+    }
+    if (Object.keys(set).length === 0) throw new HttpError(400, "No hay nada que cambiar.");
+    const filas = await tx.update(biblioteca).set(set).where(inArray(biblioteca.id, ids)).returning({ id: biblioteca.id });
+    if (filas.length === 0) throw new HttpError(404, "Archivo no encontrado");
+    return filas.length;
+  });
 }
 
 export async function eliminarArchivos(ej: Ejecutor, ids: number[]): Promise<number> {

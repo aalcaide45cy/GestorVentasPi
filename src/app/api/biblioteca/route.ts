@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdQuery, leerIdsParaBorrar, leerJson, manejar } from "@/lib/http";
-import { CATEGORIAS, MAX_BYTES_BIBLIOTECA, cambiarArchivo, eliminarArchivos, guardarArchivo, leerArchivo, listarArchivos, resumenBiblioteca, type CategoriaBiblioteca } from "@/lib/servicios/biblioteca";
+import { CATEGORIAS, MAX_BYTES_BIBLIOTECA, cambiarArchivos, eliminarArchivos, guardarArchivo, leerArchivo, listarArchivos, resumenBiblioteca, type CategoriaBiblioteca } from "@/lib/servicios/biblioteca";
 
 export const dynamic = "force-dynamic";
 
@@ -43,13 +43,21 @@ export const POST = manejar(async (req: Request) => {
   return NextResponse.json({ success: true, data: r }, { status: r.repetido ? 200 : 201 });
 });
 
-const esquemaCambio = z.object({ id: z.number().int().positive(), nombre: z.string().trim().min(1).max(200).optional(), categoria: z.enum(CATEGORIAS).optional() });
+const esquemaCambio = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(1000),
+  nombre: z.string().trim().min(1).max(200).optional(),
+  categoria: z.enum(CATEGORIAS).optional(),
+  /** null = sin asignar. */
+  idCliente: z.number().int().positive().nullable().optional(),
+  idExpediente: z.number().int().positive().nullable().optional(),
+});
 
+/** Cambia el nombre, el tipo o la asignación (cliente o expediente) de uno o varios archivos. */
 export const PATCH = manejar(async (req: Request) => {
   await requireSession("no_invitado");
-  const { id, ...cambios } = await leerJson(req, esquemaCambio);
-  await cambiarArchivo(db, id, cambios);
-  return NextResponse.json({ success: true });
+  const { ids, ...cambios } = await leerJson(req, esquemaCambio);
+  const n = await cambiarArchivos(db, ids, cambios);
+  return NextResponse.json({ success: true, modificados: n });
 });
 
 export const DELETE = manejar(async (req: Request) => {

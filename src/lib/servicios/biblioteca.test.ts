@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
+import { clientes, expedientes } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { adivinarCategoria, cambiarArchivo, eliminarArchivos, guardarArchivo, leerArchivo, listarArchivos } from "./biblioteca";
+import { adivinarCategoria, cambiarArchivos, eliminarArchivos, guardarArchivo, leerArchivo, listarArchivos } from "./biblioteca";
 
 beforeEach(reiniciarBd);
 
@@ -29,11 +30,31 @@ describe("biblioteca de archivos", () => {
     const x = await guardarArchivo(db, { datos: Buffer.from("uno"), nombre: "listado.xlsx", creadoPor: u.idUsuario });
     const y = await guardarArchivo(db, { datos: Buffer.from("dos"), nombre: "pedido.pdf", creadoPor: u.idUsuario });
     expect((await listarArchivos(db, ["listado"])).map((f) => f.id)).toEqual([x.archivo.id]);
-    await cambiarArchivo(db, y.archivo.id, { nombre: "Pedido de Ana.pdf", categoria: "rejilla" });
+    await cambiarArchivos(db, [y.archivo.id], { nombre: "Pedido de Ana.pdf", categoria: "rejilla" });
     expect((await listarArchivos(db, ["rejilla"]))[0]).toMatchObject({ nombre: "Pedido de Ana.pdf" });
-    await expect(cambiarArchivo(db, 9999, { nombre: "x" })).rejects.toMatchObject({ status: 404 });
+    await expect(cambiarArchivos(db, [9999], { nombre: "x" })).rejects.toMatchObject({ status: 404 });
     expect(await eliminarArchivos(db, [x.archivo.id, y.archivo.id])).toBe(2);
     expect(await listarArchivos(db)).toEqual([]);
     expect(await leerArchivo(db, x.archivo.id)).toBeNull();
+  });
+
+  it("asigna a un cliente o a un expediente (con su cliente), y se puede quitar la asignación", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const [cli] = await db.insert(clientes).values({ clienteId: "c1", nombre: "Ana Pérez" }).returning();
+    const [exp] = await db.insert(expedientes).values({ idUsuario: u.idUsuario, idCliente: cli.id, fechaExpediente: "2026-10-01" }).returning();
+    const a = await guardarArchivo(db, { datos: Buffer.from("uno"), nombre: "a.pdf", creadoPor: u.idUsuario });
+    const b = await guardarArchivo(db, { datos: Buffer.from("dos"), nombre: "b.pdf", creadoPor: u.idUsuario });
+    expect((await listarArchivos(db)).every((f) => f.asignadoA === null)).toBe(true);
+
+    await cambiarArchivos(db, [a.archivo.id], { idCliente: cli.id });
+    await cambiarArchivos(db, [b.archivo.id], { idExpediente: exp.idExpediente });
+    const lista = await listarArchivos(db);
+    expect(lista.find((f) => f.id === a.archivo.id)).toMatchObject({ idCliente: cli.id, idExpediente: null, asignadoA: "Ana Pérez" });
+    expect(lista.find((f) => f.id === b.archivo.id)).toMatchObject({ idCliente: cli.id, idExpediente: exp.idExpediente, asignadoA: `#EXP-${String(exp.idExpediente).padStart(4, "0")} · Ana Pérez` });
+
+    await cambiarArchivos(db, [a.archivo.id, b.archivo.id], { idCliente: null });
+    expect((await listarArchivos(db)).every((f) => f.asignadoA === null)).toBe(true);
+    await expect(cambiarArchivos(db, [a.archivo.id], { idCliente: 99999 })).rejects.toMatchObject({ status: 404 });
+    await expect(cambiarArchivos(db, [a.archivo.id], {})).rejects.toMatchObject({ status: 400 });
   });
 });

@@ -1026,8 +1026,11 @@ export const biblioteca = pgTable(
     huella: varchar("huella", { length: 64 }).notNull(),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    /** Cliente o expediente al que se ha asignado el archivo (si es de un expediente, también va el cliente de ese expediente). */
+    idCliente: integer("id_cliente").references(() => clientes.id, { onDelete: "set null" }),
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
   },
-  (t) => [uniqueIndex("biblioteca_huella_idx").on(t.huella)],
+  (t) => [uniqueIndex("biblioteca_huella_idx").on(t.huella), index("biblioteca_cliente_idx").on(t.idCliente), index("biblioteca_expediente_idx").on(t.idExpediente)],
 );
 
 export const bibliotecaDatos = pgTable("biblioteca_datos", {

@@ -533,3 +533,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 ## Versión 1.7.0 (21/10/2026)
 - **Biblioteca de archivos** (menú «Biblioteca», `/dashboard/biblioteca`): se guardan una vez pedidos, pagos de RCI, rejillas, listados Excel y otros archivos (cifrados en la base de datos, con migración `0043`; no se duplican los idénticos) y se pueden renombrar, cambiar de tipo, descargar y borrar.
 - En cada zona de subida hay un botón «📚 Elegir de la biblioteca» que entrega los archivos elegidos como si se hubieran subido desde el equipo: pedidos y pagos de RCI (Dashboard), rejillas y listados (Cotejo de pagos), y Excel de Expedientes (importar, contrastar y completar datos desde listados).
+
+## Versión 1.7.1 (21/10/2026)
+- Biblioteca: cada archivo se puede **asignar a un cliente o a un expediente** (ventana de búsqueda; al asignar un expediente queda también el cliente), con filtros por asignación (todos, sin asignar, asignados, a un cliente, a un expediente) y por tipo, selección múltiple y acciones sobre lo marcado: descargar (varios en un .zip), asignar, quitar asignación, cambiar tipo y borrar. Migración `0044`.
