@@ -7,9 +7,8 @@ import type { AjustesOcrDto } from "@/app/api/admin/ocr/route";
 
 const CLAVE = "releer-motor";
 
-/** Nombres cortos y distintos entre sí (en Configuración «RapidOCR» sale dos veces, en CPU y en GPU, y aquí no se distinguía). */
-const NOMBRES: Record<string, string> = { tesseract: "Tesseract", "rapido-cpu": "RapidOCR en CPU", "rapido-gpu": "RapidOCR en GPU", vision: "Apple Vision" };
-export const nombreDeMotor = (id: string, respaldo = id): string => NOMBRES[id] ?? respaldo;
+/** Los nombres vienen del servidor (`nombreDeMotor` en `lib/ocr-motores.ts`), los mismos que en Configuración y en el resto de desplegables. */
+const nombreDe = (opciones: AjustesOcrDto["opciones"], id: string): string => opciones.find((o) => o.id === id)?.nombre ?? id;
 
 /**
  * Elige con qué motor de OCR se vuelve a leer un pedido, solo para esa relectura (el motor de Configuración no cambia). Lo ven los
@@ -38,11 +37,11 @@ export default function SelectorMotorRelectura({ compacto = false, etiqueta = "R
   return (
     <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }} title="Motor de lectura (OCR) con el que se vuelve a leer. «El de Configuración» usa el elegido en Configuración; elegir otro vale solo para estas relecturas.">
       {!compacto && <span>{etiqueta}</span>}
-      <select className="form-input" value={motor ?? ""} onChange={(e) => fijar(e.target.value)} style={{ padding: "3px 8px", fontSize: "0.8rem", maxWidth: "260px" }}>
-        <option value="">El de Configuración{actual ? ` (${nombreDeMotor(actual, opciones.find((o) => o.id === actual)?.nombre)})` : ""}</option>
+      <select className="form-input" value={motor ?? ""} onChange={(e) => fijar(e.target.value)} style={{ padding: "3px 8px", fontSize: "0.8rem", maxWidth: "320px" }}>
+        <option value="">El de Configuración{actual ? ` (${nombreDe(opciones, actual)})` : ""}</option>
         {opciones.map((o) => (
-          <option key={o.id} value={o.id}>
-            {nombreDeMotor(o.id, o.nombre)}
+          <option key={o.id} value={o.id} title={o.equipo}>
+            {o.nombre}
           </option>
         ))}
       </select>

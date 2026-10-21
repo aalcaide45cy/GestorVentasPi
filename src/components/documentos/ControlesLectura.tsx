@@ -54,12 +54,13 @@ export default function ControlesLectura({ parte = "pedidos" }: { parte?: "motor
           value={a.motor}
           disabled={guardando}
           onChange={(e) => void guardar({ motor: e.target.value }, "Motor de lectura cambiado.")}
-          title="Motor con el que se leen los documentos. Entre paréntesis, el equipo en el que va mejor (★ = el recomendado para este equipo)"
+          title="Motor con el que se leen los documentos: el programa y dónde se ejecuta (CPU, GPU o Neural Engine del Mac). ★ = el recomendado para este equipo"
           style={{ padding: "4px 8px", fontSize: "0.82rem", flex: "1 1 320px", maxWidth: "560px" }}
         >
           {a.opciones.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.nombre} ({o.equipo}){o.recomendado ? " ★" : ""}
+            <option key={o.id} value={o.id} title={o.equipo}>
+              {o.nombre}
+              {o.recomendado ? " ★ recomendado" : ""}
             </option>
           ))}
         </select>

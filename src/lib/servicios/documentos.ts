@@ -9,6 +9,7 @@ import { parsearPedido, type DatosPedido } from "@/lib/documentos/pedido";
 import type { RegionFoto } from "@/lib/documentos/tarjetas";
 import { HttpError } from "@/lib/auth/sesion";
 import { guardarAdjunto, leerAdjunto, MAX_BYTES_ADJUNTO, detectarMime, type AdjuntoDto } from "./adjuntos";
+import { nombreDeMotor } from "@/lib/ocr-motores";
 import { guardarCopiaAutomatica } from "./biblioteca";
 import { leerCatalogos } from "./catalogos";
 import { leerTarjetasDeImagen, type TarjetaLeida } from "./dni-lectura";
@@ -245,7 +246,7 @@ async function analizarPedido(ej: Ejecutor, datos: Buffer, permitirDuplicados: b
         const intento = await conMotor(motor, () => analizarPedidoUnaVez(ej, datos, permitirDuplicados, opciones));
         const mejor = !nombreSospechoso(intento.datos.cliente) || (nombreSospechoso(r.datos.cliente) && (intento.datos.cliente ?? "").length > (r.datos.cliente ?? "").length);
         if (mejor) {
-          r = { ...intento, datos: { ...intento.datos, avisos: [`El nombre del cliente salía cortado con el primer motor de lectura: se ha vuelto a leer con «${motor}».`, ...intento.datos.avisos] } };
+          r = { ...intento, datos: { ...intento.datos, avisos: [`El nombre del cliente salía cortado con el primer motor de lectura: se ha vuelto a leer con ${nombreDeMotor(motor, equipo?.nvidia)}.`, ...intento.datos.avisos] } };
           if (!nombreSospechoso(r.datos.cliente)) break;
         }
       } catch {

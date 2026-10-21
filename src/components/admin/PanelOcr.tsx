@@ -5,7 +5,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { AjustesOcrDto } from "@/app/api/admin/ocr/route";
 
-/** «Lectura de pedidos»: motor de OCR (Tesseract, RapidOCR en CPU o en GPU) y cuántos pedidos se leen a la vez. */
+/** «Lectura de pedidos»: motor de OCR (Tesseract, RapidOCR en CPU o en GPU, Apple Vision en Mac) y cuántos pedidos se leen a la vez. */
 export default function PanelOcr() {
   const { mostrar } = useToast();
   const [a, setA] = useState<AjustesOcrDto | null>(null);
@@ -83,13 +83,13 @@ export default function PanelOcr() {
               value={a.motor}
               disabled={guardando}
               onChange={(e) => void guardar({ motor: e.target.value }, "Motor de lectura cambiado.")}
-              title="Motor con el que se lee el texto de los pedidos. Entre paréntesis, el equipo en el que va mejor"
+              title="Motor con el que se lee el texto de los pedidos: el programa (Tesseract, RapidOCR, Apple Vision) y dónde se ejecuta (CPU, GPU o el Neural Engine del Mac)"
               style={{ minWidth: "min(100%, 420px)" }}
             >
               {a.opciones.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.nombre} ({o.equipo})
-                  {o.recomendado ? " ★" : ""}
+                <option key={o.id} value={o.id} title={o.equipo}>
+                  {o.nombre}
+                  {o.recomendado ? " ★ recomendado en este equipo" : ""}
                 </option>
               ))}
             </select>
@@ -98,7 +98,7 @@ export default function PanelOcr() {
             </button>
           </div>
           {actual && <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5 }}>{actual.detalle}</span>}
-          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>★ = el que se recomienda para este equipo. Si RapidOCR no puede arrancar, se lee con Tesseract para no dejar de leer.</span>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>★ = el que se recomienda para este equipo. «Apple Vision» solo sale en un Mac. Si el motor elegido no puede arrancar, se lee con el siguiente (Apple Vision → RapidOCR → Tesseract) para no dejar de leer.</span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
