@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import { adivinarCategoria, CATEGORIAS, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
+import VistaPreviaBiblioteca from "@/components/biblioteca/VistaPreviaBiblioteca";
 import { borrarDeBiblioteca, ETIQUETAS, subirABiblioteca, tamanoLegible } from "@/lib/biblioteca-cliente";
 
 interface Props {
@@ -48,6 +49,7 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
   const [enPausa, setEnPausa] = useState(false);
   const [preguntaCancelar, setPreguntaCancelar] = useState(false);
   const [errorFinal, setErrorFinal] = useState<string | null>(null);
+  const [viendo, setViendo] = useState<File | null>(null);
   const pausaRef = useRef(false);
   const cancelarRef = useRef(false);
   const control = useRef<AbortController | null>(null);
@@ -148,6 +150,7 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
   const eliminados = filas.filter((f) => f.estado === "eliminado").length;
 
   return (
+    <>
     <Modal
       titulo="📚 Guardar en la biblioteca"
       ancho="760px"
@@ -247,7 +250,12 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
             <tbody>
               {filas.map((f, i) => (
                 <tr key={`${f.archivo.name}-${i}`}>
-                  <td style={{ wordBreak: "break-word" }}>{f.archivo.name}</td>
+                  <td style={{ wordBreak: "break-word" }}>
+                    <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.8rem", marginRight: "8px" }} onClick={() => setViendo(f.archivo)} title="Ver el contenido del archivo antes de guardarlo" aria-label={`Ver ${f.archivo.name}`}>
+                      👁️
+                    </button>
+                    {f.archivo.name}
+                  </td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{tamanoLegible(f.archivo.size)}</td>
                   <td>
                     {fase === "elegir" ? (
@@ -274,5 +282,7 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
         </div>
       </div>
     </Modal>
+      {viendo && <VistaPreviaBiblioteca archivo={{ id: 0, nombre: viendo.name, mime: viendo.type || "application/octet-stream", tamano: viendo.size }} local={viendo} alCerrar={() => setViendo(null)} />}
+    </>
   );
 }

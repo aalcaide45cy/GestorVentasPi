@@ -579,3 +579,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.2 (21/10/2026)
 - **`start.bat`** (raíz del proyecto, solo Windows): arranca el servidor en el **último modo** en que estuvo. El servidor anota su modo al arrancar (`.ultimo-modo`, ignorado por git) y `start.bat` lo lee: modo normal → compila antes solo si no hay compilación o el código es más nuevo que ella, aplica migraciones y hace `npm start`; modo desarrollo → `npm run dev`. `start.bat dev` o `start.bat normal` fuerzan uno. Si no había ninguno anotado, desarrollo; si compilar o migrar falla, cae a desarrollo; si ya hay algo escuchando en el puerto, no arranca otro. Probado en una copia (sin archivo, normal forzado y último modo).
+
+## Versión 1.11.3 (21/10/2026)
+- **Ojo 👁️ en la ventana «Guardar en la biblioteca»**: cada archivo elegido se puede ver (PDF, imagen, texto/CSV y Excel por hojas) antes de guardarlo. Imágenes, texto y Excel se leen en el propio navegador; un PDF se deja unos minutos solo en memoria del servidor (`POST /api/biblioteca/previa`, máximo 12 a la vez, solo para quien lo pidió, nunca en base de datos ni disco) porque el navegador no puede enseñar un PDF propio dentro de la aplicación sin una dirección del servidor. Las demás rutas de `/api/biblioteca/*` (zip, borrar) recuperan las cabeceras de seguridad normales en `next.config.ts`.

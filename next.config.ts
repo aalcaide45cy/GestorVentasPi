@@ -87,6 +87,9 @@ const nextConfig: NextConfig = {
       { source: "/api/admin/papelera/documento", headers: cabecerasAdjuntos(cabeceras) },
       // Igual la vista previa de la Biblioteca (PDF e imágenes en un iframe del mismo origen)
       { source: "/api/biblioteca", headers: cabecerasAdjuntos(cabeceras) },
+      // El resto de rutas de la Biblioteca (zip, borrar…) llevan las cabeceras normales; solo la vista previa de un PDF se enseña en un iframe
+      { source: "/api/biblioteca/:ruta*", headers: cabeceras },
+      { source: "/api/biblioteca/previa", headers: cabecerasAdjuntos(cabeceras) },
     ];
   },
 };

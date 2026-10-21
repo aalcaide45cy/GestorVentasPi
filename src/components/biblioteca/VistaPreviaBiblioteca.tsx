@@ -13,25 +13,46 @@ const extension = (n: string) => n.split(".").pop()?.toLowerCase() ?? "";
  * Ver un archivo de la biblioteca sin descargarlo, sea del tipo que sea: PDF con el visor del navegador, imágenes, texto y CSV tal cual, y
  * hojas de cálculo (Excel) como tabla completa con una pestaña por hoja. Lo que no se puede enseñar se ofrece para descargar. Sin límite de filas.
  */
-export default function VistaPreviaBiblioteca({ archivo, alCerrar }: { archivo: Pick<ArchivoBibliotecaDto, "id" | "nombre" | "mime" | "tamano">; alCerrar: () => void }) {
+export default function VistaPreviaBiblioteca({ archivo, local, alCerrar }: { archivo: Pick<ArchivoBibliotecaDto, "id" | "nombre" | "mime" | "tamano">; local?: File; alCerrar: () => void }) {
   const [vista, setVista] = useState<Vista>(null);
   const [hoja, setHoja] = useState(0);
-  const url = `/api/biblioteca?id=${archivo.id}&ver=1`;
+  // Un archivo todavia sin guardar (el recien elegido en el equipo) se ve desde el propio navegador; un PDF necesita una direccion temporal del servidor
+  const [urlLocal, setUrlLocal] = useState<string | null>(null);
+  const url = local ? (urlLocal ?? "") : `/api/biblioteca?id=${archivo.id}&ver=1`;
 
   useEffect(() => {
     let vivo = true;
     const ext = extension(archivo.nombre);
     const poner = (v: Vista) => vivo && setVista(v);
+    let objeto: string | null = null;
     void (async () => {
       try {
-        if (archivo.mime === "application/pdf" || ext === "pdf") return poner({ tipo: "pdf" });
-        if (archivo.mime.startsWith("image/") && archivo.mime !== "image/svg+xml") return poner({ tipo: "imagen" });
-        const r = await fetch(url, { credentials: "same-origin" });
-        if (!r.ok) return poner({ tipo: "error", mensaje: `No se ha podido abrir el archivo (error ${r.status}).` });
-        if (archivo.mime.startsWith("text/") || ext === "txt" || ext === "csv") return poner({ tipo: "texto", texto: await r.text() });
+        if (archivo.mime === "application/pdf" || ext === "pdf") {
+          if (local) {
+            const r = await fetch("/api/biblioteca/previa", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/pdf" }, body: local });
+            const j = (await r.json().catch(() => ({}))) as { data?: { id: string }; message?: string };
+            if (!r.ok || !j.data) return poner({ tipo: "error", mensaje: j.message ?? `No se ha podido preparar la vista previa (error ${r.status}).` });
+            if (vivo) setUrlLocal(`/api/biblioteca/previa?id=${j.data.id}`);
+          }
+          return poner({ tipo: "pdf" });
+        }
+        if (archivo.mime.startsWith("image/") && archivo.mime !== "image/svg+xml") {
+          if (local) {
+            objeto = URL.createObjectURL(local);
+            if (vivo) setUrlLocal(objeto);
+          }
+          return poner({ tipo: "imagen" });
+        }
+        const leerBytes = async (): Promise<ArrayBuffer> => {
+          if (local) return local.arrayBuffer();
+          const r = await fetch(url, { credentials: "same-origin" });
+          if (!r.ok) throw new Error(`No se ha podido abrir el archivo (error ${r.status}).`);
+          return r.arrayBuffer();
+        };
+        if (archivo.mime.startsWith("text/") || ext === "txt" || ext === "csv") return poner({ tipo: "texto", texto: new TextDecoder().decode(await leerBytes()) });
         if (["xlsx", "xls", "xlsm", "ods"].includes(ext)) {
           const XLSX = await import("xlsx");
-          const libro = XLSX.read(await r.arrayBuffer(), { type: "array" });
+          const libro = XLSX.read(await leerBytes(), { type: "array" });
           const hojas = libro.SheetNames.map((nombre) => ({ nombre, filas: XLSX.utils.sheet_to_json<string[]>(libro.Sheets[nombre], { header: 1, raw: false, defval: "" }) }));
           return poner({ tipo: "hoja", hojas });
         }
@@ -42,8 +63,10 @@ export default function VistaPreviaBiblioteca({ archivo, alCerrar }: { archivo: 
     })();
     return () => {
       vivo = false;
+      if (objeto) URL.revokeObjectURL(objeto);
     };
-  }, [archivo.id, archivo.nombre, archivo.mime, url]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [archivo.id, archivo.nombre, archivo.mime, local]);
 
   const actual = vista?.tipo === "hoja" ? vista.hojas[Math.min(hoja, vista.hojas.length - 1)] : null;
 
@@ -53,10 +76,12 @@ export default function VistaPreviaBiblioteca({ archivo, alCerrar }: { archivo: 
       ancho="1100px"
       pie={
         <>
-          <a className="btn btn-secondary" href={`/api/biblioteca?id=${archivo.id}`} download={archivo.nombre}>
-            ⬇️ Descargar
-          </a>
-          {(vista?.tipo === "pdf" || vista?.tipo === "imagen") && (
+          {!local && (
+            <a className="btn btn-secondary" href={`/api/biblioteca?id=${archivo.id}`} download={archivo.nombre}>
+              ⬇️ Descargar
+            </a>
+          )}
+          {(vista?.tipo === "pdf" || vista?.tipo === "imagen") && url && (
             <a className="btn btn-secondary" href={url} target="_blank" rel="noreferrer">
               Abrir en pestaña nueva
             </a>
@@ -68,8 +93,9 @@ export default function VistaPreviaBiblioteca({ archivo, alCerrar }: { archivo: 
       }
     >
       {vista === null && <div style={{ color: "var(--text-muted)" }}>Abriendo…</div>}
-      {vista?.tipo === "pdf" && <iframe title={archivo.nombre} src={url} style={{ width: "100%", height: "70vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />}
-      {vista?.tipo === "imagen" && (
+      {vista?.tipo === "pdf" && !url && <div style={{ color: "var(--text-muted)" }}>Preparando la vista previa…</div>}
+      {vista?.tipo === "pdf" && url && <iframe title={archivo.nombre} src={url} style={{ width: "100%", height: "70vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />}
+      {vista?.tipo === "imagen" && url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt={archivo.nombre} style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", alignSelf: "center", borderRadius: "var(--radius-sm)" }} />
       )}
