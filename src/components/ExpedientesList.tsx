@@ -871,7 +871,8 @@ export default function ExpedientesList({
           cursor: clave === "cobro" ? "default" : "pointer",
           userSelect: "none",
           whiteSpace: "nowrap",
-          ...(fondo ? { textAlign: "center", backgroundColor: fondo } : {}),
+          // El tinte de la columna se pinta sobre el fondo opaco de la cabecera fija; si no, se transparenta lo que pasa por debajo
+          ...(fondo ? { textAlign: "center", backgroundColor: "var(--bg-card)", backgroundImage: `linear-gradient(${fondo}, ${fondo})` } : {}),
         }}
       >
         {etiqueta}

@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdsParaBorrar, leerJson, manejar } from "@/lib/http";
-import { actualizarCliente, crearCliente, esquemaCliente, eliminarClientes } from "@/lib/servicios/clientes";
+import { actualizarCliente, crearCliente, editarClientesEnMasa, esquemaCliente, esquemaEdicionMasivaClientes, eliminarClientes } from "@/lib/servicios/clientes";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,15 @@ export const PUT = manejar(async (req: Request) => {
   if (!entrada.id) return errorJson(400, "ID y Nombre son campos obligatorios");
   await actualizarCliente(db, entrada.id, entrada);
   return NextResponse.json({ success: true, message: "Cliente actualizado correctamente" });
+});
+
+export const PATCH = manejar(async (req: Request) => {
+  const usuario = await requireSession("no_invitado");
+  const entrada = await leerJson(req, esquemaEdicionMasivaClientes);
+  const n = await editarClientesEnMasa(db, entrada);
+  const { ids, ...cambios } = entrada;
+  await auditar({ idUsuario: usuario.idUsuario, accion: "clientes_editados_en_masa", entidad: "clientes", detalle: { ids, cambios } });
+  return NextResponse.json({ success: true, message: `${n} clientes modificados correctamente`, modificados: n });
 });
 
 export const DELETE = manejar(async (req: Request) => {

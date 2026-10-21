@@ -122,6 +122,41 @@ export async function actualizarCliente(ej: Ejecutor, id: number, entrada: Entra
   });
 }
 
+/** Edición en masa: solo se tocan los campos que vienen; «añadir» pone el comentario al final del que ya tenía cada cliente. */
+export const esquemaEdicionMasivaClientes = z
+  .object({
+    ids: z.array(z.number().int().positive()).min(1).max(5000),
+    tienda_id: z.number().int().positive().nullable().optional(),
+    domicilio: z.string().trim().min(1).max(255).optional(),
+    poblacion: z.string().trim().min(1).max(120).optional(),
+    codigo_postal: z.string().trim().min(1).max(10).optional(),
+    comentarios: z.string().trim().min(1).max(5000).optional(),
+    comentarios_modo: z.enum(["reemplazar", "anadir"]).default("reemplazar"),
+  })
+  .refine((e) => e.tienda_id !== undefined || e.domicilio || e.poblacion || e.codigo_postal || e.comentarios, "Rellena al menos un campo para modificar.");
+export type EntradaEdicionMasivaClientes = z.infer<typeof esquemaEdicionMasivaClientes>;
+
+export async function editarClientesEnMasa(ej: Ejecutor, e: EntradaEdicionMasivaClientes): Promise<number> {
+  return ej.transaction(async (tx) => {
+    const cambios = {
+      ...(e.tienda_id !== undefined ? { tiendaId: e.tienda_id } : {}),
+      ...(e.domicilio ? { domicilio: e.domicilio } : {}),
+      ...(e.poblacion ? { poblacion: e.poblacion } : {}),
+      ...(e.codigo_postal ? { codigoPostal: e.codigo_postal } : {}),
+      ...(e.comentarios && e.comentarios_modo === "reemplazar" ? { comentarios: e.comentarios } : {}),
+      ...(e.comentarios && e.comentarios_modo === "anadir"
+        ? { comentarios: sql<string>`left(case when coalesce(${clientes.comentarios}, '') = '' then ${e.comentarios} else ${clientes.comentarios} || E'\n' || ${e.comentarios} end, 5000)` }
+        : {}),
+    };
+    const filas = await tx
+      .update(clientes)
+      .set(cambios)
+      .where(and(inArray(clientes.id, e.ids), isNull(clientes.eliminadoEn)))
+      .returning({ id: clientes.id });
+    return filas.length;
+  });
+}
+
 /**
  * Borrado lógico de clientes: se conservan la fila, sus datos de contacto y el vínculo de sus expedientes
  * (que siguen contando en estadísticas); solo dejan de aparecer en listados y búsquedas.

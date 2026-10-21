@@ -13,6 +13,7 @@ import type { ClienteDto, ExpedienteDto, TiendaDto } from "@/lib/dto";
 import { BotonLeerDni, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
 import type { ResultadoDni } from "@/lib/servicios/documentos";
+import ModalEdicionMasivaClientes, { type CambiosMasivosClientes } from "./clientes/ModalEdicionMasivaClientes";
 import NombreConFoto from "./documentos/FotoCliente";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import { columnasVehiculo } from "./etiquetas";
@@ -85,6 +86,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [marcados, setMarcados] = useState<number[]>([]);
   const [aBorrar, setABorrar] = useState<ClienteItem | null>(null);
   const [borradoMasivo, setBorradoMasivo] = useState(false);
+  const [edicionMasiva, setEdicionMasiva] = useState(false);
   const [seleccionActiva, setSeleccionActiva] = useState(false);
   const [borradoActivo, setBorradoActivo] = useState(false);
 
@@ -299,6 +301,39 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     }
   };
 
+  const guardarEdicionMasiva = async (cambios: CambiosMasivosClientes) => {
+    const ids = marcados;
+    setCargando(true);
+    try {
+      const res = await fetch("/api/clientes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, ...cambios }),
+      });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar los clientes."));
+      setClientes((prev) =>
+        prev.map((c) => {
+          if (!ids.includes(c.id)) return c;
+          const nuevo: ClienteItem = { ...c };
+          if (cambios.tienda_id !== undefined) nuevo.tienda_id = cambios.tienda_id;
+          if (cambios.poblacion) nuevo.poblacion = cambios.poblacion;
+          if (cambios.codigo_postal) nuevo.codigo_postal = cambios.codigo_postal;
+          if (cambios.domicilio) nuevo.domicilio = cambios.domicilio;
+          if (cambios.comentarios) nuevo.comentarios = cambios.comentarios_modo === "anadir" && c.comentarios ? `${c.comentarios}\n${cambios.comentarios}` : cambios.comentarios;
+          return nuevo;
+        }),
+      );
+      mostrar(`${ids.length} clientes modificados correctamente.`);
+      setEdicionMasiva(false);
+      setMarcados([]);
+      router.refresh();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "Error de conexión al actualizar.", "error");
+    } finally {
+      setCargando(false);
+    }
+  };
+
   const abrirVentas = async (c: ClienteItem) => {
     setVentasDe(c);
     setVentas(null);
@@ -476,6 +511,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                 }}
               >
                 🗑️ Eliminar Seleccionados
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setEdicionMasiva(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
+                ✏️ Editar Seleccionados
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
                 📤 Exportar SOLO clientes seleccionados (CSV)
@@ -699,6 +737,17 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           ocupado={cargando}
           alConfirmar={() => void eliminar([aBorrar.id])}
           alCancelar={() => setABorrar(null)}
+        />
+      )}
+
+      {edicionMasiva && (
+        <ModalEdicionMasivaClientes
+          seleccionados={marcados.length}
+          tiendas={tiendas}
+          ocupado={cargando}
+          alGuardar={(c) => void guardarEdicionMasiva(c)}
+          alCancelar={() => setEdicionMasiva(false)}
+          alAvisar={(m) => mostrar(m, "error")}
         />
       )}
 
