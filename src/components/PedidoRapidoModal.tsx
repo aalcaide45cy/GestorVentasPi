@@ -344,7 +344,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
             <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={() => setDescartando(false)}>
               Volver
             </button>
-            <button type="button" className="btn btn-primary" onClick={alDescartar} style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)" }}>
+            <button type="button" className="btn btn-primary" onClick={alDescartar} style={{ background: "var(--danger)", borderColor: "var(--danger)" }}>
               Sí, descartar
             </button>
           </>

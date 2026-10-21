@@ -51,7 +51,7 @@ export default function PanelVaciar({ alTerminar }: { alTerminar?: () => void })
         </label>
       </div>
       <div style={{ display: "flex", gap: "10px", alignItems: "end", flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-primary" disabled={trabajando} onClick={doble.pulsar} style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)", ...(doble.armado ? { outline: "3px solid var(--danger)" } : {}) }} title="Crea una copia de seguridad y después borra todos los datos. Hay que pulsar dos veces.">
+        <button type="button" className="btn btn-primary" disabled={trabajando} onClick={doble.pulsar} style={{ background: "var(--danger)", borderColor: "var(--danger)", ...(doble.armado ? { outline: "3px solid var(--danger)" } : {}) }} title="Crea una copia de seguridad y después borra todos los datos. Hay que pulsar dos veces.">
           {trabajando ? "Borrando…" : doble.armado ? "⚠️ ¿Seguro? Se borran TODOS los datos. Pulsa otra vez" : "Borrar todos los datos"}
         </button>
       </div>

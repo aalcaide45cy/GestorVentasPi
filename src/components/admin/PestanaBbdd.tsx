@@ -190,7 +190,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
                   {analizando ? "Analizando..." : analisis ? "🔍 Analizar de nuevo" : "🔍 Analizar la base de datos"}
                 </button>
                 {analisis && analisis.stats.totalAnomalies > 0 && (
-                  <button type="button" className="btn btn-primary" onClick={() => void limpiar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "var(--warning)", borderColor: "var(--warning)" }}>
+                  <button type="button" className="btn btn-primary" onClick={() => void limpiar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", background: "var(--warning)", borderColor: "var(--warning)" }}>
                     {limpiando ? "Limpiando..." : `🧹 Limpiar los ${analisis.stats.totalAnomalies} huérfanos (con copia previa)`}
                   </button>
                 )}

@@ -178,7 +178,7 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
                 className="btn btn-primary"
                 onClick={borrar}
                 disabled={ocupado}
-                style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)" }}
+                style={{ background: "var(--danger)", borderColor: "var(--danger)" }}
               >
                 {ocupado ? "Eliminando..." : "Eliminar"}
               </button>

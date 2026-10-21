@@ -69,7 +69,7 @@ export default function PanelOcr() {
       <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "18px", backgroundColor: "rgba(255, 255, 255, 0.01)" }}>
         <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }} title="Datos del equipo donde corre la aplicación, con los que se recomienda el motor">
           Este equipo: {equipo.plataforma === "win32" ? "Windows" : equipo.plataforma === "linux" ? "Linux" : equipo.plataforma === "darwin" ? "macOS" : equipo.plataforma} · {equipo.arquitectura === "arm64" ? "ARM64" : equipo.arquitectura === "x64" ? "AMD64" : equipo.arquitectura}
-          {equipo.esRaspberry ? " (Raspberry Pi)" : ""} · {equipo.nucleos} núcleos · {equipo.memoriaGb} GB de memoria · {equipo.nvidia ? `GPU NVIDIA ${equipo.nvidia}` : "sin GPU NVIDIA detectada"}
+          {equipo.esRaspberry ? " (Raspberry Pi)" : ""} · {equipo.nucleos} núcleos · {equipo.memoriaGb} GB de memoria · {equipo.nvidia ? `GPU ${/nvidia/i.test(equipo.nvidia) ? equipo.nvidia : `NVIDIA ${equipo.nvidia}`}` : "sin GPU NVIDIA detectada"}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

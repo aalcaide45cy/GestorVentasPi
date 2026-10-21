@@ -35,7 +35,7 @@ export default function TabObjetivo({ plan, setPlan, cat }: PropsPestana) {
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <Seccion
         titulo="Cálculo del Objetivo X"
-        ayuda="Cada vendedor tiene su propio objetivo en puntos. Objetivo X = objetivo base + arrastre."
+        ayuda="Cada vendedor tiene su propio objetivo en puntos. Objetivo X = objetivo base + arrastre (+ lo que sumen las reglas del mes que se cumplan, más abajo)."
         acciones={
           libres.length > 0 && (
             <select
