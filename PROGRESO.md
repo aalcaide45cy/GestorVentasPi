@@ -512,3 +512,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **VO**: la facturación por defecto es la RCI o, si es de contado, el último día del mes del pedido (`src/lib/facturacion-vo.ts`, aplicada al crear y al editar en `expedientes-escritura.ts`). No se ha rellenado en masa lo antiguo.
 - Revisión de la interfaz con la copia del servidor sobre el clon de la base real (1500 y 390 px): Clientes con una sola ventana «Importar y exportar» (antes duplicaba botones y mostraba la copia global JSON en la barra); Configuración con pestaña «Usuarios» primero (el catálogo ya no queda bajo la tabla de usuarios) y pestañas en una sola fila; acciones de usuarios sin recortar; títulos de Cotejo, Informes y Log de lecturas con el mismo tamaño y sin emoji suelto.
 - Pendiente: relleno de la facturación de los VO antiguos si el propietario lo pide.
+
+## Versión 1.6.3 (21/10/2026)
+- Planes de comisionamiento: los seis botones de plantillas (aplicar, guardar y gestionar, por pestaña y del plan completo) se sustituyen por un solo botón «📚 Plantillas…» que abre una ventana con las opciones explicadas, igual que «Importar y exportar». La pestaña VN conserva su barra de plantillas de tarifas, ahora con su etiqueta. Las pestañas del plan usan el mismo aspecto que las subpestañas de Configuración, y el texto del Resumen explica la facturación de los VO.

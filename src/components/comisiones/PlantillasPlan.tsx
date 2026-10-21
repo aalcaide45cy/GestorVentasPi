@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Modal, { ModalConfirmar } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
+import { GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import { COMPONENTES_AMBITO, INFO_COMPONENTE, TITULO_AMBITO, aplicar, contarComponente, extraer, type Ambito, type CatalogoNombres, type Componente, type ModoAplicar } from "@/lib/plantillas-plan/fragmentos";
 import type { PlantillaPlanDto } from "@/lib/servicios/plantillas-plan";
 import { llamar, textoError } from "./api";
@@ -27,27 +28,59 @@ interface PropsBase {
 
 const catalogoDe = (cat: CatalogosComisiones): CatalogoNombres => ({ marcas: cat.marcas, modelos: cat.modelos, vendedores: cat.vendedores.map((v) => ({ id: v.id, nombre: v.nombre })) });
 
-/** Botones «Aplicar plantilla», «Guardar como plantilla» y «Gestionar» de una pestaña (o del plan entero). */
-export default function PlantillasPlan(props: PropsBase) {
-  const [modal, setModal] = useState<"aplicar" | "guardar" | "gestionar" | null>(null);
-  const titulo = props.ambito === "global" ? "del plan completo" : `de «${TITULO_AMBITO[props.ambito]}»`;
+/**
+ * Un solo botón «Plantillas» para todo el plan: abre una ventana que explica las opciones, primero para la pestaña que se está
+ * viendo (si tiene plantillas propias) y después para el plan completo.
+ */
+export default function PlantillasPlan({ ambitoPestana, nombrePestana, ...props }: Omit<PropsBase, "ambito"> & { ambitoPestana?: Ambito; nombrePestana: string }) {
+  const [menu, setMenu] = useState(false);
+  const [abierta, setAbierta] = useState<{ ambito: Ambito; accion: "aplicar" | "guardar" | "gestionar" } | null>(null);
+  const elegir = (ambito: Ambito, accion: "aplicar" | "guardar" | "gestionar") => {
+    setMenu(false);
+    setAbierta({ ambito, accion });
+  };
+  const opciones = (ambito: Ambito, que: string) => (
+    <>
+      <OpcionDatos icono="📋" titulo="Aplicar una plantilla" texto={`Pon en este plan ${que} de una plantilla ya guardada. Antes de cambiar nada verás qué se pone y qué no.`} ayuda="No se guarda nada en el plan hasta que pulses «Guardar cambios»." alPulsar={() => elegir(ambito, "aplicar")} />
+      <OpcionDatos icono="💾" titulo="Guardar como plantilla" texto={`Guarda ${que} tal como lo ves ahora para reutilizarlo en otros planes (por ejemplo, el del mes que viene).`} ayuda="Marcas, modelos y vendedores se guardan por nombre." alPulsar={() => elegir(ambito, "guardar")} />
+      <OpcionDatos icono="⚙️" titulo="Gestionar las plantillas" texto="Renombra, duplica, borra, exporta o importa las plantillas que ya tienes guardadas." ayuda="Borrar una plantilla no cambia los planes donde ya la aplicaste." alPulsar={() => elegir(ambito, "gestionar")} />
+    </>
+  );
   return (
     <>
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Plantillas {titulo}:</span>
-        <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setModal("aplicar")} title={`Pon en este plan una plantilla ${titulo}. Verás antes qué cambia; no se guarda nada hasta que pulses «Guardar cambios».`}>
-          📋 Aplicar
-        </button>
-        <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setModal("guardar")} title={`Guarda como plantilla lo que tiene ahora este plan ${titulo}, para reutilizarlo en otros planes.`}>
-          💾 Guardar como plantilla
-        </button>
-        <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setModal("gestionar")} title="Renombra, duplica, borra, exporta o importa las plantillas de esta sección.">
-          ⚙️ Gestionar
-        </button>
-      </div>
-      {modal === "aplicar" && <ModalAplicar {...props} alCerrar={() => setModal(null)} />}
-      {modal === "guardar" && <ModalGuardar {...props} alCerrar={() => setModal(null)} />}
-      {modal === "gestionar" && <ModalGestionar ambito={props.ambito} alCerrar={() => setModal(null)} />}
+      <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMenu(true)} title="Guarda partes de este plan como plantillas y reutilízalas en otros planes, o pon en este plan una plantilla ya guardada">
+        📚 Plantillas…
+      </button>
+      {menu && (
+        <Modal
+          titulo="📚 Plantillas del plan"
+          ancho="860px"
+          pie={
+            <button type="button" className="btn btn-secondary" onClick={() => setMenu(false)}>
+              Cerrar
+            </button>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px", fontSize: "0.9rem" }}>
+            <div style={{ color: "var(--text-secondary)", lineHeight: 1.5 }}>
+              Una plantilla es una copia de parte de un plan (tarifas, objetivos, reglas…) para no escribirla de nuevo cada mes. <b>Nada cambia en el plan hasta que pulses «Guardar cambios»</b>.
+            </div>
+            {ambitoPestana ? (
+              <GrupoDatos titulo={`📄 Solo la pestaña «${nombrePestana}»`} ayuda="Para repetir únicamente esta parte del plan.">
+                {opciones(ambitoPestana, "esta pestaña")}
+              </GrupoDatos>
+            ) : (
+              <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>La pestaña «{nombrePestana}» no tiene plantillas propias aquí. Las de tarifas de los modelos VN están en la pestaña «VN».</div>
+            )}
+            <GrupoDatos titulo="🗂️ El plan completo" ayuda="Todas las pestañas a la vez. El nombre, las fechas y el estado del plan no se tocan nunca.">
+              {opciones("global", "todo el plan")}
+            </GrupoDatos>
+          </div>
+        </Modal>
+      )}
+      {abierta?.accion === "aplicar" && <ModalAplicar ambito={abierta.ambito} {...props} alCerrar={() => setAbierta(null)} />}
+      {abierta?.accion === "guardar" && <ModalGuardar ambito={abierta.ambito} {...props} alCerrar={() => setAbierta(null)} />}
+      {abierta?.accion === "gestionar" && <ModalGestionar ambito={abierta.ambito} alCerrar={() => setAbierta(null)} />}
     </>
   );
 }

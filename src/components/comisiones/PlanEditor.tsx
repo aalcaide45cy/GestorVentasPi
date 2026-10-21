@@ -34,7 +34,7 @@ type IdPestana = (typeof PESTANAS)[number]["id"];
 /** Qué hace cada pestaña y cómo se aplica, en lenguaje llano (se enseña encima de su contenido). */
 const INTRO: Record<IdPestana, string> = {
   resumen:
-    "Datos generales del plan: nombre, fechas y vendedores. Un plan vale para los meses entre «F. inicio» y «F. fin». Cada coche cuenta en el mes de su fecha de facturación (en un VN, por defecto igual a la de matriculación; sin facturación, la de matriculación). La fecha de entrega es solo un apunte y no afecta a nada.",
+    "Datos generales del plan: nombre, fechas y vendedores. Un plan vale para los meses entre «F. inicio» y «F. fin». Cada coche cuenta en el mes de su fecha de facturación (en un VN, por defecto igual a la de matriculación; en un VO, la de la RCI o, si es de contado, el último día del mes del pedido; sin facturación, la de matriculación). La fecha de entrega es solo un apunte y no afecta a nada.",
   objetivo:
     "Los puntos que debe sumar cada vendedor en el mes (Objetivo X = base + arrastre). Con los puntos reales (nuevos y usados) se calcula el tramo del mes, de −4 a +3, y el tramo decide cuánto se cobra por cada coche nuevo en la pestaña VN. Aquí también se fijan los puntos por defecto de cada marca y modelo, la tasa de intervención y las promociones de puntos.",
   modelos:
@@ -246,7 +246,7 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
         </button>
       </div>
 
-      <div role="tablist" style={{ display: "flex", gap: "4px", flexWrap: "wrap", borderBottom: "1px solid var(--border-light)" }}>
+      <div role="tablist" style={{ display: "flex", gap: "0", flexWrap: "wrap", borderBottom: "1px solid var(--border-light)" }}>
         {PESTANAS.map((p) => {
           const activa = pestana === p.id;
           return (
@@ -259,14 +259,16 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "8px",
-                padding: "12px 16px",
-                background: "transparent",
+                gap: "6px",
+                padding: "10px 8px",
+                // Mismo aspecto que las subpestañas de Configuración (pestaña abierta con fondo suave y subrayado)
+                background: activa ? "rgba(var(--primary-rgb), 0.12)" : "transparent",
                 border: "none",
-                borderBottom: `2px solid ${activa ? "var(--primary)" : "transparent"}`,
-                color: activa ? "var(--text-primary)" : "var(--text-secondary)",
-                fontWeight: activa ? 700 : 600,
-                fontSize: "0.95rem",
+                borderBottom: `3px solid ${activa ? "var(--primary)" : "transparent"}`,
+                borderRadius: "var(--radius-sm) var(--radius-sm) 0 0",
+                color: activa ? "var(--primary)" : "var(--text-secondary)",
+                fontWeight: activa ? 700 : 500,
+                fontSize: "0.9rem",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 transition: "var(--transition)",
@@ -281,9 +283,8 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
         })}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px 24px", flexWrap: "wrap" }}>
-        {AMBITO_PESTANA[pestana] ? <PlantillasPlan key={pestana} ambito={AMBITO_PESTANA[pestana]!} plan={plan} setPlan={setPlan} cat={cat} /> : <span />}
-        <PlantillasPlan ambito="global" plan={plan} setPlan={setPlan} cat={cat} />
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+        <PlantillasPlan key={pestana} ambitoPestana={AMBITO_PESTANA[pestana]} nombrePestana={PESTANAS.find((x) => x.id === pestana)?.titulo ?? ""} plan={plan} setPlan={setPlan} cat={cat} />
       </div>
 
       <div style={{ padding: "10px 14px", borderLeft: "3px solid var(--primary)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.85rem", lineHeight: 1.55, color: "var(--text-secondary)" }}>{INTRO[pestana]}</div>

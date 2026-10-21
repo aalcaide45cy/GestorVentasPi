@@ -40,6 +40,7 @@ export default function BarraPlantillas(props: PropsBase & { soloAplicar?: boole
   return (
     <>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Plantillas de tarifas de los modelos VN:</span>
         <button type="button" className="btn btn-primary" style={botonChico} onClick={() => setModal("aplicar")} title="Elige una plantilla de tarifas (la genérica de Renault y Dacia o las tuyas) y ponla en este plan. Verás antes qué modelos se añaden o se sustituyen; no se guarda nada hasta que guardes el plan.">
           📋 Aplicar plantilla…
         </button>
