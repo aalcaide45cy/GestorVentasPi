@@ -585,3 +585,6 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Versión 1.11.4 (21/10/2026)
 - **«Elegir de la biblioteca» con filtro por tipo**: la ventana ya no se limita a los tipos de la zona. Por defecto sigue saliendo lo de esa zona, pero hay botones con contador para «Todos» y para cada tipo (pedidos, pagos de RCI, rejillas, listados Excel, otros), la columna «Tipo» siempre se ve, y la casilla de la cabecera marca todos los que se ven con el filtro y la búsqueda. Así se pueden elegir de golpe, por ejemplo, todos los pedidos de la biblioteca y pasarlos en lote por el OCR de la zona de pedidos.
+
+## Versión 1.11.5 (21/10/2026)
+- **Ventana «Guardar en la biblioteca» más grande y con tabla de las del proyecto** (`TablaDatos`): ordenar por cualquier columna, búsqueda, «Columnas y vistas», más datos (formato, tamaño, fecha de modificación, carpeta oculta por defecto, estado al guardar), filtro por tipo con contadores y «Poner a los que se ven» para cambiar el tipo de golpe a lo que el filtro o la búsqueda dejan a la vista. Pensada para cientos de archivos (se pintan de 150 en 150 y el progreso no repinta la tabla en cada avance). El título de la ventana muestra el número de archivos, igual que «Elegir de la biblioteca» (archivos que se ven y elegidos).

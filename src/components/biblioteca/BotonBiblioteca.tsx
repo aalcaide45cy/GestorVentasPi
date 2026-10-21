@@ -105,7 +105,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
   return (
     <>
     <Modal
-      titulo="📚 Elegir de la biblioteca"
+      titulo={`📚 Elegir de la biblioteca${lista === null ? "" : ` · ${visibles.length} ${visibles.length === 1 ? "archivo" : "archivos"}${marcados.size > 0 ? ` · ${marcados.size} ${marcados.size === 1 ? "elegido" : "elegidos"}` : ""}`}`}
       ancho="760px"
       pie={
         <>
