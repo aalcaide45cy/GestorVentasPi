@@ -4,7 +4,7 @@ import type { Ejecutor } from "@/db";
 import { biblioteca, bibliotecaDatos, clientes, expedientes } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
-import { CATEGORIAS, ETIQUETA_CATEGORIA, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
+import { adivinarCategoria, CATEGORIAS, ETIQUETA_CATEGORIA, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 
 /**
  * Biblioteca de archivos de trabajo: pedidos, pagos de RCI, rejillas, listados Excel… Se guardan una vez (cifrados, en la base de datos, así
@@ -12,7 +12,7 @@ import { CATEGORIAS, ETIQUETA_CATEGORIA, type CategoriaBiblioteca } from "@/lib/
  */
 
 export const MAX_BYTES_BIBLIOTECA = 200 * 1024 * 1024;
-export { CATEGORIAS, ETIQUETA_CATEGORIA, type CategoriaBiblioteca };
+export { adivinarCategoria, CATEGORIAS, ETIQUETA_CATEGORIA, type CategoriaBiblioteca };
 
 export interface ArchivoBibliotecaDto {
   id: number;
@@ -25,16 +25,6 @@ export interface ArchivoBibliotecaDto {
   idExpediente: number | null;
   /** A quién está asignado, para enseñarlo («Ana Pérez» o «#EXP-0012 · Ana Pérez»); null si no está asignado. */
   asignadoA: string | null;
-}
-
-/** Categoría que se propone por el nombre y el tipo del archivo (se puede cambiar a mano). */
-export function adivinarCategoria(nombre: string, mime = ""): CategoriaBiblioteca {
-  const n = nombre.toLowerCase();
-  if (/\.(xlsx|xls|csv)$/.test(n) || /spreadsheet|excel|csv/.test(mime)) return "listado";
-  if (/rci|pago/.test(n)) return "pago_rci";
-  if (/rejilla|comision|nomina|ren-91/.test(n)) return "rejilla";
-  if (/\.(pdf|png|jpe?g|webp|bmp|tiff?)$/.test(n) || /^image\/|pdf/.test(mime)) return "pedido";
-  return "otro";
 }
 
 const aDto = (f: typeof biblioteca.$inferSelect, cliente: string | null = null): ArchivoBibliotecaDto => ({

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
-import { archivoDeBiblioteca, ETIQUETAS, listarBiblioteca, subirABiblioteca, tamanoLegible } from "@/lib/biblioteca-cliente";
+import ModalSubidaBiblioteca from "@/components/biblioteca/ModalSubidaBiblioteca";
+import { archivoDeBiblioteca, ETIQUETAS, listarBiblioteca, tamanoLegible } from "@/lib/biblioteca-cliente";
 import { formatDate } from "@/lib/date-utils";
 import type { ArchivoBibliotecaDto, CategoriaBiblioteca } from "@/lib/servicios/biblioteca";
 
@@ -42,6 +43,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
   const [texto, setTexto] = useState("");
   const [trabajando, setTrabajando] = useState(false);
   const [version, setVersion] = useState(0);
+  const [nuevos, setNuevos] = useState<File[] | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -84,29 +86,16 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
     }
   };
 
-  const anadir = async (files: FileList | null) => {
+  const anadir = (files: FileList | null) => {
     const archivos = files ? Array.from(files) : [];
-    if (archivos.length === 0) return;
-    setTrabajando(true);
-    try {
-      let nuevos = 0;
-      for (const a of archivos) {
-        const r = await subirABiblioteca(a, categorias.length === 1 ? categorias[0] : undefined);
-        if (!r.repetido) nuevos++;
-      }
-      mostrar(nuevos === archivos.length ? `${nuevos} archivo(s) guardado(s) en la biblioteca.` : `${nuevos} nuevo(s); el resto ya estaba(n) en la biblioteca.`);
-      setVersion((v) => v + 1);
-    } catch (e) {
-      mostrar(e instanceof Error ? e.message : "No se ha podido guardar en la biblioteca.", "error");
-    } finally {
-      setTrabajando(false);
-      if (entrada.current) entrada.current.value = "";
-    }
+    if (entrada.current) entrada.current.value = "";
+    if (archivos.length > 0) setNuevos(archivos);
   };
 
   const nombresCategorias = categorias.map((c) => ETIQUETAS[c]).join(", ");
 
   return (
+    <>
     <Modal
       titulo="📚 Elegir de la biblioteca"
       ancho="760px"
@@ -133,7 +122,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
           <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.82rem" }} disabled={trabajando} onClick={() => entrada.current?.click()} title="Guarda archivos nuevos en la biblioteca para tenerlos siempre a mano">
             ➕ Añadir a la biblioteca
           </button>
-          <input ref={entrada} type="file" multiple style={{ display: "none" }} onChange={(e) => void anadir(e.target.files)} />
+          <input ref={entrada} type="file" multiple style={{ display: "none" }} onChange={(e) => anadir(e.target.files)} />
         </div>
         {lista === null ? (
           <div style={{ color: "var(--text-muted)" }}>Cargando…</div>
@@ -171,5 +160,16 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
         )}
       </div>
     </Modal>
+      {nuevos && (
+        <ModalSubidaBiblioteca
+          archivos={nuevos}
+          tipoFijo={categorias.length === 1 ? categorias[0] : undefined}
+          alCerrar={(guardados) => {
+            setNuevos(null);
+            if (guardados > 0) setVersion((v) => v + 1);
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -27,12 +27,34 @@ export async function listarBiblioteca(categorias?: CategoriaBiblioteca[]): Prom
 }
 
 /** Guarda un archivo en la biblioteca; `repetido` es true si ya estaba (mismo contenido). */
-export async function subirABiblioteca(archivo: File, categoria?: CategoriaBiblioteca): Promise<{ archivo: ArchivoBibliotecaDto; repetido: boolean }> {
+export function subirABiblioteca(archivo: File, categoria?: CategoriaBiblioteca, alAvanzar?: (enviado: number, total: number) => void): Promise<{ archivo: ArchivoBibliotecaDto; repetido: boolean }> {
   const q = new URLSearchParams({ nombre: archivo.name });
   if (categoria) q.set("categoria", categoria);
-  const r = await fetch(`/api/biblioteca?${q}`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": archivo.type || "application/octet-stream" }, body: archivo });
-  if (!r.ok) throw new Error(await mensaje(r, `No se ha podido guardar «${archivo.name}».`));
-  return ((await r.json()) as { data: { archivo: ArchivoBibliotecaDto; repetido: boolean } }).data;
+  const fallo = `No se ha podido guardar «${archivo.name}».`;
+  // XMLHttpRequest y no fetch: es lo que da el avance real de la subida (para la barra de progreso)
+  return new Promise((resolver, rechazar) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", `/api/biblioteca?${q}`);
+    x.withCredentials = true;
+    x.setRequestHeader("Content-Type", archivo.type || "application/octet-stream");
+    x.upload.onprogress = (e) => {
+      if (e.lengthComputable) alAvanzar?.(e.loaded, e.total);
+    };
+    x.onerror = () => rechazar(new Error(`${fallo} Se ha perdido la conexión con el servidor.`));
+    x.onload = () => {
+      let cuerpo: { data?: { archivo: ArchivoBibliotecaDto; repetido: boolean }; message?: string } = {};
+      try {
+        cuerpo = JSON.parse(x.responseText) as typeof cuerpo;
+      } catch {
+        /* sin cuerpo legible */
+      }
+      if (x.status >= 200 && x.status < 300 && cuerpo.data) {
+        alAvanzar?.(archivo.size, archivo.size);
+        resolver(cuerpo.data);
+      } else rechazar(new Error(cuerpo.message ?? fallo));
+    };
+    x.send(archivo);
+  });
 }
 
 /** Baja un archivo de la biblioteca y lo entrega como `File`, igual que si se hubiera elegido en el equipo. */

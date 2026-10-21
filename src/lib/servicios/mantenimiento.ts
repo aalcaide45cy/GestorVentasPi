@@ -431,6 +431,8 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
         "truncate table lecturas_pedidos, adjuntos, rejillas, validaciones_comision, libro_puntos, pendientes_cobro, commission_liquidation_versions, commission_liquidation_line_items, commission_liquidation_lines, commission_liquidations, commission_plans restart identity cascade",
       ),
     );
+    // Las incidencias hablan de datos que ya no existen: se empieza limpio (la copia previa conserva las de antes) y el círculo de Configuración no se queda con avisos viejos
+    await tx.execute(sql.raw("truncate table incidencias restart identity cascade"));
     await tx.delete(importacionesRegistros);
     await tx.delete(importacionesBloques);
     await tx.delete(expedientes);

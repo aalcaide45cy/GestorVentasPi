@@ -5,9 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import TablaDatos, { PANTALLA_COMPLETA, type ColumnaTabla } from "@/components/TablaDatos";
+import ModalSubidaBiblioteca from "@/components/biblioteca/ModalSubidaBiblioteca";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { CATEGORIAS, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
-import { ETIQUETAS, subirABiblioteca, tamanoLegible, type RespuestaListado } from "@/lib/biblioteca-cliente";
+import { ETIQUETAS, tamanoLegible, type RespuestaListado } from "@/lib/biblioteca-cliente";
 import { formatDate } from "@/lib/date-utils";
 import type { ArchivoBibliotecaDto } from "@/lib/servicios/biblioteca";
 
@@ -29,8 +30,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
   const { datos, recargar } = useCarga<RespuestaListado | null>("/api/biblioteca", null);
   const [asignacion, setAsignacion] = useState<FiltroAsignacion>("todas");
   const [filtro, setFiltro] = useState<"todas" | CategoriaBiblioteca>("todas");
-  const [categoriaSubida, setCategoriaSubida] = useState<"auto" | CategoriaBiblioteca>("auto");
-  const [subiendo, setSubiendo] = useState(false);
+  const [pendientes, setPendientes] = useState<File[] | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
@@ -45,28 +45,11 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
   const cuentaAsignacion = (a: FiltroAsignacion) => todos.filter((f) => cumple(f, a) && (filtro === "todas" || f.categoria === filtro)).length;
   const filas = useMemo(() => todos.filter((f) => cumple(f, asignacion) && (filtro === "todas" || f.categoria === filtro)), [todos, asignacion, filtro]);
 
-  const subir = async (files: FileList | File[] | null) => {
+  /** Archivos elegidos o soltados que esperan en la ventana «Guardar en la biblioteca» (donde se confirma el tipo de cada uno). */
+  const preparar = (files: FileList | File[] | null) => {
     const lista = files ? Array.from(files) : [];
-    if (lista.length === 0) return;
-    setSubiendo(true);
-    let nuevos = 0;
-    let repetidos = 0;
-    try {
-      for (const f of lista) {
-        try {
-          const r = await subirABiblioteca(f, categoriaSubida === "auto" ? undefined : categoriaSubida);
-          if (r.repetido) repetidos++;
-          else nuevos++;
-        } catch (e) {
-          mostrar(e instanceof Error ? e.message : `No se ha podido guardar «${f.name}».`, "error");
-        }
-      }
-      if (nuevos + repetidos > 0) mostrar(`${nuevos} archivo(s) guardado(s)${repetidos > 0 ? ` y ${repetidos} que ya estaba(n) en la biblioteca` : ""}.`, repetidos > 0 && nuevos === 0 ? "aviso" : "exito");
-      recargar();
-    } finally {
-      setSubiendo(false);
-      if (entrada.current) entrada.current.value = "";
-    }
+    if (entrada.current) entrada.current.value = "";
+    if (lista.length > 0) setPendientes(lista);
   };
 
   const cambiar = async (ids: number[], cambios: { nombre?: string; categoria?: CategoriaBiblioteca; idCliente?: number | null; idExpediente?: number | null }, ok?: string) => {
@@ -226,25 +209,14 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
         style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", outline: arrastrando ? "2px dashed var(--primary)" : undefined, outlineOffset: "-6px" }}
         onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
         onDragLeave={() => setArrastrando(false)}
-        onDrop={(e) => { e.preventDefault(); setArrastrando(false); void subir(e.dataTransfer.files); }}
+        onDrop={(e) => { e.preventDefault(); setArrastrando(false); preparar(e.dataTransfer.files); }}
       >
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-          <button type="button" className="btn btn-primary" disabled={subiendo} onClick={() => entrada.current?.click()}>
-            {subiendo ? "Guardando…" : "➕ Añadir archivos"}
+          <button type="button" className="btn btn-primary" onClick={() => entrada.current?.click()} title="Elige archivos de tu equipo: antes de guardarlos podrás confirmar de qué tipo es cada uno">
+            ➕ Añadir archivos
           </button>
-          <input ref={entrada} type="file" multiple style={{ display: "none" }} onChange={(e) => void subir(e.target.files)} />
-          <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem" }}>
-            Guardar como
-            <select className="form-input" value={categoriaSubida} onChange={(e) => setCategoriaSubida(e.target.value as "auto" | CategoriaBiblioteca)} style={{ width: "auto", padding: "5px 10px" }}>
-              <option value="auto">Detectar por el nombre</option>
-              {CATEGORIAS.map((c) => (
-                <option key={c} value={c}>
-                  {ETIQUETAS[c]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>También puedes arrastrar los archivos aquí. El mismo archivo no se guarda dos veces.</span>
+          <input ref={entrada} type="file" multiple style={{ display: "none" }} onChange={(e) => preparar(e.target.files)} />
+          <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>También puedes arrastrar los archivos aquí; antes de guardar te dejo elegir el tipo de cada uno o detectarlo. El mismo archivo no se guarda dos veces.</span>
           {datos && (
             <span style={{ marginLeft: "auto", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
               {datos.resumen.archivos} archivo(s) · {tamanoLegible(datos.resumen.bytes)}
@@ -309,6 +281,18 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
         pie={(fs) => ({ nombre: `${fs.length} archivo${fs.length === 1 ? "" : "s"}` })}
       />
 
+      {pendientes && (
+        <ModalSubidaBiblioteca
+          archivos={pendientes}
+          alCerrar={(guardados) => {
+            setPendientes(null);
+            if (guardados > 0) {
+              mostrar(`${guardados} archivo${guardados === 1 ? "" : "s"} guardado${guardados === 1 ? "" : "s"} en la biblioteca.`);
+            }
+            recargar();
+          }}
+        />
+      )}
       {asignando && <ModalAsignar cantidad={asignando.length} alCancelar={() => setAsignando(null)} alAsignar={(cambios, texto) => void cambiar(asignando, cambios, texto)} />}
     </div>
   );

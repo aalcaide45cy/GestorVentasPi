@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { clientes, marcas, modelos, tiendas, usuarios } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { guardarArchivo, cambiarArchivos, listarArchivos } from "./biblioteca";
+import { registrarIncidencia, resumenIncidencias } from "./incidencias";
 import { analizarBbdd, vaciarBaseDeDatos } from "./mantenimiento";
 
 /** La copia previa usa pg_dump: local o, si no hay, el del contenedor de desarrollo (como en copias.test.ts). */
@@ -92,6 +93,14 @@ describe("vaciar la base de datos", () => {
     const lista = await listarArchivos(db);
     expect(lista.map((f) => f.id).sort()).toEqual([a.archivo.id, b.archivo.id].sort());
     expect(lista.every((f) => f.asignadoA === null)).toBe(true);
+  });
+
+  it.skipIf(!hayPg)("«Borrar todos los datos» deja las incidencias a cero (el círculo de Configuración no conserva avisos viejos)", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
+    await registrarIncidencia(db, { origen: "servidor", titulo: "Error antiguo" });
+    expect((await resumenIncidencias(db)).nuevasErrores).toBe(1);
+    await vaciarBaseDeDatos(db, admin.idUsuario, { confirmacion: "BORRAR TODO" });
+    expect(await resumenIncidencias(db)).toMatchObject({ nuevasErrores: 0, total: 0 });
   });
 
   it.skipIf(!hayPg)("al borrar un cliente suelto, sus archivos de la biblioteca quedan sin asignar", async () => {

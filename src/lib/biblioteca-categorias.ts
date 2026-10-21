@@ -9,3 +9,13 @@ export const ETIQUETA_CATEGORIA: Record<CategoriaBiblioteca, string> = {
   listado: "Listados Excel",
   otro: "Otros",
 };
+
+/** Categoría que se propone por el nombre y el tipo del archivo (se puede cambiar a mano). */
+export function adivinarCategoria(nombre: string, mime = ""): CategoriaBiblioteca {
+  const n = nombre.toLowerCase();
+  if (/\.(xlsx|xls|csv)$/.test(n) || /spreadsheet|excel|csv/.test(mime)) return "listado";
+  if (/rci|pago/.test(n)) return "pago_rci";
+  if (/rejilla|comision|nomina|ren-91/.test(n)) return "rejilla";
+  if (/\.(pdf|png|jpe?g|webp|bmp|tiff?)$/.test(n) || /^image\/|pdf/.test(mime)) return "pedido";
+  return "otro";
+}
