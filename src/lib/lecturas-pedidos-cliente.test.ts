@@ -118,4 +118,34 @@ describe("recoger lo leído sin perder los repetidos", () => {
     const rep = enviados.find((e) => e.accion === "repetido");
     expect(rep?.repetidos).toEqual([{ id: 2, motivo: "Repetido: ya hay en la cola un pedido con el mismo número (13757863)" }]);
   });
+
+  it("dos copias del mismo pedido sin número ni fecha (el OCR no los leyó) se detectan por cliente y modelo", async () => {
+    const dato = (id: number, nombre: string, dni: string, idModelo: number) => ({
+      id,
+      nombre,
+      estado: "pedido",
+      destino: null,
+      resultado: { datos: { numeroPedido: null, vin: null, matricula: null, dni, cliente: "Natalia", fechaExpediente: null, idModelo, avisos: [] }, similares: [], adjunto: { id }, metodo: "ocr" },
+    });
+    // Misma persona y modelo (copias); otra persona; y la misma persona con otro modelo (otro coche: no es repetido)
+    const lecturas = [dato(1, "p1.pdf", "50877768C", 5), dato(2, "p1 (2).pdf", "50877768C", 5), dato(3, "otra.pdf", "11111111H", 5), dato(4, "otro-coche.pdf", "50877768C", 9)];
+    const enviados: { accion: string; ids?: number[]; repetidos?: { id: number; motivo: string }[] }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const json = (data: unknown) => new Response(JSON.stringify({ success: true, data }), { status: 200 });
+        if ((init?.method ?? "GET") === "PATCH") {
+          enviados.push(JSON.parse(String(init?.body)));
+          return json({ afectadas: 0 });
+        }
+        return json({ resumen: { subiendo: 0, pendientes: 0, leyendo: 0, pedidos: 4, descartados: 0, repetidos: 0, errores: 0, lectores: 2, maximo: 2, manual: false }, lecturas, enMarcha: [] });
+      }),
+    );
+    const c = await import("./lecturas-pedidos-cliente");
+    const cola = await import("./pedidos-cola");
+    cola.vaciarCola();
+    await c.recogerPendientes();
+    expect(cola.leerCola().items.map((i) => i.nombre)).toEqual(["p1.pdf", "otra.pdf", "otro-coche.pdf"]);
+    expect(enviados.find((e) => e.accion === "repetido")?.repetidos?.map((r) => r.id)).toEqual([2]);
+  });
 });

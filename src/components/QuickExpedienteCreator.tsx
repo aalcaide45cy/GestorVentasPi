@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { Plegable } from "@/components/admin/estructura";
 import { useToast } from "@/components/Toast";
 import type { MarcaDto, ModeloDto, TipoVentaDto, VendedorDto } from "@/lib/dto";
-import type { EleccionRapida } from "@/lib/pedidos-cola";
+import { colaVacia, leerCola, suscribirCola, type EleccionRapida } from "@/lib/pedidos-cola";
 import ColaPedidos from "./ColaPedidos";
 import ControlesLectura from "./documentos/ControlesLectura";
 import ZonaPagosRci from "./pagos-rci/ZonaPagosRci";
@@ -55,6 +56,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
   const { mostrar } = useToast();
   const [cargandoModelo, setCargandoModelo] = useState<number | "VO" | null>(null);
   const [cargandoTipo, setCargandoTipo] = useState<number | null>(null);
+  const enCola = useSyncExternalStore(suscribirCola, leerCola, colaVacia).items.length;
 
   const [vendedorId, setVendedorId] = useState<number>(currentUserId);
   /** Pedidos soltados sobre un botón de pago: se leen y pasan a la cola de pedidos. */
@@ -319,6 +321,8 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
         </div>
       </div>
 
+      {/* Cada zona se pliega y se despliega con su botón (se recuerda en este navegador): el panel entero era demasiado para verlo de golpe */}
+      <Plegable id="dash-documentos" titulo="📥 Subir pedidos y pagos de la financiera" resumen="Arrastra los PDF o fotos; el motor de lectura se elige abajo">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "14px" }}>
         <TarjetaZona titulo="📄 Pedidos de clientes" ayuda="Arrastra los pedidos (PDF o foto): se leen y crean expedientes en la cola de pedidos. Lo que no sea un pedido se ignora.">
           <ZonaPedidos compacta />
@@ -330,9 +334,14 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
       <div style={{ padding: "8px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)" }}>
         <ControlesLectura parte="motor" />
       </div>
+      </Plegable>
 
-      <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
+      <Plegable id="dash-cola" titulo="📋 Pedidos leídos y estado de las lecturas" resumen={enCola > 0 ? `${enCola} pedido${enCola === 1 ? "" : "s"} esperando en la cola` : "La cola de pedidos, lo que se está leyendo y lo ignorado"}>
+        <ColaPedidos marcas={marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
+        {enCola === 0 && <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.85rem" }}>No hay pedidos leídos esperando en la cola. Sube pedidos arriba y aparecerán aquí según se vayan leyendo.</p>}
+      </Plegable>
 
+      <Plegable id="dash-modelos" titulo="⚡ Crear un expediente con un clic" resumen="Elige modelo y forma de pago, o arrastra aquí el pedido de un cliente">
       <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", justifyContent: "center", width: "100%" }}>
         {marcasConModelos.map((marca) => (
           <div key={marca.id_marca} style={estiloTarjetaMarca}>
@@ -398,6 +407,8 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta, vendedores,
           </div>
         </div>
       </div>
+
+      </Plegable>
 
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
 

@@ -22,6 +22,15 @@ function Barra({ t, alto = 4 }: { t: TareaDto; alto?: number }) {
   );
 }
 
+/** Color del aviso al terminar: una creación de expedientes en la que no se ha creado nada (o ha dejado alguno sin crear) no es un éxito limpio. */
+function tipoDeAviso(t: TareaDto): "exito" | "error" | "aviso" {
+  if (t.estado === "error") return "error";
+  if (t.estado !== "terminada") return "aviso";
+  const r = t.resultado as { creados?: unknown[]; omitidos?: unknown[] } | undefined;
+  if (t.tipo === "crear-expedientes" && Array.isArray(r?.creados) && Array.isArray(r?.omitidos)) return r.creados.length === 0 ? "error" : r.omitidos.length > 0 ? "aviso" : "exito";
+  return "exito";
+}
+
 /** Resumen legible del resultado de una tarea (lo que devolvería la llamada normal). */
 function resumenResultado(r: unknown): string[] {
   if (!r || typeof r !== "object") return [];
@@ -65,9 +74,9 @@ export default function IndicadorTareas() {
         // El aviso queda en el registro de notificaciones, así que la tarea ya no hace falta en la lista
         void notificar({
           titulo: t.titulo,
-          texto: t.estado === "terminada" ? "La tarea ha terminado correctamente." : t.estado === "error" ? `La tarea ha fallado: ${t.error ?? "error desconocido"}` : t.texto || "La tarea se ha cancelado.",
+          texto: t.estado === "terminada" ? (tipoDeAviso(t) === "exito" ? "La tarea ha terminado correctamente." : "La tarea ha terminado, pero hay cosas que revisar.") : t.estado === "error" ? `La tarea ha fallado: ${t.error ?? "error desconocido"}` : t.texto || "La tarea se ha cancelado.",
           detalles: resumenResultado(t.resultado),
-          tipo: t.estado === "terminada" ? "exito" : t.estado === "error" ? "error" : "aviso",
+          tipo: tipoDeAviso(t),
         });
         void descartarTareaServidor(t.id);
       }),

@@ -8,6 +8,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import type { MarcaDto, ModeloDto, TipoVentaDto } from "@/lib/dto";
 import { CLAVE_VENTANA_SOLO_SI_NUEVO, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import { crearTodosLosPedidos } from "@/lib/crear-desde-pedido";
+import { hoyIsoCliente } from "@/lib/date-utils";
 import SelectorMotorRelectura, { useMotorDeRelectura } from "@/components/documentos/SelectorMotorRelectura";
 import { actualizarPedidoDeCola, type EleccionRapida, type ItemCola } from "@/lib/pedidos-cola";
 import type { ResultadoPedido } from "@/lib/servicios/documentos";
@@ -163,9 +164,8 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
     if (!await confirmar({ texto: `Se van a crear de una vez los expedientes de los ${total} pedidos de la cola que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar). Los demás se quedan en la cola. ¿Continuar?` })) return;
     setMasivo({ hechos: 0, total });
     try {
-      const r = await crearTodosLosPedidos(vendedorId, (hechos, tot) => setMasivo({ hechos, total: tot }));
-      const resumen = `${r.creados} expediente${r.creados === 1 ? "" : "s"} creado${r.creados === 1 ? "" : "s"}${r.omitidos.length > 0 ? ` y ${r.omitidos.length} sin crear (se quedan en la cola): ${r.omitidos.slice(0, 3).map((o) => `${o.nombre} (${o.motivo})`).join("; ")}${r.omitidos.length > 3 ? "…" : ""}` : ""}.`;
-      mostrar(resumen, r.creados === 0 ? "error" : undefined);
+      await crearTodosLosPedidos(vendedorId, (hechos, tot) => setMasivo({ hechos, total: tot }));
+      // El aviso con lo creado y lo que se queda en la cola sale solo al terminar la tarea (y queda en el registro de notificaciones)
       router.refresh();
       alCerrar();
     } catch (e) {
@@ -198,7 +198,7 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       if (!permitirDuplicadosAhora()) {
         const { data: yaHay } = await llamar<{ idExpediente: number; motivo: string }[]>("/api/documentos/similares", {
           method: "POST",
-          cuerpo: { vin: valores.vin, matricula: valores.matricula, dni: valores.dni, cliente: nombreEditado, fechaExpediente: valores.fecha, idModelo: idModeloFinal },
+          cuerpo: { vin: valores.vin, matricula: valores.matricula, dni: valores.dni, cliente: nombreEditado, fechaExpediente: valores.fecha || hoyIsoCliente(), idModelo: idModeloFinal },
         }).catch(() => ({ data: [] as { idExpediente: number; motivo: string }[] }));
         if (yaHay.length > 0) {
           mostrar(`No se ha creado: ya existe el expediente nº ${yaHay[0].idExpediente} (${yaHay[0].motivo}). Ábrelo desde Expedientes si quieres completarlo.`, "error");
@@ -402,36 +402,38 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
       }
       ancho={verPdf ? "1500px" : "700px"}
       pie={
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "28px", flexWrap: "wrap", width: "100%" }}>
-          {/* Izquierda y aparte: lo que borra el pedido de la cola */}
-          <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
-            🗑 Descartar este pedido
-          </button>
-          <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {/* Mirar y salir */}
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
-            {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
-          </button>
-          <SelectorMotorRelectura compacto />
-          <button type="button" className="btn btn-secondary" onClick={() => void releer()} disabled={releyendo || trabajando} title="Vuelve a leer el PDF de este pedido con el lector actual (por ejemplo, si no sacó el DNI, el teléfono o el modelo) y rehace esta ventana con los datos nuevos">
-            {releyendo ? "🔄 Releyendo…" : "🔄 Releer"}
-          </button>
-          <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
-            ↩ Cerrar (queda en la cola)
-          </button>
-          </div>
-          {/* Crear */}
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", paddingLeft: "20px", borderLeft: "1px solid var(--border-light)" }}>
-          {total > 1 && (
-            <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
-              {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+          {/* Fila 1: el documento. Verlo y, si no se ha leído bien, leerlo otra vez (con otro motor si quieres) */}
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", paddingBottom: "12px", borderBottom: "1px solid var(--border-light)" }}>
+            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>El documento</span>
+            <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">
+              {verPdf ? "🙈 Ocultar el PDF" : "👁 Ver el PDF"}
             </button>
-          )}
-          <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
-            {trabajando ? "Creando…" : "Crear expediente"}
-          </button>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "4px 4px 4px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
+              <SelectorMotorRelectura />
+              <button type="button" className="btn btn-secondary" onClick={() => void releer()} disabled={releyendo || trabajando} title="Vuelve a leer el PDF de este pedido con el motor elegido (por ejemplo, si no sacó el DNI, el teléfono o el modelo) y rehace esta ventana con los datos nuevos">
+                {releyendo ? "🔄 Releyendo…" : "🔄 Releer"}
+              </button>
+            </div>
           </div>
+          {/* Fila 2: qué hacer con el pedido. A la izquierda lo que lo quita; a la derecha, salir y crear */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-secondary" style={{ color: "var(--danger)", borderColor: "var(--danger)" }} onClick={() => setDescartando(true)} disabled={trabajando} title="Descarta este pedido: se quita de la cola sin crear nada">
+              🗑 Descartar este pedido
+            </button>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
+              <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={alCerrar} disabled={trabajando} title="Cierra la ventana: el pedido se queda en la cola de pedidos para retomarlo después">
+                ↩ Cerrar (queda en la cola)
+              </button>
+              {total > 1 && (
+                <button type="button" className="btn btn-secondary" onClick={() => void crearTodos()} disabled={trabajando || masivo !== null} title="Crea de una vez todos los pedidos de la cola que no tengan dudas y no estén duplicados; los demás se quedan en la cola">
+                  {masivo ? `Creando ${masivo.hechos + 1} de ${masivo.total}…` : `Crear todos los demás (${total}) sin duplicar`}
+                </button>
+              )}
+              <button type="button" className="btn btn-primary" data-tecla="enter" onClick={() => (usaNuevo ? setConfirmando(true) : void crear())} disabled={!puedeCrear || masivo !== null}>
+                {trabajando ? "Creando…" : "Crear expediente"}
+              </button>
+            </div>
           </div>
         </div>
       }

@@ -1,30 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
-import { esperarTarea, refrescarTareas } from "@/lib/tareas-cliente";
-import { ajustarLecturas, cotejarPagos, filasDelMes, filasSinMes, resumenPorMes, sugerirMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
+import { SIN_ESTADO, editarBorrador, leerRejillas, quitarBorrador, quitarHoja, releerHoja, subirHojas, suscribirRejillas, usarContextoRejillas, type BorradorRejilla, type HojaEnCola } from "@/lib/rejillas-lectura-cliente";
+import { cotejarPagos, filasDelMes, filasSinMes, resumenPorMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
 import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
 import { formatDate } from "@/lib/date-utils";
 import { euros, mesActual, nombreMes, sumarMeses } from "@/lib/formato";
 import { usePreferencia } from "@/lib/preferencias";
 import { normalizarMatricula } from "@/lib/rejilla/analizar";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
-import ControlesLectura from "@/components/documentos/ControlesLectura";
+import SelectorMotorRelectura, { useMotorDeRelectura } from "@/components/documentos/SelectorMotorRelectura";
 import { columnasVehiculo } from "@/components/etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
 import type { DatosCotejo } from "@/lib/servicios/cotejo";
-import type { MatriculaLeida } from "@/lib/servicios/ocr-rejilla";
 import MiMes from "./MiMes";
 
-interface Borrador {
-  clave: string;
-  nombreArchivo: string;
-  mes: string;
-  filas: { matricula: string; confianza: number; corregidaDe?: string }[];
-}
+type Borrador = BorradorRejilla;
 
 interface Listado {
   nombre: string;
@@ -80,7 +74,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   const { datos, recargar } = useCarga<DatosCotejo>(`/api/cotejo?usuario=${idVendedor}`, { coches: [], pagos: [], rejillas: [] });
   const [mesGuardado, guardarMes] = usePreferencia("cotejo-mes");
   const mes = esMes(mesGuardado) ? mesGuardado : mesActual();
-  const [borradores, setBorradores] = useState<Borrador[]>([]);
+  // Las hojas en lectura y los borradores viven fuera del componente: siguen su curso aunque se cambie de pestaña
+  const { hojas, borradores } = useSyncExternalStore(suscribirRejillas, leerRejillas, () => SIN_ESTADO);
+  const { motor: motorLectura } = useMotorDeRelectura();
+  const saltoPendiente = useRef(false);
   const [listados, setListados] = useState<Listado[]>([]);
   const [trabajando, setTrabajando] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
@@ -109,6 +106,21 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   const mesesGuardados = useMemo(() => new Set(datos.rejillas.map((r) => r.mes)), [datos.rejillas]);
   const mesesEnBorrador = useMemo(() => new Set(borradoresConMes.map((b) => b.mes)), [borradoresConMes]);
 
+  // La lectura (que sigue aunque se cambie de pestaña) necesita saber qué coches hay y qué mes se está mirando
+  useEffect(() => {
+    usarContextoRejillas({ coches: cochesTodos, mes });
+  }, [cochesTodos, mes]);
+  // Al terminar de leerse la primera hoja de una subida se salta a su mes, para ver enseguida su cotejo
+  const prev = useRef(borradores.length);
+  useEffect(() => {
+    if (borradores.length > prev.current && saltoPendiente.current) {
+      saltoPendiente.current = false;
+      const nuevo = borradores[borradores.length - 1];
+      if (esMes(nuevo.mes) && nuevo.mes !== mes) guardarMes(nuevo.mes);
+    }
+    prev.current = borradores.length;
+  }, [borradores, mes, guardarMes]);
+
   // El mes elegido se deja a la vista en el carril de meses
   useEffect(() => {
     carril.current?.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({ inline: "center", block: "nearest" });
@@ -122,6 +134,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   const rejillaMes = datos.rejillas.find((r) => r.mes === mes);
   const borradorMes = borradores.find((b) => b.mes === mes);
   const otrosBorradores = borradores.filter((b) => b.mes !== mes);
+  const hojasEnCurso = hojas.filter((h) => h.estado === "en_cola" || h.estado === "leyendo").length;
 
   /** Resuelve una lectura dudosa de la rejilla ya guardada: se corrige la matrícula o se confirma que estaba bien leída. */
   const resolver = async (f: FilaCotejo, accion: "corregir" | "confirmar") => {
@@ -139,63 +152,21 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   };
 
   /* ---------------- Rejillas (PDF o imagen) ---------------- */
-  const subirRejillas = async (archivos: FileList | File[] | null) => {
+  const subirRejillas = (archivos: FileList | File[] | null) => {
     const lista = archivos ? Array.from(archivos) : [];
-    if (lista.length === 0) return;
-    setTrabajando(true);
-    try {
-      // Todas las hojas se ponen primero en la cola de segundo plano del servidor (que las lee de una en una, por orden) y se van recogiendo según terminan
-      const enCola: { f: File; tarea: string }[] = [];
-      for (const f of lista) {
-        if (!esPdf(f) && !esImagen(f)) {
-          mostrar(`«${f.name}» no es un PDF ni una imagen.`, "error");
-          continue;
-        }
-        const r = await fetch(`/api/cotejo/leer?asincrono=1&nombre=${encodeURIComponent(f.name)}`, { method: "POST", headers: { "Content-Type": f.type || "application/pdf" }, body: f, credentials: "same-origin" });
-        const json = (await r.json().catch(() => ({}))) as { message?: string; tarea?: string };
-        if (!r.ok || !json.tarea) {
-          mostrar(`${f.name}: ${json.message ?? `Error ${r.status}`}`, "error");
-          continue;
-        }
-        enCola.push({ f, tarea: json.tarea });
-      }
-      await refrescarTareas();
-      const nuevos: Borrador[] = [];
-      for (const { f, tarea } of enCola) {
-        let paginas: { matriculas: MatriculaLeida[] }[];
-        try {
-          paginas = (await esperarTarea<{ paginas: { matriculas: MatriculaLeida[] }[] }>(tarea)).paginas;
-        } catch (e) {
-          mostrar(`${f.name}: ${textoError(e)}`, "error");
-          continue;
-        }
-        const hechos: Borrador[] = [];
-        paginas.forEach((p, i) => {
-          if (p.matriculas.length === 0) mostrar(`No he podido leer ninguna matrícula en «${f.name}»${paginas.length > 1 ? ` (página ${i + 1})` : ""}. Puedes escribirlas a mano.`, "error");
-          const sugerido = sugerirMes(p.matriculas.map((m) => m.matricula), cochesTodos);
-          hechos.push({
-            clave: `${f.name}-${i}-${Date.now()}`,
-            nombreArchivo: paginas.length > 1 ? `${f.name} (pág. ${i + 1})` : f.name,
-            // Si la hoja no deja adivinar su mes, se supone que es el que se está mirando
-            mes: sugerido ?? mes,
-            filas: ajustarLecturas(p.matriculas.map((m) => ({ matricula: m.matricula, confianza: m.valida ? m.confianza : 0 })), cochesTodos.map((c) => c.matricula)),
-          });
-        });
-        // Cada hoja aparece en cuanto se lee, sin esperar a las demás
-        nuevos.push(...hechos);
-        setBorradores((b) => [...b, ...hechos]);
-        // Se salta al mes de la primera rejilla leída para ver enseguida su cotejo
-        if (nuevos.length === hechos.length && hechos.length > 0 && hechos[0].mes !== mes) guardarMes(hechos[0].mes);
-      }
-    } catch (e) {
-      mostrar(textoError(e), "error");
-    } finally {
-      setTrabajando(false);
-    }
+    const validos = lista.filter((f) => {
+      if (esPdf(f) || esImagen(f)) return true;
+      mostrar(`«${f.name}» no es un PDF ni una imagen.`, "error");
+      return false;
+    });
+    if (validos.length === 0) return;
+    // Todas las hojas entran en la cola de lectura del servidor (de una en una, por orden); se puede seguir usando la aplicación
+    saltoPendiente.current = true;
+    subirHojas(validos, motorLectura);
   };
 
   const editar = (clave: string, cambio: Partial<Borrador>) => {
-    setBorradores((b) => b.map((x) => (x.clave === clave ? { ...x, ...cambio } : x)));
+    editarBorrador(clave, cambio);
     if (cambio.mes && esMes(cambio.mes)) guardarMes(cambio.mes);
   };
 
@@ -208,7 +179,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
     setTrabajando(true);
     try {
       await llamar(`/api/cotejo/rejillas?usuario=${idVendedor}`, { method: "PUT", cuerpo: { mes: b.mes, nombreArchivo: b.nombreArchivo, origen: "pdf", matriculas } });
-      setBorradores((x) => x.filter((y) => y.clave !== b.clave));
+      quitarBorrador(b.clave);
       mostrar(`Rejilla de ${nombreMes(b.mes)} guardada.`);
       recargar();
     } catch (e) {
@@ -329,7 +300,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
           {esAdministrador && vendedores.length > 1 && (
             <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem", marginLeft: "auto" }}>
               Vendedor
-              <select className="form-input" value={idVendedor} onChange={(e) => { setIdVendedor(Number(e.target.value)); setBorradores([]); }}>
+              <select className="form-input" value={idVendedor} onChange={(e) => { setIdVendedor(Number(e.target.value)); borradores.forEach((b) => quitarBorrador(b.clave)); }}>
                 {vendedores.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.nombre}
@@ -360,14 +331,16 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
                 <span style={{ fontWeight: 700 }}>{mesCorto(m)}</span>
                 <span style={{ fontSize: "0.68rem", display: "flex", gap: "5px", opacity: 0.95 }}>
                   <span title={conRejilla ? "Tiene rejilla" : "Sin rejilla"}>{mesesEnBorrador.has(m) ? "📝" : conRejilla ? "📄" : "▫️"}</span>
-                  {r?.noPagados ? <span>🔴{r.noPagados}</span> : null}
-                  {r?.dudosos ? <span>🟡{r.dudosos}</span> : null}
-                  {r && r.total > 0 && !r.noPagados && !r.dudosos && !r.sinRejilla ? <span>🟢{r.total}</span> : null}
-                  {r?.sinRejilla ? <span>⚪{r.sinRejilla}</span> : null}
+                  {/* Un solo aviso por mes: lo más urgente que tiene */}
+                  {r?.noPagados ? <span>🔴{r.noPagados}</span> : r?.dudosos ? <span>🟡{r.dudosos}</span> : r?.sinRejilla ? <span>⚪{r.sinRejilla}</span> : r && r.total > 0 ? <span>🟢{r.total}</span> : null}
                 </span>
               </button>
             );
           })}
+        </div>
+        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <span>📄 con rejilla · 📝 leída sin guardar · ▫️ sin rejilla</span>
+          <span>🔴 coches sin pagar · 🟡 dudosos · ⚪ aún sin rejilla de su mes · 🟢 todo cobrado</span>
         </div>
       </section>
 
@@ -378,9 +351,25 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
           style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", outline: arrastrando ? "2px dashed var(--primary)" : undefined, outlineOffset: "-6px", gridColumn: "span 1" }}
           onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
           onDragLeave={() => setArrastrando(false)}
-          onDrop={(e) => { e.preventDefault(); setArrastrando(false); void subirRejillas(e.dataTransfer.files); }}
+          onDrop={(e) => { e.preventDefault(); setArrastrando(false); subirRejillas(e.dataTransfer.files); }}
         >
           <h3 style={{ margin: 0, fontSize: "1.02rem" }}>📄 Rejilla de {nombreMes(mes)}</h3>
+          {/* Los tres pasos, con el que toca ahora resaltado */}
+          <ol style={{ display: "flex", gap: "6px", flexWrap: "wrap", listStyle: "none", margin: 0, padding: 0, fontSize: "0.78rem" }}>
+            {["Sube la hoja", "Revisa lo leído", "Guarda la rejilla"].map((texto, k) => {
+              // paso 1: subir; 2: se está leyendo o hay un borrador que revisar; 4: ya guardada
+              const paso = borradorMes || hojasEnCurso > 0 ? 2 : rejillaMes ? 4 : 1;
+              const hecho = k + 1 < paso;
+              const ahora = k + 1 === paso;
+              return (
+                <li key={texto} style={{ padding: "3px 10px", borderRadius: "999px", border: `1px solid ${ahora ? "var(--primary)" : "var(--border-light)"}`, background: hecho ? "rgba(34, 197, 94, 0.14)" : ahora ? "rgba(var(--primary-rgb), 0.14)" : "transparent", color: hecho ? "var(--success)" : ahora ? "var(--primary)" : "var(--text-muted)", fontWeight: ahora ? 700 : 500 }}>
+                  {hecho ? "✔" : k + 1}. {texto}
+                </li>
+              );
+            })}
+          </ol>
+
+          {hojas.length > 0 && <ColaDeHojas hojas={hojas} motor={motorLectura} />}
 
           {borradorMes ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -421,7 +410,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
                 <button type="button" className="btn btn-primary" disabled={trabajando} onClick={() => void guardar(borradorMes)}>
                   💾 Guardar rejilla
                 </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setBorradores((x) => x.filter((y) => y.clave !== borradorMes.clave))}>
+                <button type="button" className="btn btn-secondary" disabled={!hojas.some((h) => h.id === borradorMes.idHoja)} onClick={() => releerHoja(borradorMes.idHoja, motorLectura)} title={hojas.some((h) => h.id === borradorMes.idHoja) ? "Vuelve a leer esta hoja con el motor elegido abajo (se pierden las correcciones que hayas hecho a mano)" : "El archivo ya no está en memoria (se recargó la página): vuelve a subirlo para releerlo"}>
+                  🔄 Releer
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => quitarBorrador(borradorMes.clave)}>
                   Descartar
                 </button>
               </div>
@@ -443,12 +435,12 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
             <div style={{ color: "var(--text-secondary)", fontSize: "0.88rem" }}>Todavía no has subido la rejilla de este mes: sin ella la app no puede decirte qué coches no te han pagado.</div>
           )}
 
-          <label className="btn btn-primary" style={{ cursor: trabajando ? "wait" : "pointer", textAlign: "center", justifyContent: "center" }}>
-            {trabajando ? "⏳ Leyendo en segundo plano…" : borradorMes || rejillaMes ? "📄 Subir otra hoja (PDF o foto)" : `📄 Subir la rejilla de ${mesCorto(mes)} (PDF o foto)`}
-            <input type="file" multiple accept=".pdf,image/*" style={{ display: "none" }} disabled={trabajando} onChange={(e) => { void subirRejillas(e.target.files); e.target.value = ""; }} />
+          <label className="btn btn-primary" style={{ cursor: "pointer", textAlign: "center", justifyContent: "center" }}>
+            {hojasEnCurso > 0 ? `📄 Subir más hojas (${hojasEnCurso} en lectura)` : borradorMes || rejillaMes ? "📄 Subir otra hoja (PDF o foto)" : `📄 Subir la rejilla de ${mesCorto(mes)} (PDF o foto)`}
+            <input type="file" multiple accept=".pdf,image/*" style={{ display: "none" }} onChange={(e) => { subirRejillas(e.target.files); e.target.value = ""; }} />
           </label>
-          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>También puedes arrastrar el archivo aquí. La lectura tarda unos segundos por hoja y no guarda nada hasta que pulses «Guardar rejilla».</div>
-          <ControlesLectura parte="motor" />
+          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Puedes subir varias a la vez o arrastrarlas aquí: se leen en segundo plano, de una en una (puedes cambiar de pestaña). No se guarda nada hasta que pulses «Guardar rejilla».</div>
+          <SelectorMotorRelectura etiqueta="Leer con" />
 
           {otrosBorradores.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", borderTop: "1px solid var(--border-light)", paddingTop: "10px" }}>
@@ -461,7 +453,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
                   <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px" }} onClick={() => guardarMes(esMes(b.mes) ? b.mes : mes)} disabled={!esMes(b.mes)}>
                     Ir a {esMes(b.mes) ? mesCorto(b.mes) : "su mes"}
                   </button>
-                  <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px" }} title="Descartar esta hoja" onClick={() => setBorradores((x) => x.filter((y) => y.clave !== b.clave))}>
+                  <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px" }} title="Descartar esta hoja" onClick={() => quitarBorrador(b.clave)}>
                     ✕
                   </button>
                 </div>
@@ -569,6 +561,46 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+const ESTADO_HOJA: Record<HojaEnCola["estado"], { icono: string; texto: string; color: string }> = {
+  en_cola: { icono: "⏳", texto: "En cola, esperando su turno", color: "var(--text-secondary)" },
+  leyendo: { icono: "📖", texto: "Leyendo…", color: "var(--primary)" },
+  leida: { icono: "✅", texto: "Leída", color: "var(--success)" },
+  error: { icono: "⚠️", texto: "No se ha podido leer", color: "var(--danger)" },
+};
+
+/** Cola de lectura de las hojas subidas: en qué punto está cada una, con releer (con otro motor si se quiere) y quitar. Sigue ahí aunque se cambie de pestaña. */
+function ColaDeHojas({ hojas, motor }: { hojas: HojaEnCola[]; motor: string | undefined }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px" }}>
+      <div style={{ fontSize: "0.8rem", fontWeight: 700 }}>Cola de lectura ({hojas.length})</div>
+      {hojas.map((h) => {
+        const e = ESTADO_HOJA[h.estado];
+        const trabajando = h.estado === "en_cola" || h.estado === "leyendo";
+        return (
+          <div key={h.id} style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", fontSize: "0.82rem" }}>
+            <span style={{ flex: "1 1 150px", overflowWrap: "anywhere", fontWeight: 600 }} title={h.nombre}>
+              {e.icono} {h.nombre}
+            </span>
+            <span style={{ color: e.color }}>
+              {e.texto}
+              {h.estado === "leida" && h.matriculas !== undefined ? `: ${h.matriculas} matrículas` : ""}
+              {h.estado === "error" && h.error ? ` · ${h.error}` : ""}
+            </span>
+            {!trabajando && (
+              <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px" }} onClick={() => releerHoja(h.id, motor)} title="Vuelve a leer esta hoja con el motor elegido abajo («Leer con»)">
+                🔄 Releer
+              </button>
+            )}
+            <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px" }} onClick={() => quitarHoja(h.id)} title={trabajando ? "Quita la hoja de la lista (su lectura se tirará al terminar)" : "Quita la hoja de la lista (lo leído se queda como borrador)"}>
+              ✕
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

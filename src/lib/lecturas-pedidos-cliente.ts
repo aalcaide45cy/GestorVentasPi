@@ -101,7 +101,8 @@ function huellasDeLaCola() {
   const vins = new Set<string>();
   const matriculas = new Set<string>();
   const personas = new Set<string>();
-  const clavePersona = (d: DatosDePedido) => (d.dni && d.fechaExpediente ? `${limpiar(d.dni)}|${d.fechaExpediente}|${d.idModelo}` : "");
+  // Mismo cliente y modelo el mismo día; si el pedido no trae fecha (el OCR no la leyó) vale mismo cliente y modelo: son copias del mismo pedido
+  const clavePersona = (d: DatosDePedido) => (d.dni && d.fechaExpediente ? `${limpiar(d.dni)}|${d.fechaExpediente}|${d.idModelo}` : d.dni && d.idModelo ? `${limpiar(d.dni)}|sin fecha|${d.idModelo}` : "");
   const anadir = (d: DatosDePedido) => {
     if (limpiar(d.numeroPedido)) pedidos.add(limpiar(d.numeroPedido));
     if (limpiar(d.vin)) vins.add(limpiar(d.vin));
@@ -116,7 +117,7 @@ function huellasDeLaCola() {
       if (limpiar(d.numeroPedido) && pedidos.has(limpiar(d.numeroPedido))) return `Repetido: ya hay en la cola un pedido con el mismo número (${d.numeroPedido})`;
       if (limpiar(d.vin) && vins.has(limpiar(d.vin))) return `Repetido: ya hay en la cola un pedido con el mismo bastidor (${d.vin})`;
       if (limpiar(d.matricula) && matriculas.has(limpiar(d.matricula))) return `Repetido: ya hay en la cola un pedido con la misma matrícula (${d.matricula})`;
-      if (clavePersona(d)) return personas.has(clavePersona(d)) ? `Repetido: ya hay en la cola un pedido del mismo cliente, fecha y modelo (${d.cliente ?? d.dni})` : null;
+      if (clavePersona(d)) return personas.has(clavePersona(d)) ? `Repetido: ya hay en la cola un pedido del mismo cliente y modelo${d.fechaExpediente ? " y fecha" : ""} (${d.cliente ?? d.dni})` : null;
       return null;
     },
   };

@@ -7,6 +7,10 @@ import type { AjustesOcrDto } from "@/app/api/admin/ocr/route";
 
 const CLAVE = "releer-motor";
 
+/** Nombres cortos y distintos entre sí (en Configuración «RapidOCR» sale dos veces, en CPU y en GPU, y aquí no se distinguía). */
+const NOMBRES: Record<string, string> = { tesseract: "Tesseract", "rapido-cpu": "RapidOCR en CPU", "rapido-gpu": "RapidOCR en GPU", vision: "Apple Vision" };
+export const nombreDeMotor = (id: string, respaldo = id): string => NOMBRES[id] ?? respaldo;
+
 /**
  * Elige con qué motor de OCR se vuelve a leer un pedido, solo para esa relectura (el motor de Configuración no cambia). Lo ven los
  * administradores, que son quienes pueden ver los motores. Lo último elegido se recuerda en este navegador.
@@ -28,17 +32,17 @@ export function useMotorDeRelectura(): { motor: string | undefined; opciones: Aj
   return { motor: valido || undefined, opciones, fijar, actual: a?.motor ?? "" };
 }
 
-export default function SelectorMotorRelectura({ compacto = false }: { compacto?: boolean }) {
+export default function SelectorMotorRelectura({ compacto = false, etiqueta = "Releer con" }: { compacto?: boolean; etiqueta?: string }) {
   const { opciones, fijar, motor, actual } = useMotorDeRelectura();
   if (opciones.length === 0) return null;
   return (
     <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }} title="Motor de lectura (OCR) con el que se vuelve a leer. «El de Configuración» usa el elegido en Configuración; elegir otro vale solo para estas relecturas.">
-      {!compacto && <span>Releer con</span>}
+      {!compacto && <span>{etiqueta}</span>}
       <select className="form-input" value={motor ?? ""} onChange={(e) => fijar(e.target.value)} style={{ padding: "3px 8px", fontSize: "0.8rem", maxWidth: "260px" }}>
-        <option value="">El de Configuración{actual ? ` (${opciones.find((o) => o.id === actual)?.nombre ?? actual})` : ""}</option>
+        <option value="">El de Configuración{actual ? ` (${nombreDeMotor(actual, opciones.find((o) => o.id === actual)?.nombre)})` : ""}</option>
         {opciones.map((o) => (
           <option key={o.id} value={o.id}>
-            {o.nombre}
+            {nombreDeMotor(o.id, o.nombre)}
           </option>
         ))}
       </select>

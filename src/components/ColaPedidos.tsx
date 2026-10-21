@@ -30,7 +30,7 @@ interface Props {
  */
 export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   const router = useRouter();
-  const { mostrar, confirmar, notificar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [marcados, setMarcados] = useState<string[]>([]);
   /** Progreso de «Releer»: cuántos pedidos van y cuántos son. */
   const [releyendo, setReleyendo] = useState<{ hechos: number; total: number } | null>(null);
@@ -107,18 +107,14 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
   const crearElegidos = async () => {
     const lista = items.filter((i) => elegidos.includes(i.id));
     if (lista.length === 0 || creando) return;
-    if (!await confirmar({ titulo: "Crear expedientes", texto: `Se van a crear los expedientes de los ${lista.length} pedidos elegidos que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar).`, detalles: ["Los que tengan alguna duda se quedan en la cola, con su motivo.", "Nunca se duplica un expediente que ya exista."], aceptar: "Crear expedientes" })) return;
+    if (!await confirmar({ titulo: "Crear expedientes", texto: `Se van a crear los expedientes de los ${lista.length} pedidos elegidos que no tengan dudas (modelo y pago reconocidos, cliente claro y sin duplicar).`, detalles: ["Los que tengan alguna duda se quedan en la cola, elegidos, con su motivo.", "Nunca se duplica un expediente que ya exista.", "Se hace en segundo plano: puedes seguir usando la aplicación y verás el avance arriba."], aceptar: "Crear expedientes" })) return;
     setCreando({ hechos: 0, total: lista.length });
     try {
       const r = await crearPedidos(lista, vendedorId, (hechos, total) => setCreando({ hechos, total }));
-      setMarcados([]);
+      // Los que no se han podido crear se quedan en la cola y elegidos, para abrirlos o descartarlos; lo creado ya salió de la cola.
+      // El aviso con el detalle sale solo al terminar la tarea (y queda en el registro de notificaciones).
+      setMarcados(r.omitidos.map((o) => o.idItem).filter((id): id is string => !!id));
       router.refresh();
-      void notificar({
-        titulo: "Expedientes creados",
-        texto: `${r.creados} expediente${r.creados === 1 ? "" : "s"} creado${r.creados === 1 ? "" : "s"}${r.omitidos.length > 0 ? ` y ${r.omitidos.length} sin crear (se quedan en la cola)` : ""}.`,
-        detalles: r.omitidos.slice(0, 8).map((o) => `${o.nombre}: ${o.motivo}`).concat(r.omitidos.length > 8 ? [`… y ${r.omitidos.length - 8} más`] : []),
-        tipo: r.creados === 0 ? "error" : r.omitidos.length > 0 ? "aviso" : "exito",
-      });
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {

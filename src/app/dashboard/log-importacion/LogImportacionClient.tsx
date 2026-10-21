@@ -339,7 +339,7 @@ Los clientes que se crearan con ella no se borran. Las comisiones se recalculan 
             const expandido = abierto === b.id;
             const fecha = new Date(b.fecha);
             const textoFecha = fecha.toLocaleDateString() + " " + fecha.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-            const esExcel = b.tipo_archivo === "Excel";
+            const esExcel = b.tipo_archivo === "Excel" || /\.xlsx?$/i.test(b.nombre_archivo);
             return (
               <div key={b.id} className="glass-panel" style={{ overflow: "hidden", transition: "all 0.3s" }}>
                 <div
@@ -358,13 +358,13 @@ Los clientes que se crearan con ella no se borran. Las comisiones se recalculan 
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: "24px", alignItems: "center" }}>
-                    <div style={{ display: "flex", gap: "12px", fontSize: "0.85rem" }}>
+                  <div style={{ display: "flex", gap: "12px 24px", alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: "12px", fontSize: "0.85rem", flexWrap: "wrap" }}>
                       <span className="badge badge-tienda" style={{ color: "var(--info)" }}>{b.creados} Creados</span>
                       <span className="badge badge-vendedor" style={{ color: "var(--success)" }}>{b.modificados} Modificados</span>
                       <span className="badge" style={{ backgroundColor: "rgba(255,255,255,0.05)", color: "var(--text-muted)" }}>{b.omitidos} Omitidos</span>
                     </div>
-                    <div style={{ display: "flex", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                       {(b.creados > 0 || b.modificados > 0) && (
                         <button
                           type="button"

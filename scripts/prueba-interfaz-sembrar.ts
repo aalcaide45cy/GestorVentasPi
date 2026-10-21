@@ -12,7 +12,9 @@ export const SECRETO_TOTP = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 
 async function main() {
   const url = process.env.DATABASE_URL ?? "";
-  if (!url.endsWith("/gestorventas_ui_prueba")) throw new Error("Este script solo se ejecuta contra la base gestorventas_ui_prueba");
+  // La base de prueba vacía o el clon de la base real (en el clon solo se añade el administrador de prueba, sin datos de ejemplo)
+  const esClonReal = url.endsWith("/gestorventas_ui_real");
+  if (!url.endsWith("/gestorventas_ui_prueba") && !esClonReal) throw new Error("Este script solo se ejecuta contra la base gestorventas_ui_prueba o su clon gestorventas_ui_real");
   const pool = new Pool({ connectionString: url, max: 1 });
   try {
     const db = drizzle(pool);
@@ -23,6 +25,10 @@ async function main() {
       .returning();
     if (!admin) {
       console.log("La base de prueba ya tiene datos.");
+      return;
+    }
+    if (esClonReal) {
+      console.log("Administrador de prueba añadido al clon de la base real.");
       return;
     }
     const tipos = await db.select().from(tipoDeVenta);

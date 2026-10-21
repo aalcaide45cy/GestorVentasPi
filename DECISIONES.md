@@ -376,3 +376,7 @@ Anota aquí cada decisión que tomes y cada punto **[P]** (pendiente) con la opc
 - [D] 1.5.0: se quita el tope de 300 de la cola de pedidos; la cola sigue en localStorage (unos 1,5 KB por pedido) con guardado agrupado. Si algún día no cupiera (cuota del navegador), el guardado falla en silencio y la cola vive en memoria; lo leído sigue en el servidor hasta recogerse.
 - [D] 1.5.0: el motor de relectura se pasa por petición (`motor` en `/api/documentos/releer`) con un contexto asíncrono (`conMotor`), sin tocar el ajuste global.
 - [D] 1.5.1: un pedido repetido pasa a «descartado» (con el motivo en `error`) en `lecturas_pedidos` en lugar de «recogido»; el contador de repetidos sale de contar los descartados cuyo motivo empieza por «Repetido» o «Este mismo archivo».
+- [D] 1.6.0: la creación de expedientes desde pedidos se hace en el servidor (tarea en segundo plano) y no en el navegador: una petición en vez de ~7 por pedido, atómica por pedido, y no depende de la pestaña. La cola de pedidos sigue en el navegador (localStorage).
+- [D] 1.6.0: un pedido sin fecha de «Emitido» se crea con la fecha de hoy y, para no duplicar, se comprueba contra la de hoy.
+- [D] 1.6.0: la lectura de rejillas va en la cola de tareas del servidor (una a una) y su estado vive fuera del componente; un borrador sobrevive a recargar la página (sessionStorage), el fichero no.
+- [P] 1.6.0 (a decidir por el propietario): fecha de facturación de los VO creados desde un pedido (ver el mensaje del hilo: propuesta de usar la de entrega o pedirla con aviso).

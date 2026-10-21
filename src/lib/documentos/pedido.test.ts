@@ -340,3 +340,34 @@ describe("documentos que no son pedidos", () => {
     expect(d.modeloTexto).toMatch(/Sandero/);
   });
 });
+
+describe("cliente con varios tratamientos y modelo pegado a la versión", () => {
+  const base = (cliente: string, modelo: string) =>
+    [
+      "PEDIDO DE VEHÍCULO NUEVO",
+      "Número Pedido 14000009 - 7577-00 - dnt - AAA111111111",
+      "Emitido: Jueves, 08 Oct 2026 12:41 hs.",
+      "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
+      `${cliente}  CONCESIONARIO DE PRUEBA, S.L. (CALLE 1)`,
+      "Y1234567H  B00000000",
+      "Calle Inventada, 12  CALLE, 1",
+      "Madrid, Madrid (28000)  Rivas, Madrid (28500)",
+      "600111222  Tel.: 910000000 / www.ejemplo.es",
+      "RESUMEN",
+      `Modelo:  ${modelo}  13.658,68 €`,
+      "Plazo de Entrega:  12 Oct 2026 / 23 Oct 2026",
+    ].join("\n");
+
+  it("quita «Sra. Doña.», «Sr. Don», «Sra. Dña.» y «D.» del nombre del cliente", () => {
+    expect(parsearPedido(base("Sra. Doña. Delia Kosset Gonzalez Garcia", "DACIA SANDERO expression"), catalogo).cliente).toBe("Delia Kosset Gonzalez Garcia");
+    expect(parsearPedido(base("Sra. Doña Natalia Martinez Muñoz", "DACIA SANDERO expression"), catalogo).cliente).toBe("Natalia Martinez Muñoz");
+    expect(parsearPedido(base("Sr. Don Pedro De Prueba", "DACIA SANDERO expression"), catalogo).cliente).toBe("Pedro De Prueba");
+    expect(parsearPedido(base("Sra. Dña. Ana Ruiz", "DACIA SANDERO expression"), catalogo).cliente).toBe("Ana Ruiz");
+    expect(parsearPedido(base("Sr. D. Roberto Martin", "DACIA SANDERO expression"), catalogo).cliente).toBe("Roberto Martin");
+  });
+
+  it("separa el modelo de la versión cuando el OCR los pega («ARKANAesprit»)", () => {
+    const d = parsearPedido(base("Sr. Don Pedro De Prueba", "RENAULT ARKANAesprit Alpine full hybrid"), { ...catalogo, modelos: [...catalogo.modelos, { id: 4, nombre: "Arkana", marca: "Renault" }] });
+    expect(d.idModelo).toBe(4);
+  });
+});

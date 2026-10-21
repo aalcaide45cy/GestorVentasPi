@@ -15,6 +15,8 @@ El propietario quiere que mires la aplicación **como la vería él**, sección 
 ## 1. Copia de prueba nueva
 Ejecuta `powershell -ExecutionPolicy Bypass -File scripts\prueba-interfaz.ps1 -Recrear` (sustituye la copia anterior por otra limpia: carpeta en `%TEMP%\gv-ui-prueba`, base propia `gestorventas_ui_prueba`, puerto 3100, nunca sube a GitHub, no toca los datos reales). Sin `-Recrear` solo la sincroniza. Entra con `prueba@prueba.test` / `Contrasena-de-prueba-123` y el código 2FA de `npx tsx scripts/prueba-interfaz-codigo.ts`.
 
+Para revisar con los datos reales tal como están ahora, usa `powershell -ExecutionPolicy Bypass -File scripts\prueba-interfaz-real.ps1` (con `-Recrear` vuelve a clonar la base real): clona la base real en `gestorventas_ui_real`, la monta en otra copia (puerto 3101) con el mismo APP_SECRET y un administrador de prueba, y todo lo que se haga se hace sobre el clon (nunca sobre la base real).
+
 Para subir archivos al navegador: cópialos a `public/` de la copia y, en la página, `fetch('/archivo')` → `DataTransfer` → `input.files` + evento `change`. Para ver la pantalla de escritorio: `resize_window` 1500x950 y, al terminar, `preset desktop`.
 
 ## 2. Qué revisar (todas, una a una)

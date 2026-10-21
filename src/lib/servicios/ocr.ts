@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { HttpError } from "@/lib/auth/sesion";
 import { cabeceraDeOtroDocumento } from "@/lib/documentos/pedido";
+import { completarConBanda, faltasDeLaCabecera, hayFaltas } from "@/lib/documentos/cabecera-pedido";
 import { filasDeTexto, type FilaRejilla } from "@/lib/rejilla/analizar";
 import { ajustesOcr, cargarAjustesOcr } from "./ocr-ajustes";
 import { ocrImagenesVision } from "./ocr-vision";
@@ -337,6 +338,30 @@ function enParalelo<T>(tarea: () => Promise<T>, maxMs: number): Promise<T> {
   return Promise.race([tarea(), limite]).finally(() => clearTimeout(temporizador));
 }
 
+/**
+ * Si a la lectura de un pedido le falta el número, la fecha de «Emitido» o la línea del modelo (el OCR de la hoja entera se salta a veces
+ * líneas sueltas, sobre todo con la hoja algo torcida), vuelve a leer solo esa franja de la primera hoja y completa el texto con lo que salga.
+ */
+async function reforzarCabecera(pagina: Buffer, texto: string): Promise<string> {
+  const f = faltasDeLaCabecera(texto);
+  if (!hayFaltas(f)) return texto;
+  try {
+    const meta = await sharp(pagina, { failOn: "none" }).metadata();
+    if (!meta.width || !meta.height) return texto;
+    const bandas: [number, number][] = [];
+    if (f.numero || f.emitido) bandas.push([0.06, 0.08]);
+    if (f.modelo) bandas.push([0.2, 0.2]);
+    const lineas: string[] = [];
+    for (const [desde, alto] of bandas) {
+      const banda = await sharp(pagina, { failOn: "none" }).extract({ left: 0, top: Math.round(meta.height * desde), width: meta.width, height: Math.max(1, Math.round(meta.height * alto)) }).png().toBuffer();
+      lineas.push(...(await ocrImagenes([banda], { columnas: true, motorElegido: true })).map((l) => l.texto));
+    }
+    return completarConBanda(texto, lineas);
+  } catch {
+    return texto;
+  }
+}
+
 type TextoLeido = { texto: string; metodo: "texto-pdf" | "ocr"; descartado?: boolean; cabecera?: string };
 
 function textoDeDocumentoInterno(datos: Buffer, opciones: { cribar?: boolean; paralelo?: boolean } = {}): Promise<TextoLeido> {
@@ -353,7 +378,8 @@ function textoDeDocumentoInterno(datos: Buffer, opciones: { cribar?: boolean; pa
           const c = await pareceAjenoAlPedido(datos);
           if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
         }
-        return { texto: (await ocrOrientado([datos], { columnas: true, motorElegido: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        const leido = (await ocrOrientado([datos], { columnas: true, motorElegido: true })).map((l) => l.texto).join("\n");
+        return { texto: await reforzarCabecera(datos, leido), metodo: "ocr" as const };
       }
       const doc = await abrirPdf(datos);
       try {
@@ -368,7 +394,8 @@ function textoDeDocumentoInterno(datos: Buffer, opciones: { cribar?: boolean; pa
           if (c.ajeno) return { texto: "", metodo: "ocr" as const, descartado: true, cabecera: c.cabecera };
         }
         const imagenes = paginas > 1 ? [...primera, ...(await paginasComoImagenes(doc, paginas)).slice(1)] : primera;
-        return { texto: (await ocrOrientado(imagenes, { columnas: true, motorElegido: true })).map((l) => l.texto).join("\n"), metodo: "ocr" as const };
+        const leido = (await ocrOrientado(imagenes, { columnas: true, motorElegido: true })).map((l) => l.texto).join("\n");
+        return { texto: await reforzarCabecera(imagenes[0], leido), metodo: "ocr" as const };
       } finally {
         await doc.cleanup?.();
       }

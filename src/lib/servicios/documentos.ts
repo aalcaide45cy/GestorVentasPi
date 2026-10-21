@@ -284,7 +284,7 @@ const normalizar = (t: string) => t.replace(/[\s.-]/g, "").toUpperCase();
  * Expedientes no eliminados que podrían ser el mismo pedido: mismo bastidor, misma matrícula, o mismo cliente (por DNI)
  * con la misma fecha de pedido y el mismo modelo. Solo sirve para avisar.
  */
-export async function buscarExpedientesSimilares(ej: Ejecutor, d: DatosPedido): Promise<ExpedienteSimilar[]> {
+export async function buscarExpedientesSimilares(ej: Ejecutor, d: Pick<DatosPedido, "vin" | "matricula" | "dni" | "cliente" | "fechaExpediente" | "idModelo">): Promise<ExpedienteSimilar[]> {
   const condiciones = [];
   if (d.vin) condiciones.push(sql`upper(replace(${expedientes.vin}, ' ', '')) = ${normalizar(d.vin)}`);
   if (d.matricula) condiciones.push(sql`upper(replace(replace(${expedientes.matricula}, ' ', ''), '-', '')) = ${normalizar(d.matricula)}`);

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/db";
+import { Plegable } from "@/components/admin/estructura";
 import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
 import RecentExpedientesTable from "@/components/RecentExpedientesTable";
 import { esAdministrador, esRolActivo } from "@/lib/auth/permisos";
@@ -226,21 +227,23 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
       </div>
 
       {/* Expedientes recientes */}
-      <div className="glass-panel" style={{ padding: "16px 20px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px 16px", marginBottom: "10px" }}>
-          <h3 style={{ fontSize: "1.05rem" }}>Últimos Expedientes Activos</h3>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>💡 Arrastra el pedido de un cliente sobre un expediente para rellenarlo</span>
+      <Plegable
+        id="dash-recientes"
+        titulo="Últimos expedientes activos"
+        resumen="💡 Arrastra el pedido de un cliente sobre un expediente para rellenarlo"
+        acciones={
           <Link href="/dashboard/expedientes" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
             Ver todos
           </Link>
-        </div>
+        }
+      >
         <RecentExpedientesTable
           initialExpedientes={datos.recientes}
           tiendas={datos.tiendas}
           tiendaPredeterminadaId={tiendaPredeterminadaId}
           vendedores={datos.vendedores}
         />
-      </div>
+      </Plegable>
 
       <QuickExpedienteCreator
         marcas={datos.marcasAccesoRapido}

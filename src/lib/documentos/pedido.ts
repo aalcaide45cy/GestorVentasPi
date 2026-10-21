@@ -132,7 +132,7 @@ function fechaTrasEtiqueta(lineas: string[], etiqueta: RegExp): string | null {
 /** Primera «columna» de una línea (las columnas del PDF se separan con dos o más espacios). */
 const primeraColumna = (l: string): string => l.split(/\s{2,}/)[0].trim();
 
-const HONORIFICO = /^(?:Sr\.?|Sra\.?|Srta\.?|Sres\.?)?\s*(?:Don|Doña|Dña\.?|D\.|Dª)?\s+/i;
+const HONORIFICO = /^(?:(?:Sres|Sra|Srta|Sr|Don|Doña|Dña|Dª|D)\.?\s+)+/i;
 
 interface Estructura {
   numeroPedido: string | null;
@@ -256,6 +256,8 @@ function leerEstructuraRenault(lineas: string[]): Estructura | null {
     if (texto) e.modeloLinea = texto.replace(/^(\S+)\s+\1\b/i, "$1");
   }
 
+  // El OCR pega a veces el modelo con la versión («ARKANAesprit» por «ARKANA esprit»): se separa donde las mayúsculas dan paso a minúsculas
+  if (e.modeloLinea) e.modeloLinea = e.modeloLinea.replace(/\b([A-ZÁÉÍÓÚÑ]{4,})([a-záéíóúñ]{3,})\b/g, "$1 $2");
   // Si la linea del modelo solo trae el importe (el nombre se perdio en el escaneo), no hay modelo
   if (e.modeloLinea && !/[A-Za-z]{3}/.test(e.modeloLinea.normalize("NFD").replace(/[̀-ͯ]/g, ""))) e.modeloLinea = null;
   const plazo = lineas.find((l) => /^Plazo\s+de\s+Entrega/i.test(l.trim()));
