@@ -1,5 +1,6 @@
 import { and, eq, isNull, notIlike, or } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
+import { esAnulado } from "@/lib/anulados";
 import { clientes, estadoVehiculo, expedientes, marcas, modelos, tipoDeVenta, usuarios } from "@/db/schema";
 
 /**
@@ -30,6 +31,8 @@ export interface FilaDuplicado {
   /** Si es una copia hecha a propósito con «Duplicar» (y de cuál). */
   copiaDe: number | null;
   deshabilitado: boolean;
+  /** Anulado en el listado de la intranet. */
+  anulado: boolean;
 }
 
 export interface GrupoDuplicado {
@@ -53,8 +56,8 @@ const normalizar = (t: string | null) => (t ?? "").replace(/[\s-]/g, "").toUpper
 const SIN_DATO = new Set(["", "ND", "N/D", "NA", "N/A", "XXXX", "0"]);
 
 /**
- * Con `incluirAnulados` también se miran los anulados en el listado de la intranet. Por defecto no: un pedido anulado y el mismo pedido hecho de nuevo
- * es lo normal, no un descuido.
+ * Con `incluirAnulados` / `incluirDeshabilitados` también se miran los anulados en la intranet y los deshabilitados. Así salen los pedidos que se
+ * anularon y se volvieron a hacer: hay que verlos para deshabilitar o eliminar el que sobra.
  */
 export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulados?: boolean; incluirDeshabilitados?: boolean } = {}): Promise<ResultadoDuplicados> {
   const filas = await ej
@@ -74,6 +77,7 @@ export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulad
       vendedor: usuarios.nombre,
       copiaDe: expedientes.copiaDe,
       deshabilitado: expedientes.deshabilitado,
+      estadoIntranet: expedientes.estadoIntranet,
     })
     .from(expedientes)
     .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
@@ -119,7 +123,7 @@ export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulad
         motivo: d.motivo,
         clave: d.motivo === "bastidor" || d.motivo === "matricula" ? clave : `${v[0].cliente ?? "—"} · ${[v[0].marca, v[0].modelo].filter(Boolean).join(" ")}${d.motivo === "pedido" ? ` · ${v[0].fechaPedido}` : ""}`,
         filas: v
-          .map((f) => ({ id: f.id, cliente: f.cliente, dni: f.dni, marca: f.marca, modelo: f.modelo, matricula: f.matricula, vin: f.vin, fechaPedido: f.fechaPedido, pago: f.pago, estado: f.estado, vendedor: f.vendedor, copiaDe: f.copiaDe, deshabilitado: f.deshabilitado }))
+          .map((f) => ({ id: f.id, cliente: f.cliente, dni: f.dni, marca: f.marca, modelo: f.modelo, matricula: f.matricula, vin: f.vin, fechaPedido: f.fechaPedido, pago: f.pago, estado: f.estado, vendedor: f.vendedor, copiaDe: f.copiaDe, deshabilitado: f.deshabilitado, anulado: esAnulado(f.estadoIntranet) }))
           .sort((a, b) => a.id - b.id),
       });
       for (const f of v) vistos.add(f.id);

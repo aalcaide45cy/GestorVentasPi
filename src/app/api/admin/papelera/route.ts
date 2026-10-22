@@ -4,7 +4,7 @@ import { auditar } from "@/lib/auditoria";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerJsonCrudo, manejar } from "@/lib/http";
 import { encolar, type ContextoTarea } from "@/lib/servicios/tareas";
-import { CATEGORIAS, compactar, descargarPapelera, esquemaAFondo, esquemaCompactar, esquemaPurga, espacioBaseDeDatos, filasPapelera, purgar, purgarAFondo, resumenPapelera, type Categoria } from "@/lib/servicios/papelera";
+import { CATEGORIAS, compactar, descargarPapelera, esquemaAFondo, esquemaCompactar, esquemaPurga, esquemaRestaurar, espacioBaseDeDatos, filasPapelera, purgar, purgarAFondo, restaurar, resumenPapelera, type Categoria } from "@/lib/servicios/papelera";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 900;
@@ -37,7 +37,7 @@ export const GET = manejar(async (req: Request) => {
 });
 
 /**
- * Purgar una categoría (`{categoria, ids | todo | antesDeDias, confirmacion: "PURGAR"}`), purgar a fondo (`{accion: "a_fondo"}`) o compactar
+ * Restaurar lo elegido (`{accion: "restaurar", categoria, ids}`), purgar una categoría (`{categoria, ids | todo | antesDeDias, confirmacion: "PURGAR"}`), purgar a fondo (`{accion: "a_fondo"}`) o compactar
  * (`{accion: "compactar"}`). Con `?asincrono=1` no espera: pone la tarea en la cola de segundo plano y devuelve `{ tarea }` para seguir su
  * avance en `/api/tareas` (se puede navegar por la aplicación mientras tanto).
  */
@@ -56,6 +56,16 @@ export const POST = manejar(async (req: Request) => {
       ejecutar: async (ctx) => {
         const r = await compactar(db, ctx);
         await auditar({ idUsuario: admin.idUsuario, accion: "bbdd_compactada", entidad: "papelera", detalle: { ...r } });
+        return r;
+      },
+    };
+  } else if (crudo.accion === "restaurar") {
+    const entrada = esquemaRestaurar.parse(crudo);
+    trabajo = {
+      titulo: `Restaurar ${entrada.ids.length.toLocaleString("es-ES")} de la papelera`,
+      ejecutar: async (ctx) => {
+        const r = await restaurar(db, entrada, ctx);
+        await auditar({ idUsuario: admin.idUsuario, accion: "papelera_restaurada", entidad: entrada.categoria, detalle: { restaurados: r.restaurados, bloqueados: r.bloqueados } });
         return r;
       },
     };

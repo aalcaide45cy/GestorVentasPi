@@ -4,6 +4,7 @@ import type { Ejecutor } from "@/db";
 import { descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearCopia } from "./copias";
+import { conRecalculo } from "./liquidaciones";
 import { TareaCancelada, type ContextoTarea } from "./tareas";
 
 /**
@@ -42,6 +43,8 @@ export interface FilaPapelera {
   eliminadoEn: string | null;
   /** Cuántos documentos tiene (para poder verlos antes de decidir). */
   documentos: number;
+  /** Clase dentro de la categoría, para las pestañas: el tipo del documento (pedido, pago_rci…) o la tabla del catálogo (marcas, modelos…). Vacío si no hay. */
+  subtipo: string;
   /** Lo que impide purgarla ahora mismo (por ejemplo, que aún tiene expedientes eliminados), si algo lo impide. */
   bloqueo: string | null;
 }
@@ -177,7 +180,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
       sql`select e.id_expediente id, c.nombre cliente, e.matricula, e.eliminado_en, (select count(*) from adjuntos a where a.id_expediente = e.id_expediente)::int docs, (coalesce((select sum(a.tamano) from adjuntos a where a.id_expediente = e.id_expediente), 0) + pg_column_size(e.*))::bigint bytes from expedientes e left join clientes c on c.id = e.id_cliente where e.eliminado_en is not null order by bytes desc, e.id_expediente desc limit ${lim}`,
     );
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from expedientes where eliminado_en is not null`);
-    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `Exp. ${x.id}${x.cliente ? ` · ${x.cliente}` : ""}${x.matricula ? ` · ${x.matricula}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), documentos: x.docs, bloqueo: null })) };
+    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `Exp. ${x.id}${x.cliente ? ` · ${x.cliente}` : ""}${x.matricula ? ` · ${x.matricula}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), documentos: x.docs, subtipo: "", bloqueo: null })) };
   }
   if (categoria === "clientes") {
     const r = await filas<{ id: number; nombre: string | null; dni: string | null; eliminado_en: string; exps: number; docs: number; bytes: string }>(
@@ -187,7 +190,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from clientes where eliminado_en is not null`);
     return {
       total: num(n),
-      filas: r.map((x) => ({ id: String(x.id), texto: `${x.nombre ?? "(sin nombre)"}${x.dni ? ` · ${x.dni}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), documentos: x.docs, bloqueo: x.exps > 0 ? `Tiene ${x.exps} expediente${x.exps === 1 ? "" : "s"} (elimínalos primero)` : null })),
+      filas: r.map((x) => ({ id: String(x.id), texto: `${x.nombre ?? "(sin nombre)"}${x.dni ? ` · ${x.dni}` : ""}`, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.docs} documento${x.docs === 1 ? "" : "s"}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), documentos: x.docs, subtipo: "", bloqueo: x.exps > 0 ? `Tiene ${x.exps} expediente${x.exps === 1 ? "" : "s"} (elimínalos primero)` : null })),
     };
   }
   if (categoria === "documentos") {
@@ -205,6 +208,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
         bytes: num(x.tamano),
         eliminadoEn: iso(x.eliminado_en),
         documentos: 1,
+        subtipo: x.tipo,
         bloqueo: null,
       })),
     };
@@ -220,7 +224,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
         union all select 'tiendas:' || id_tienda, 'Tienda ' || nombre, eliminado_en from tiendas where eliminado_en is not null
         order by 2 limit ${lim}`,
     );
-    return { total: r.length, filas: r.map((x) => ({ id: x.clave, texto: x.texto, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)}`, bytes: 0, eliminadoEn: iso(x.eliminado_en), documentos: 0, bloqueo: bloqueos.get(x.clave) ?? null })) };
+    return { total: r.length, filas: r.map((x) => ({ id: x.clave, texto: x.texto, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)}`, bytes: 0, eliminadoEn: iso(x.eliminado_en), documentos: 0, subtipo: x.clave.split(":")[0], bloqueo: bloqueos.get(x.clave) ?? null })) };
   }
   if (categoria === "historial") {
     const r = await filas<{ id: string; en: string; accion: string; tabla: string; operacion: string; usuario: string | null; bytes: string }>(
@@ -228,7 +232,7 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
       sql`select h.id, h.en, h.accion, h.tabla, h.operacion, u.nombre usuario, pg_column_size(h.*)::bigint bytes from historial_cambios h left join usuarios u on u.id_usuario = h.id_usuario order by h.id desc limit ${lim}`,
     );
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from historial_cambios`);
-    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion} · ${x.tabla} (${x.operacion === "D" ? "borrado" : x.operacion === "I" ? "alta" : "cambio"})`, detalle: `${new Date(x.en).toLocaleString("es-ES")}${x.usuario ? ` · ${x.usuario}` : ""}`, bytes: num(x.bytes), eliminadoEn: null, documentos: 0, bloqueo: null })) };
+    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion} · ${x.tabla} (${x.operacion === "D" ? "borrado" : x.operacion === "I" ? "alta" : "cambio"})`, detalle: `${new Date(x.en).toLocaleString("es-ES")}${x.usuario ? ` · ${x.usuario}` : ""}`, bytes: num(x.bytes), eliminadoEn: null, documentos: 0, subtipo: "", bloqueo: null })) };
   }
   if (categoria === "lecturas") {
     const r = await filas<{ id: number; nombre: string; estado: string; creada_en: string; bytes: string }>(
@@ -236,11 +240,11 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
       sql`select id, nombre, estado, creada_en, pg_column_size(l.*)::bigint bytes from lecturas_pedidos l where estado in ('descartado', 'cancelado', 'pedido', 'error') order by id desc limit ${lim}`,
     );
     const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from lecturas_pedidos where estado in ('descartado', 'cancelado', 'pedido', 'error')`);
-    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: x.nombre, detalle: `${x.estado} · ${new Date(x.creada_en).toLocaleString("es-ES")}`, bytes: num(x.bytes), eliminadoEn: null, documentos: 0, bloqueo: null })) };
+    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: x.nombre, detalle: `${x.estado} · ${new Date(x.creada_en).toLocaleString("es-ES")}`, bytes: num(x.bytes), eliminadoEn: null, documentos: 0, subtipo: "", bloqueo: null })) };
   }
   const r = await filas<{ id: number; accion: string; entidad: string | null; en: string; bytes: string }>(ej, sql`select id, accion, entidad, en, pg_column_size(a.*)::bigint bytes from auditoria a order by id desc limit ${lim}`).catch(() => []);
   const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from auditoria`);
-  return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion}${x.entidad ? ` · ${x.entidad}` : ""}`, detalle: new Date(x.en).toLocaleString("es-ES"), bytes: num(x.bytes), eliminadoEn: null, documentos: 0, bloqueo: null })) };
+  return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: `${x.accion}${x.entidad ? ` · ${x.entidad}` : ""}`, detalle: new Date(x.en).toLocaleString("es-ES"), bytes: num(x.bytes), eliminadoEn: null, documentos: 0, subtipo: "", bloqueo: null })) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -531,6 +535,126 @@ export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.inf
 /* ------------------------------------------------------------------ */
 /* Compactar                                                           */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Restaurar                                                           */
+/* ------------------------------------------------------------------ */
+
+export const CATEGORIAS_RESTAURABLES = ["expedientes", "clientes", "documentos", "catalogo"] as const;
+
+export const esquemaRestaurar = z.object({
+  accion: z.literal("restaurar"),
+  categoria: z.enum(CATEGORIAS_RESTAURABLES),
+  ids: z.array(z.string().min(1).max(60)).min(1).max(100000),
+});
+
+export interface ResultadoRestaurar {
+  restaurados: number;
+  /** Los que se han dejado en la papelera porque algo lo impide (con el motivo en `detalle`). */
+  bloqueados: number;
+  detalle: string[];
+}
+
+const PK_CATALOGO: Record<string, string> = { marcas: "id_marca", modelos: "id_modelo", tipo_de_venta: "id_tipo_de_venta", estado_vehiculo: "id_estado_vehiculo", tiendas: "id_tienda" };
+
+/**
+ * Saca de la papelera lo elegido: vuelve a verse y a contar donde estaba. Los expedientes recalculan las comisiones de los meses que tocan
+ * (también los cerrados, como al eliminarlos) y devuelven a su cliente si estaba eliminado. Lo que no se puede restaurar se deja donde estaba
+ * y se explica por qué.
+ */
+export async function restaurar(ej: Ejecutor, entrada: z.infer<typeof esquemaRestaurar>, progreso: ProgresoPurga = SIN_PROGRESO): Promise<ResultadoRestaurar> {
+  const res: ResultadoRestaurar = { restaurados: 0, bloqueados: 0, detalle: [] };
+  const ids = entrada.categoria === "catalogo" ? entrada.ids : idsNumericos(entrada.ids);
+  const total = ids.length;
+  const avanzar = (hecho: number) => progreso.avance(hecho, total, `Restaurando: ${hecho.toLocaleString("es-ES")} de ${total.toLocaleString("es-ES")}`);
+  avanzar(0);
+  const parar = (hecho: number) => {
+    if (progreso.cancelada()) throw new TareaCancelada(`Se ha parado a mitad: ${res.restaurados.toLocaleString("es-ES")} de ${total.toLocaleString("es-ES")} restaurados (el resto sigue en la papelera)`);
+    return hecho;
+  };
+
+  if (entrada.categoria === "expedientes") {
+    const numeros = ids as number[];
+    for (let i = 0; i < numeros.length; i += 50) {
+      parar(i);
+      const lote = numeros.slice(i, i + 50);
+      const { valor } = await conRecalculo(ej, lote, "Restaurado desde la Papelera", async (tx) => {
+        const r = await filas<{ id: number; id_cliente: number | null }>(tx, sql`update expedientes set eliminado_en = null where eliminado_en is not null and id_expediente in (${lista(lote)}) returning id_expediente id, id_cliente`);
+        const clientes = [...new Set(r.map((x) => x.id_cliente).filter((c): c is number => c !== null))];
+        if (clientes.length > 0) await tx.execute(sql`update clientes set eliminado_en = null where eliminado_en is not null and id in (${lista(clientes)})`);
+        return { valor: r.length, idsDespues: r.map((x) => x.id) };
+      });
+      res.restaurados += valor;
+      avanzar(Math.min(i + 50, numeros.length));
+    }
+    res.bloqueados = total - res.restaurados;
+    if (res.bloqueados > 0) res.detalle.push(`${res.bloqueados} ya no estaban en la papelera.`);
+    return res;
+  }
+
+  if (entrada.categoria === "clientes") {
+    const numeros = ids as number[];
+    for (let i = 0; i < numeros.length; i += 200) {
+      parar(i);
+      const lote = numeros.slice(i, i + 200);
+      const r = await filas<{ id: number }>(
+        ej,
+        sql`update clientes c set eliminado_en = null where c.eliminado_en is not null and c.id in (${lista(lote)}) and (c.dni is null or c.dni = '' or not exists (select 1 from clientes o where o.dni = c.dni and o.id <> c.id and o.eliminado_en is null)) returning c.id`,
+      );
+      res.restaurados += r.length;
+      avanzar(Math.min(i + 200, numeros.length));
+    }
+    res.bloqueados = total - res.restaurados;
+    if (res.bloqueados > 0) res.detalle.push(`${res.bloqueados} no se han restaurado: ya no estaban en la papelera o hay otro cliente vigente con el mismo DNI.`);
+    return res;
+  }
+
+  if (entrada.categoria === "documentos") {
+    const numeros = ids as number[];
+    for (let i = 0; i < numeros.length; i += 200) {
+      parar(i);
+      const lote = numeros.slice(i, i + 200);
+      const r = await filas<{ id: number }>(
+        ej,
+        sql`update adjuntos a set eliminado_en = null where a.eliminado_en is not null and a.id in (${lista(lote)}) and not exists (select 1 from expedientes e where e.id_expediente = a.id_expediente and e.eliminado_en is not null) and not exists (select 1 from clientes c where c.id = a.id_cliente and a.id_expediente is null and c.eliminado_en is not null) returning a.id`,
+      );
+      res.restaurados += r.length;
+      avanzar(Math.min(i + 200, numeros.length));
+    }
+    res.bloqueados = total - res.restaurados;
+    if (res.bloqueados > 0) res.detalle.push(`${res.bloqueados} no se han restaurado: pertenecen a un expediente o cliente que sigue en la papelera (restáuralo primero) o no estaban eliminados.`);
+    return res;
+  }
+
+  // Catálogos: primero las marcas y luego los modelos (un modelo necesita su marca vigente); cada uno aparte, por si choca con otro igual
+  const porTabla = new Map<string, number[]>();
+  for (const c of ids as string[]) {
+    const [tabla, id] = c.split(":");
+    if (!(tabla in PK_CATALOGO) || !Number.isInteger(Number(id))) continue;
+    porTabla.set(tabla, [...(porTabla.get(tabla) ?? []), Number(id)]);
+  }
+  let hecho = 0;
+  for (const tabla of ["marcas", "modelos", "tipo_de_venta", "estado_vehiculo", "tiendas"]) {
+    for (const id of porTabla.get(tabla) ?? []) {
+      parar(hecho);
+      try {
+        const extra = tabla === "modelos" ? sql` and exists (select 1 from marcas k where k.id_marca = marca_id and k.eliminado_en is null)` : sql``;
+        const r = await ej.transaction((tx) => tx.execute(sql`update ${sql.raw(tabla)} set eliminado_en = null where ${sql.raw(PK_CATALOGO[tabla])} = ${id} and eliminado_en is not null${extra} returning 1`));
+        if ((r as unknown as Filas<unknown>).rows.length > 0) res.restaurados++;
+        else {
+          res.bloqueados++;
+          if (tabla === "modelos") res.detalle.push("Un modelo no se ha restaurado: su marca sigue en la papelera (restáurala primero).");
+        }
+      } catch {
+        res.bloqueados++;
+        res.detalle.push("Un elemento no se ha restaurado: ya hay otro vigente con el mismo nombre.");
+      }
+      avanzar(++hecho);
+    }
+  }
+  res.detalle = [...new Set(res.detalle)];
+  return res;
+}
 
 export interface ResultadoCompactado {
   antes: number;

@@ -5,11 +5,11 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { adjuntos, adjuntosDatos, auditoria, clientes, expedientes, marcas, tiendas, validacionesComision } from "@/db/schema";
+import { adjuntos, adjuntosDatos, auditoria, clientes, expedientes, marcas, modelos, tiendas, validacionesComision } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
-import { filasPapelera, purgar, purgarAFondo, resumenPapelera } from "./papelera";
+import { filasPapelera, purgar, purgarAFondo, restaurar, resumenPapelera } from "./papelera";
 
 /** Igual que en las demás pruebas de copias: usa el cliente local de PostgreSQL o el del contenedor de desarrollo. */
 function configurarPg(): boolean {
@@ -126,5 +126,54 @@ describe("papelera: lo que sigue guardado tras eliminar", () => {
     expect((await db.select().from(auditoria)).map((x) => x.accion)).toEqual(["c"]);
     // Sin elegir nada, ni todo, ni días, no se hace nada
     await expect(purgar(db, admin.idUsuario, { categoria: "auditoria", confirmacion: "PURGAR" })).rejects.toThrow(/nada elegido/);
+  });
+});
+
+describe("papelera: restaurar", () => {
+  it("un expediente vuelve a verse con su cliente y sus documentos", async () => {
+    const { borrado, docBorrado } = await escenario();
+    const r = await restaurar(db, { accion: "restaurar", categoria: "expedientes", ids: [String(borrado.id_expediente)] });
+    expect(r).toMatchObject({ restaurados: 1, bloqueados: 0 });
+    const [e] = await db.select().from(expedientes).where(eq(expedientes.idExpediente, borrado.id_expediente));
+    expect(e.eliminadoEn).toBeNull();
+    const [c] = await db.select().from(clientes).where(eq(clientes.id, borrado.id_cliente as number));
+    expect(c.eliminadoEn).toBeNull();
+    expect((await resumenPapelera(db)).find((x) => x.categoria === "expedientes")?.cantidad).toBe(0);
+    expect(docBorrado.id).toBeGreaterThan(0);
+  });
+
+  it("restaurar dos veces lo mismo no rompe nada y avisa de lo que ya no estaba", async () => {
+    const { borrado } = await escenario();
+    const entrada = { accion: "restaurar" as const, categoria: "expedientes" as const, ids: [String(borrado.id_expediente)] };
+    await restaurar(db, entrada);
+    const otra = await restaurar(db, entrada);
+    expect(otra).toMatchObject({ restaurados: 0, bloqueados: 1 });
+  });
+
+  it("un cliente no vuelve si hay otro vigente con su mismo DNI", async () => {
+    const { borrado } = await escenario();
+    await db.insert(clientes).values({ clienteId: "OTRO-1", nombre: "Otro", dni: "22222222J" });
+    const r = await restaurar(db, { accion: "restaurar", categoria: "clientes", ids: [String(borrado.id_cliente)] });
+    expect(r).toMatchObject({ restaurados: 0, bloqueados: 1 });
+  });
+
+  it("un modelo no vuelve mientras su marca siga eliminada; con la marca restaurada, sí", async () => {
+    const [m] = await db.insert(marcas).values({ nombre: "MarcaX" }).returning();
+    const [mo] = await db.insert(modelos).values({ marcaId: m.idMarca, nombreModelo: "ModeloX" }).returning();
+    const ahora = new Date();
+    await db.update(marcas).set({ eliminadoEn: ahora }).where(eq(marcas.idMarca, m.idMarca));
+    await db.update(modelos).set({ eliminadoEn: ahora }).where(eq(modelos.idModelo, mo.idModelo));
+    const sola = await restaurar(db, { accion: "restaurar", categoria: "catalogo", ids: [`modelos:${mo.idModelo}`] });
+    expect(sola).toMatchObject({ restaurados: 0, bloqueados: 1 });
+    const juntos = await restaurar(db, { accion: "restaurar", categoria: "catalogo", ids: [`modelos:${mo.idModelo}`, `marcas:${m.idMarca}`] });
+    expect(juntos).toMatchObject({ restaurados: 2, bloqueados: 0 });
+  });
+
+  it("un documento de un expediente eliminado no se restaura solo; uno eliminado a mano, sí", async () => {
+    const { vigente, docBorrado } = await escenario();
+    const [suelto] = await db.insert(adjuntos).values({ ambito: "expediente", idExpediente: vigente.id_expediente, tipo: "pedido", nombre: "x.pdf", mime: "application/pdf", tamano: 1, eliminadoEn: new Date() }).returning();
+    await db.update(adjuntos).set({ eliminadoEn: new Date() }).where(eq(adjuntos.id, docBorrado.id));
+    const r = await restaurar(db, { accion: "restaurar", categoria: "documentos", ids: [String(suelto.id), String(docBorrado.id)] });
+    expect(r).toMatchObject({ restaurados: 1, bloqueados: 1 });
   });
 });

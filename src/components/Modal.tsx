@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalProps {
   titulo: ReactNode;
@@ -16,9 +17,14 @@ interface ModalProps {
 /**
  * Contenedor `fixed` a pantalla completa con z-index alto (lo reconoce GlobalModalKeyboardHandler).
  * Valores del original: velo con desenfoque, panel de cristal con 32 px de relleno.
+ * Se pinta colgando de `body` (no donde se escribe en el código): así queda siempre por encima de los filtros pegajosos y de cualquier panel
+ * con su propia capa, y un antepasado con desenfoque o transformación no le quita el «fixed».
  */
+const sinSuscripcion = () => () => undefined;
+
 export default function Modal({ titulo, children, pie, ancho = "400px", peligro = false, tamanoTitulo = "1.2rem" }: ModalProps) {
-  return (
+  const enNavegador = useSyncExternalStore(sinSuscripcion, () => true, () => false);
+  const contenido = (
     <div
       role="dialog"
       aria-modal="true"
@@ -60,6 +66,7 @@ export default function Modal({ titulo, children, pie, ancho = "400px", peligro 
       </div>
     </div>
   );
+  return enNavegador ? createPortal(contenido, document.body) : contenido;
 }
 
 interface ConfirmarProps {

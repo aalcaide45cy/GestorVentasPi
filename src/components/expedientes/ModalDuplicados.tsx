@@ -40,9 +40,9 @@ const GRAVEDAD: Record<MotivoDuplicado, { color: string; texto: string }> = {
  */
 export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) {
   const { mostrar, confirmar } = useToast();
-  // Los anulados en el listado de la intranet no se miran salvo que se active la casilla (un pedido anulado y rehecho no es un descuido)
-  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("duplicados");
-  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("duplicados");
+  // Por defecto se miran también los anulados y los deshabilitados: así salen los pedidos anulados y vueltos a hacer, que son los que sobran
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("duplicados", true);
+  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("duplicados", true);
   const parametros = [mostrarAnulados ? "anulados=1" : "", mostrarDeshabilitados ? "deshabilitados=1" : ""].filter(Boolean).join("&");
   const { datos, recargar } = useCarga<ResultadoDuplicados | null>(`/api/expedientes/duplicados${parametros ? `?${parametros}` : ""}`, null);
   const [motivo, setMotivo] = useState<"todos" | MotivoDuplicado>("todos");
@@ -55,11 +55,37 @@ export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) 
       return n;
     });
 
-  /** Marca, en los grupos seguros (bastidor, matrícula, mismo pedido), todos menos el expediente más antiguo de cada uno. */
+  /** Marca, en los grupos seguros (bastidor, matrícula, mismo pedido), todos menos uno: el vigente (no anulado ni deshabilitado) más antiguo, o el más antiguo si ninguno lo es. */
   const marcarSobrantes = () => {
     const ids = new Set<number>();
-    for (const g of datos?.grupos ?? []) if (g.motivo !== "cliente_modelo") g.filas.slice(1).forEach((f) => ids.add(f.id));
+    for (const g of datos?.grupos ?? []) {
+      if (g.motivo === "cliente_modelo") {
+        // Puede ser una segunda compra: solo se marcan los anulados cuando hay otro vigente que los sustituye
+        if (g.filas.some((f) => !f.anulado && !f.deshabilitado)) g.filas.filter((f) => f.anulado).forEach((f) => ids.add(f.id));
+        continue;
+      }
+      const quedarse = g.filas.find((f) => !f.anulado && !f.deshabilitado) ?? g.filas[0];
+      g.filas.filter((f) => f.id !== quedarse.id).forEach((f) => ids.add(f.id));
+    }
     setMarcados(ids);
+  };
+
+  const deshabilitarMarcados = async () => {
+    const ids = [...marcados];
+    if (ids.length === 0) return;
+    setEnviando(true);
+    try {
+      const res = await fetch("/api/expedientes", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isBulkEdit: true, ids, expediente: { deshabilitado: true } }) });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se han podido deshabilitar."));
+      mostrar(`${ids.length} expediente${ids.length === 1 ? "" : "s"} deshabilitado${ids.length === 1 ? "" : "s"}: ya no cuentan en las comisiones ni en los totales.`, "exito");
+      setMarcados(new Set());
+      avisarCambioDeDatos();
+      recargar();
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : "No se han podido deshabilitar.", "error");
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const aLaPapelera = async () => {
@@ -97,6 +123,7 @@ No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras est
       { clave: "motivo", etiqueta: "Motivo", valor: (f) => f.motivoTexto, celda: (f) => <span title={GRAVEDAD[f.motivo].texto} style={{ color: GRAVEDAD[f.motivo].color, fontWeight: 600 }}>{f.motivoTexto}</span> },
       { clave: "comun", etiqueta: "Lo que comparten", valor: (f) => f.clave },
       { clave: "id", etiqueta: "Expediente", valor: (f) => f.id, celda: (f) => <Link href={`/dashboard/expedientes/editar/${f.id}`} target="_blank" style={{ fontWeight: 700 }}>#EXP-{String(f.id).padStart(4, "0")}</Link> },
+      { clave: "situacion", etiqueta: "Situación", valor: (f) => (f.anulado ? "Anulado" : f.deshabilitado ? "Deshabilitado" : "Vigente"), celda: (f) => (f.anulado ? <b style={{ color: "var(--danger)" }}>Anulado</b> : f.deshabilitado ? <b style={{ color: "var(--warning)" }}>Deshabilitado</b> : <span style={{ color: "var(--text-muted)" }}>Vigente</span>), ayuda: "Anulado en la intranet o deshabilitado en la aplicación" },
       { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente ?? "" },
       { clave: "dni", etiqueta: "DNI", valor: (f) => f.dni ?? "", oculta: true },
       { clave: "vehiculo", etiqueta: "Vehículo", valor: (f) => [f.marca, f.modelo].filter(Boolean).join(" ") },
@@ -120,6 +147,9 @@ No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras est
         <>
           <button type="button" className="btn btn-secondary" onClick={recargar} disabled={enviando} title="Vuelve a buscar con los datos de ahora">
             🔄 Volver a buscar
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarMarcados()} disabled={enviando || marcados.size === 0} title="Los marcados dejan de contar en comisiones y totales, pero siguen en la lista (se vuelven a habilitar cuando quieras)">
+            ⏸ Deshabilitar ({marcados.size})
           </button>
           <button type="button" className="btn btn-danger" onClick={() => void aLaPapelera()} disabled={enviando || marcados.size === 0} title="Los marcados se pueden recuperar desde Herramientas › Papelera">
             {enviando ? "Enviando…" : `🗑️ Mandar a la papelera (${marcados.size})`}
@@ -149,7 +179,7 @@ No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras est
         </div>
         {datos !== null && datos.grupos.length > 0 && (
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-            <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={marcarSobrantes} title="En los grupos de bastidor, matrícula y mismo pedido deja sin marcar el expediente más antiguo y marca los demás">
+            <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={marcarSobrantes} title="En los grupos de bastidor, matrícula y mismo pedido deja sin marcar el vigente más antiguo y marca los demás; en «mismo cliente y modelo» marca solo los anulados que ya tienen otro vigente">
               ✅ Marcar los sobrantes seguros
             </button>
             <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setMarcados(new Set())} disabled={marcados.size === 0}>

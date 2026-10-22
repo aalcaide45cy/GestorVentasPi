@@ -4,15 +4,15 @@ import { claveMostrarAnulados, claveMostrarDeshabilitados } from "@/lib/anulados
 import { usePreferencia } from "@/lib/preferencias";
 
 /** Preferencia «mostrar anulados» de una pantalla: se recuerda en este navegador y por defecto está desactivada. */
-export function useMostrarAnulados(pantalla: string): [boolean, (valor: boolean) => void] {
+export function useMostrarAnulados(pantalla: string, porDefecto = false): [boolean, (valor: boolean) => void] {
   const [guardado, guardar] = usePreferencia(claveMostrarAnulados(pantalla));
-  return [guardado === "true", (v) => guardar(String(v))];
+  return [guardado === null ? porDefecto : guardado === "true", (v) => guardar(String(v))];
 }
 
 /** Preferencia «mostrar deshabilitados» de una pantalla (se recuerda en este navegador; por defecto, desactivada). */
-export function useMostrarDeshabilitados(pantalla: string): [boolean, (valor: boolean) => void] {
+export function useMostrarDeshabilitados(pantalla: string, porDefecto = false): [boolean, (valor: boolean) => void] {
   const [guardado, guardar] = usePreferencia(claveMostrarDeshabilitados(pantalla));
-  return [guardado === "true", (v) => guardar(String(v))];
+  return [guardado === null ? porDefecto : guardado === "true", (v) => guardar(String(v))];
 }
 
 interface PropsCasilla {

@@ -6,7 +6,7 @@ import { llamarComoTarea } from "@/lib/tareas-cliente";
 import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import { eventoDeArchivos } from "@/lib/biblioteca-cliente";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
@@ -155,6 +155,7 @@ export default function ExpedientesList({
   recordarFiltros: recordarEnEstaPantalla = true,
 }: Props) {
   const router = useRouter();
+  const ruta = usePathname();
   const { mostrar } = useToast();
   const esAdministrador = userRole === "administrador";
 
@@ -507,6 +508,8 @@ export default function ExpedientesList({
     setOrdenCampo("fecha_expediente");
     setOrdenAsc(false);
     setPagina(1);
+    // Si la lista es el resultado de la búsqueda de la barra superior, limpiar también quita esa búsqueda (y vacía su caja)
+    if (ruta.startsWith("/dashboard/buscar")) router.push("/dashboard/expedientes");
   };
 
   const cambiarMesFiltro = (campo: "fecha_comisionado" | "fecha_afectacion", movimiento: "ant" | "actual" | "sig") => {

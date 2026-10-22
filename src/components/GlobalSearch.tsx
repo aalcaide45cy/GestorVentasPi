@@ -76,6 +76,14 @@ export default function GlobalSearch() {
     };
   }, [query]);
 
+  const vaciar = () => {
+    setQuery("");
+    setSuggestions(VACIAS);
+    setIsOpen(false);
+    // Si se está viendo el resultado de esta búsqueda, se vuelve a la lista de expedientes
+    if (window.location.pathname.startsWith("/dashboard/buscar")) router.push("/dashboard/expedientes");
+  };
+
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -108,7 +116,7 @@ export default function GlobalSearch() {
             if (total > 0) setIsOpen(true);
           }}
           style={{
-            padding: "10px 40px 10px 16px",
+            padding: "10px 62px 10px 16px",
             fontSize: "0.85rem",
             borderRadius: "var(--radius-sm)",
             background: "var(--bg-input)",
@@ -117,6 +125,11 @@ export default function GlobalSearch() {
             width: "100%",
           }}
         />
+        {query && (
+          <button type="button" aria-label="Borrar la búsqueda" title="Borrar la búsqueda" onClick={vaciar} style={{ position: "absolute", right: "38px", background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: "1rem", lineHeight: 1, padding: "2px 4px" }}>
+            ✕
+          </button>
+        )}
         <button
           type="submit"
           aria-label="Buscar"

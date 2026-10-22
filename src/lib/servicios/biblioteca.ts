@@ -138,7 +138,9 @@ export async function leerArchivo(ej: Ejecutor, id: number): Promise<{ meta: Arc
   if (!d) return null;
   try {
     return { meta: aDto(f), datos: descifrarBuffer(d.datos) };
-  } catch {
+  } catch (e) {
+    // Solo es «otra instalación» si el cifrado no cuadra; si falta la clave de esta (APP_SECRET), se dice tal cual para no confundir
+    if (e instanceof Error && e.message.includes("APP_SECRET")) throw new HttpError(500, `No se puede abrir «${f.nombre}»: ${e.message}`);
     throw new HttpError(
       409,
       `El archivo «${f.nombre}» está cifrado con la clave de otra instalación (la copia de seguridad se restauró sin volver a cifrar la biblioteca). Un administrador puede recuperarlo con «npm run recifrar-biblioteca -- <clave de recuperación o APP_SECRET de origen>», o puedes volver a subirlo.`,
