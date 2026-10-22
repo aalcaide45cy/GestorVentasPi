@@ -1049,6 +1049,8 @@ export const biblioteca = pgTable(
     /** pedido | pago_rci | rejilla | listado | otro */
     categoria: varchar("categoria", { length: 12 }).notNull().default("otro"),
     nombre: text("nombre").notNull(),
+    /** Nombre con el que se subió el archivo (el de escáner o móvil): se conserva al renombrarlo. */
+    nombreOriginal: text("nombre_original"),
     mime: varchar("mime", { length: 120 }).notNull(),
     tamano: integer("tamano").notNull(),
     /** SHA-256 del contenido: el mismo archivo no se guarda dos veces. */

@@ -312,7 +312,8 @@ export async function procesarPago(ej: Ejecutor, usuario: UsuarioActual, e: Entr
   const leido = parsearPagoRci(texto);
   const adj = await guardarAdjunto(ej, { datos: e.datos, nombre: e.nombre, tipo: "pago_rci", creadoPor: usuario.idUsuario });
   // Un pago leído queda también en la biblioteca, con el nombre «Pago RCI - Cliente - Fecha»
-  if (leido) await guardarCopiaAutomatica(ej, { datos: e.datos, nombreOriginal: e.nombre, categoria: "pago_rci", cliente: leido.nombre, fecha: leido.fechaPago, creadoPor: usuario.idUsuario });
+  // Lo que se sube aquí queda siempre en la biblioteca con nombre ordenado y fecha; si no era un pago, como «Documento - Fecha»
+  await guardarCopiaAutomatica(ej, leido ? { datos: e.datos, nombreOriginal: e.nombre, categoria: "pago_rci", cliente: leido.nombre, fecha: leido.fechaPago, creadoPor: usuario.idUsuario } : { datos: e.datos, nombreOriginal: e.nombre, categoria: "otro", creadoPor: usuario.idUsuario });
 
   if (!leido) {
     if (e.idExpediente) {

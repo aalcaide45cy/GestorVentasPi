@@ -38,9 +38,10 @@ describe("biblioteca de archivos", () => {
     await guardarCopiaAutomatica(db, { datos: Buffer.from("%PDF-1.4 otro"), nombreOriginal: "x.pdf", categoria: "pedido", cliente: "Jose Francisco Gomez", fecha: "2026-07-07", creadoPor: u.idUsuario });
     lista = await listarArchivos(db);
     expect(lista.map((f) => f.nombre).sort()).toEqual(["Pedido - Jose Francisco Gomez - 07 Julio 2026 (2).pdf", "Pedido - Jose Francisco Gomez - 07 Julio 2026.pdf"]);
-    // Sin cliente leído se guarda con su nombre de siempre
+    // Sin cliente ni fecha leídos queda igualmente con nombre ordenado y con la fecha de subida; el nombre original se conserva
     await guardarCopiaAutomatica(db, { datos: Buffer.from("%PDF-1.4 sin nombre"), nombreOriginal: "raro.pdf", categoria: "pedido", cliente: null, creadoPor: u.idUsuario });
-    expect((await listarArchivos(db)).some((f) => f.nombre === "raro.pdf")).toBe(true);
+    const sinLeer = (await listarArchivos(db)).find((f) => f.nombreOriginal === "raro.pdf");
+    expect(sinLeer?.nombre).toMatch(/^Pedido - Sin cliente - \d{2} [A-Za-zé]+ \d{4}\.pdf$/);
   });
 
   it("una rejilla se guarda como «Rejilla - Mes Año» y un archivo ya guardado se renombra con lo leído de él", async () => {

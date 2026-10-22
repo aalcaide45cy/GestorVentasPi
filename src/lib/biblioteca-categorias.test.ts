@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fechaLarga, mesLargo, nombreAutomatico, nombrePropio } from "./biblioteca-categorias";
+import { fechaLarga, mesLargo, necesitaRenombrar, nombreAutomatico, nombrePropio } from "./biblioteca-categorias";
 
 describe("nombre automático de los archivos de la biblioteca", () => {
   it("fechas y meses en letra", () => {
@@ -26,5 +26,24 @@ describe("nombre automático de los archivos de la biblioteca", () => {
     expect(nombreAutomatico({ categoria: "pedido", cliente: null, fecha: "2026-07-07", nombreOriginal: "x.pdf" })).toBeNull();
     expect(nombreAutomatico({ categoria: "rejilla", mes: null, nombreOriginal: "x.pdf" })).toBeNull();
     expect(nombreAutomatico({ categoria: "listado", cliente: "Ana", nombreOriginal: "x.xlsx" })).toBeNull();
+  });
+
+  it("con respaldo siempre queda con nombre y con fecha (la del documento o, si no, la de subida)", () => {
+    const base = { fechaSubida: "2026-10-22", conRespaldo: true, nombreOriginal: "SCAN_0001.pdf" };
+    expect(nombreAutomatico({ categoria: "pedido", cliente: null, fecha: null, ...base })).toBe("Pedido - Sin cliente - 22 Octubre 2026.pdf");
+    expect(nombreAutomatico({ categoria: "pago_rci", cliente: "Ana Pérez", fecha: null, ...base })).toBe("Pago RCI - Ana Pérez - 22 Octubre 2026.pdf");
+    expect(nombreAutomatico({ categoria: "pedido", cliente: "Ana Pérez", fecha: "2026-07-07", ...base })).toBe("Pedido - Ana Pérez - 07 Julio 2026.pdf");
+    expect(nombreAutomatico({ categoria: "rejilla", mes: null, ...base })).toBe("Rejilla - 22 Octubre 2026.pdf");
+    expect(nombreAutomatico({ categoria: "otro", ...base })).toBe("Documento - 22 Octubre 2026.pdf");
+  });
+
+  it("reconoce los archivos que aún tienen nombre de escáner", () => {
+    expect(necesitaRenombrar("SC332-1i26.PDF", "pedido", "application/pdf")).toBe(true);
+    expect(necesitaRenombrar("IMG_2031.jpg", "otro", "image/jpeg")).toBe(true);
+    expect(necesitaRenombrar("Pedido - Jose Gomez - 07 Julio 2026.pdf", "pedido", "application/pdf")).toBe(false);
+    expect(necesitaRenombrar("Pedido - Jose Gomez - 07 Julio 2026 (2).pdf", "pedido", "application/pdf")).toBe(false);
+    expect(necesitaRenombrar("Pago RCI - Sin cliente - 22 Octubre 2026.pdf", "pago_rci", "application/pdf")).toBe(false);
+    expect(necesitaRenombrar("Rejilla - Abril 2024.pdf", "rejilla", "application/pdf")).toBe(false);
+    expect(necesitaRenombrar("comisiones.xlsx", "listado", "application/vnd.ms-excel")).toBe(false);
   });
 });

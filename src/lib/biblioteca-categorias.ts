@@ -52,18 +52,30 @@ export function nombrePropio(texto: string): string {
 /**
  * Nombre con el que se guarda un documento leído en la biblioteca: «Pedido - Jose Francisco Gomez - 07 Julio 2026.pdf», «Pago RCI - … .pdf» o
  * «Rejilla - Abril 2024.pdf». Devuelve null si falta lo que hace falta para ponerlo (el cliente en pedidos y pagos, el mes en las rejillas):
- * en ese caso el archivo conserva el nombre que tenía.
+ * en ese caso el archivo conserva el nombre que tenía. Con `conRespaldo` nunca queda sin nombre: si no se leyó el cliente pone «Sin cliente» y si no se
+ * leyó la fecha (o el mes) pone la de subida (`fechaSubida`), para que todo documento tenga siempre su fecha y no un nombre raro de escáner.
  */
-export function nombreAutomatico(e: { categoria: CategoriaBiblioteca; cliente?: string | null; fecha?: string | null; mes?: string | null; nombreOriginal: string }): string | null {
+export function nombreAutomatico(e: { categoria: CategoriaBiblioteca; cliente?: string | null; fecha?: string | null; mes?: string | null; nombreOriginal: string; fechaSubida?: string | null; conRespaldo?: boolean }): string | null {
   const punto = e.nombreOriginal.lastIndexOf(".");
   const extension = punto > 0 && e.nombreOriginal.length - punto <= 6 ? e.nombreOriginal.slice(punto) : "";
   let base: string | null = null;
-  if (e.categoria === "rejilla") {
-    const mes = mesLargo(e.mes);
+  if (e.categoria === "otro" || e.categoria === "listado") {
+    const fecha = e.conRespaldo ? fechaLarga(e.fechaSubida) : null;
+    base = fecha ? `${e.categoria === "otro" ? "Documento" : "Listado"} - ${fecha}` : null;
+  } else if (e.categoria === "rejilla") {
+    const mes = mesLargo(e.mes) ?? (e.conRespaldo ? fechaLarga(e.fechaSubida) : null);
     base = mes ? `Rejilla - ${mes}` : null;
   } else if (e.categoria === "pedido" || e.categoria === "pago_rci") {
-    const cliente = e.cliente ? nombrePropio(e.cliente) : "";
-    if (cliente.length >= 3) base = [e.categoria === "pedido" ? "Pedido" : "Pago RCI", cliente, fechaLarga(e.fecha)].filter(Boolean).join(" - ");
+    let cliente = e.cliente ? nombrePropio(e.cliente) : "";
+    if (cliente.length < 3 && e.conRespaldo) cliente = "Sin cliente";
+    if (cliente.length >= 3) base = [e.categoria === "pedido" ? "Pedido" : "Pago RCI", cliente, fechaLarga(e.fecha) ?? (e.conRespaldo ? fechaLarga(e.fechaSubida) : null)].filter(Boolean).join(" - ");
   }
   return base ? `${base}${extension.toLowerCase()}` : null;
+}
+
+/** ¿Este archivo conserva un nombre «raro» (de escáner o de móvil) y vale la pena ponerle el nombre ordenado leyéndolo? Los Excel no se leen. */
+export function necesitaRenombrar(nombre: string, categoria: CategoriaBiblioteca, mime = ""): boolean {
+  if (categoria === "listado") return false;
+  if (!/^image\/|pdf/.test(mime) && !/\.(pdf|png|jpe?g|webp|bmp|tiff?)$/i.test(nombre)) return false;
+  return !/^(Pedido|Pago RCI) - .+ - \d{2} [A-Za-zé]+ \d{4}( \(\d+\))?\.\w+$/.test(nombre) && !/^Rejilla - [A-Za-zé]+ \d{4}(\.\w+| \(\d+\)\.\w+)$/.test(nombre) && !/^Rejilla - \d{2} [A-Za-zé]+ \d{4}( \(\d+\))?\.\w+$/.test(nombre);
 }

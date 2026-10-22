@@ -18,6 +18,8 @@ export interface ArchivoBibliotecaDto {
   id: number;
   categoria: CategoriaBiblioteca;
   nombre: string;
+  /** El nombre con el que se subió (el de escáner o móvil), si se conserva. */
+  nombreOriginal: string | null;
   mime: string;
   tamano: number;
   creadoEn: string;
@@ -31,6 +33,7 @@ const aDto = (f: typeof biblioteca.$inferSelect, cliente: string | null = null):
   id: f.id,
   categoria: f.categoria as CategoriaBiblioteca,
   nombre: f.nombre,
+  nombreOriginal: f.nombreOriginal,
   mime: f.mime,
   tamano: f.tamano,
   creadoEn: f.creadoEn.toISOString(),
@@ -45,7 +48,7 @@ const mimeDe = (nombre: string, declarado: string): string => (declarado && decl
 /** Guarda un archivo. Si ya estaba (mismo contenido) no lo duplica y devuelve el que había (`repetido`). */
 export async function guardarArchivo(
   ej: Ejecutor,
-  e: { datos: Buffer; nombre: string; mime?: string; categoria?: CategoriaBiblioteca; creadoPor: number | null },
+  e: { datos: Buffer; nombre: string; nombreOriginal?: string; mime?: string; categoria?: CategoriaBiblioteca; creadoPor: number | null },
 ): Promise<{ archivo: ArchivoBibliotecaDto; repetido: boolean }> {
   if (e.datos.length === 0) throw new HttpError(400, "El archivo está vacío.");
   if (e.datos.length > MAX_BYTES_BIBLIOTECA) throw new HttpError(413, "El archivo es demasiado grande (máximo 200 MB).");
@@ -57,7 +60,7 @@ export async function guardarArchivo(
     const mime = mimeDe(nombre, e.mime ?? "");
     const [fila] = await tx
       .insert(biblioteca)
-      .values({ categoria: e.categoria ?? adivinarCategoria(nombre, mime), nombre, mime: mime.slice(0, 120), tamano: e.datos.length, huella, creadoPor: e.creadoPor })
+      .values({ categoria: e.categoria ?? adivinarCategoria(nombre, mime), nombre, nombreOriginal: (e.nombreOriginal ?? nombre).trim().slice(0, 200), mime: mime.slice(0, 120), tamano: e.datos.length, huella, creadoPor: e.creadoPor })
       .returning();
     await tx.insert(bibliotecaDatos).values({ idArchivo: fila.id, datos: cifrarBuffer(e.datos) });
     return { archivo: aDto(fila), repetido: false };
@@ -77,6 +80,12 @@ async function nombreLibre(ej: Ejecutor, nombre: string, huella: string): Promis
   return nombre;
 }
 
+/** Hoy como AAAA-MM-DD en la hora de este equipo. */
+const fechaDeHoy = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 export interface EntradaCopiaAutomatica {
   datos: Buffer;
   nombreOriginal: string;
@@ -95,7 +104,8 @@ export interface EntradaCopiaAutomatica {
  */
 export async function guardarCopiaAutomatica(ej: Ejecutor, e: EntradaCopiaAutomatica): Promise<void> {
   try {
-    const automatico = nombreAutomatico({ categoria: e.categoria, cliente: e.cliente, fecha: e.fecha, mes: e.mes, nombreOriginal: e.nombreOriginal });
+    // Un documento recién leído siempre queda con nombre ordenado y con fecha: si no se leyó el cliente o la fecha, la de hoy (la de subida)
+    const automatico = nombreAutomatico({ categoria: e.categoria, cliente: e.cliente, fecha: e.fecha, mes: e.mes, nombreOriginal: e.nombreOriginal, fechaSubida: fechaDeHoy(), conRespaldo: true });
     const huella = createHash("sha256").update(e.datos).digest("hex");
     const [ya] = await ej.select().from(biblioteca).where(eq(biblioteca.huella, huella));
     if (ya) {
@@ -105,23 +115,25 @@ export async function guardarCopiaAutomatica(ej: Ejecutor, e: EntradaCopiaAutoma
       return;
     }
     const nombre = await nombreLibre(ej, automatico ?? e.nombreOriginal.trim().slice(0, 200), huella);
-    await guardarArchivo(ej, { datos: e.datos, nombre, mime: e.mime, categoria: e.categoria, creadoPor: e.creadoPor });
+    await guardarArchivo(ej, { datos: e.datos, nombre, nombreOriginal: e.nombreOriginal, mime: e.mime, categoria: e.categoria, creadoPor: e.creadoPor });
   } catch (err) {
     console.warn("No se ha podido guardar el documento en la biblioteca:", err instanceof Error ? err.message : err);
   }
 }
 
 /** Pone a un archivo ya guardado el nombre «Tipo - Cliente - Fecha» con lo que se ha leído de él. Devuelve el nombre nuevo o null si no hay datos para ponerlo. */
-export async function renombrarSegunLectura(ej: Ejecutor, id: number, leido: { cliente?: string | null; fecha?: string | null; mes?: string | null }, categoria?: CategoriaBiblioteca): Promise<string | null> {
+export async function renombrarSegunLectura(ej: Ejecutor, id: number, leido: { cliente?: string | null; fecha?: string | null; mes?: string | null }, categoria?: CategoriaBiblioteca, conRespaldo = false): Promise<string | null> {
   const [f] = await ej.select().from(biblioteca).where(eq(biblioteca.id, id));
   if (!f) return null;
   const cat = categoria ?? (f.categoria as CategoriaBiblioteca);
-  const automatico = nombreAutomatico({ categoria: cat, ...leido, nombreOriginal: f.nombre });
+  const fechaSubida = `${f.creadoEn.getFullYear()}-${String(f.creadoEn.getMonth() + 1).padStart(2, "0")}-${String(f.creadoEn.getDate()).padStart(2, "0")}`;
+  const automatico = nombreAutomatico({ categoria: cat, ...leido, nombreOriginal: f.nombre, fechaSubida, conRespaldo });
   if (!automatico) return null;
   // Si al leerlo resulta ser de otro tipo que el que tenía (un PDF se toma por pedido por defecto), también se corrige el tipo
   if (automatico === f.nombre && cat === f.categoria) return f.nombre;
   const nombre = automatico === f.nombre ? f.nombre : await nombreLibre(ej, automatico, f.huella);
-  await ej.update(biblioteca).set({ nombre, categoria: cat }).where(eq(biblioteca.id, id));
+  // Se conserva siempre el nombre con el que se subió
+  await ej.update(biblioteca).set({ nombre, categoria: cat, nombreOriginal: f.nombreOriginal ?? f.nombre }).where(eq(biblioteca.id, id));
   return nombre;
 }
 

@@ -13,6 +13,10 @@ export interface ResumenRenombrado {
   renombrados: number;
   /** Archivos leídos pero sin datos suficientes para ponerles nombre (no se tocan). */
   sinDatos: number;
+  /** De los renombrados, los que no se pudieron leer del todo y llevan «Sin cliente» o la fecha de subida en lugar de la del documento. */
+  conRespaldo: number;
+  /** Cómo se llamaban y cómo se llaman ahora (hasta 200), para repasarlo. */
+  cambios: { antes: string; despues: string }[];
   /** Excel y «otros»: no se leen. */
   omitidos: number;
   errores: number;
@@ -26,7 +30,7 @@ export interface ResumenRenombrado {
  */
 export async function renombrarPorLectura(ej: Ejecutor, ids: number[], ctx?: ContextoTarea): Promise<ResumenRenombrado> {
   const filas = await ej.select({ id: biblioteca.id, categoria: biblioteca.categoria, nombre: biblioteca.nombre }).from(biblioteca).where(inArray(biblioteca.id, ids));
-  const r: ResumenRenombrado = { renombrados: 0, sinDatos: 0, omitidos: 0, errores: 0, fallos: [] };
+  const r: ResumenRenombrado = { renombrados: 0, sinDatos: 0, conRespaldo: 0, cambios: [], omitidos: 0, errores: 0, fallos: [] };
   const fallo = (nombre: string, motivo: string) => {
     if (r.fallos.length < 30) r.fallos.push({ nombre, motivo });
   };
@@ -54,8 +58,15 @@ export async function renombrarPorLectura(ej: Ejecutor, ids: number[], ctx?: Con
         nombre = leido ? await renombrarSegunLectura(ej, f.id, leido, tipo) : null;
         if (nombre) break;
       }
-      if (nombre) r.renombrados++;
-      else {
+      // Si no se pudo leer nada, un pedido, un pago o una rejilla queda igualmente con nombre ordenado y con la fecha de subida (el original se conserva)
+      if (!nombre && (f.categoria === "pedido" || f.categoria === "pago_rci" || f.categoria === "rejilla")) {
+        nombre = await renombrarSegunLectura(ej, f.id, {}, f.categoria, true);
+        if (nombre) r.conRespaldo++;
+      }
+      if (nombre) {
+        r.renombrados++;
+        if (r.cambios.length < 200 && nombre !== f.nombre) r.cambios.push({ antes: f.nombre, despues: nombre });
+      } else {
         r.sinDatos++;
         fallo(f.nombre, "no se ha encontrado en él el cliente y la fecha (o el mes) para ponerle nombre");
       }

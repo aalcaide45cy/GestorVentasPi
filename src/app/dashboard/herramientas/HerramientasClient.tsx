@@ -93,7 +93,7 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
           <div style={{ padding: "8px 12px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)" }}>
             <ControlesLectura parte="motor" />
           </div>
-          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>📚 Lo que se lee aquí (pedidos, pagos de RCI y rejillas) se guarda también en la biblioteca, con el nombre «Pedido - Cliente - Fecha», «Pago RCI - Cliente - Fecha» o «Rejilla - Mes Año».</div>
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>📚 Lo que se lee aquí (pedidos, pagos de RCI y rejillas) se guarda también en la biblioteca, con el nombre «Pedido - Cliente - Fecha», «Pago RCI - Cliente - Fecha» o «Rejilla - Mes Año» (si no se lee el cliente o la fecha, «Sin cliente» o la fecha de subida: siempre con fecha; el nombre original se conserva). <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.78rem", marginLeft: "6px" }} onClick={() => guardar("biblioteca")} title="Abre la biblioteca para ver los pedidos, pagos de RCI y rejillas guardados">📚 Ver la biblioteca</button></div>
           <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
             {enCola > 0 ? (
               <>

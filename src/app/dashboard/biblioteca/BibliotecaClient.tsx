@@ -8,7 +8,7 @@ import TablaDatos, { PANTALLA_COMPLETA, type ColumnaTabla } from "@/components/T
 import ModalSubidaBiblioteca from "@/components/biblioteca/ModalSubidaBiblioteca";
 import VistaPreviaBiblioteca from "@/components/biblioteca/VistaPreviaBiblioteca";
 import { useCarga } from "@/components/comisiones/useCarga";
-import { CATEGORIAS, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
+import { CATEGORIAS, necesitaRenombrar, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 import { ETIQUETAS, tamanoLegible, type RespuestaListado } from "@/lib/biblioteca-cliente";
 import { alTerminarTarea, lanzarTarea, llamarComoTarea } from "@/lib/tareas-cliente";
 import { formatDate } from "@/lib/date-utils";
@@ -41,11 +41,14 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [visibles, setVisibles] = useState<ArchivoBibliotecaDto[]>([]);
   const [asignando, setAsignando] = useState<number[] | null>(null);
+  const [renombrandoTodo, setRenombrandoTodo] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
 
   const todos = useMemo(() => datos?.archivos ?? [], [datos]);
   // Solo cuentan las marcas de archivos que siguen existiendo
   const elegidos = useMemo(() => todos.filter((f) => marcados.has(f.id)), [todos, marcados]);
+  /** Los que aún tienen un nombre raro (de escáner o de móvil) y se pueden leer para ponerles el ordenado. */
+  const sinNombreOrdenado = useMemo(() => todos.filter((f) => necesitaRenombrar(f.nombre, f.categoria, f.mime)), [todos]);
   const cuentaTipo = (c: CategoriaBiblioteca) => todos.filter((f) => f.categoria === c && cumple(f, asignacion)).length;
   const cuentaAsignacion = (a: FiltroAsignacion) => todos.filter((f) => cumple(f, a) && (filtro === "todas" || f.categoria === filtro)).length;
   const filas = useMemo(() => todos.filter((f) => cumple(f, asignacion) && (filtro === "todas" || f.categoria === filtro)), [todos, asignacion, filtro]);
@@ -97,12 +100,12 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
       if (t.tipo !== "biblioteca") return;
       recargar();
       // Si era un renombrado, se dice cuántos se han puesto bien y por qué no los demás
-      const r = t.resultado as { renombrados?: number; sinDatos?: number; omitidos?: number; errores?: number; fallos?: { nombre: string; motivo: string }[] } | undefined;
+      const r = t.resultado as { renombrados?: number; sinDatos?: number; conRespaldo?: number; cambios?: { antes: string; despues: string }[]; omitidos?: number; errores?: number; fallos?: { nombre: string; motivo: string }[] } | undefined;
       if (!r || typeof r.renombrados !== "number") return;
       const malos = (r.sinDatos ?? 0) + (r.errores ?? 0);
       const primero = r.fallos?.[0];
       mostrar(
-        `🏷️ Renombrados ${r.renombrados}${malos > 0 ? ` · no se han podido renombrar ${malos}` : ""}${r.omitidos ? ` · ${r.omitidos} omitidos (Excel)` : ""}.${primero ? ` Por ejemplo «${primero.nombre}»: ${primero.motivo}.` : ""}`,
+        `🏷️ Renombrados ${r.renombrados}${r.conRespaldo ? ` (${r.conRespaldo} con «Sin cliente» o con la fecha de subida porque no se leyó del documento)` : ""}${malos > 0 ? ` · no se han podido renombrar ${malos}` : ""}${r.omitidos ? ` · ${r.omitidos} omitidos (Excel)` : ""}.${primero ? ` Por ejemplo «${primero.nombre}»: ${primero.motivo}.` : ""} El nombre original se conserva (columna «Nombre original»).`,
         malos > 0 ? "aviso" : "exito",
         malos > 0 ? 15000 : 6000,
       );
@@ -194,6 +197,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
           <b style={{ wordBreak: "break-word" }}>{f.nombre}</b>
         ),
     },
+    { clave: "original", etiqueta: "Nombre original", valor: (f) => f.nombreOriginal ?? "", celda: (f) => <span style={{ wordBreak: "break-word", color: "var(--text-muted)", fontSize: "0.82rem" }}>{f.nombreOriginal ?? "—"}</span>, oculta: true, ayuda: "El nombre con el que se subió el archivo (el de escáner o móvil): se conserva al renombrarlo" },
     {
       clave: "categoria",
       etiqueta: "Tipo",
@@ -286,6 +290,9 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
           </button>
           <input ref={entrada} type="file" multiple style={{ display: "none" }} onChange={(e) => preparar(e.target.files)} />
           <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>También puedes arrastrar los archivos aquí; antes de guardar te dejo elegir el tipo de cada uno o detectarlo. El mismo archivo no se guarda dos veces.</span>
+          <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px" }} disabled={!!haciendo || sinNombreOrdenado.length === 0} onClick={() => setRenombrandoTodo(true)} title={sinNombreOrdenado.length === 0 ? "Todos los archivos ya tienen nombre ordenado" : "Lee los archivos que aún tienen un nombre de escáner o de móvil y les pone «Pedido - Cliente - Fecha», «Pago RCI - Cliente - Fecha» o «Rejilla - Mes Año», con aviso, vista de lo que se va a tocar y avance; el nombre original se conserva"}>
+            🏷️ Renombrar toda la biblioteca{sinNombreOrdenado.length > 0 ? ` (${sinNombreOrdenado.length})` : ""}
+          </button>
           {datos && (
             <span style={{ marginLeft: "auto", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
               {datos.resumen.archivos} archivo(s) · {tamanoLegible(datos.resumen.bytes)}
@@ -371,6 +378,56 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
         />
       )}
       {viendo && <VistaPreviaBiblioteca archivo={viendo} alCerrar={() => setViendo(null)} />}
+      {renombrandoTodo && (
+        <Modal
+          titulo={`🏷️ Renombrar ${sinNombreOrdenado.length.toLocaleString("es-ES")} archivos`}
+          ancho="min(900px, calc(96 * var(--uvw)))"
+          pie={
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setRenombrandoTodo(false)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setRenombrandoTodo(false);
+                  void lanzarTarea("/api/biblioteca/renombrar", { ids: sinNombreOrdenado.map((f) => f.id) })
+                    .then(() => mostrar(`🏷️ Leyendo ${sinNombreOrdenado.length.toLocaleString("es-ES")} archivos para ponerles nombre, en segundo plano: verás el avance arriba y los nombres se irán actualizando aquí.`, "aviso", 8000))
+                    .catch((e: unknown) => mostrar(e instanceof Error ? e.message : "No se ha podido empezar a renombrar.", "error"));
+                }}
+              >
+                Empezar a renombrar
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0, lineHeight: 1.5 }}>
+            Estos archivos aún tienen un nombre de escáner o de móvil. Se van a <b>leer con OCR</b> uno a uno, en segundo plano y por orden, para ponerles «Pedido - Cliente - Fecha», «Pago RCI - Cliente - Fecha» o «Rejilla - Mes Año». Si de uno no se consigue leer el cliente o la fecha, se le pone «Sin cliente» o la fecha en que se subió, para que siempre tenga fecha. <b>El nombre original se conserva</b> (columna «Nombre original») y los Excel no se tocan. Puedes seguir usando la aplicación y cancelar la tarea desde la barra de arriba; al terminar saldrá un resumen de lo que ha pasado.
+          </p>
+          <div style={{ maxHeight: "40vh", overflowY: "auto", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
+            <table style={{ width: "100%", fontSize: "0.82rem", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ textAlign: "left", color: "var(--text-secondary)" }}>
+                  <th style={{ padding: "6px 10px" }}>Nombre actual</th>
+                  <th style={{ padding: "6px 10px" }}>Tipo</th>
+                  <th style={{ padding: "6px 10px", textAlign: "right" }}>Tamaño</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sinNombreOrdenado.slice(0, 300).map((f) => (
+                  <tr key={f.id} style={{ borderTop: "1px solid var(--border-light)" }}>
+                    <td style={{ padding: "4px 10px", wordBreak: "break-word" }}>{f.nombre}</td>
+                    <td style={{ padding: "4px 10px" }}>{ETIQUETAS[f.categoria]}</td>
+                    <td style={{ padding: "4px 10px", textAlign: "right" }}>{tamanoLegible(f.tamano)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {sinNombreOrdenado.length > 300 && <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>Se ven los 300 primeros de {sinNombreOrdenado.length.toLocaleString("es-ES")}.</p>}
+        </Modal>
+      )}
       {asignando && <ModalAsignar cantidad={asignando.length} alCancelar={() => setAsignando(null)} alAsignar={(cambios, texto) => void cambiar(asignando, cambios, texto)} />}
     </div>
   );
