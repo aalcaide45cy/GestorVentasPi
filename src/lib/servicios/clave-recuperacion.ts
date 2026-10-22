@@ -80,6 +80,11 @@ export async function asegurarComprobacion(ej: Ejecutor): Promise<void> {
   if (!(await leer(ej, CLAVE_COMPROBACION))) await escribir(ej, CLAVE_COMPROBACION, cifrar("ok", "comprobacion"));
 }
 
+/** Vuelve a escribir el dato de comprobación en el formato actual (cifrado o en claro), tras cambiar el interruptor del cifrado. */
+export async function renovarComprobacion(ej: Ejecutor): Promise<void> {
+  await escribir(ej, CLAVE_COMPROBACION, cifrar("ok", "comprobacion"));
+}
+
 export async function estadoClaveRecuperacion(ej: Ejecutor): Promise<{ configurada: boolean }> {
   return { configurada: !!(await leer(ej, CLAVE_ENVUELTA)) };
 }

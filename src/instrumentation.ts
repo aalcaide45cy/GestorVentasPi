@@ -12,6 +12,23 @@ export async function register(): Promise<void> {
     const { db: bdIncidencias } = await import("./db");
     const { instalarIncidencias } = await import("./lib/servicios/incidencias");
     instalarIncidencias(bdIncidencias, process.env.npm_package_version ?? null);
+    // Interruptor del cifrado de datos (Configuración › Base de datos): se lee de la base; sin dato guardado, desactivado. Si quedara algo cifrado de antes
+    // estando desactivado, se deja en claro una vez, en segundo plano, con copia previa y avance.
+    const cifrado = await import("./lib/servicios/cifrado-datos");
+    await cifrado.cargarInterruptorCifrado(bdIncidencias).catch(() => undefined);
+    setTimeout(() => {
+      void (async () => {
+        if (!(await cifrado.pendienteDeDejarEnClaro(bdIncidencias))) return;
+        const intentos = (await cifrado.intentosAuto(bdIncidencias)) + 1;
+        await cifrado.anotarIntentoAuto(bdIncidencias, intentos);
+        const { encolar } = await import("./lib/servicios/tareas");
+        encolar({ tipo: "cifrado", titulo: "Dejar los datos sin cifrar (una sola vez)", idUsuario: 0 }, async (ctx) => {
+          const r = await cifrado.cambiarCifrado(bdIncidencias, false, null, ctx);
+          await cifrado.anotarIntentoAuto(bdIncidencias, 3);
+          return { ...r, detalle: [`${r.convertidos.toLocaleString("es-ES")} datos convertidos${r.ilegibles > 0 ? `, ${r.ilegibles.toLocaleString("es-ES")} no se pueden abrir con la clave de esta instalación y se han dejado como estaban` : ""}`] };
+        });
+      })().catch(() => undefined);
+    }, 45_000).unref?.();
     // Si este equipo reenvía sus reportes de fallo a un servidor principal, cada minuto reintenta los que no hayan llegado (cola con reintentos)
     const { reenviarPendientes } = await import("./lib/servicios/incidencias-remotas");
     setInterval(() => void reenviarPendientes(bdIncidencias), 60_000).unref?.();

@@ -617,6 +617,14 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.20.0 (22/10/2026)
+
+- **Interruptor general del cifrado de los datos** (Configuración › BBDD › Sistema › «🔐 Cifrado de los datos»; estado guardado en la base, **desactivado por defecto** hasta que el propietario lo active). Con él desactivado, los documentos, los archivos de la Biblioteca, las capturas de las incidencias, el doble factor y la conexión con Drive se guardan **en claro** (con una marca: `GVP0` en los ficheros, `p0.` en los textos); lo que ya estuviera cifrado se sigue leyendo igual, esté el interruptor como esté. Así no hay problemas de claves entre equipos ni al restaurar copias.
+- **Conversión de lo ya guardado**: al cambiar el interruptor (o con «Convertirlos ahora») se hace antes una copia de seguridad previa (si no se puede, no se cambia nada) y se convierte todo por lotes, en segundo plano, con avance en la barra de tareas y cancelable; al terminar, resumen. Lo cifrado con la clave de otra instalación se prueba también con la clave portable que llevan las copias; lo que aun así no se abre se deja como está y se cuenta.
+- **Automático una sola vez**: al arrancar con el cifrado desactivado, si queda algo cifrado de antes, se deja en claro solo, a los 45 s, con copia previa y avance (hasta 3 intentos).
+- Las copias antiguas cifradas siguen pudiéndose restaurar (con su clave de recuperación o portable): al restaurar se dejan en el formato del interruptor.
+- Las contraseñas no dependen de este interruptor (siempre con hash).
+
 ## Versión 1.19.0 (22/10/2026)
 
 - **Planes de comisionamiento a la Papelera**: al eliminar un plan, queda en la Papelera entero (tarifas, reglas, vendedores y liquidaciones) y se restaura tal cual. Pestaña «📊 Planes».

@@ -9,6 +9,7 @@ import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { AnalisisBbdd, CategoriaAnomalia, FilaAnomalia } from "@/lib/servicios/mantenimiento";
 import PanelCopias from "./PanelCopias";
 import PanelDatos from "./PanelDatos";
+import PanelCifrado from "./PanelCifrado";
 import { GestorFilas } from "./PanelPapelera";
 import { SubPestanas } from "./estructura";
 import { guardarPreferencia } from "@/lib/preferencias";
@@ -247,6 +248,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
             {pestana === "sistema" && (
               <>
               <PanelActualizar />
+              <PanelCifrado />
               <PanelOcr />
               <div>
                 <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>⚙️ Opciones de Interfaz y Seguridad</h3>

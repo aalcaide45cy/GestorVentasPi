@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { fijarCifradoActivo } from "@/lib/auth/cifrado";
 import { db } from "@/db";
 import { ajustes, conexionDrive, copiasSeguridad } from "@/db/schema";
 import { reiniciarBd } from "../../../tests/ayudas";
@@ -21,7 +22,11 @@ afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
   delete process.env.DRIVE_TROZO;
 });
-beforeEach(reiniciarBd);
+beforeEach(async () => {
+  fijarCifradoActivo(true);
+  await reiniciarBd();
+});
+afterAll(() => fijarCifradoActivo(false));
 afterEach(() => vi.unstubAllGlobals());
 
 interface Llamada {

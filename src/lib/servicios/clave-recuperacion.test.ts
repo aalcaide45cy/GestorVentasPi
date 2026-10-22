@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fijarCifradoActivo } from "@/lib/auth/cifrado";
 import { db } from "@/db";
 import { adjuntos, adjuntosDatos, ajustes, biblioteca, usuarios } from "@/db/schema";
 import { cifrar, cifrarBuffer, descifrar, descifrarBuffer } from "@/lib/auth/cifrado";
@@ -11,7 +12,10 @@ const ORIGINAL = process.env.APP_SECRET;
 const SECRETO_A = "a".repeat(40);
 const SECRETO_B = "b".repeat(40);
 
+// Estas pruebas son del cifrado y la recifrado entre instalaciones: con el interruptor activado
+afterAll(() => fijarCifradoActivo(false));
 beforeEach(async () => {
+  fijarCifradoActivo(true);
   process.env.APP_SECRET = SECRETO_A;
   await reiniciarBd();
 });

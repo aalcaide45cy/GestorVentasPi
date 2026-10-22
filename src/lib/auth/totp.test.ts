@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { cifrar, descifrar, huella } from "./cifrado";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { cifrar, cifrarBuffer, cifradoActivo, descifrar, descifrarBuffer, fijarCifradoActivo, huella } from "./cifrado";
 import { generarCodigosRecuperacion, huellaCodigoRecuperacion, normalizarCodigoRecuperacion, parecidoACodigoRecuperacion } from "./recuperacion";
 import { base32Codificar, base32Decodificar, codigoTotp, generarSecreto, urlOtpauth, verificarTotp } from "./totp";
 
@@ -61,7 +61,29 @@ describe("TOTP (RFC 6238)", () => {
   });
 });
 
+describe("interruptor del cifrado desactivado (por defecto)", () => {
+  it("guarda en claro con una marca, y lo cifrado de antes se sigue leyendo", () => {
+    expect(cifradoActivo()).toBe(false);
+    const claro = cifrar("secreto", "totp");
+    expect(claro.startsWith("p0.")).toBe(true);
+    expect(descifrar(claro, "totp")).toBe("secreto");
+    const fichero = cifrarBuffer(Buffer.from("hola"));
+    expect(fichero.subarray(0, 4).toString()).toBe("GVP0");
+    expect(descifrarBuffer(fichero).toString()).toBe("hola");
+    // Lo cifrado con el interruptor activo se lee también con él desactivado
+    fijarCifradoActivo(true);
+    const cifrado = cifrar("otro", "totp");
+    const ficheroCifrado = cifrarBuffer(Buffer.from("adios"));
+    fijarCifradoActivo(false);
+    expect(cifrado.startsWith("v1.")).toBe(true);
+    expect(descifrar(cifrado, "totp")).toBe("otro");
+    expect(descifrarBuffer(ficheroCifrado).toString()).toBe("adios");
+  });
+});
+
 describe("cifrado AES-256-GCM", () => {
+  beforeAll(() => fijarCifradoActivo(true));
+  afterAll(() => fijarCifradoActivo(false));
   it("cifra y descifra, y cada cifrado es distinto", () => {
     const a = cifrar("JBSWY3DPEHPK3PXP", "totp");
     const b = cifrar("JBSWY3DPEHPK3PXP", "totp");
