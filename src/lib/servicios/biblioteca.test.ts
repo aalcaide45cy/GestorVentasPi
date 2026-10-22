@@ -67,6 +67,16 @@ describe("biblioteca de archivos", () => {
     expect(await leerArchivo(db, x.archivo.id)).toBeNull();
   });
 
+  it("eliminar manda a la Papelera (no borra) y volver a subir el mismo archivo lo saca de ella", async () => {
+    const u = await crearUsuarioPrueba("vendedor");
+    const { archivo } = await guardarArchivo(db, { datos: Buffer.from("contenido"), nombre: "pedido.pdf", creadoPor: u.idUsuario });
+    expect(await eliminarArchivos(db, [archivo.id])).toBe(1);
+    expect(await listarArchivos(db)).toEqual([]);
+    const otra = await guardarArchivo(db, { datos: Buffer.from("contenido"), nombre: "pedido.pdf", creadoPor: u.idUsuario });
+    expect(otra.repetido).toBe(true);
+    expect((await listarArchivos(db)).map((f) => f.id)).toEqual([archivo.id]);
+  });
+
   it("asigna a un cliente o a un expediente (con su cliente), y se puede quitar la asignación", async () => {
     const u = await crearUsuarioPrueba("vendedor");
     const [cli] = await db.insert(clientes).values({ clienteId: "c1", nombre: "Ana Pérez" }).returning();

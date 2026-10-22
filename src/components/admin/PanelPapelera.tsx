@@ -19,13 +19,14 @@ interface Resumen {
 }
 
 const VACIO: Resumen = { categorias: [], espacio: { total: 0, tablas: [] } };
-const ICONOS: Record<Categoria, string> = { expedientes: "📁", clientes: "👥", documentos: "📎", catalogo: "🏷️", historial: "↩️", lecturas: "📄", auditoria: "🛡️" };
+const ICONOS: Record<Categoria, string> = { expedientes: "📁", clientes: "👥", documentos: "📎", biblioteca: "📚", catalogo: "🏷️", historial: "↩️", lecturas: "📄", auditoria: "🛡️" };
 
 /** Qué arrastra purgar cada categoría (para la confirmación cuando se purga desde fuera de la Papelera). */
 const TEXTOS_PURGA: Record<Categoria, string> = {
   expedientes: "Se borran el expediente, sus documentos y sus marcas de pagado/reclamado.",
   clientes: "Se borran el cliente, sus correos, teléfonos y documentos.",
   documentos: "Se borra el archivo de verdad. Si un pedido sin vincular sigue en tu cola de pedidos, esa entrada ya no se podrá usar.",
+  biblioteca: "Se borra el archivo de verdad. Los pedidos o pagos que ya se crearon con él no cambian.",
   catalogo: "Se borran los que ningún expediente ni plan usa ya.",
   historial: "Ya no se podrá deshacer nada de lo purgado.",
   lecturas: "Se pierde el registro de lecturas.",
@@ -49,6 +50,7 @@ const DEFINICIONES: DefPestana[] = [
   { clave: "pedidos", etiqueta: "🧾 Pedidos", ayuda: "Pedidos (documentos) eliminados o sin vincular", categoria: "documentos", clase: { incluir: ["pedido"] }, explicacion: "Documentos de pedido que siguen guardados aunque ya no se ven: eliminados, de expedientes o clientes eliminados, o leídos y nunca vinculados.", cantidad: sub("pedido") },
   { clave: "pagos_rci", etiqueta: "💶 Pagos RCI", ayuda: "Pagos RCI (documentos) eliminados o sin vincular", categoria: "documentos", clase: { incluir: ["pago_rci"] }, explicacion: "Documentos de pago RCI que siguen guardados aunque ya no se ven.", cantidad: sub("pago_rci") },
   { clave: "otros_documentos", etiqueta: "📎 Otros documentos", ayuda: "DNI, fotos y otros documentos eliminados", categoria: "documentos", clase: { excluir: ["pedido", "pago_rci"] }, explicacion: "DNI, fotos de cliente y otros documentos que siguen guardados aunque ya no se ven.", cantidad: (c) => Object.entries(c.porSubtipo ?? {}).filter(([k]) => k !== "pedido" && k !== "pago_rci").reduce((a, [, n]) => a + n, 0) },
+  { clave: "biblioteca", etiqueta: "📚 Biblioteca", ayuda: "Archivos quitados de la Biblioteca", categoria: "biblioteca", explicacion: "Pedidos, pagos de RCI, rejillas y listados que quitaste de la Biblioteca. Al restaurarlos vuelven a verse en Herramientas › Biblioteca.", cantidad: (c) => c.cantidad },
   { clave: "marcas", etiqueta: "🏷️ Marcas", ayuda: "Marcas eliminadas", categoria: "catalogo", clase: { incluir: ["marcas"] }, explicacion: "Marcas que eliminaste. Se pueden restaurar siempre que no haya otra vigente con el mismo nombre.", cantidad: sub("marcas") },
   { clave: "modelos", etiqueta: "🚗 Modelos", ayuda: "Modelos eliminados", categoria: "catalogo", clase: { incluir: ["modelos"] }, explicacion: "Modelos que eliminaste. Un modelo solo se restaura si su marca está vigente (restaura antes la marca, o elige las dos a la vez).", cantidad: sub("modelos") },
   { clave: "formas_pago", etiqueta: "💳 Formas de pago", ayuda: "Formas de pago eliminadas", categoria: "catalogo", clase: { incluir: ["tipo_de_venta"] }, explicacion: "Formas de pago (tipos de venta) que eliminaste.", cantidad: sub("tipo_de_venta") },
@@ -99,7 +101,8 @@ function PanelVista({ categoria, fila, alCerrar }: { categoria: Categoria; fila:
   const [elegido, setElegido] = useState<number | null>(null);
   const docs = datos ?? [];
   const actual = docs.find((d) => d.id === elegido) ?? docs[0] ?? null;
-  const url = actual ? `/api/admin/papelera/documento?id=${actual.id}&ver=1` : null;
+  const origen = categoria === "biblioteca" ? "&origen=biblioteca" : "";
+  const url = actual ? `/api/admin/papelera/documento?id=${actual.id}&ver=1${origen}` : null;
   return (
     <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", gap: "8px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px", background: "var(--bg-surface-tint)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
@@ -132,7 +135,7 @@ function PanelVista({ categoria, fila, alCerrar }: { categoria: Categoria; fila:
               <a href={url} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
                 Abrir en otra pestaña
               </a>
-              <a href={`/api/admin/papelera/documento?id=${actual.id}`} style={{ color: "var(--primary)" }}>
+              <a href={`/api/admin/papelera/documento?id=${actual.id}${origen}`} style={{ color: "var(--primary)" }}>
                 Descargar
               </a>
             </span>
@@ -161,7 +164,7 @@ interface FiltroClase {
 }
 
 /** Categorías de las que se puede restaurar (el historial, las lecturas y la auditoría son registros: solo se purgan). */
-const RESTAURABLES: Categoria[] = ["expedientes", "clientes", "documentos", "catalogo"];
+const RESTAURABLES: Categoria[] = ["expedientes", "clientes", "documentos", "biblioteca", "catalogo"];
 
 /** Carga las filas de una categoría, las filtra por clase y lleva la elección; se refresca sola cuando acaba una tarea de la papelera. */
 function useFilas(categoria: Categoria, motivo: string | undefined, clase: FiltroClase | undefined) {
@@ -210,7 +213,7 @@ function CuerpoFilas({ categoria, explicacion, f, mostrarClase }: { categoria: C
   const [vista, setVista] = useState<FilaPapelera | null>(null);
   const alternar = (id: string, v: boolean) => setMarcadas((m) => (v ? [...m, id] : m.filter((x) => x !== id)));
   const purgables = filas.filter((x) => !x.bloqueo).map((x) => x.id);
-  const conVista = categoria === "expedientes" || categoria === "clientes" || categoria === "documentos";
+  const conVista = categoria === "expedientes" || categoria === "clientes" || categoria === "documentos" || categoria === "biblioteca";
   const visibles = new Set(filas.map((x) => x.id));
   const elegidasAqui = marcadas.filter((id) => visibles.has(id));
 
@@ -229,7 +232,7 @@ function CuerpoFilas({ categoria, explicacion, f, mostrarClase }: { categoria: C
     { clave: "bytes", etiqueta: "Ocupa", valor: (x) => x.bytes, celda: (x) => tamano(x.bytes), alinear: "right", ayuda: "Lo que ocupa (con sus documentos, si los tiene)" },
     { clave: "bloqueo", etiqueta: "Para purgar", valor: (x) => x.bloqueo ?? "", celda: (x) => (x.bloqueo ? <span style={{ color: "var(--warning)", whiteSpace: "normal", fontSize: "0.8rem" }}>⏳ {x.bloqueo}</span> : <span style={{ color: "var(--text-muted)" }}>Se puede purgar</span>), ayuda: "Si algo impide purgarla ahora mismo" },
   ];
-  if (mostrarClase && (categoria === "documentos" || categoria === "catalogo")) columnas.splice(2, 0, { clave: "clase", etiqueta: "Clase", valor: (x) => x.subtipo, ayuda: "Tipo de documento o tabla del catálogo" });
+  if (mostrarClase && (categoria === "documentos" || categoria === "catalogo" || categoria === "biblioteca")) columnas.splice(2, 0, { clave: "clase", etiqueta: "Clase", valor: (x) => x.subtipo, ayuda: "Tipo de documento o tabla del catálogo" });
   if (conVista) {
     columnas.push({
       clave: "ver",
@@ -243,13 +246,13 @@ function CuerpoFilas({ categoria, explicacion, f, mostrarClase }: { categoria: C
       ayuda: "Vista previa de los documentos antes de decidir",
     });
   }
-  if (categoria === "documentos") {
+  if (categoria === "documentos" || categoria === "biblioteca") {
     columnas.push({
       clave: "archivo",
       etiqueta: "Archivo",
       valor: () => "",
       celda: (x) => (
-        <a className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.78rem" }} href={`/api/admin/papelera/documento?id=${x.id}`} title="Descarga el archivo tal cual (ya descifrado)">
+        <a className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.78rem" }} href={`/api/admin/papelera/documento?id=${x.id}${categoria === "biblioteca" ? "&origen=biblioteca" : ""}`} title="Descarga el archivo tal cual (ya descifrado)">
           Descargar
         </a>
       ),
@@ -389,7 +392,7 @@ function PestanaFilas({ info, explicacion, clase, alPurgado }: { info: InfoCateg
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
         <BotonesFilas categoria={info.categoria} marcadas={f.marcadas} restaurable={info.restaurable} porFilas={info.porFilas} alPurgar={p.setIds} />
       </div>
-      <CuerpoFilas categoria={info.categoria} explicacion={explicacion} f={f} mostrarClase={false} />
+      <CuerpoFilas categoria={info.categoria} explicacion={explicacion} f={f} mostrarClase={!clase} />
       {p.ids && (
         <ModalConfirmarPurga
           titulo={`🗑️ Purgar ${p.ids.length.toLocaleString("es-ES")} elegidos`}

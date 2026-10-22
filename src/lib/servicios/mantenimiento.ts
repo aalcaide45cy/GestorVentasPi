@@ -205,8 +205,8 @@ export async function analizarBbdd(ej: Ejecutor): Promise<AnalisisBbdd> {
 
     await cat(
       { id: "bib_archivos", titulo: "Archivos de la biblioteca", explicacion: "Los archivos de trabajo guardados en Herramientas › Biblioteca (pedidos, pagos de RCI, rejillas, Excel). «Borrar todos los datos» no los toca y esta limpieza tampoco: solo se quitan desde la propia biblioteca. Aquí se ven para saber cuántos hay y cuánto ocupan.", tipo: "revisar" },
-      sql`select count(*)::int as n from biblioteca`,
-      sql`select b.id, b.nombre as texto, case b.categoria when 'pedido' then 'Pedido' when 'pago_rci' then 'Pago RCI' when 'rejilla' then 'Rejilla' when 'listado' then 'Listado Excel' else 'Otro' end || ' · ' || round(b.tamano / 1024.0)::int || ' KB' || case when b.id_expediente is not null then ' · del expediente ' || b.id_expediente when b.id_cliente is not null then ' · de un cliente' else ' · sin asignar' end as detalle from biblioteca b order by b.creado_en desc limit ${lim}`,
+      sql`select count(*)::int as n from biblioteca where eliminado_en is null`,
+      sql`select b.id, b.nombre as texto, case b.categoria when 'pedido' then 'Pedido' when 'pago_rci' then 'Pago RCI' when 'rejilla' then 'Rejilla' when 'listado' then 'Listado Excel' else 'Otro' end || ' · ' || round(b.tamano / 1024.0)::int || ' KB' || case when b.id_expediente is not null then ' · del expediente ' || b.id_expediente when b.id_cliente is not null then ' · de un cliente' else ' · sin asignar' end as detalle from biblioteca b where b.eliminado_en is null order by b.creado_en desc limit ${lim}`,
     ),
     await cat(
       { id: "exp_sin_cliente", titulo: "Expedientes sin cliente", explicacion: "Expedientes activos que no tienen ningún cliente asociado.", tipo: "revisar" },

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { biblioteca, bibliotecaDatos, clientes, expedientes } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
@@ -56,7 +56,11 @@ export async function guardarArchivo(
   const huella = createHash("sha256").update(e.datos).digest("hex");
   return ej.transaction(async (tx) => {
     const [ya] = await tx.select().from(biblioteca).where(eq(biblioteca.huella, huella));
-    if (ya) return { archivo: aDto(ya), repetido: true };
+    if (ya) {
+      // Si estaba en la Papelera, volver a subirlo lo saca de ella
+      if (ya.eliminadoEn) await tx.update(biblioteca).set({ eliminadoEn: null }).where(eq(biblioteca.id, ya.id));
+      return { archivo: aDto({ ...ya, eliminadoEn: null }), repetido: true };
+    }
     const mime = mimeDe(nombre, e.mime ?? "");
     const [fila] = await tx
       .insert(biblioteca)
@@ -74,7 +78,7 @@ async function nombreLibre(ej: Ejecutor, nombre: string, huella: string): Promis
   const extension = punto > 0 ? nombre.slice(punto) : "";
   for (let n = 1; n < 500; n++) {
     const candidato = n === 1 ? nombre : `${base} (${n})${extension}`;
-    const [otro] = await ej.select({ id: biblioteca.id }).from(biblioteca).where(and(eq(biblioteca.nombre, candidato), ne(biblioteca.huella, huella)));
+    const [otro] = await ej.select({ id: biblioteca.id }).from(biblioteca).where(and(eq(biblioteca.nombre, candidato), ne(biblioteca.huella, huella), isNull(biblioteca.eliminadoEn)));
     if (!otro) return candidato;
   }
   return nombre;
@@ -109,6 +113,7 @@ export async function guardarCopiaAutomatica(ej: Ejecutor, e: EntradaCopiaAutoma
     const huella = createHash("sha256").update(e.datos).digest("hex");
     const [ya] = await ej.select().from(biblioteca).where(eq(biblioteca.huella, huella));
     if (ya) {
+      if (ya.eliminadoEn) await ej.update(biblioteca).set({ eliminadoEn: null }).where(eq(biblioteca.id, ya.id));
       if (automatico && ya.nombre !== automatico) {
         await ej.update(biblioteca).set({ nombre: await nombreLibre(ej, automatico, huella), categoria: e.categoria }).where(eq(biblioteca.id, ya.id));
       }
@@ -139,12 +144,12 @@ export async function renombrarSegunLectura(ej: Ejecutor, id: number, leido: { c
 
 export async function listarArchivos(ej: Ejecutor, categorias?: CategoriaBiblioteca[]): Promise<ArchivoBibliotecaDto[]> {
   const q = ej.select({ f: biblioteca, cliente: clientes.nombre }).from(biblioteca).leftJoin(clientes, eq(clientes.id, biblioteca.idCliente));
-  const filas = await (categorias && categorias.length > 0 ? q.where(inArray(biblioteca.categoria, categorias)) : q).orderBy(desc(biblioteca.creadoEn), desc(biblioteca.id));
+  const filas = await q.where(categorias && categorias.length > 0 ? and(isNull(biblioteca.eliminadoEn), inArray(biblioteca.categoria, categorias)) : isNull(biblioteca.eliminadoEn)).orderBy(desc(biblioteca.creadoEn), desc(biblioteca.id));
   return filas.map((r) => aDto(r.f, r.cliente));
 }
 
 export async function leerArchivo(ej: Ejecutor, id: number): Promise<{ meta: ArchivoBibliotecaDto; datos: Buffer } | null> {
-  const [f] = await ej.select().from(biblioteca).where(eq(biblioteca.id, id));
+  const [f] = await ej.select().from(biblioteca).where(and(eq(biblioteca.id, id), isNull(biblioteca.eliminadoEn)));
   if (!f) return null;
   const [d] = await ej.select().from(bibliotecaDatos).where(eq(bibliotecaDatos.idArchivo, id));
   if (!d) return null;
@@ -197,11 +202,12 @@ export async function cambiarArchivos(
 
 export async function eliminarArchivos(ej: Ejecutor, ids: number[]): Promise<number> {
   if (ids.length === 0) return 0;
-  const filas = await ej.delete(biblioteca).where(inArray(biblioteca.id, ids)).returning({ id: biblioteca.id });
+  // No se borra de verdad: pasa a la Papelera (Herramientas › Papelera), de donde se restaura o se purga
+  const filas = await ej.update(biblioteca).set({ eliminadoEn: new Date() }).where(and(inArray(biblioteca.id, ids), isNull(biblioteca.eliminadoEn))).returning({ id: biblioteca.id });
   return filas.length;
 }
 
 export async function resumenBiblioteca(ej: Ejecutor): Promise<{ archivos: number; bytes: number }> {
-  const [r] = await ej.select({ n: sql<number>`count(*)::int`, b: sql<number>`coalesce(sum(${biblioteca.tamano}), 0)::bigint::float8` }).from(biblioteca);
+  const [r] = await ej.select({ n: sql<number>`count(*)::int`, b: sql<number>`coalesce(sum(${biblioteca.tamano}), 0)::bigint::float8` }).from(biblioteca).where(isNull(biblioteca.eliminadoEn));
   return { archivos: r.n, bytes: r.b };
 }

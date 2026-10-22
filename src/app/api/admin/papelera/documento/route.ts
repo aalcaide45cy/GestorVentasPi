@@ -12,6 +12,6 @@ export const GET = manejar(async (req: Request) => {
   const ver = new URL(req.url).searchParams.get("ver") === "1";
   const id = leerIdQuery(req);
   if (!id) throw new HttpError(400, "Falta el documento");
-  const d = await leerDocumentoPapelera(db, id);
+  const d = await leerDocumentoPapelera(db, id, new URL(req.url).searchParams.get("origen") === "biblioteca" ? "biblioteca" : "adjuntos");
   return new NextResponse(new Uint8Array(d.datos), { headers: { "Content-Type": d.mime, "Content-Disposition": `${ver ? "inline" : "attachment"}; filename="${encodeURIComponent(d.nombre)}"`, "Cache-Control": "no-store" } });
 });

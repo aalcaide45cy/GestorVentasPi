@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.18.0 (22/10/2026)
+
+- **Lo que se quita de la Biblioteca va a la Papelera** (columna `eliminado_en`, migración 0051): ya no se borra de verdad. El botón pasa a «🗑️ A la Papelera». Nueva pestaña «📚 Biblioteca» en Herramientas › Papelera, con restaurar, vista previa, descarga y purga (la única que borra de verdad; también incluida en «Purgar a fondo»). Volver a subir un archivo que estaba en la Papelera lo saca de ella.
+- Próxima versión: rejillas leídas, planes de comisionamiento, plantillas, pendientes de cobro y marcas de pagado/reclamado.
+
 ## Versión 1.17.0 (22/10/2026)
 
 - **Ficha del cliente como página entera** (`/dashboard/clientes/[id]`, como «Editar expediente»): sus datos y documentos arriba y, debajo, la tabla de todos sus expedientes (buscador, orden, columnas y vistas a tu gusto; código y botón «Editar» abren el expediente; casillas «Mostrar anulados» y «Mostrar deshabilitados» como en el resto de la aplicación; aviso de posibles duplicados). En Clientes, «✏️ Editar» y «N venta(s)» abren esa página; el alta sigue siendo una ventana.

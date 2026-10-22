@@ -1051,6 +1051,8 @@ export const biblioteca = pgTable(
     nombre: text("nombre").notNull(),
     /** Nombre con el que se subió el archivo (el de escáner o móvil): se conserva al renombrarlo. */
     nombreOriginal: text("nombre_original"),
+    /** Borrado lógico: el archivo sigue guardado (en la Papelera) hasta que se purga. */
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
     mime: varchar("mime", { length: 120 }).notNull(),
     tamano: integer("tamano").notNull(),
     /** SHA-256 del contenido: el mismo archivo no se guarda dos veces. */

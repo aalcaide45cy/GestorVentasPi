@@ -5,7 +5,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { adjuntos, adjuntosDatos, auditoria, clientes, expedientes, marcas, modelos, tiendas, validacionesComision } from "@/db/schema";
+import { adjuntos, adjuntosDatos, auditoria, biblioteca, clientes, expedientes, marcas, modelos, tiendas, validacionesComision } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
@@ -167,6 +167,27 @@ describe("papelera: restaurar", () => {
     expect(sola).toMatchObject({ restaurados: 0, bloqueados: 1 });
     const juntos = await restaurar(db, { accion: "restaurar", categoria: "catalogo", ids: [`modelos:${mo.idModelo}`, `marcas:${m.idMarca}`] });
     expect(juntos).toMatchObject({ restaurados: 2, bloqueados: 0 });
+  });
+
+  it("un archivo de la Biblioteca eliminado aparece en la Papelera y se restaura", async () => {
+    const { eliminarArchivos, guardarArchivo, listarArchivos } = await import("./biblioteca");
+    const { archivo } = await guardarArchivo(db, { datos: Buffer.from("hola biblioteca"), nombre: "Pedido - Ana - 07 Julio 2026.pdf", creadoPor: null });
+    await eliminarArchivos(db, [archivo.id]);
+    expect((await resumenPapelera(db)).find((c) => c.categoria === "biblioteca")).toMatchObject({ cantidad: 1, restaurable: true });
+    expect((await filasPapelera(db, "biblioteca")).filas[0]).toMatchObject({ id: String(archivo.id), subtipo: "pedido" });
+    const r = await restaurar(db, { accion: "restaurar", categoria: "biblioteca", ids: [String(archivo.id)] });
+    expect(r).toMatchObject({ restaurados: 1, bloqueados: 0 });
+    expect((await listarArchivos(db)).map((f) => f.id)).toEqual([archivo.id]);
+  });
+
+  it.skipIf(!hayPg)("purgar un archivo de la Biblioteca lo borra de verdad", { timeout: 120_000 }, async () => {
+    const { eliminarArchivos, guardarArchivo } = await import("./biblioteca");
+    const { admin } = await escenario();
+    const { archivo } = await guardarArchivo(db, { datos: Buffer.from("adios"), nombre: "x.pdf", creadoPor: null });
+    await eliminarArchivos(db, [archivo.id]);
+    const r = await purgar(db, admin.idUsuario, { categoria: "biblioteca", ids: [String(archivo.id)], confirmacion: "PURGAR" });
+    expect(r.purgados).toBe(1);
+    expect(await db.select().from(biblioteca).where(eq(biblioteca.id, archivo.id))).toHaveLength(0);
   });
 
   it("un documento de un expediente eliminado no se restaura solo; uno eliminado a mano, sí", async () => {

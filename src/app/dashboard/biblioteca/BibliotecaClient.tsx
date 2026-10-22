@@ -78,14 +78,14 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
 
   const borrar = async (lista: ArchivoBibliotecaDto[]) => {
     if (lista.length === 0) return;
-    const texto = lista.length === 1 ? `¿Borro «${lista[0].nombre}» de la biblioteca?` : `¿Borro ${lista.length} archivos de la biblioteca?`;
-    if (!(await confirmar({ texto: `${texto} Los pedidos o pagos que ya hayas creado con ellos no cambian.`, peligro: true }))) return;
-    setHaciendo(`Borrando ${lista.length === 1 ? "el archivo" : `${lista.length} archivos`}…`);
-    mostrar(`🗑️ Borrando ${lista.length === 1 ? "el archivo" : `${lista.length} archivos`}… Se hace en segundo plano: puedes seguir usando la aplicación y verás el avance arriba.`, "aviso", 5000);
+    const texto = lista.length === 1 ? `¿Mando «${lista[0].nombre}» a la Papelera?` : `¿Mando ${lista.length} archivos a la Papelera?`;
+    if (!(await confirmar({ texto: `${texto} No se pierden: se pueden restaurar desde Herramientas › Papelera, y solo ahí se borran de verdad. Los pedidos o pagos que ya hayas creado con ellos no cambian.`, peligro: true }))) return;
+    setHaciendo(`Mandando ${lista.length === 1 ? "el archivo" : `${lista.length} archivos`} a la Papelera…`);
+    mostrar(`🗑️ Mandando ${lista.length === 1 ? "el archivo" : `${lista.length} archivos`} a la Papelera… Se hace en segundo plano: puedes seguir usando la aplicación y verás el avance arriba.`, "aviso", 5000);
     try {
       // En segundo plano y por lotes: una sola orden enorme con muchos archivos grandes bloquearía la base de datos
-      const r = await llamarComoTarea<{ borrados: number }>("/api/biblioteca/borrar", { ids: lista.map((f) => f.id) }, (t) => setHaciendo(t.total > 0 ? `Borrando… ${t.hecho} de ${t.total}` : "Borrando…"));
-      mostrar(r.borrados === 1 ? "Archivo borrado de la biblioteca." : `${r.borrados} archivos borrados de la biblioteca.`);
+      const r = await llamarComoTarea<{ borrados: number }>("/api/biblioteca/borrar", { ids: lista.map((f) => f.id) }, (t) => setHaciendo(t.total > 0 ? `Mandando a la Papelera… ${t.hecho} de ${t.total}` : "Mandando a la Papelera…"));
+      mostrar(r.borrados === 1 ? "Archivo en la Papelera (recuperable desde Herramientas › Papelera)." : `${r.borrados} archivos en la Papelera (recuperables desde Herramientas › Papelera).`);
       setMarcados(new Set());
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "No se ha podido borrar.", "error");
@@ -255,7 +255,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
           <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setEditando({ id: f.id, nombre: f.nombre })} title="Renombrar el archivo" aria-label="Renombrar">
             ✏️
           </button>
-          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => void borrar([f])} disabled={!!haciendo} title="Borrar el archivo de la biblioteca" aria-label="Borrar">
+          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => void borrar([f])} disabled={!!haciendo} title="Mandar el archivo a la Papelera (se puede restaurar)" aria-label="Mandar a la Papelera">
             🗑️
           </button>
         </span>
@@ -350,7 +350,7 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
               ))}
             </select>
             <button type="button" className="btn btn-secondary" style={{ padding: "5px 12px", color: "var(--danger)" }} onClick={() => void borrar(elegidos)} disabled={!!haciendo}>
-              🗑️ Borrar
+              🗑️ A la Papelera
             </button>
           </>
         )}

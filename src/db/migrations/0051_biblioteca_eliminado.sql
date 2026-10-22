@@ -1,0 +1,1 @@
+ALTER TABLE "biblioteca" ADD COLUMN "eliminado_en" timestamp with time zone;

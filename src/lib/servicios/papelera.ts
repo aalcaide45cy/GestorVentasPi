@@ -15,9 +15,9 @@ import { TareaCancelada, type ContextoTarea } from "./tareas";
  * No se tocan las liquidaciones guardadas ni el libro de puntos: son el histórico de lo cobrado y la base de datos los protege.
  */
 
-export const CATEGORIAS = ["expedientes", "clientes", "documentos", "catalogo", "historial", "lecturas", "auditoria"] as const;
+export const CATEGORIAS = ["expedientes", "clientes", "documentos", "biblioteca", "catalogo", "historial", "lecturas", "auditoria"] as const;
 export type Categoria = (typeof CATEGORIAS)[number];
-export const CATEGORIAS_RESTAURABLES = ["expedientes", "clientes", "documentos", "catalogo"] as const;
+export const CATEGORIAS_RESTAURABLES = ["expedientes", "clientes", "documentos", "biblioteca", "catalogo"] as const;
 
 export interface InfoCategoria {
   categoria: Categoria;
@@ -76,6 +76,13 @@ const TEXTOS: Record<Categoria, Pick<InfoCategoria, "titulo" | "explicacion" | "
     porFilas: true,
     porAntiguedad: false,
   },
+  biblioteca: {
+    titulo: "Archivos de la biblioteca eliminados",
+    explicacion: "Pedidos, pagos de RCI, rejillas y listados que quitaste de la Biblioteca: siguen guardados (con su contenido) hasta que los purgues.",
+    alPurgar: "Se borra el archivo de verdad. Los pedidos o pagos que ya se crearon con él no cambian.",
+    porFilas: true,
+    porAntiguedad: false,
+  },
   catalogo: {
     titulo: "Catálogos eliminados",
     explicacion: "Marcas, modelos, formas de pago, estados de vehículo y tiendas que eliminaste.",
@@ -120,6 +127,8 @@ const SQL_DOCUMENTOS = sql`(a.eliminado_en is not null or a.ambito = 'pendiente'
 const SQL_DOCUMENTOS_JOIN = sql`from adjuntos a left join expedientes e on e.id_expediente = a.id_expediente left join clientes c on c.id = a.id_cliente`;
 
 export async function resumenPapelera(ej: Ejecutor): Promise<InfoCategoria[]> {
+  const [bib] = await filas<{ n: number; b: string }>(ej, sql`select count(*)::int n, coalesce(sum(tamano), 0)::bigint b from biblioteca where eliminado_en is not null`);
+  const bibClases = await filas<{ c: string; n: number }>(ej, sql`select categoria c, count(*)::int n from biblioteca where eliminado_en is not null group by categoria`);
   const [docTipos, catTablas] = await Promise.all([
     filas<{ tipo: string; n: number }>(ej, sql`select a.tipo, count(*)::int n ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} group by a.tipo`),
     filas<{ tabla: string; n: number }>(ej, sql`select 'marcas' tabla, count(*)::int n from marcas where eliminado_en is not null union all select 'modelos', count(*)::int from modelos where eliminado_en is not null union all select 'tipo_de_venta', count(*)::int from tipo_de_venta where eliminado_en is not null union all select 'estado_vehiculo', count(*)::int from estado_vehiculo where eliminado_en is not null union all select 'tiendas', count(*)::int from tiendas where eliminado_en is not null`),
@@ -139,6 +148,7 @@ export async function resumenPapelera(ej: Ejecutor): Promise<InfoCategoria[]> {
     dato("expedientes", num(expe[0]?.n), num(expe[0]?.b)),
     dato("clientes", num(cli[0]?.n), num(cli[0]?.b)),
     dato("documentos", num(doc[0]?.n), num(doc[0]?.b), Object.fromEntries(docTipos.map((x) => [x.tipo, num(x.n)]))),
+    dato("biblioteca", num(bib?.n), num(bib?.b), Object.fromEntries(bibClases.map((x) => [x.c, num(x.n)]))),
     dato("catalogo", num(cat[0]?.n), 0, Object.fromEntries(catTablas.map((x) => [x.tabla, num(x.n)]))),
     dato("historial", num(his[0]?.n), num(his[0]?.b)),
     dato("lecturas", num(lec[0]?.n), num(lec[0]?.b)),
@@ -235,6 +245,17 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
     );
     return { total: r.length, filas: r.map((x) => ({ id: x.clave, texto: x.texto, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)}`, bytes: 0, eliminadoEn: iso(x.eliminado_en), documentos: 0, subtipo: x.clave.split(":")[0], bloqueo: bloqueos.get(x.clave) ?? null })) };
   }
+  if (categoria === "biblioteca") {
+    const r = await filas<{ id: number; nombre: string; nombre_original: string | null; categoria: string; tamano: string; eliminado_en: string; id_cliente: number | null; id_expediente: number | null }>(
+      ej,
+      sql`select id, nombre, nombre_original, categoria, tamano::bigint tamano, eliminado_en, id_cliente, id_expediente from biblioteca where eliminado_en is not null order by eliminado_en desc, id desc limit ${lim}`,
+    );
+    const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from biblioteca where eliminado_en is not null`);
+    return {
+      total: num(n),
+      filas: r.map((x) => ({ id: String(x.id), texto: x.nombre, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.categoria}${x.nombre_original && x.nombre_original !== x.nombre ? ` · se subió como «${x.nombre_original}»` : ""} · ${mb(num(x.tamano))}`, bytes: num(x.tamano), eliminadoEn: iso(x.eliminado_en), documentos: 1, subtipo: x.categoria, bloqueo: null })),
+    };
+  }
   if (categoria === "historial") {
     const r = await filas<{ id: string; en: string; accion: string; tabla: string; operacion: string; usuario: string | null; bytes: string }>(
       ej,
@@ -273,6 +294,8 @@ export async function descargarPapelera(ej: Ejecutor, categoria: Categoria, ids:
     datos = await filas(ej, sql`select to_jsonb(c) as cliente, (select coalesce(jsonb_agg(to_jsonb(m)), '[]'::jsonb) from emails_clientes m where m.id_cliente = c.id) as correos, (select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from telefonos_clientes t where t.id_cliente = c.id) as telefonos, (select coalesce(jsonb_agg(to_jsonb(a)), '[]'::jsonb) from adjuntos a where a.id_cliente = c.id) as documentos from clientes c where c.eliminado_en is not null ${filtro(sql`c.id`)} order by c.id`);
   } else if (categoria === "documentos") {
     datos = await filas(ej, sql`select to_jsonb(a) as documento ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} ${filtro(sql`a.id`)} order by a.id`);
+  } else if (categoria === "biblioteca") {
+    datos = await filas(ej, sql`select to_jsonb(b) as archivo from biblioteca b where eliminado_en is not null ${filtro(sql`b.id`)} order by b.id`);
   } else if (categoria === "catalogo") {
     datos = await filas(ej, sql`select 'marcas' tabla, to_jsonb(x) fila from marcas x where eliminado_en is not null union all select 'modelos', to_jsonb(x) from modelos x where eliminado_en is not null union all select 'tipo_de_venta', to_jsonb(x) from tipo_de_venta x where eliminado_en is not null union all select 'estado_vehiculo', to_jsonb(x) from estado_vehiculo x where eliminado_en is not null union all select 'tiendas', to_jsonb(x) from tiendas x where eliminado_en is not null`);
   } else if (categoria === "historial") {
@@ -297,6 +320,10 @@ export interface DocumentoDeFila {
 
 /** Los documentos de un expediente o de un cliente (también los eliminados), para verlos antes de decidir. */
 export async function documentosDeFila(ej: Ejecutor, categoria: Categoria, id: number): Promise<DocumentoDeFila[]> {
+  if (categoria === "biblioteca") {
+    const r = await filas<{ id: number; nombre: string; categoria: string; mime: string; tamano: number; creado_en: string }>(ej, sql`select id, nombre, categoria, mime, tamano, creado_en from biblioteca where id = ${id}`);
+    return r.map((x) => ({ id: x.id, nombre: x.nombre, tipo: x.categoria, mime: x.mime, tamano: num(x.tamano), creadoEn: iso(x.creado_en) ?? "", eliminado: true }));
+  }
   if (categoria !== "expedientes" && categoria !== "clientes" && categoria !== "documentos") return [];
   const donde = categoria === "expedientes" ? sql`a.id_expediente = ${id}` : categoria === "clientes" ? sql`a.id_cliente = ${id}` : sql`a.id = ${id}`;
   const r = await filas<{ id: number; nombre: string; tipo: string; mime: string; tamano: string; creado_en: string; eliminado: boolean }>(ej, sql`select a.id, a.nombre, a.tipo, a.mime, a.tamano::bigint tamano, a.creado_en, (a.eliminado_en is not null) eliminado from adjuntos a where ${donde} order by a.id`);
@@ -304,8 +331,11 @@ export async function documentosDeFila(ej: Ejecutor, categoria: Categoria, id: n
 }
 
 /** Un documento cualquiera (también eliminado o sin vincular), descifrado, para descargarlo desde la papelera. */
-export async function leerDocumentoPapelera(ej: Ejecutor, id: number): Promise<{ nombre: string; mime: string; datos: Buffer }> {
-  const [a] = await filas<{ nombre: string; mime: string; datos: Buffer }>(ej, sql`select a.nombre, a.mime, d.datos from adjuntos a join adjuntos_datos d on d.id_adjunto = a.id where a.id = ${id}`);
+export async function leerDocumentoPapelera(ej: Ejecutor, id: number, origen: "adjuntos" | "biblioteca" = "adjuntos"): Promise<{ nombre: string; mime: string; datos: Buffer }> {
+  const [a] = await filas<{ nombre: string; mime: string; datos: Buffer }>(
+    ej,
+    origen === "biblioteca" ? sql`select a.nombre, a.mime, d.datos from biblioteca a join biblioteca_datos d on d.id_archivo = a.id where a.id = ${id}` : sql`select a.nombre, a.mime, d.datos from adjuntos a join adjuntos_datos d on d.id_adjunto = a.id where a.id = ${id}`,
+  );
   if (!a) throw new HttpError(404, "Documento no encontrado");
   return { nombre: a.nombre, mime: a.mime, datos: descifrarBuffer(a.datos) };
 }
@@ -375,6 +405,11 @@ async function purgarClientes(tx: Ejecutor, ids: number[]): Promise<{ purgados: 
     await limpiarDiario(tx, "telefonos_clientes", "id_cliente", ok);
   }
   return { purgados: ok.length, bloqueados: elegibles.length - ok.length };
+}
+
+async function purgarBiblioteca(tx: Ejecutor, ids: number[]): Promise<number> {
+  const r = await tx.execute(sql`delete from biblioteca where eliminado_en is not null and id in (${lista(ids)}) returning id`);
+  return (r as unknown as Filas<unknown>).rows.length;
 }
 
 async function purgarDocumentos(tx: Ejecutor, ids: number[]): Promise<number> {
@@ -464,6 +499,11 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
     await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos"], progreso);
     return res;
   }
+  if (categoria === "biblioteca") {
+    res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 20, "Archivos de la biblioteca", progreso, (tx, lote) => purgarBiblioteca(tx, lote));
+    await limpiarEspacio(ej, ["biblioteca_datos", "biblioteca"], progreso);
+    return res;
+  }
   if (categoria === "expedientes") {
     res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 50, "Expedientes", progreso, (tx, lote) => purgarExpedientes(tx, lote));
     await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos", "expedientes"], progreso);
@@ -524,6 +564,8 @@ export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.inf
     await filas<{ id: number }>(ej, sql`select a.id ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} ${entrada.incluirSinVincular ? sql`` : sql`and a.ambito <> 'pendiente'`}`)
   ).map((x) => x.id);
   if (docs.length > 0) suma("documentos", await purgarPorLotes(ej, docs, 20, "Documentos", progreso, (tx, lote) => purgarDocumentos(tx, lote)));
+  const bibs = (await filas<{ id: number }>(ej, sql`select id from biblioteca where eliminado_en is not null`)).map((x) => x.id);
+  if (bibs.length > 0) suma("archivos de la biblioteca", await purgarPorLotes(ej, bibs, 20, "Archivos de la biblioteca", progreso, (tx, lote) => purgarBiblioteca(tx, lote)));
   progreso.avance(0, 0, "Purgando catálogos, lecturas y registros…");
   await ej.transaction(async (tx) => {
     await tx.execute(SIN_HISTORIAL);
@@ -633,6 +675,20 @@ export async function restaurar(ej: Ejecutor, entrada: z.infer<typeof esquemaRes
     return res;
   }
 
+  if (entrada.categoria === "biblioteca") {
+    const numeros = ids as number[];
+    for (let i = 0; i < numeros.length; i += 200) {
+      parar(i);
+      const lote = numeros.slice(i, i + 200);
+      const r = await filas<{ id: number }>(ej, sql`update biblioteca set eliminado_en = null where eliminado_en is not null and id in (${lista(lote)}) returning id`);
+      res.restaurados += r.length;
+      avanzar(Math.min(i + 200, numeros.length));
+    }
+    res.bloqueados = total - res.restaurados;
+    if (res.bloqueados > 0) res.detalle.push(`${res.bloqueados} ya no estaban en la papelera.`);
+    return res;
+  }
+
   // Catálogos: primero las marcas y luego los modelos (un modelo necesita su marca vigente); cada uno aparte, por si choca con otro igual
   const porTabla = new Map<string, number[]>();
   for (const c of ids as string[]) {
@@ -668,7 +724,7 @@ export interface ResultadoCompactado {
   despues: number;
 }
 
-const TABLAS_A_COMPACTAR = ["adjuntos_datos", "adjuntos", "lecturas_pedidos", "historial_cambios", "expedientes", "clientes", "emails_clientes", "telefonos_clientes", "auditoria", "validaciones_comision", "importaciones_registros"];
+const TABLAS_A_COMPACTAR = ["adjuntos_datos", "adjuntos", "biblioteca_datos", "biblioteca", "lecturas_pedidos", "historial_cambios", "expedientes", "clientes", "emails_clientes", "telefonos_clientes", "auditoria", "validaciones_comision", "importaciones_registros"];
 
 /** Tamaño de la base de datos y de las tablas que se compactan (lo que de verdad ocupa en disco, con el espacio de lo borrado sin devolver). */
 export async function espacioBaseDeDatos(ej: Ejecutor): Promise<{ total: number; tablas: { tabla: string; bytes: number; filas: number }[] }> {

@@ -358,6 +358,13 @@
       "when": 1792668856673,
       "tag": "0050_biblioteca_nombre_original",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1792670296818,
+      "tag": "0051_biblioteca_eliminado",
+      "breakpoints": true
     }
   ]
 }
