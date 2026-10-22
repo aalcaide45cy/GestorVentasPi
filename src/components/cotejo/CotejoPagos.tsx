@@ -5,6 +5,8 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { SIN_ESTADO, editarBorrador, leerRejillas, quitarBorrador, quitarHoja, releerHoja, subirHojas, suscribirRejillas, usarContextoRejillas, type BorradorRejilla, type HojaEnCola } from "@/lib/rejillas-lectura-cliente";
+import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import { esAnulado } from "@/lib/anulados";
 import { cotejarPagos, diaClave, filasDelMes, filasSinMes, resumenPorMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
 import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
 import { formatDate } from "@/lib/date-utils";
@@ -119,7 +121,13 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
     return [...guardados, ...provisionales];
   }, [datos.pagos, borradoresConMes]);
   const resultado = useMemo(() => cotejarPagos(cochesTodos, pagos), [cochesTodos, pagos]);
-  const resumenes = useMemo(() => resumenPorMes(resultado.filas), [resultado.filas]);
+  // Los expedientes anulados en el listado de la intranet no son ventas: sus filas salen ocultas salvo que se active la casilla. Se cotejan igualmente
+  // (así una matrícula de la rejilla que es de un anulado no sale como «sin expediente»).
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("cotejo-mes");
+  const nAnulados = useMemo(() => resultado.filas.filter((f) => f.coche && esAnulado(f.coche.estado)).length + resultado.sinMatricula.filter((c) => esAnulado(c.estado)).length, [resultado]);
+  const filasVisibles = useMemo(() => (mostrarAnulados ? resultado.filas : resultado.filas.filter((f) => !(f.coche && esAnulado(f.coche.estado)))), [resultado.filas, mostrarAnulados]);
+  const sinMatriculaVisibles = useMemo(() => (mostrarAnulados ? resultado.sinMatricula : resultado.sinMatricula.filter((c) => !esAnulado(c.estado))), [resultado.sinMatricula, mostrarAnulados]);
+  const resumenes = useMemo(() => resumenPorMes(filasVisibles), [filasVisibles]);
 
   const mesesGuardados = useMemo(() => new Set(datos.rejillas.map((r) => r.mes)), [datos.rejillas]);
   const mesesEnBorrador = useMemo(() => new Set(borradoresConMes.map((b) => b.mes)), [borradoresConMes]);
@@ -140,10 +148,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   }, [borradores, mes, guardarMes]);
 
 
-  const filasMes = useMemo(() => filasDelMes(resultado.filas, mes), [resultado.filas, mes]);
+  const filasMes = useMemo(() => filasDelMes(filasVisibles, mes), [filasVisibles, mes]);
   const filas = filasMes.filter((f) => (filtro === "todos" || f.estado === filtro) && (!dia || (f.coche && diaClave(f.coche) === dia)));
   const resumen = resumenes.get(mes) ?? { total: 0, pagados: 0, dudosos: 0, noPagados: 0, sinRejilla: 0 };
-  const sinFecha = useMemo(() => filasSinMes(resultado.filas), [resultado.filas]);
+  const sinFecha = useMemo(() => filasSinMes(filasVisibles), [filasVisibles]);
   const hayRejilla = mesesGuardados.has(mes) || mesesEnBorrador.has(mes);
   const rejillaMes = datos.rejillas.find((r) => r.mes === mes);
   const borradorMes = borradores.find((b) => b.mes === mes);
@@ -346,7 +354,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
 
       {calendario && (
         <CalendarioCotejo
-          filas={resultado.filas}
+          filas={filasVisibles}
           mes={mes}
           dia={dia}
           resumenes={resumenes}
@@ -481,7 +489,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
         </section>
 
         <section className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: "1.02rem" }}>🚗 Resultado de {nombreMes(mes)}</h3>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+            <h3 style={{ margin: 0, fontSize: "1.02rem" }}>🚗 Resultado de {nombreMes(mes)}</h3>
+            <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnulados} />
+          </div>
           {resumen.total === 0 && !hayRejilla ? (
             <p style={{ margin: 0, color: "var(--text-secondary)" }}>Este mes no hay coches con fecha para cobrar y todavía no hay rejilla. Sube la hoja o elige otro mes.</p>
           ) : (
@@ -557,7 +568,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
       </details>
 
       {/* 5. Lo que no se puede asignar a un mes */}
-      {(sinFecha.length > 0 || resultado.sinMatricula.length > 0) && (
+      {(sinFecha.length > 0 || sinMatriculaVisibles.length > 0) && (
         <section className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
           <h3 style={{ margin: 0, fontSize: "1rem" }}>Sin mes o sin matrícula</h3>
           {sinFecha.length > 0 && (
@@ -566,14 +577,14 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
               <div style={{ marginTop: "8px" }}>{tablaResultado("cotejo-sin-fecha", sinFecha, "Nada.")}</div>
             </details>
           )}
-          {resultado.sinMatricula.length > 0 && (
+          {sinMatriculaVisibles.length > 0 && (
             <div>
               <button type="button" className="btn btn-secondary" onClick={() => setVerSinMatricula((v) => !v)}>
-                {verSinMatricula ? "▾" : "▸"} Sin matrícula, no se pueden cotejar ({resultado.sinMatricula.length})
+                {verSinMatricula ? "▾" : "▸"} Sin matrícula, no se pueden cotejar ({sinMatriculaVisibles.length})
               </button>
               {verSinMatricula && (
                 <div style={{ marginTop: "8px" }}>
-                  <TablaDatos<CocheCotejo> id="cotejo-sin-matricula" columnas={columnasSinMatricula} filas={resultado.sinMatricula} clave={(c) => `${c.origen}-${c.id_expediente}-${c.cliente}-${c.f_expediente}`} placeholder="Buscar por cliente, modelo, estado…" />
+                  <TablaDatos<CocheCotejo> id="cotejo-sin-matricula" columnas={columnasSinMatricula} filas={sinMatriculaVisibles} clave={(c) => `${c.origen}-${c.id_expediente}-${c.cliente}-${c.f_expediente}`} placeholder="Buscar por cliente, modelo, estado…" />
                 </div>
               )}
             </div>

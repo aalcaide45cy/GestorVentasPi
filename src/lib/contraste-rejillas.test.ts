@@ -90,4 +90,28 @@ describe("contraste de rejillas", () => {
     expect(r.filas[0].sugerida).toBe("1234BCD");
     expect(r.sinPagar[0].parecidaEn).toEqual({ matricula: "1234BCO", mes: "2026-04" });
   });
+
+  it("los expedientes anulados en la intranet no son ventas: no salen como sin pagar y los que se pagan en una rejilla se marcan aparte", () => {
+    const r = contrastarRejillas(
+      [rejilla(1, "2026-04", ["1234BCD", "5555FGH"])],
+      [
+        coche(1, "1234BCD", { estado: "Anulado" }), // anulado y pagado en la rejilla
+        coche(2, "5555FGH"),
+        coche(3, "3333DDD", { f_matriculacion: "2026-04-20", estado: "Anulado" }), // anulado y sin pagar: no se debe
+        coche(4, "4444EEE", { f_matriculacion: "2026-04-21" }), // sin pagar de verdad
+      ],
+    );
+    expect(r.filas.find((f) => f.matricula === "1234BCD")).toMatchObject({ estado: "anulado", expediente: { anulado: true } });
+    expect(r.filas.find((f) => f.matricula === "5555FGH")?.estado).toBe("coincide");
+    expect(r.sinPagar.map((s) => [s.expediente.idExpediente, s.expediente.anulado])).toEqual([
+      [3, true],
+      [4, false],
+    ]);
+    expect(r.resumen).toMatchObject({ anulados: 2, sinPagar: 1, coinciden: 1 });
+  });
+
+  it("si hay un expediente anulado y otro vivo con la misma matrícula, la rejilla se contrasta con el vivo", () => {
+    const r = contrastarRejillas([rejilla(1, "2026-04", ["1234BCD"])], [coche(1, "1234BCD", { estado: "Anulado" }), coche(2, "1234BCD")]);
+    expect(r.filas[0]).toMatchObject({ estado: "coincide", expediente: { idExpediente: 2 }, expedientesExtra: 1 });
+  });
 });

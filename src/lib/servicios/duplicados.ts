@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, notIlike, or } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { clientes, estadoVehiculo, expedientes, marcas, modelos, tipoDeVenta, usuarios } from "@/db/schema";
 
@@ -52,7 +52,11 @@ export interface ResultadoDuplicados {
 const normalizar = (t: string | null) => (t ?? "").replace(/[\s-]/g, "").toUpperCase();
 const SIN_DATO = new Set(["", "ND", "N/D", "NA", "N/A", "XXXX", "0"]);
 
-export async function detectarDuplicados(ej: Ejecutor): Promise<ResultadoDuplicados> {
+/**
+ * Con `incluirAnulados` también se miran los anulados en el listado de la intranet. Por defecto no: un pedido anulado y el mismo pedido hecho de nuevo
+ * es lo normal, no un descuido.
+ */
+export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulados?: boolean } = {}): Promise<ResultadoDuplicados> {
   const filas = await ej
     .select({
       id: expedientes.idExpediente,
@@ -78,7 +82,7 @@ export async function detectarDuplicados(ej: Ejecutor): Promise<ResultadoDuplica
     .leftJoin(tipoDeVenta, eq(tipoDeVenta.idTipoDeVenta, expedientes.idTipoDeVenta))
     .leftJoin(estadoVehiculo, eq(estadoVehiculo.idEstadoVehiculo, expedientes.idEstadoVehiculo))
     .leftJoin(usuarios, eq(usuarios.idUsuario, expedientes.idUsuario))
-    .where(and(isNull(expedientes.eliminadoEn)));
+    .where(and(isNull(expedientes.eliminadoEn), opciones.incluirAnulados ? undefined : or(isNull(expedientes.estadoIntranet), notIlike(expedientes.estadoIntranet, "%anulad%"))));
 
   const agrupar = (clave: (f: (typeof filas)[number]) => string | null) => {
     const m = new Map<string, typeof filas>();

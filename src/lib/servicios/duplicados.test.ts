@@ -18,6 +18,20 @@ describe("detectar expedientes duplicados", () => {
     return { admin, modelo, ana, luis };
   }
 
+  it("deja fuera los anulados en el listado de la intranet (un pedido anulado y rehecho no es un duplicado) salvo que se pidan", async () => {
+    const { admin, modelo, ana } = await base();
+    await db.insert(expedientes).values([
+      { idUsuario: admin.idUsuario, idCliente: ana.id, idModelo: modelo.idModelo, matricula: "1234ABC", fechaExpediente: "2026-05-01", estadoIntranet: "Anulado" },
+      { idUsuario: admin.idUsuario, idCliente: ana.id, idModelo: modelo.idModelo, matricula: "1234ABC", fechaExpediente: "2026-05-01" },
+    ]);
+    const sin = await detectarDuplicados(db);
+    expect(sin.revisados).toBe(1);
+    expect(sin.grupos).toHaveLength(0);
+    const con = await detectarDuplicados(db, { incluirAnulados: true });
+    expect(con.revisados).toBe(2);
+    expect(con.grupos.length).toBeGreaterThan(0);
+  });
+
   it("agrupa por bastidor, matrícula y por mismo cliente, modelo y fecha", async () => {
     const { admin, modelo, ana, luis } = await base();
     await db.insert(expedientes).values([

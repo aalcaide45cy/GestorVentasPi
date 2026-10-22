@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
+import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
 import { useToast } from "@/components/Toast";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { mensajeDeError } from "@/components/expedientes/comun";
@@ -39,7 +40,9 @@ const GRAVEDAD: Record<MotivoDuplicado, { color: string; texto: string }> = {
  */
 export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) {
   const { mostrar, confirmar } = useToast();
-  const { datos, recargar } = useCarga<ResultadoDuplicados | null>("/api/expedientes/duplicados", null);
+  // Los anulados en el listado de la intranet no se miran salvo que se active la casilla (un pedido anulado y rehecho no es un descuido)
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("duplicados");
+  const { datos, recargar } = useCarga<ResultadoDuplicados | null>(`/api/expedientes/duplicados${mostrarAnulados ? "?anulados=1" : ""}`, null);
   const [motivo, setMotivo] = useState<"todos" | MotivoDuplicado>("todos");
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [enviando, setEnviando] = useState(false);
@@ -130,6 +133,7 @@ No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras est
           Busca entre {datos ? datos.revisados : "todos los"} expedientes los que comparten bastidor, matrícula, o cliente y modelo. Cada grupo reúne los que se parecen: ábrelos (#EXP, en otra pestaña) y decide cuál sobra. Marca los que sobran y mándalos a la papelera (se pueden recuperar desde Herramientas › Papelera). Las copias hechas a propósito con «Duplicar» no se cuentan.
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={0} siempre />
           <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>VER</span>
           <button type="button" className={motivo === "todos" ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setMotivo("todos")}>
             Todos ({datos?.grupos.length ?? 0})

@@ -25,6 +25,8 @@ import {
   leerPredefinidos,
   type FiltrosActuales,
 } from "@/lib/filtros-expedientes";
+import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import { esAnulado } from "@/lib/anulados";
 import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
@@ -120,6 +122,9 @@ export default function ExpedientesList({
   const filtrosAbiertos = filtrosGuardado !== "false";
   const [cobrosGuardado, fijarCobros] = usePreferencia("exp-show-cobro-status");
   const mostrarCobros = cobrosGuardado === "true";
+  // Los anulados en el listado de la intranet no son ventas: salen ocultos salvo que se active la casilla (o se pida «Anulado» a propósito)
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("expedientes");
+  const nAnulados = useMemo(() => expedientes.filter((e) => esAnulado(e.estado_intranet)).length, [expedientes]);
   const [columnasGuardadas, fijarColumnas] = usePreferencia("exp-visible-columns");
   const visibles = useMemo<Visibles>(() => {
     try {
@@ -273,6 +278,7 @@ export default function ExpedientesList({
     const gs = busqueda.toLowerCase();
     return expedientes.filter((e) => {
       if (ocultarEntregados && e.fecha_entrega) return false;
+      if (!mostrarAnulados && esAnulado(e.estado_intranet) && !/anulad/i.test(fIntranet) && !gs.includes("anulad")) return false;
       if (gs) {
         const campos = [
           e.cliente?.nombre,
@@ -317,7 +323,7 @@ export default function ExpedientesList({
       if (fTienda && e.id_tienda !== Number(fTienda)) return false;
       return true;
     });
-  }, [expedientes, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
+  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
 
   const ordenados = useMemo(() => {
     const valor = (e: ExpedienteDto): string => {
@@ -769,6 +775,8 @@ export default function ExpedientesList({
             />
             <span>👁️ Mostrar Comisionados</span>
           </label>
+
+          <CasillaAnulados activa={mostrarAnulados} alCambiar={(v) => { fijarMostrarAnulados(v); setPagina(1); }} anulados={nAnulados} estilo={{ fontSize: "0.8rem" }} />
 
           <button
             type="button"
@@ -1524,7 +1532,7 @@ export default function ExpedientesList({
         />
       </div>
 
-      <ResumenMensual expedientes={expedientes} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
+      <ResumenMensual expedientes={mostrarAnulados ? expedientes : expedientes.filter((e) => !esAnulado(e.estado_intranet))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
 
       {modales}
 

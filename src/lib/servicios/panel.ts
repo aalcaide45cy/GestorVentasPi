@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, notIlike, or } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { expedientes, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
 import type { ExpedienteDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
@@ -21,7 +21,8 @@ export interface DatosPanel {
 export async function cargarDatosPanel(ej: Ejecutor): Promise<DatosPanel> {
   const [filasRecientes, ts, tvs, ms, todasMarcas, vendedores] = await Promise.all([
     ej.query.expedientes.findMany({
-      where: isNull(expedientes.eliminadoEn),
+      // Los anulados en el listado de la intranet no son ventas: no salen en «Últimos expedientes activos»
+      where: and(isNull(expedientes.eliminadoEn), or(isNull(expedientes.estadoIntranet), notIlike(expedientes.estadoIntranet, "%anulad%"))),
       orderBy: [desc(expedientes.idExpediente)],
       limit: 5,
       with: relacionesExpediente,

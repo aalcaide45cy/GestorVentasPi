@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
 import { useCarga } from "@/components/comisiones/useCarga";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { columnasVehiculo } from "@/components/etiquetas";
@@ -9,13 +10,14 @@ import type { EstadoFilaRejilla, EstadoSinPagar, ExpedienteContrastado, FilaCont
 import { formatDate } from "@/lib/date-utils";
 import { euros, nombreMes } from "@/lib/formato";
 
-type Filtro = "todo" | "coinciden" | "repetidas" | "otro_mes" | "sin_expediente" | "otro_vendedor" | "sin_pagar" | "sin_rejilla";
+type Filtro = "todo" | "coinciden" | "repetidas" | "otro_mes" | "sin_expediente" | "otro_vendedor" | "anulado" | "sin_pagar" | "sin_rejilla";
 
 const ASPECTO: Record<EstadoFilaRejilla, { borde: string; icono: string; texto: string }> = {
   coincide: { borde: "#22c55e", icono: "🟢", texto: "Coincide" },
   otro_mes: { borde: "#eab308", icono: "🟡", texto: "Pagado en otro mes" },
   sin_expediente: { borde: "#a855f7", icono: "🟣", texto: "Sin expediente" },
   otro_vendedor: { borde: "#f97316", icono: "🟠", texto: "Expediente de otro vendedor" },
+  anulado: { borde: "#64748b", icono: "🚫", texto: "Expediente anulado" },
 };
 const ASPECTO_SIN_PAGAR: Record<EstadoSinPagar, { borde: string; icono: string; texto: string }> = {
   no_pagado: { borde: "#ef4444", icono: "🔴", texto: "No figura en ninguna rejilla" },
@@ -49,7 +51,11 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
   const [rejilla, setRejilla] = useState<string>("todas");
   const todos = vendedor === "todos";
 
-  const filas = useMemo(() => datos?.filas ?? [], [datos]);
+  // Los expedientes anulados en el listado de la intranet no son ventas: salen ocultos (también en las cifras) salvo que se active la casilla
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("contraste");
+  const nAnulados = (datos?.resumen.anulados ?? 0);
+  const filas = useMemo(() => (datos?.filas ?? []).filter((f) => mostrarAnulados || f.estado !== "anulado"), [datos, mostrarAnulados]);
+  const sinPagar = useMemo(() => (datos?.sinPagar ?? []).filter((s) => mostrarAnulados || !s.expediente.anulado), [datos, mostrarAnulados]);
   const rejillasLista = useMemo(() => {
     const m = new Map<number, string>();
     for (const f of filas) if (!m.has(f.idRejilla)) m.set(f.idRejilla, `${nombreMes(f.mes)}${todos ? ` · ${f.vendedorRejilla}` : ""}`);
@@ -61,10 +67,10 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
     let l = rejilla === "todas" ? filas : filas.filter((f) => String(f.idRejilla) === rejilla);
     if (filtro === "coinciden") l = l.filter((f) => f.estado === "coincide" && f.repetidaEn.length === 0);
     else if (filtro === "repetidas") l = l.filter((f) => f.repetidaEn.length > 0);
-    else if (filtro === "otro_mes" || filtro === "sin_expediente" || filtro === "otro_vendedor") l = l.filter((f) => f.estado === filtro);
+    else if (filtro === "otro_mes" || filtro === "sin_expediente" || filtro === "otro_vendedor" || filtro === "anulado") l = l.filter((f) => f.estado === filtro);
     return l;
   }, [filas, filtro, rejilla]);
-  const sinPagarVisibles = useMemo(() => (datos?.sinPagar ?? []).filter((s) => (filtro === "sin_pagar" ? s.estado === "no_pagado" : s.estado !== "no_pagado")), [datos, filtro]);
+  const sinPagarVisibles = useMemo(() => sinPagar.filter((s) => (filtro === "sin_pagar" ? s.estado === "no_pagado" : s.estado !== "no_pagado")), [sinPagar, filtro]);
 
   const columnas: ColumnaTabla<FilaContraste>[] = [
     {
@@ -148,16 +154,17 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
     { clave: "vendedor", etiqueta: "Vendedor", valor: (f) => f.expediente.vendedor, celda: (f) => f.expediente.vendedor || vacio, oculta: !todos },
   ];
 
-  const r = datos?.resumen;
+  const cuenta = (e: FilaContraste["estado"]) => filas.filter((f) => f.estado === e).length;
   const tarjetas: { id: Filtro; texto: string; n: number; color: string; icono: string; ayuda: string }[] = [
-    { id: "todo", texto: "Matrículas leídas", n: r?.matriculas ?? 0, color: "var(--primary)", icono: "📚", ayuda: "Todas las matrículas de las rejillas guardadas, agrupadas por rejilla" },
+    { id: "todo", texto: "Matrículas leídas", n: filas.length, color: "var(--primary)", icono: "📚", ayuda: "Todas las matrículas de las rejillas guardadas, agrupadas por rejilla" },
     { id: "coinciden", texto: "Coinciden", n: filas.filter((f) => f.estado === "coincide" && f.repetidaEn.length === 0).length, color: ASPECTO.coincide.borde, icono: ASPECTO.coincide.icono, ayuda: "Tienen expediente, se pagaron en su mes y salen una sola vez" },
-    { id: "repetidas", texto: "Repetidas", n: r?.repetidas ?? 0, color: "#eab308", icono: "🔁", ayuda: "La misma matrícula sale en más de una rejilla (o dos veces en la misma)" },
-    { id: "otro_mes", texto: "Pagadas en otro mes", n: r?.otroMes ?? 0, color: ASPECTO.otro_mes.borde, icono: ASPECTO.otro_mes.icono, ayuda: "Se han pagado en una rejilla distinta de la que les tocaba" },
-    { id: "sin_expediente", texto: "Sin expediente", n: r?.sinExpediente ?? 0, color: ASPECTO.sin_expediente.borde, icono: ASPECTO.sin_expediente.icono, ayuda: "Están en una rejilla, pero ningún expediente tiene esa matrícula" },
-    { id: "otro_vendedor", texto: "De otro vendedor", n: r?.otroVendedor ?? 0, color: ASPECTO.otro_vendedor.borde, icono: ASPECTO.otro_vendedor.icono, ayuda: "Su expediente es de un vendedor distinto al de la rejilla" },
-    { id: "sin_pagar", texto: "Expedientes sin pagar", n: r?.sinPagar ?? 0, color: ASPECTO_SIN_PAGAR.no_pagado.borde, icono: ASPECTO_SIN_PAGAR.no_pagado.icono, ayuda: "Expedientes con matrícula que no salen en ninguna rejilla aunque ya hay rejilla del mes que les tocaba: son los que te deben" },
-    { id: "sin_rejilla", texto: "Aún sin rejilla", n: r?.sinRejilla ?? 0, color: "#94a3b8", icono: "⚪", ayuda: "Expedientes cuya rejilla todavía no has subido (o que no tienen fecha para saberlo)" },
+    { id: "repetidas", texto: "Repetidas", n: filas.filter((f) => f.repetidaEn.length > 0).length, color: "#eab308", icono: "🔁", ayuda: "La misma matrícula sale en más de una rejilla (o dos veces en la misma)" },
+    { id: "otro_mes", texto: "Pagadas en otro mes", n: cuenta("otro_mes"), color: ASPECTO.otro_mes.borde, icono: ASPECTO.otro_mes.icono, ayuda: "Se han pagado en una rejilla distinta de la que les tocaba" },
+    { id: "sin_expediente", texto: "Sin expediente", n: cuenta("sin_expediente"), color: ASPECTO.sin_expediente.borde, icono: ASPECTO.sin_expediente.icono, ayuda: "Están en una rejilla, pero ningún expediente tiene esa matrícula" },
+    { id: "otro_vendedor", texto: "De otro vendedor", n: cuenta("otro_vendedor"), color: ASPECTO.otro_vendedor.borde, icono: ASPECTO.otro_vendedor.icono, ayuda: "Su expediente es de un vendedor distinto al de la rejilla" },
+    ...(mostrarAnulados ? [{ id: "anulado" as Filtro, texto: "Anulados pagados", n: cuenta("anulado"), color: ASPECTO.anulado.borde, icono: ASPECTO.anulado.icono, ayuda: "Expedientes anulados en la intranet cuya matrícula sale en una rejilla: revisa si te los han pagado por error" }] : []),
+    { id: "sin_pagar", texto: "Expedientes sin pagar", n: sinPagar.filter((s) => s.estado === "no_pagado").length, color: ASPECTO_SIN_PAGAR.no_pagado.borde, icono: ASPECTO_SIN_PAGAR.no_pagado.icono, ayuda: "Expedientes con matrícula que no salen en ninguna rejilla aunque ya hay rejilla del mes que les tocaba: son los que te deben" },
+    { id: "sin_rejilla", texto: "Aún sin rejilla", n: sinPagar.filter((s) => s.estado !== "no_pagado").length, color: "#94a3b8", icono: "⚪", ayuda: "Expedientes cuya rejilla todavía no has subido (o que no tienen fecha para saberlo)" },
   ];
 
   return (
@@ -166,7 +173,7 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
         <div>
           <h2 style={{ margin: 0, fontSize: "1.15rem" }}>🔎 Contraste: rejillas frente a expedientes</h2>
           <p style={{ margin: "2px 0 0 0", color: "var(--text-secondary)", fontSize: "0.85rem", maxWidth: "70ch" }}>
-            {datos ? `${r?.matriculas ?? 0} matrículas leídas en ${r?.rejillas ?? 0} rejilla${r?.rejillas === 1 ? "" : "s"} guardada${r?.rejillas === 1 ? "" : "s"}, agrupadas por rejilla y con su expediente en la misma línea: así ves en qué mes se ha pagado cada coche, qué matrículas salen en más de una rejilla y qué expedientes todavía no te han pagado.` : "Cargando…"}
+            {datos ? `${filas.length} matrículas leídas en ${datos.resumen.rejillas} rejilla${datos.resumen.rejillas === 1 ? "" : "s"} guardada${datos.resumen.rejillas === 1 ? "" : "s"}, agrupadas por rejilla y con su expediente en la misma línea: así ves en qué mes se ha pagado cada coche, qué matrículas salen en más de una rejilla y qué expedientes todavía no te han pagado.` : "Cargando…"}
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -196,6 +203,7 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
               </select>
             </label>
           )}
+          <CasillaAnulados activa={mostrarAnulados} alCambiar={(v) => { fijarMostrarAnulados(v); if (!v && filtro === "anulado") setFiltro("todo"); }} anulados={nAnulados} />
           <button type="button" className="btn btn-secondary" onClick={recargar} title="Vuelve a leer las rejillas y los expedientes con los datos de ahora">
             🔄 Actualizar
           </button>

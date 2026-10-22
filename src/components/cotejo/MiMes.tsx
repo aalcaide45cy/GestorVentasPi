@@ -10,6 +10,8 @@ import { claseFinanciacionFuera, textoFinanciacionFuera } from "@/components/exp
 import type { FinanciacionFueraDeMes, ResultadoMes } from "@/lib/comisiones";
 import type { ExpedienteDto } from "@/lib/dto";
 import { euros, mesActual, nombreMes, sumarMeses } from "@/lib/formato";
+import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import { esAnulado } from "@/lib/anulados";
 import { usePreferencia } from "@/lib/preferencias";
 
 interface Props {
@@ -55,6 +57,8 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
   const [mesGuardado, guardarMes] = usePreferencia("cotejo-mes");
   const mes = /^\d{4}-\d{2}$/.test(mesGuardado ?? "") ? (mesGuardado as string) : mesActual();
   const [soloPendientes, setSoloPendientes] = useState(false);
+  // Los anulados en el listado de la intranet no son ventas: salen ocultos salvo que se active la casilla
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("cotejo-mes");
   const [vistoGuardado, guardarVisto] = usePreferencia(`cotejo-visto-${idVendedor}-${mes}`);
   const visto = useMemo(() => {
     try {
@@ -104,7 +108,10 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
     else n.add(id);
     guardarVisto(JSON.stringify([...n]));
   };
-  const mostradas = soloPendientes ? filas.filter((f) => !visto.has(f.id)) : filas;
+  const anuladas = filas.filter((f) => esAnulado(f.exp?.estado_intranet));
+  const sinAnuladas = mostrarAnulados ? filas : filas.filter((f) => !esAnulado(f.exp?.estado_intranet));
+  const mostradas = soloPendientes ? sinAnuladas.filter((f) => !visto.has(f.id)) : sinAnuladas;
+  const importeAnuladas = anuladas.reduce((t, f) => t + f.total, 0);
   const totalEsperado = filas.reduce((t, f) => t + f.total, 0);
   const sinMatricula = filas.filter((f) => f.usado && !(f.matricula ?? "").trim()).length;
 
@@ -169,7 +176,8 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
             <input type="month" className="form-input" value={mes} onChange={(e) => e.target.value && guardarMes(e.target.value)} style={{ width: "auto" }} />
           </>
         )}
-        <label style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "0.85rem", marginLeft: "auto" }}>
+        <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={anuladas.length} estilo={{ marginLeft: "auto" }} />
+        <label style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "0.85rem" }}>
           <input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} /> Ver solo los que me faltan por marcar
         </label>
       </div>
@@ -182,16 +190,21 @@ export default function MiMes({ expedientes, vendedores, idUsuarioActual, esAdmi
         <>
           <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", fontSize: "0.9rem" }}>
             <span>
-              <b>{filas.length}</b> coche(s)
+              <b>{sinAnuladas.length}</b> coche(s)
             </span>
             <span>
-              Marcados: <b>{filas.filter((f) => visto.has(f.id)).length}</b> de {filas.length}
+              Marcados: <b>{sinAnuladas.filter((f) => visto.has(f.id)).length}</b> de {sinAnuladas.length}
             </span>
-            <span>
+            <span title={anuladas.length > 0 && !mostrarAnulados ? "Es el total de tu liquidación, con los anulados incluidos" : undefined}>
               Total esperado: <b>{euros(totalEsperado)}</b>
             </span>
             <span style={{ color: "var(--text-secondary)" }}>Se cobra en la nómina de {nombreMes(sumarMeses(mes, 1))}</span>
           </div>
+          {!mostrarAnulados && anuladas.length > 0 && importeAnuladas !== 0 && (
+            <div role="status" style={{ color: "var(--warning)", fontSize: "0.85rem" }}>
+              ⚠️ {anuladas.length} anulado(s) en la intranet (ocultos) siguen sumando {euros(importeAnuladas)} en tu liquidación: si no se van a cobrar, deshabilítalos en Expedientes.
+            </div>
+          )}
           {sinMatricula > 0 && (
             <div role="status" style={{ color: "var(--warning)", fontSize: "0.85rem" }}>
               ⚠️ {sinMatricula} usado(s) sin matrícula: no es obligatoria, pero sin ella no se pueden buscar en la hoja.

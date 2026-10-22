@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
 import { useCarga } from "@/components/comisiones/useCarga";
+import { esAnulado } from "@/lib/anulados";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { columnasVehiculo } from "@/components/etiquetas";
 import { cotejarPagos, mesDeFila, mesesEsperados, type EstadoCotejo, type FilaCotejo } from "@/lib/cotejo-pagos";
@@ -34,7 +36,12 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
   const [filtro, setFiltro] = useState<Filtro>("todos");
 
   const resultado = useMemo(() => (datos ? cotejarPagos(datos.coches, datos.pagos) : null), [datos]);
-  const filas = useMemo(() => resultado?.filas ?? [], [resultado]);
+  // Los expedientes anulados en el listado de la intranet no son ventas: sus filas salen ocultas salvo que se active la casilla. Se comparan igualmente
+  // (así una matrícula de una rejilla que es de un anulado no sale como «sin expediente»).
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("historico-rejillas");
+  const todasLasFilas = useMemo(() => resultado?.filas ?? [], [resultado]);
+  const nAnuladas = useMemo(() => todasLasFilas.filter((f) => f.coche && esAnulado(f.coche.estado)).length, [todasLasFilas]);
+  const filas = useMemo(() => (mostrarAnulados ? todasLasFilas : todasLasFilas.filter((f) => !(f.coche && esAnulado(f.coche.estado)))), [todasLasFilas, mostrarAnulados]);
   const cuentas = useMemo(() => {
     const c: Record<Exclude<Filtro, "todos">, number> = { coinciden: 0, no_figuran: 0, dudosos: 0, sin_rejilla: 0, sin_expediente: 0 };
     for (const f of filas) c[categoria(f)]++;
@@ -106,6 +113,10 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
       {datos && datos.rejillas.length === 0 && (
         <p style={{ margin: 0, color: "var(--text-secondary)" }}>Todavía no hay ninguna rejilla guardada. Súbela en la pestaña «Mi mes» y sus matrículas quedarán aquí, comparadas con tus expedientes.</p>
       )}
+
+      <div style={{ display: "flex" }}>
+        <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnuladas} />
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
         {filtros.map((f) => (

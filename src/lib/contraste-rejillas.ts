@@ -1,3 +1,4 @@
+import { esAnulado } from "@/lib/anulados";
 import { mesesEsperados, distancia, type CocheCotejo } from "@/lib/cotejo-pagos";
 import { nombreMes } from "@/lib/formato";
 import { normalizarMatricula } from "@/lib/rejilla/analizar";
@@ -30,7 +31,9 @@ export type EstadoFilaRejilla =
   /** Ningún expediente tiene esta matrícula. */
   | "sin_expediente"
   /** El único expediente con esa matrícula es de otro vendedor. */
-  | "otro_vendedor";
+  | "otro_vendedor"
+  /** El expediente está anulado en el listado de la intranet (no es una venta), pero sale en una rejilla. */
+  | "anulado";
 
 export interface ExpedienteContrastado {
   idExpediente: number | null;
@@ -41,6 +44,8 @@ export interface ExpedienteContrastado {
   modelo: string;
   usado: boolean;
   estado: string;
+  /** Anulado en el listado de la intranet del fabricante: no es una venta y los listados lo ocultan salvo que se pida. */
+  anulado: boolean;
   fMatriculacion: string | null;
   fAfectacion: string | null;
   /** Meses en que le tocaba cobrarse. */
@@ -98,6 +103,7 @@ export interface ResultadoContraste {
     otroMes: number;
     sinExpediente: number;
     otroVendedor: number;
+    anulados: number;
     repetidas: number;
     sinPagar: number;
     sinRejilla: number;
@@ -115,6 +121,7 @@ const aExpediente = (c: CocheContraste): ExpedienteContrastado => ({
   modelo: c.modelo,
   usado: c.usado,
   estado: c.estado,
+  anulado: esAnulado(c.estado),
   fMatriculacion: c.f_matriculacion,
   fAfectacion: c.f_afectacion,
   mesesEsperados: mesesEsperados(c),
@@ -178,7 +185,8 @@ export function contrastarRejillas(rejillas: RejillaContraste[], coches: CocheCo
       const repetidaEn = ap.filter((a) => a.idRejilla !== r.id).map((a) => ({ ...a, mismaRejilla: false }));
       if (veces > 1) repetidaEn.push({ idRejilla: r.id, mes: r.mes, vendedor: r.vendedor, mismaRejilla: true });
 
-      const candidatos = porMatricula.get(k) ?? [];
+      // Entre varios expedientes con la misma matrícula, primero los que no están anulados
+      const candidatos = [...(porMatricula.get(k) ?? [])].sort((a, b) => Number(esAnulado(a.estado)) - Number(esAnulado(b.estado)));
       const propios = candidatos.filter((c) => c.idUsuario === r.idUsuario);
       const elegido = propios[0] ?? candidatos[0] ?? null;
       let estado: EstadoFilaRejilla;
@@ -192,6 +200,9 @@ export function contrastarRejillas(rejillas: RejillaContraste[], coches: CocheCo
           sugerida = casi[0];
           motivo += `. Se parece a ${casi[0]}, que no figura en ninguna rejilla`;
         }
+      } else if (esAnulado(elegido.estado)) {
+        estado = "anulado";
+        motivo = `El expediente está anulado en la intranet, pero la rejilla de ${nombreMes(r.mes)} trae esta matrícula: revisa si te la han pagado por error`;
       } else if (propios.length === 0) {
         estado = "otro_vendedor";
         motivo = `El expediente con esta matrícula es de ${elegido.vendedor}, no del vendedor de la rejilla`;
@@ -269,9 +280,10 @@ export function contrastarRejillas(rejillas: RejillaContraste[], coches: CocheCo
       otroMes: cuenta("otro_mes"),
       sinExpediente: cuenta("sin_expediente"),
       otroVendedor: cuenta("otro_vendedor"),
+      anulados: cuenta("anulado") + sinPagar.filter((s) => s.expediente.anulado).length,
       repetidas: filas.filter((f) => f.repetidaEn.length > 0).length,
-      sinPagar: sinPagar.filter((s) => s.estado === "no_pagado").length,
-      sinRejilla: sinPagar.filter((s) => s.estado !== "no_pagado").length,
+      sinPagar: sinPagar.filter((s) => s.estado === "no_pagado" && !s.expediente.anulado).length,
+      sinRejilla: sinPagar.filter((s) => s.estado !== "no_pagado" && !s.expediente.anulado).length,
     },
   };
 }

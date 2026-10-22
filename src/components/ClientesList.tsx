@@ -17,6 +17,8 @@ import type { ResultadoDni } from "@/lib/servicios/documentos";
 import ModalEdicionMasivaClientes, { type CambiosMasivosClientes } from "./clientes/ModalEdicionMasivaClientes";
 import NombreConFoto from "./documentos/FotoCliente";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
+import { esAnulado } from "@/lib/anulados";
+import CasillaAnulados, { useMostrarAnulados } from "./CasillaAnulados";
 import { columnasVehiculo } from "./etiquetas";
 import { datosVehiculoDeExpediente, mensajeDeError } from "./expedientes/comun";
 import TablaDatos, { type ColumnaTabla } from "./TablaDatos";
@@ -116,7 +118,10 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [cargando, setCargando] = useState(false);
   const [ventasDe, setVentasDe] = useState<ClienteItem | null>(null);
   const [ventas, setVentas] = useState<ExpedienteDto[] | null>(null);
-  const ventasConAviso = useMemo(() => (ventas ? marcarDuplicadas(ventas) : null), [ventas]);
+  // Los expedientes anulados en el listado de la intranet no son ventas: salen ocultos salvo que se active la casilla
+  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("clientes");
+  const nAnuladosVentas = useMemo(() => (ventas ?? []).filter((v) => esAnulado(v.estado_intranet)).length, [ventas]);
+  const ventasConAviso = useMemo(() => (ventas ? marcarDuplicadas(mostrarAnulados ? ventas : ventas.filter((v) => !esAnulado(v.estado_intranet))) : null), [ventas, mostrarAnulados]);
 
   const [marcados, setMarcados] = useState<number[]>([]);
   const [aBorrar, setABorrar] = useState<ClienteItem | null>(null);
@@ -958,7 +963,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
               <span>
                 Expedientes de {ventasDe.nombre}
-                {ventas !== null && ` · ${ventas.length} ${ventas.length === 1 ? "expediente" : "expedientes"}`}
+                {ventasConAviso !== null && ` · ${ventasConAviso.length} ${ventasConAviso.length === 1 ? "expediente" : "expedientes"}`}
                 {ventasConAviso && ventasConAviso.some((v) => v.__duplicado) && <span style={{ color: "var(--danger)", fontSize: "0.9rem" }}> · ⚠️ {ventasConAviso.filter((v) => v.__duplicado).length} posibles duplicados</span>}
               </span>
               <button type="button" className="btn btn-secondary" onClick={() => setVentasDe(null)} style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}>
@@ -972,6 +977,10 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
           {ventasConAviso === null ? (
             <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>Cargando...</p>
           ) : (
+            <>
+            <div style={{ display: "flex" }}>
+              <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnuladosVentas} />
+            </div>
             <TablaDatos<VentaConAviso>
               id="cliente-ventas"
               columnas={columnasVentas}
@@ -982,6 +991,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
               vacio="No hay expedientes asociados a este cliente."
               alto="min(calc(60 * var(--uvh)), 640px)"
             />
+            </>
           )}
         </Modal>
       )}
