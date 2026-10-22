@@ -4,7 +4,7 @@ export const CLAVE_FILTROS_PREDEFINIDOS = "exp-filtros-predefinidos";
 export const CLAVE_RECORDAR_FILTROS = "exp-recordar-filtros";
 export const CLAVE_FILTROS_GUARDADOS = "exp-filtros-guardados";
 
-export const TIPOS_FECHA_FILTRO = ["fecha_expediente", "fecha_comisionado", "fecha_afectacion", "fecha_matriculacion", "fecha_entrega", "fecha_rci", "fecha_cobrado"] as const;
+export const TIPOS_FECHA_FILTRO = ["fecha_expediente", "fecha_comisionado", "fecha_afectacion", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega", "fecha_rci", "fecha_cobrado"] as const;
 
 export interface FiltrosPredefinidos {
   soloMios: boolean;
@@ -34,7 +34,17 @@ export interface FiltrosActuales {
   anio: string;
   tipoFecha: string;
   tienda: string;
+  /** Estado de la intranet del fabricante («__sin__» = sin estado). */
+  intranet: string;
+  /** Rango «Desde / Hasta» (AAAA-MM-DD) sobre el campo de fecha elegido. */
+  desde: string;
+  hasta: string;
+  /** Orden de la lista: columna y sentido. */
+  ordenCampo: string;
+  ordenAsc: boolean;
 }
+
+export const ORDEN_INICIAL = { ordenCampo: "fecha_expediente", ordenAsc: false } as const;
 
 function objeto(texto: string | null): Record<string, unknown> | null {
   if (!texto) return null;
@@ -76,6 +86,10 @@ export function aplicarPredefinidos(p: FiltrosPredefinidos, nombreUsuario: strin
     anio: p.anioActual || p.mesActual ? String(ahora.getFullYear()) : "",
     tipoFecha: p.tipoFecha,
     tienda: "",
+    intranet: "",
+    desde: "",
+    hasta: "",
+    ...ORDEN_INICIAL,
   };
 }
 
@@ -95,5 +109,10 @@ export function leerFiltrosGuardados(texto: string | null): FiltrosActuales | nu
     anio: s(o.anio),
     tipoFecha: tipoFechaValido(o.tipoFecha),
     tienda: s(o.tienda),
+    intranet: s(o.intranet),
+    desde: /^\d{4}-\d{2}-\d{2}$/.test(s(o.desde)) ? s(o.desde) : "",
+    hasta: /^\d{4}-\d{2}-\d{2}$/.test(s(o.hasta)) ? s(o.hasta) : "",
+    ordenCampo: s(o.ordenCampo) || ORDEN_INICIAL.ordenCampo,
+    ordenAsc: o.ordenAsc === true,
   };
 }

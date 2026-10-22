@@ -63,6 +63,7 @@ export default async function ResultadosBusquedaPage({ searchParams }: Props) {
                 vendedores={vendedores}
                 tiendaPredeterminadaId={user.tiendaPredeterminadaId}
                 currentUserName={null}
+                recordarFiltros={false}
                 mostrarBotonesCsv={ajustes.mostrar_botones_csv !== "false"}
               />
             </div>

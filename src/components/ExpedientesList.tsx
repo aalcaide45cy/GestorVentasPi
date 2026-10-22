@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/date-utils";
 import {
   CLAVE_FILTROS_GUARDADOS,
   CLAVE_FILTROS_PREDEFINIDOS,
+  PREDEFINIDOS_INICIALES,
   CLAVE_RECORDAR_FILTROS,
   aplicarPredefinidos,
   leerFiltrosGuardados,
@@ -79,6 +80,11 @@ interface Props {
   tiendaPredeterminadaId: number | null;
   currentUserName: string | null;
   mostrarBotonesCsv: boolean;
+  /**
+   * Recordar los filtros de esta lista entre visitas y recargas (por defecto sí). La página de resultados de búsqueda no los recuerda ni los aplica:
+   * sus resultados salen sin filtros, aunque en la lista de Expedientes hubiera alguno puesto.
+   */
+  recordarFiltros?: boolean;
 }
 
 /** Cuatro botones pequeños bajo un campo de fecha: retroceden o avanzan un año («), un mes (‹, ›) o un año (»). Sin fecha en el campo parten de hoy. */
@@ -111,6 +117,7 @@ export default function ExpedientesList({
   tiendaPredeterminadaId,
   currentUserName,
   mostrarBotonesCsv,
+  recordarFiltros: recordarEnEstaPantalla = true,
 }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
@@ -141,19 +148,22 @@ export default function ExpedientesList({
   // Preferencias del navegador (null hasta hidratar; después el valor guardado)
   const [filtrosGuardado, fijarFiltrosAbiertos] = usePreferencia("exp-filtros-abiertos");
   const filtrosAbiertos = filtrosGuardado !== "false";
-  const [cobrosGuardado, fijarCobros] = usePreferencia("exp-show-cobro-status");
-  const mostrarCobros = cobrosGuardado === "true";
+  // Antes «Comisionado» tenía su propio interruptor además de la casilla del gestor de columnas, y con la columna activa en el gestor no se veía si el
+  // interruptor estaba apagado. Ahora manda solo el gestor de columnas (el interruptor de la barra lo cambia); lo que alguien tenía encendido se respeta.
+  const [cobrosGuardado] = usePreferencia("exp-show-cobro-status");
   // Los anulados en el listado de la intranet no son ventas: salen ocultos salvo que se active la casilla (o se pida «Anulado» a propósito)
   const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("expedientes");
   const nAnulados = useMemo(() => expedientes.filter((e) => esAnulado(e.estado_intranet)).length, [expedientes]);
   const [columnasGuardadas, fijarColumnas] = usePreferencia("exp-visible-columns");
   const visibles = useMemo<Visibles>(() => {
     try {
-      return columnasGuardadas ? { ...POR_DEFECTO, ...(JSON.parse(columnasGuardadas) as Partial<Visibles>) } : POR_DEFECTO;
+      const guardadas = columnasGuardadas ? (JSON.parse(columnasGuardadas) as Partial<Visibles>) : {};
+      return { ...POR_DEFECTO, ...(cobrosGuardado === "true" ? { cobro: true } : {}), ...guardadas };
     } catch {
       return POR_DEFECTO; // preferencia corrupta: se vuelve a lo habitual
     }
-  }, [columnasGuardadas]);
+  }, [columnasGuardadas, cobrosGuardado]);
+  const mostrarCobros = visibles.cobro !== false;
   const [ordenGuardado, fijarOrden] = usePreferencia("exp-column-order");
   const orden = useMemo<Columna[]>(() => {
     try {
@@ -222,8 +232,9 @@ export default function ExpedientesList({
         return null;
       }
     };
-    const f: FiltrosActuales =
-      (leerLocal(CLAVE_RECORDAR_FILTROS) !== "false" ? leerFiltrosGuardados(leerLocal(CLAVE_FILTROS_GUARDADOS)) : null) ??
+    const f: FiltrosActuales = !recordarEnEstaPantalla
+      ? aplicarPredefinidos(PREDEFINIDOS_INICIALES, "")
+      : (leerLocal(CLAVE_RECORDAR_FILTROS) !== "false" ? leerFiltrosGuardados(leerLocal(CLAVE_FILTROS_GUARDADOS)) : null) ??
       aplicarPredefinidos(leerPredefinidos(leerLocal(CLAVE_FILTROS_PREDEFINIDOS)), currentUserName ?? "");
     /* eslint-disable react-hooks/set-state-in-effect -- el navegador solo se puede leer tras hidratar */
     setBusqueda(f.busqueda);
@@ -237,6 +248,10 @@ export default function ExpedientesList({
     setFAnio(f.anio);
     setFTipoFecha(f.tipoFecha);
     setFTienda(f.tienda);
+    setFIntranet(f.intranet);
+    setRango({ desde: f.desde, hasta: f.hasta });
+    setOrdenCampo(f.ordenCampo);
+    setOrdenAsc(f.ordenAsc);
     setFiltrosListos(true);
     /* eslint-enable react-hooks/set-state-in-effect */
     // Solo al montar: después mandan los controles de la pantalla.
@@ -244,7 +259,7 @@ export default function ExpedientesList({
   }, []);
   const [recordarFiltros] = usePreferencia(CLAVE_RECORDAR_FILTROS);
   useEffect(() => {
-    if (!filtrosListos) return;
+    if (!filtrosListos || !recordarEnEstaPantalla) return;
     if (recordarFiltros === "false") return;
     const actuales: FiltrosActuales = {
       busqueda,
@@ -258,9 +273,14 @@ export default function ExpedientesList({
       anio: fAnio,
       tipoFecha: fTipoFecha,
       tienda: fTienda,
+      intranet: fIntranet,
+      desde: rango.desde,
+      hasta: rango.hasta,
+      ordenCampo,
+      ordenAsc,
     };
     guardarPreferencia(CLAVE_FILTROS_GUARDADOS, JSON.stringify(actuales));
-  }, [filtrosListos, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
+  }, [filtrosListos, recordarEnEstaPantalla, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda, fIntranet, rango, ordenCampo, ordenAsc]);
 
   const [importandoExcel, setImportandoExcel] = useState(false);
   const [completando, setCompletando] = useState(false);
@@ -424,6 +444,8 @@ export default function ExpedientesList({
     setFTipoFecha("fecha_expediente");
     setFTienda("");
     setRango(RANGO_VACIO);
+    setOrdenCampo("fecha_expediente");
+    setOrdenAsc(false);
     setPagina(1);
   };
 
@@ -671,9 +693,9 @@ export default function ExpedientesList({
   };
 
   /* ---------------- Render ---------------- */
-  const columnasActivas = orden.map((clave) => COLUMNAS.find((c) => c.clave === clave)!).filter((c) => (c.clave === "cobro" ? mostrarCobros : true) && visibles[c.clave] !== false);
+  const columnasActivas = orden.map((clave) => COLUMNAS.find((c) => c.clave === clave)!).filter((c) => visibles[c.clave] !== false);
   const totalColSpan = columnasActivas.length + (seleccionActiva ? 1 : 0) + 1;
-  const mostrarCol = (c: Columna) => visibles[c] !== false && (c !== "cobro" || mostrarCobros);
+  const mostrarCol = (c: Columna) => visibles[c] !== false;
 
   const hoyF = new Date();
   const filtrosActivos: string[] = [];
@@ -798,7 +820,7 @@ export default function ExpedientesList({
               type="checkbox"
               checked={mostrarCobros}
               onChange={(e) => {
-                fijarCobros(String(e.target.checked));
+                fijarColumnas(JSON.stringify({ ...visibles, cobro: e.target.checked }));
               }}
               style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }}
             />

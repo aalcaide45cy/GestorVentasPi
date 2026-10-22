@@ -70,7 +70,7 @@ export const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
 export type Visibles = Record<Columna, boolean>;
 const TODAS: Visibles = Object.fromEntries(COLUMNAS.map((c) => [c.clave, true])) as Visibles;
 /** Por defecto «Marca» y «Modelo» van por separado; la columna unificada «Marca y modelo» se activa desde «Columnas». */
-export const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false, estado_intranet: false };
+export const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false, estado_intranet: false, cobro: false };
 export const ORDEN_POR_DEFECTO: Columna[] = COLUMNAS.map((c) => c.clave);
 const solo = (claves: Columna[]): Visibles => Object.fromEntries(COLUMNAS.map((c) => [c.clave, claves.includes(c.clave)])) as Visibles;
 export const VISTAS_INCLUIDAS: { id: string; nombre: string; ayuda: string; config: ConfigColumnas }[] = [
