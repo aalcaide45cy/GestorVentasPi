@@ -27,7 +27,7 @@ import {
 } from "@/lib/filtros-expedientes";
 import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
 import { esAnulado } from "@/lib/anulados";
-import { RANGO_VACIO, enRango, hayRango, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
+import { RANGO_VACIO, enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
 import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
@@ -79,6 +79,26 @@ interface Props {
   tiendaPredeterminadaId: number | null;
   currentUserName: string | null;
   mostrarBotonesCsv: boolean;
+}
+
+/** Cuatro botones pequeños bajo un campo de fecha: retroceden o avanzan un año («), un mes (‹, ›) o un año (»). Sin fecha en el campo parten de hoy. */
+function BotonesMoverFecha({ etiqueta, alMover }: { etiqueta: string; alMover: (meses: number) => void }) {
+  const estilo: React.CSSProperties = { padding: "0 6px", minWidth: "26px", height: "20px", fontSize: "0.72rem", lineHeight: 1, fontWeight: 700 };
+  const botones: { texto: string; meses: number; ayuda: string }[] = [
+    { texto: "«", meses: -12, ayuda: "1 año atrás" },
+    { texto: "‹", meses: -1, ayuda: "1 mes atrás" },
+    { texto: "›", meses: 1, ayuda: "1 mes adelante" },
+    { texto: "»", meses: 12, ayuda: "1 año adelante" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: "3px", marginTop: "3px" }}>
+      {botones.map((b) => (
+        <button key={b.texto} type="button" className="btn btn-secondary" style={estilo} onClick={() => alMover(b.meses)} title={`${b.ayuda} en «${etiqueta}» (si está vacío, parte de hoy)`} aria-label={`${b.ayuda} en ${etiqueta}`}>
+          {b.texto}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** Listado completo de expedientes con filtros, ordenación, paginación, selección masiva e importación/exportación. */
@@ -1128,11 +1148,13 @@ export default function ExpedientesList({
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={etiquetaFiltro} title="Primer día del rango, sobre el campo de fecha elegido (incluido)">Desde</label>
             <input type="date" className="form-input" value={rango.desde} max={rango.hasta || undefined} onChange={(e) => { setRango((r) => ({ ...r, desde: e.target.value })); setPagina(1); }} style={{ padding: "3px 6px", fontSize: "0.8rem" }} />
+            <BotonesMoverFecha etiqueta="Desde" alMover={(meses) => { setRango((r) => ({ ...r, desde: moverMeses(r.desde, meses) })); setPagina(1); }} />
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={etiquetaFiltro} title="Último día del rango, sobre el campo de fecha elegido (incluido)">Hasta</label>
             <input type="date" className="form-input" value={rango.hasta} min={rango.desde || undefined} onChange={(e) => { setRango((r) => ({ ...r, hasta: e.target.value })); setPagina(1); }} style={{ padding: "3px 6px", fontSize: "0.8rem" }} />
+            <BotonesMoverFecha etiqueta="Hasta" alMover={(meses) => { setRango((r) => ({ ...r, hasta: moverMeses(r.hasta, meses) })); setPagina(1); }} />
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>

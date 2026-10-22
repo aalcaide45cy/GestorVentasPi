@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enRango, hayRango, normalizarRango, rangoDeAtajo, textoRango } from "./rango-fechas";
+import { enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango } from "./rango-fechas";
 
 // Jueves 22 de octubre de 2026
 const hoy = new Date(2026, 9, 22);
@@ -35,6 +35,19 @@ describe("rango de fechas del listado de expedientes", () => {
     expect(normalizarRango({ desde: "2026-1-2", hasta: "" })).toEqual({ desde: "", hasta: "" });
     expect(hayRango({ desde: "", hasta: "" })).toBe(false);
     expect(hayRango({ desde: "2026-10-10", hasta: "" })).toBe(true);
+  });
+  it("mueve una fecha meses y años dejando el mismo día o el último del mes", () => {
+    expect(moverMeses("2026-10-22", 1)).toBe("2026-11-22");
+    expect(moverMeses("2026-10-22", -1)).toBe("2026-09-22");
+    expect(moverMeses("2026-10-22", 12)).toBe("2027-10-22");
+    expect(moverMeses("2026-10-22", -12)).toBe("2025-10-22");
+    expect(moverMeses("2026-01-15", -1)).toBe("2025-12-15");
+    expect(moverMeses("2026-12-15", 1)).toBe("2027-01-15");
+    expect(moverMeses("2026-03-31", -1)).toBe("2026-02-28");
+    expect(moverMeses("2024-03-31", -1)).toBe("2024-02-29");
+    expect(moverMeses("2024-02-29", 12)).toBe("2025-02-28");
+    // Sin fecha parte de hoy
+    expect(moverMeses("", -1, new Date(2026, 9, 22))).toBe("2026-09-22");
   });
   it("lo cuenta con palabras", () => {
     expect(textoRango({ desde: "2026-10-01", hasta: "2026-10-22" })).toBe("del 01/10/2026 al 22/10/2026");

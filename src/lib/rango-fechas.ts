@@ -35,6 +35,19 @@ export function rangoDeAtajo(atajo: AtajoRango, hoy: Date = new Date()): RangoFe
   }
 }
 
+/**
+ * La fecha movida `meses` meses (negativo = hacia atrás), dejando el mismo día o el último del mes si no existe (31 de marzo - 1 mes = 28 de febrero).
+ * Sin fecha parte de `hoy`.
+ */
+export function moverMeses(fecha: string, meses: number, hoy: Date = new Date()): string {
+  const [y, m, d] = /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha.split("-").map(Number) : [hoy.getFullYear(), hoy.getMonth() + 1, hoy.getDate()];
+  const total = y * 12 + (m - 1) + meses;
+  const anio = Math.floor(total / 12);
+  const mes = total % 12;
+  const ultimo = new Date(anio, mes + 1, 0).getDate();
+  return aIso(new Date(anio, mes, Math.min(d, ultimo)));
+}
+
 const valida = (f: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(f);
 
 /** El rango con las fechas bien formadas y, si «desde» es posterior a «hasta», cambiadas de sitio. */
