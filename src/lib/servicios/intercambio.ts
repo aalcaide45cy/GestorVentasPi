@@ -888,12 +888,8 @@ async function importarMarcasModelos(tx: Ejecutor, datos: unknown[], modo: Modo,
   }
   if (modo === "sustituir") {
     const marcasSobran = ms.filter((m) => !marcasUsadas.has(m.idMarca));
-    const modelosSobran = mos.filter((x) => !modelosUsados.has(x.idModelo) && (marcasUsadas.has(x.marcaId ?? -1) || marcasSobran.some((m) => m.idMarca === x.marcaId)));
-    // Los modelos de marcas conservadas que no están en el archivo también sobran
-    if (marcasSobran.length > 0) await tx.update(marcas).set({ eliminadoEn: new Date() }).where(inArray(marcas.idMarca, marcasSobran.map((m) => m.idMarca)));
-    if (modelosSobran.length > 0) await tx.update(modelos).set({ eliminadoEn: new Date() }).where(inArray(modelos.idModelo, modelosSobran.map((x) => x.idModelo)));
-    inf.eliminados = marcasSobran.length + modelosSobran.length;
-    for (const m of marcasSobran.slice(0, 5)) nota(inf, "elimina", `Marca ${m.nombre}: no está en el archivo, se elimina`);
+    // Las marcas y los modelos están grabados a fuego: lo que no está en el archivo se conserva (no se elimina nada)
+    for (const m of marcasSobran.slice(0, 5)) nota(inf, "omite", `Marca ${m.nombre}: no está en el archivo, se conserva (las marcas y los modelos están grabados a fuego)`);
   }
   return inf;
 }

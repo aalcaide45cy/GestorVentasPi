@@ -104,6 +104,8 @@ export async function restaurarCopia(ej: Ejecutor, admin: UsuarioActual, copia: 
   if (desconocidas.length > 0) throw new HttpError(400, `Formato de copia no válido: tablas desconocidas (${desconocidas.join(", ")})`);
 
   await ej.transaction(async (tx) => {
+    // Restaurar una copia completa vuelve a cargar las marcas y los modelos que la copia trae: los disparadores de «grabado a fuego» lo permiten solo aquí
+    await tx.execute(sql`select set_config('app.restauracion_completa', 'on', true)`);
     const [cuentaAdmin] = await tx.select().from(usuarios).where(sql`${usuarios.idUsuario} = ${admin.idUsuario}`);
 
     // Los datos de comisiones dependen de usuarios, modelos y expedientes: se vacían antes (TRUNCATE no activa los

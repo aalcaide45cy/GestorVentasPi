@@ -326,6 +326,16 @@ select, select option {
 .badge-invitado { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.2); }
 
 /* Tabla con scroll solo en las filas: la cabecera queda fija y la página no se alarga con miles de filas */
+/* Filas alternas en TODAS las tablas: una con el color de la tarjeta (blanco en el tema claro) y la siguiente algo más gris (claro) o más clara (oscuro). Se calcula
+   a partir del color de la tarjeta y del texto, así vale para los 150 temas. `:where` deja la regla sin peso: una fila con su propio color (seleccionada, con aviso,
+   anulada…), el color de una columna o el pasar el ratón por encima siguen mandando. */
+:root {
+  --fila-impar: var(--bg-card);
+  --fila-par: color-mix(in srgb, var(--text-primary) 6%, var(--bg-card));
+}
+:where(tbody) > tr:nth-child(odd) { background-color: var(--fila-impar); }
+:where(tbody) > tr:nth-child(even) { background-color: var(--fila-par); }
+
 .tabla-scroll { max-height: var(--alto-tabla, calc(68 * var(--uvh))); overflow: auto; padding: 0 2px 2px 2px; }
 .tabla-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
 

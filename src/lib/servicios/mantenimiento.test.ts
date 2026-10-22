@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { clientes, marcas, modelos, tiendas, usuarios } from "@/db/schema";
@@ -52,7 +52,7 @@ describe("vaciar la base de datos", () => {
     expect(await total(marcas)).toBe(1);
   });
 
-  it.skipIf(!hayPg)("borra datos y catálogos, conserva las cuentas y reinicia los números", async () => {
+  it.skipIf(!hayPg)("borra datos y catálogos, conserva las cuentas y las marcas (grabadas a fuego) y reinicia los números", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     await crearUsuarioPrueba("vendedor");
     const [t] = await db.insert(tiendas).values({ nombre: "Centro", ciudad: "Madrid" }).returning();
@@ -60,17 +60,22 @@ describe("vaciar la base de datos", () => {
     await db.insert(clientes).values({ clienteId: "c-1", nombre: "Ana", tiendaId: t.idTienda });
     const r = await vaciarBaseDeDatos(db, admin.idUsuario, { confirmacion: "BORRAR TODO", eliminarOtrosUsuarios: false, catalogosPorDefecto: false });
     expect(r.copiaPrevia).toMatch(/_previa\.dump$/);
-    expect(await total(marcas)).toBe(0);
+    expect(await total(marcas)).toBe(1);
     expect(await total(clientes)).toBe(0);
     expect(await total(tiendas)).toBe(0);
     expect(await total(usuarios)).toBe(2);
-    const [nueva] = await db.insert(marcas).values({ nombre: "Dacia" }).returning();
-    expect(nueva.idMarca).toBe(1);
+    // Las marcas están grabadas a fuego: se conservan con su número
+    const [nueva] = await db.insert(clientes).values({ clienteId: "c-2", nombre: "Beto" }).returning();
+    expect(nueva.id).toBe(1);
   });
 
-  it.skipIf(!hayPg)("por defecto vuelve a dejar los catálogos de partida (marcas, modelos, estados y pagos)", async () => {
+  it.skipIf(!hayPg)("por defecto vuelve a dejar los catálogos de partida si no hay marcas; si las hay (grabadas a fuego), se conservan tal cual", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     await db.insert(marcas).values({ nombre: "Otra" });
+    await vaciarBaseDeDatos(db, admin.idUsuario, { confirmacion: "BORRAR TODO" });
+    expect((await db.select().from(marcas)).map((m) => m.nombre)).toEqual(["Otra"]);
+    // En una base sin marcas se siembran las de partida
+    await db.execute(sql`truncate table marcas, modelos restart identity cascade`);
     await vaciarBaseDeDatos(db, admin.idUsuario, { confirmacion: "BORRAR TODO" });
     const nombres = (await db.select().from(marcas)).map((m) => m.nombre).sort();
     expect(nombres).toEqual(["Dacia", "Hyundai", "Peugeot", "Renault", "Toyota"]);

@@ -20,6 +20,7 @@ import PanelOcr from "./PanelOcr";
 import PanelRegistro from "./PanelRegistro";
 import PanelRendimiento from "./PanelRendimiento";
 import PanelMigracion from "./PanelMigracion";
+import PanelBorradoTotal from "./PanelBorradoTotal";
 import PanelVaciar from "./PanelVaciar";
 import { estiloPanel } from "./utilidades";
 
@@ -275,6 +276,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
               <>
               <PanelMigracion alTerminar={() => setVersionCopias((n) => n + 1)} />
               <PanelVaciar alTerminar={() => setVersionCopias((n) => n + 1)} />
+              <PanelBorradoTotal />
               </>
             )}
           </>

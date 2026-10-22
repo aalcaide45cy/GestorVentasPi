@@ -2,7 +2,7 @@ import { inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { sembrar, sembrarCatalogoInicial } from "@/db/semilla";
-import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, importacionesRegistros, marcas, modelos, telefonosClientes, tiendas, tipoDeVenta, usuarios, usuariosTiendas } from "@/db/schema";
+import { clientes, emailsClientes, estadoVehiculo, expedientes, importacionesBloques, importacionesRegistros, telefonosClientes, tiendas, tipoDeVenta, usuarios, usuariosTiendas } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { borrarTodosLosFicheros } from "./lecturas-pedidos";
 import { crearCopia } from "@/lib/servicios/copias";
@@ -439,15 +439,14 @@ export async function vaciarBaseDeDatos(ej: Ejecutor, idAdmin: number, entrada: 
     await tx.delete(telefonosClientes);
     await tx.delete(emailsClientes);
     await tx.delete(clientes);
-    await tx.delete(modelos);
-    await tx.delete(marcas);
+    // Las marcas y los modelos (con sus colores) están grabados a fuego: no se borran nunca
     await tx.delete(tipoDeVenta);
     await tx.delete(estadoVehiculo);
     await tx.delete(usuariosTiendas);
     await tx.update(usuarios).set({ tiendaPredeterminadaId: null });
     await tx.delete(tiendas);
     if (entrada.eliminarOtrosUsuarios ?? false) await tx.delete(usuarios).where(ne(usuarios.idUsuario, idAdmin));
-    for (const [tabla, col] of [["tiendas", "id_tienda"], ["marcas", "id_marca"], ["modelos", "id_modelo"], ["tipo_de_venta", "id_tipo_de_venta"], ["estado_vehiculo", "id_estado_vehiculo"], ["clientes", "id"], ["emails_clientes", "id_email_cliente"], ["telefonos_clientes", "id_telefono_cliente"], ["usuarios_tiendas", "id_usuario_tienda"], ["expedientes", "id_expediente"], ["importaciones_bloques", "id"], ["importaciones_registros", "id"]] as const) {
+    for (const [tabla, col] of [["tiendas", "id_tienda"], ["tipo_de_venta", "id_tipo_de_venta"], ["estado_vehiculo", "id_estado_vehiculo"], ["clientes", "id"], ["emails_clientes", "id_email_cliente"], ["telefonos_clientes", "id_telefono_cliente"], ["usuarios_tiendas", "id_usuario_tienda"], ["expedientes", "id_expediente"], ["importaciones_bloques", "id"], ["importaciones_registros", "id"]] as const) {
       await tx.execute(sql.raw(`select setval(pg_get_serial_sequence('${tabla}', '${col}'), 1, false)`));
     }
     if (entrada.catalogosPorDefecto ?? true) {

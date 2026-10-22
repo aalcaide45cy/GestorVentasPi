@@ -111,6 +111,8 @@ export async function aplicarHistorial(db: Db, idUsuario: number, direccion: "de
     }
     const aplicar = candidatos.slice(0, hasta + 1);
     try {
+      // Deshacer la creación de una marca o un modelo hecha hace poco es la única forma de quitarlos (grabados a fuego en todo lo demás): los disparadores lo permiten solo aquí
+      await tx.execute(sql`select set_config('app.restauracion_completa', 'on', true)`);
       for (const paso of aplicar) await tx.execute(sql`select historial_aplicar(${paso.grupo}::uuid, ${idUsuario}, ${direccion}, ${opciones.forzar === true})`);
     } catch (e) {
       const detalle = esConflicto(e);

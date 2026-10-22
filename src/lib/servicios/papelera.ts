@@ -195,7 +195,11 @@ async function bloqueosCatalogo(ej: Ejecutor): Promise<Map<string, string>> {
     select 'marcas:' || k.id_marca, 'Aún tiene modelos vigentes o la usan planes de comisiones'
       from marcas k where k.eliminado_en is not null and (exists (select 1 from modelos m where m.marca_id = k.id_marca and m.eliminado_en is null) or exists (select 1 from commission_finance_rates x where x.id_marca = k.id_marca) or exists (select 1 from commission_brand_intervention_rates x where x.id_marca = k.id_marca) or exists (select 1 from commission_rules x where x.id_marca = k.id_marca) or exists (select 1 from commission_bonus_rules x where x.id_marca = k.id_marca) or exists (select 1 from commission_preference_rules x where x.id_marca = k.id_marca))`,
   );
-  return new Map(r.map((x) => [x.clave, x.motivo]));
+  const mapa = new Map(r.map((x) => [x.clave, x.motivo]));
+  // Las marcas y los modelos están grabados a fuego: nunca se purgan (si alguno quedó «eliminado» de antes, se restaura)
+  const fuego = await filas<{ clave: string }>(ej, sql`select 'marcas:' || id_marca clave from marcas where eliminado_en is not null union all select 'modelos:' || id_modelo from modelos where eliminado_en is not null`);
+  for (const f of fuego) mapa.set(f.clave, "Grabado a fuego: no se puede purgar (restáuralo)");
+  return mapa;
 }
 
 /** Qué documentos se miran: los leídos y nunca vinculados, los eliminados (o de algo eliminado), o ambos. */

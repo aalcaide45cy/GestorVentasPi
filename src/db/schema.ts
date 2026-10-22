@@ -852,6 +852,8 @@ export const plantillasPlan = pgTable(
     nombre: text("nombre").notNull(),
     descripcion: text("descripcion"),
     datos: jsonb("datos").$type<unknown>().notNull(),
+    /** Plantilla base «grabada a fuego»: no se puede borrar nunca (ni con «Borrar todo»). */
+    sistema: boolean("sistema").notNull().default(false),
     creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
     actualizadaEn: timestamp("actualizada_en", { withTimezone: true }).notNull().defaultNow(),
   },

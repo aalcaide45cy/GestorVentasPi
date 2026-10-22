@@ -5,7 +5,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { adjuntos, adjuntosDatos, auditoria, biblioteca, clientes, expedientes, marcas, modelos, tiendas, validacionesComision } from "@/db/schema";
+import { adjuntos, adjuntosDatos, auditoria, biblioteca, clientes, expedientes, marcas, modelos, tiendas, tipoDeVenta, validacionesComision } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
@@ -106,15 +106,15 @@ describe("papelera: lo que sigue guardado tras eliminar", () => {
 
   it.skipIf(!hayPg)("un elemento de catálogo que aún usa un expediente no se purga; el que nadie usa, sí", { timeout: 120_000 }, async () => {
     const admin = await crearUsuarioPrueba("administrador", "Admin");
-    const [libre] = await db.insert(marcas).values({ nombre: "Libre", eliminadoEn: new Date() }).returning();
+    const [libre] = await db.insert(tipoDeVenta).values({ nombreTipoVenta: "Libre", eliminadoEn: new Date() }).returning();
     const [usada] = await db.insert(tiendas).values({ nombre: "Usada", eliminadoEn: new Date() }).returning();
     await db.insert(expedientes).values({ idTienda: usada.idTienda });
     const filas = (await filasPapelera(db, "catalogo")).filas;
     expect(filas.find((f) => f.id === `tiendas:${usada.idTienda}`)?.bloqueo).toMatch(/usan/);
-    expect(filas.find((f) => f.id === `marcas:${libre.idMarca}`)?.bloqueo).toBeNull();
+    expect(filas.find((f) => f.id === `tipo_de_venta:${libre.idTipoDeVenta}`)?.bloqueo).toBeNull();
     const r = await purgar(db, admin.idUsuario, { categoria: "catalogo", todo: true, confirmacion: "PURGAR" });
     expect(r).toMatchObject({ purgados: 1, bloqueados: 1 });
-    expect(await db.select().from(marcas).where(eq(marcas.idMarca, libre.idMarca))).toHaveLength(0);
+    expect(await db.select().from(tipoDeVenta).where(eq(tipoDeVenta.idTipoDeVenta, libre.idTipoDeVenta))).toHaveLength(0);
     expect(await db.select().from(tiendas).where(eq(tiendas.idTienda, usada.idTienda))).toHaveLength(1);
   });
 
@@ -158,11 +158,10 @@ describe("papelera: restaurar", () => {
   });
 
   it("un modelo no vuelve mientras su marca siga eliminada; con la marca restaurada, sí", async () => {
-    const [m] = await db.insert(marcas).values({ nombre: "MarcaX" }).returning();
-    const [mo] = await db.insert(modelos).values({ marcaId: m.idMarca, nombreModelo: "ModeloX" }).returning();
+    // Las marcas y los modelos están grabados a fuego (no se pueden eliminar): se crean ya «eliminados», como los que vinieran de antes
     const ahora = new Date();
-    await db.update(marcas).set({ eliminadoEn: ahora }).where(eq(marcas.idMarca, m.idMarca));
-    await db.update(modelos).set({ eliminadoEn: ahora }).where(eq(modelos.idModelo, mo.idModelo));
+    const [m] = await db.insert(marcas).values({ nombre: "MarcaX", eliminadoEn: ahora }).returning();
+    const [mo] = await db.insert(modelos).values({ marcaId: m.idMarca, nombreModelo: "ModeloX", eliminadoEn: ahora }).returning();
     const sola = await restaurar(db, { accion: "restaurar", categoria: "catalogo", ids: [`modelos:${mo.idModelo}`] });
     expect(sola).toMatchObject({ restaurados: 0, bloqueados: 1 });
     const juntos = await restaurar(db, { accion: "restaurar", categoria: "catalogo", ids: [`modelos:${mo.idModelo}`, `marcas:${m.idMarca}`] });
