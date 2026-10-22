@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { adjuntos, adjuntosDatos, ajustes, usuarios } from "@/db/schema";
+import { adjuntos, adjuntosDatos, ajustes, biblioteca, usuarios } from "@/db/schema";
 import { cifrar, cifrarBuffer, descifrar, descifrarBuffer } from "@/lib/auth/cifrado";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { ajustarCifradoTrasRestaurar, asegurarComprobacion, configurarClaveRecuperacion, copiasPortablesActivas, estadoClaveRecuperacion, prepararPortabilidad, secretoValido } from "./clave-recuperacion";
+import { ajustarCifradoTrasRestaurar, asegurarComprobacion, configurarClaveRecuperacion, copiasPortablesActivas, estadoClaveRecuperacion, prepararPortabilidad, recifrarBiblioteca, secretoValido } from "./clave-recuperacion";
+import { guardarArchivo, leerArchivo, listarArchivos } from "./biblioteca";
 
 const ORIGINAL = process.env.APP_SECRET;
 const SECRETO_A = "a".repeat(40);
@@ -105,5 +106,37 @@ describe("clave de recuperación: restaurar en otra instalación", () => {
     expect(descifrarBuffer(d.datos).toString()).toBe("contenido");
     // Al recifrar con el secreto, la clave guardada era la de origen: se descarta
     expect(await estadoClaveRecuperacion(db)).toEqual({ configurada: false });
+  });
+});
+
+describe("la biblioteca de archivos también se vuelve a cifrar al restaurar en otra instalación", () => {
+  it("con la clave de recuperación, los archivos de la biblioteca se abren en la otra instalación", async () => {
+    const u = await crearUsuarioPrueba("administrador");
+    const { archivo } = await guardarArchivo(db, { datos: Buffer.from("%PDF-1.4 contenido de la biblioteca"), nombre: "Pedido - Ana.pdf", creadoPor: u.idUsuario });
+    await configurarClaveRecuperacion(db, "mi-clave-de-recuperacion");
+    process.env.APP_SECRET = SECRETO_B;
+    await expect(leerArchivo(db, archivo.id)).rejects.toMatchObject({ status: 409, message: expect.stringContaining("otra instalación") });
+    expect(await ajustarCifradoTrasRestaurar(db, "mi-clave-de-recuperacion")).toEqual({ recifrado: true });
+    expect((await leerArchivo(db, archivo.id))?.datos.toString()).toContain("contenido de la biblioteca");
+  });
+
+  it("repara una biblioteca que quedó sin recifrar (recifrarBiblioteca) y se puede repetir", async () => {
+    const u = await crearUsuarioPrueba("administrador");
+    const { archivo } = await guardarArchivo(db, { datos: Buffer.from("%PDF-1.4 otro archivo"), nombre: "Rejilla.pdf", creadoPor: u.idUsuario });
+    process.env.APP_SECRET = SECRETO_B;
+    expect(await recifrarBiblioteca(db, SECRETO_A)).toEqual({ recifrados: 1, yaLegibles: 0, ilegibles: 0 });
+    expect((await leerArchivo(db, archivo.id))?.datos.toString()).toContain("otro archivo");
+    expect(await recifrarBiblioteca(db, SECRETO_A)).toEqual({ recifrados: 0, yaLegibles: 1, ilegibles: 0 });
+    expect(await recifrarBiblioteca(db, "c".repeat(40))).toEqual({ recifrados: 0, yaLegibles: 1, ilegibles: 0 });
+  });
+
+  it("sin la clave («sin clave»), los archivos de la biblioteca que no se pueden abrir se quitan con su ficha", async () => {
+    const u = await crearUsuarioPrueba("administrador");
+    await guardarArchivo(db, { datos: Buffer.from("%PDF-1.4 perdido"), nombre: "Perdido.pdf", creadoPor: u.idUsuario });
+    await asegurarComprobacion(db);
+    process.env.APP_SECRET = SECRETO_B;
+    expect(await ajustarCifradoTrasRestaurar(db, undefined, true)).toMatchObject({ descartado: true });
+    expect(await listarArchivos(db)).toHaveLength(0);
+    expect(await db.select().from(biblioteca)).toHaveLength(0);
   });
 });

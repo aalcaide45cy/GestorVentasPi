@@ -136,7 +136,14 @@ export async function leerArchivo(ej: Ejecutor, id: number): Promise<{ meta: Arc
   if (!f) return null;
   const [d] = await ej.select().from(bibliotecaDatos).where(eq(bibliotecaDatos.idArchivo, id));
   if (!d) return null;
-  return { meta: aDto(f), datos: descifrarBuffer(d.datos) };
+  try {
+    return { meta: aDto(f), datos: descifrarBuffer(d.datos) };
+  } catch {
+    throw new HttpError(
+      409,
+      `El archivo «${f.nombre}» está cifrado con la clave de otra instalación (la copia de seguridad se restauró sin volver a cifrar la biblioteca). Un administrador puede recuperarlo con «npm run recifrar-biblioteca -- <clave de recuperación o APP_SECRET de origen>», o puedes volver a subirlo.`,
+    );
+  }
 }
 
 /**

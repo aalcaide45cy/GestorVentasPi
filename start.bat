@@ -3,6 +3,7 @@ rem Arranca GestorVentas en segundo plano (SIN ventana de servidor) en el ULTIMO
 rem   start.bat           -> el ultimo modo (si no hay ninguno anotado, desarrollo)
 rem   start.bat dev       -> fuerza el modo desarrollo
 rem   start.bat normal    -> fuerza el modo normal (compila antes si hace falta)
+rem   start.bat limpiar   -> para el servidor, borra la cache de desarrollo y arranca (si la pagina se recarga sin parar)
 rem El servidor sigue funcionando aunque cierres esta ventana. El modo se anota solo (archivo .ultimo-modo) y se cambia desde "Equipo y servidor".
 setlocal
 cd /d "%~dp0"

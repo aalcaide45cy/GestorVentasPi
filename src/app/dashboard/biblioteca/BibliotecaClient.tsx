@@ -92,7 +92,22 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
   };
 
   // Al terminar el renombrado en segundo plano, la lista se pone al día sola
-  useEffect(() => alTerminarTarea((t) => { if (t.tipo === "biblioteca") recargar(); }));
+  useEffect(() =>
+    alTerminarTarea((t) => {
+      if (t.tipo !== "biblioteca") return;
+      recargar();
+      // Si era un renombrado, se dice cuántos se han puesto bien y por qué no los demás
+      const r = t.resultado as { renombrados?: number; sinDatos?: number; omitidos?: number; errores?: number; fallos?: { nombre: string; motivo: string }[] } | undefined;
+      if (!r || typeof r.renombrados !== "number") return;
+      const malos = (r.sinDatos ?? 0) + (r.errores ?? 0);
+      const primero = r.fallos?.[0];
+      mostrar(
+        `🏷️ Renombrados ${r.renombrados}${malos > 0 ? ` · no se han podido renombrar ${malos}` : ""}${r.omitidos ? ` · ${r.omitidos} omitidos (Excel)` : ""}.${primero ? ` Por ejemplo «${primero.nombre}»: ${primero.motivo}.` : ""}`,
+        malos > 0 ? "aviso" : "exito",
+        malos > 0 ? 15000 : 6000,
+      );
+    }),
+  );
 
   /** Lee con OCR los pedidos, pagos de RCI y rejillas de la lista y les pone el nombre «Tipo - Cliente - Fecha» (tarea en segundo plano). */
   const renombrarLeyendo = async (lista: ArchivoBibliotecaDto[]) => {

@@ -2,6 +2,8 @@
 #   arrancar.ps1          -> el ultimo modo (si no hay ninguno anotado, desarrollo)
 #   arrancar.ps1 dev      -> fuerza el modo desarrollo
 #   arrancar.ps1 normal   -> fuerza el modo normal (compila antes si hace falta)
+#   arrancar.ps1 limpiar  -> para el servidor, borra la cache del modo desarrollo (.next\dev) y arranca en el ultimo modo.
+#                            Sirve si la pagina se recarga sin parar: una cache de desarrollo estropeada hace que el servidor la recargue en bucle.
 # El servidor se lanza oculto (como lo hace "Equipo y servidor" dentro de la aplicacion): se puede cerrar esta ventana y sigue funcionando.
 # El modo lo anota el propio servidor en .ultimo-modo cada vez que arranca.
 param([string]$Modo = "", [int]$Puerto = 3000)
@@ -9,6 +11,8 @@ $carpeta = Split-Path -Parent $PSScriptRoot
 Set-Location $carpeta
 if ($env:PORT) { $Puerto = [int]$env:PORT }
 
+$limpiar = ($Modo -eq "limpiar")
+if ($limpiar) { $Modo = "" }
 if (-not $Modo) {
   if (Test-Path ".ultimo-modo") { $Modo = (Get-Content ".ultimo-modo" -TotalCount 1).Trim() } else { $Modo = "dev" }
 }
@@ -16,6 +20,16 @@ if ($Modo -eq "desarrollo") { $Modo = "dev" }
 if ($Modo -ne "normal") { $Modo = "dev" }
 
 function Escuchando { [bool](netstat -ano -p tcp | Select-String ":$Puerto\s.*LISTENING") }
+
+if ($limpiar) {
+  $linea = netstat -ano -p tcp | Select-String ":$Puerto\s.*LISTENING" | Select-Object -First 1
+  if ($linea) {
+    Write-Host "Parando el servidor del puerto $Puerto..."
+    & taskkill /PID ([int]($linea.ToString().Trim() -split "\s+")[-1]) /T /F | Out-Null
+    Start-Sleep -Seconds 3
+  }
+  if (Test-Path ".next\dev") { Write-Host "Borrando la cache del modo desarrollo (.next\dev)..."; Remove-Item ".next\dev" -Recurse -Force -ErrorAction SilentlyContinue }
+}
 
 if (Escuchando) {
   Write-Host "Ya hay un servidor escuchando en el puerto $Puerto. Abre http://localhost:$Puerto"

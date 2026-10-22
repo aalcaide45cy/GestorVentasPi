@@ -16,6 +16,8 @@ export interface ResumenRenombrado {
   /** Excel y «otros»: no se leen. */
   omitidos: number;
   errores: number;
+  /** Los que no se han podido renombrar y por qué (hasta 30), para decírselo al usuario. */
+  fallos: { nombre: string; motivo: string }[];
 }
 
 /**
@@ -24,7 +26,10 @@ export interface ResumenRenombrado {
  */
 export async function renombrarPorLectura(ej: Ejecutor, ids: number[], ctx?: ContextoTarea): Promise<ResumenRenombrado> {
   const filas = await ej.select({ id: biblioteca.id, categoria: biblioteca.categoria, nombre: biblioteca.nombre }).from(biblioteca).where(inArray(biblioteca.id, ids));
-  const r: ResumenRenombrado = { renombrados: 0, sinDatos: 0, omitidos: 0, errores: 0 };
+  const r: ResumenRenombrado = { renombrados: 0, sinDatos: 0, omitidos: 0, errores: 0, fallos: [] };
+  const fallo = (nombre: string, motivo: string) => {
+    if (r.fallos.length < 30) r.fallos.push({ nombre, motivo });
+  };
   for (let i = 0; i < filas.length; i++) {
     if (ctx?.cancelada()) throw new TareaCancelada(`Cancelado: se han renombrado ${r.renombrados} de ${filas.length} archivos`);
     const f = filas[i];
@@ -38,6 +43,7 @@ export async function renombrarPorLectura(ej: Ejecutor, ids: number[], ctx?: Con
       const a = await leerArchivo(ej, f.id);
       if (!a) {
         r.errores++;
+        fallo(f.nombre, "el archivo ya no está guardado");
         continue;
       }
       // Se prueba primero como el tipo que tiene (o como pedido, si es otro) y después como los demás: un PDF suelto se toma por pedido y puede ser un pago o una rejilla
@@ -49,9 +55,13 @@ export async function renombrarPorLectura(ej: Ejecutor, ids: number[], ctx?: Con
         if (nombre) break;
       }
       if (nombre) r.renombrados++;
-      else r.sinDatos++;
+      else {
+        r.sinDatos++;
+        fallo(f.nombre, "no se ha encontrado en él el cliente y la fecha (o el mes) para ponerle nombre");
+      }
     } catch (e) {
       r.errores++;
+      fallo(f.nombre, e instanceof Error ? e.message : "error al leerlo");
       console.warn(`No se ha podido leer «${f.nombre}» para renombrarlo:`, e instanceof Error ? e.message : e);
     }
   }

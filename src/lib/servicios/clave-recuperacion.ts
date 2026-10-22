@@ -1,8 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
-import { adjuntosDatos, ajustes, codigosRecuperacion, conexionDrive, usuarios } from "@/db/schema";
-import { cifrar, cifrarBuffer, descifrarBufferConSecreto, descifrarConSecreto } from "@/lib/auth/cifrado";
+import { adjuntosDatos, ajustes, biblioteca, bibliotecaDatos, codigosRecuperacion, conexionDrive, usuarios } from "@/db/schema";
+import { cifrar, cifrarBuffer, descifrarBuffer, descifrarBufferConSecreto, descifrarConSecreto } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 
 /**
@@ -125,6 +125,35 @@ export async function secretoDeOrigen(ej: Ejecutor, introducido: string): Promis
 }
 
 /**
+ * Archivos de la biblioteca: vuelve a cifrar con el APP_SECRET de esta instalación los que se guardaron con `secretoOrigen`. Los que ya se leen con
+ * el de esta instalación se dejan como están, así que se puede repetir sin riesgo. Devuelve cuántos ha vuelto a cifrar y cuántos no se pueden
+ * abrir con ninguno de los dos secretos.
+ */
+export async function recifrarBiblioteca(ej: Ejecutor, secretoOrigen: string): Promise<{ recifrados: number; yaLegibles: number; ilegibles: number }> {
+  let recifrados = 0;
+  let yaLegibles = 0;
+  let ilegibles = 0;
+  const ids = await ej.select({ id: bibliotecaDatos.idArchivo }).from(bibliotecaDatos);
+  for (const { id } of ids) {
+    const [d] = await ej.select().from(bibliotecaDatos).where(eq(bibliotecaDatos.idArchivo, id));
+    try {
+      descifrarBuffer(d.datos);
+      yaLegibles++;
+      continue;
+    } catch {
+      /* no se lee con la clave de esta instalación: se prueba con la de origen */
+    }
+    try {
+      await ej.update(bibliotecaDatos).set({ datos: cifrarBuffer(descifrarBufferConSecreto(secretoOrigen, d.datos, "ficheros")) }).where(eq(bibliotecaDatos.idArchivo, id));
+      recifrados++;
+    } catch {
+      ilegibles++;
+    }
+  }
+  return { recifrados, yaLegibles, ilegibles };
+}
+
+/**
  * Vuelve a cifrar con el APP_SECRET de esta instalación todo lo que estaba cifrado con `secretoOrigen`: documentos, secretos del
  * doble factor y conexión con Drive. Los códigos de recuperación del doble factor no se pueden trasladar (son huellas): se borran
  * y cada usuario genera otros nuevos.
@@ -152,6 +181,8 @@ export async function recifrarTodo(ej: Ejecutor, secretoOrigen: string): Promise
         .where(eq(adjuntosDatos.idAdjunto, id));
       nAdjuntos++;
     }
+    // Biblioteca de archivos: también va cifrada con la clave de la instalación
+    await recifrarBiblioteca(tx, secretoOrigen);
     await tx.delete(codigosRecuperacion);
     await escribir(tx, CLAVE_COMPROBACION, cifrar("ok", "comprobacion"));
     await tx.delete(ajustes).where(eq(ajustes.clave, CLAVE_ENVUELTA)); // el de origen ya no vale: se vuelve a fijar en esta instalación
@@ -169,6 +200,9 @@ export async function descartarDatosCifrados(ej: Ejecutor): Promise<{ adjuntos: 
   let nUsuarios = 0;
   await ej.transaction(async (tx) => {
     nAdjuntos = (await tx.delete(adjuntosDatos).returning({ id: adjuntosDatos.idAdjunto })).length;
+    // Los archivos de la biblioteca van cifrados con la misma clave: sin ella no se pueden abrir, así que se quitan del todo (con su ficha)
+    await tx.delete(bibliotecaDatos);
+    await tx.delete(biblioteca);
     nUsuarios = (await tx.update(usuarios).set({ totpSecretoCifrado: null, totpActivo: false, totpUltimoContador: null }).returning({ id: usuarios.idUsuario })).length;
     await tx.delete(conexionDrive);
     await tx.delete(codigosRecuperacion);
