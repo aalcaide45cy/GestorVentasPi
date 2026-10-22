@@ -7,8 +7,34 @@ $estado = Join-Path $env:TEMP "gestorventas-vigilante-$Puerto.json"
 $registro = Join-Path $env:TEMP "gestorventas-vigilante.log"
 function Anotar($t) { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $t" | Add-Content -Path $registro -Encoding utf8 }
 
+# Acceso desde fuera (Tailscale Funnel): si el servidor esta en marcha, se comprueba que el Funnel sigue publicandolo y, si el equipo ha cambiado de red
+# (la conexion del Funnel se puede quedar colgada sin avisar), se vuelve a abrir. Desde el propio PC no se puede probar la URL publica (resuelve a la
+# red privada), asi que se vigila la configuracion y el cambio de red.
+function Vigilar-Funnel {
+  $ts = "C:\Program Files\Tailscale\tailscale.exe"
+  if (-not (Test-Path $ts)) { return }
+  $estadoRed = Join-Path $env:TEMP "gestorventas-vigilante-red.txt"
+  $cfg = Get-NetIPConfiguration -ErrorAction SilentlyContinue | Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq "Up" -and $_.InterfaceAlias -notmatch "Tailscale" } | Select-Object -First 1
+  $red = if ($cfg) { "$($cfg.IPv4Address.IPAddress)|$($cfg.IPv4DefaultGateway.NextHop)" } else { "" }
+  $antes = if (Test-Path $estadoRed) { (Get-Content $estadoRed -TotalCount 1) } else { "" }
+  if ($red) { $red | Set-Content -Path $estadoRed -Encoding utf8 }
+  $recargar = $false
+  $motivo = ""
+  $estadoFunnel = (& $ts funnel status 2>&1 | Out-String)
+  if ($estadoFunnel -notmatch "Funnel on" -or $estadoFunnel -notmatch "127\.0\.0\.1:$Puerto") { $recargar = $true; $motivo = "el Funnel no estaba publicando el puerto $Puerto" }
+  elseif ($red -and $antes -and $red -ne $antes) { $recargar = $true; $motivo = "el equipo ha cambiado de red ($antes -> $red)" }
+  if (-not $recargar) { return }
+  Anotar "Funnel: se vuelve a abrir porque $motivo"
+  & $ts funnel reset 2>&1 | Out-Null
+  Start-Sleep -Seconds 2
+  & $ts funnel --bg $Puerto 2>&1 | Out-Null
+  Anotar "Funnel: reabierto (codigo $LASTEXITCODE)"
+}
+
 if (netstat -ano -p tcp | Select-String ":$Puerto\s.*LISTENING") {
   if (Test-Path $estado) { Remove-Item $estado -Force -ErrorAction SilentlyContinue }
+  # Solo para el servidor real (puerto 3000): la copia de prueba no tiene Funnel
+  if ($Puerto -eq 3000) { try { Vigilar-Funnel } catch { Anotar "Funnel: error al comprobarlo ($($_.Exception.Message))" } }
   exit 0
 }
 

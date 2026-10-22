@@ -4,7 +4,7 @@ import { CLAVE_BORRADO_DESDE, CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_DESDE, CLAV
 import { avisarCambioDeDatos } from "@/lib/datos-version";
 import { llamarComoTarea } from "@/lib/tareas-cliente";
 import { aspectoVehiculo } from "@/lib/aspecto";
-import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
@@ -27,6 +27,7 @@ import {
 } from "@/lib/filtros-expedientes";
 import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
 import { esAnulado } from "@/lib/anulados";
+import { RANGO_VACIO, enRango, hayRango, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
 import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
@@ -185,6 +186,10 @@ export default function ExpedientesList({
   const [fAnio, setFAnio] = useState("");
   const [fTipoFecha, setFTipoFecha] = useState("fecha_expediente");
   const [fTienda, setFTienda] = useState("");
+  // Rango «Desde / Hasta» sobre el campo de fecha elegido: no se guarda con los filtros, así que siempre empieza vacío al entrar
+  const [rango, setRango] = useState<RangoFechas>(RANGO_VACIO);
+  const rangoOk = useMemo(() => normalizarRango(rango), [rango]);
+  const rangoActivo = hayRango(rango);
 
   // Importación de Excel
   // Filtros predefinidos y recuerdo entre recargas (preferencias del navegador, ver Administración › Expedientes)
@@ -274,6 +279,12 @@ export default function ExpedientesList({
   }, [expedientes, fMarca]);
 
   /* ---------------- Filtrado, orden y paginación ---------------- */
+  /** La fecha del expediente sobre la que se filtra por mes, año y rango (la que se elige en «Campo de Fecha»). */
+  const fechaDeFiltro = useCallback(
+    (e: ExpedienteDto): string | null =>
+      fTipoFecha === "fecha_comisionado" ? (e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion) : ((e as unknown as Record<string, string | null>)[fTipoFecha] ?? null),
+    [fTipoFecha],
+  );
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
     return expedientes.filter((e) => {
@@ -307,13 +318,9 @@ export default function ExpedientesList({
       if (fEstado && !e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(fEstado.toLowerCase())) return false;
       if (fIntranet && (fIntranet === "__sin__" ? !!e.estado_intranet : (e.estado_intranet ?? "").toLowerCase() !== fIntranet.toLowerCase())) return false;
       if (fVendedor && (e.usuario?.nombre?.toLowerCase().trim() ?? "") !== fVendedor.toLowerCase().trim()) return false;
+      if (rangoActivo && !enRango(fechaDeFiltro(e), rangoOk)) return false;
       if (fMes || fAnio) {
-        const objetivo =
-          fTipoFecha === "fecha_comisionado"
-            ? e.cobrado_otra_fecha && e.fecha_cobrado
-              ? e.fecha_cobrado
-              : e.fecha_matriculacion
-            : ((e as unknown as Record<string, string | null>)[fTipoFecha] ?? null);
+        const objetivo = fechaDeFiltro(e);
         if (!objetivo) return false;
         const [a, m] = objetivo.split("-");
         if (!m) return false;
@@ -323,7 +330,7 @@ export default function ExpedientesList({
       if (fTienda && e.id_tienda !== Number(fTienda)) return false;
       return true;
     });
-  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fMes, fAnio, fTipoFecha, fTienda]);
+  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fMes, fAnio, fTienda, rangoActivo, rangoOk, fechaDeFiltro]);
 
   const ordenados = useMemo(() => {
     const valor = (e: ExpedienteDto): string => {
@@ -396,6 +403,7 @@ export default function ExpedientesList({
     setFAnio("");
     setFTipoFecha("fecha_expediente");
     setFTienda("");
+    setRango(RANGO_VACIO);
     setPagina(1);
   };
 
@@ -654,6 +662,7 @@ export default function ExpedientesList({
     const esActual = (!fMes || fMes === String(hoyF.getMonth() + 1).padStart(2, "0")) && (!fAnio || fAnio === String(hoyF.getFullYear()));
     filtrosActivos.push(`${FECHAS_FILTRO.find((f) => f.valor === fTipoFecha)?.etiqueta ?? "Fecha"}: ${[fMes ? MESES[Number(fMes) - 1] : "todos los meses", fAnio || "todos los años"].join(" ")}${esActual ? "" : " (no es el mes actual)"}`);
   }
+  if (rangoActivo) filtrosActivos.push(`📅 ${FECHAS_FILTRO.find((f) => f.valor === fTipoFecha)?.etiqueta ?? "Fecha"} ${textoRango(rangoOk)}${rango.desde && rango.hasta && rango.desde > rango.hasta ? " (las fechas estaban al revés y se han cambiado de sitio)" : ""}`);
   if (fMarca) filtrosActivos.push(`Marca: ${fMarca === "VO_NO_BRAND" ? "sin marca" : fMarca}`);
   if (fModelo) filtrosActivos.push(`Modelo: ${fModelo}`);
   if (fTienda) filtrosActivos.push(`Tienda: ${tiendas.find((t) => String(t.id_tienda) === fTienda)?.nombre ?? fTienda}`);
@@ -1067,6 +1076,35 @@ export default function ExpedientesList({
           </div>
         )}
         {filtrosAbiertos && (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }} title="Rellenan «Desde» y «Hasta» con un clic; se aplican al campo de fecha elegido abajo">
+            Rango de fechas:
+          </span>
+          {(
+            [
+              { id: "hoy", texto: "Hoy" },
+              { id: "semana", texto: "Esta semana" },
+              { id: "mes", texto: "Este mes" },
+              { id: "mes_pasado", texto: "Mes pasado" },
+              { id: "anio", texto: "Este año" },
+            ] as { id: AtajoRango; texto: string }[]
+          ).map((a) => {
+            const r = rangoDeAtajo(a.id);
+            const activo = rango.desde === r.desde && rango.hasta === r.hasta;
+            return (
+              <button key={a.id} type="button" className={activo ? "btn btn-primary" : "btn btn-secondary"} onClick={() => { setRango(r); setPagina(1); }} style={botonMes} title={`${a.texto}: ${textoRango(r)}`}>
+                {a.texto}
+              </button>
+            );
+          })}
+          {rangoActivo && (
+            <button type="button" className="btn btn-secondary" onClick={() => { setRango(RANGO_VACIO); setPagina(1); }} style={{ ...botonMes, color: "var(--danger)" }} title="Quita el rango de fechas y deja los demás filtros">
+              ✕ Quitar rango
+            </button>
+          )}
+        </div>
+        )}
+        {filtrosAbiertos && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: "8px" }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={etiquetaFiltro}>Campo de Fecha</label>
@@ -1085,6 +1123,16 @@ export default function ExpedientesList({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={etiquetaFiltro} title="Primer día del rango, sobre el campo de fecha elegido (incluido)">Desde</label>
+            <input type="date" className="form-input" value={rango.desde} max={rango.hasta || undefined} onChange={(e) => { setRango((r) => ({ ...r, desde: e.target.value })); setPagina(1); }} style={{ padding: "3px 6px", fontSize: "0.8rem" }} />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={etiquetaFiltro} title="Último día del rango, sobre el campo de fecha elegido (incluido)">Hasta</label>
+            <input type="date" className="form-input" value={rango.hasta} min={rango.desde || undefined} onChange={(e) => { setRango((r) => ({ ...r, hasta: e.target.value })); setPagina(1); }} style={{ padding: "3px 6px", fontSize: "0.8rem" }} />
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1532,7 +1580,7 @@ export default function ExpedientesList({
         />
       </div>
 
-      <ResumenMensual expedientes={mostrarAnulados ? expedientes : expedientes.filter((e) => !esAnulado(e.estado_intranet))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
+      <ResumenMensual expedientes={expedientes.filter((e) => (mostrarAnulados || !esAnulado(e.estado_intranet)) && (!rangoActivo || enRango(fechaDeFiltro(e), rangoOk)))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
 
       {modales}
 
