@@ -12,6 +12,9 @@ describe("filtros de la lista de expedientes que se recuerdan", () => {
     expect(leerFiltrosGuardados("no es json")).toBeNull();
     expect(leerFiltrosGuardados(null)).toBeNull();
   });
+  it("«Todas las fechas» es un campo de fecha válido y se recuerda", () => {
+    expect(leerFiltrosGuardados(JSON.stringify({ tipoFecha: "todas" }))?.tipoFecha).toBe("todas");
+  });
   it("los valores de partida no traen rango ni estado de intranet", () => {
     expect(aplicarPredefinidos(PREDEFINIDOS_INICIALES, "Ana")).toMatchObject({ vendedor: "Ana", desde: "", hasta: "", intranet: "", ordenCampo: "fecha_expediente", ordenAsc: false });
   });

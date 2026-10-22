@@ -161,6 +161,7 @@ export const ANCHO_SELECCION = 40;
 export const ANCHO_ACCIONES = 130;
 
 export const FECHAS_FILTRO: { valor: string; etiqueta: string }[] = [
+  { valor: "todas", etiqueta: "Todas las fechas" },
   { valor: "fecha_expediente", etiqueta: "Fecha Expediente (pedido)" },
   { valor: "fecha_afectacion", etiqueta: "Fecha Afectación" },
   { valor: "fecha_matriculacion", etiqueta: "Fecha Matriculación" },

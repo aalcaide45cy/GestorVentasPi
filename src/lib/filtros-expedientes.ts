@@ -4,7 +4,10 @@ export const CLAVE_FILTROS_PREDEFINIDOS = "exp-filtros-predefinidos";
 export const CLAVE_RECORDAR_FILTROS = "exp-recordar-filtros";
 export const CLAVE_FILTROS_GUARDADOS = "exp-filtros-guardados";
 
-export const TIPOS_FECHA_FILTRO = ["fecha_expediente", "fecha_comisionado", "fecha_afectacion", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega", "fecha_rci", "fecha_cobrado"] as const;
+/** Valor de «Campo de Fecha» que no elige una fecha concreta: vale cualquiera de las fechas del expediente. */
+export const TODAS_LAS_FECHAS = "todas";
+
+export const TIPOS_FECHA_FILTRO = [TODAS_LAS_FECHAS, "fecha_expediente", "fecha_comisionado", "fecha_afectacion", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega", "fecha_rci", "fecha_cobrado"] as const;
 
 export interface FiltrosPredefinidos {
   soloMios: boolean;

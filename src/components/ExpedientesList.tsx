@@ -28,6 +28,7 @@ import {
 } from "@/lib/filtros-expedientes";
 import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
 import { esAnulado } from "@/lib/anulados";
+import { TODAS_LAS_FECHAS } from "@/lib/filtros-expedientes";
 import { RANGO_VACIO, enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
 import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
@@ -319,11 +320,32 @@ export default function ExpedientesList({
   }, [expedientes, fMarca]);
 
   /* ---------------- Filtrado, orden y paginación ---------------- */
-  /** La fecha del expediente sobre la que se filtra por mes, año y rango (la que se elige en «Campo de Fecha»). */
-  const fechaDeFiltro = useCallback(
-    (e: ExpedienteDto): string | null =>
-      fTipoFecha === "fecha_comisionado" ? (e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion) : ((e as unknown as Record<string, string | null>)[fTipoFecha] ?? null),
+  /**
+   * Las fechas del expediente sobre las que se filtra por mes, año y rango: la que se elige en «Campo de Fecha» o, con «Todas las fechas», cualquiera de
+   * ellas (el expediente entra si alguna cumple).
+   */
+  const fechasDeFiltro = useCallback(
+    (e: ExpedienteDto): (string | null)[] => {
+      const una = (tipo: string): string | null => (tipo === "fecha_comisionado" ? (e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion) : ((e as unknown as Record<string, string | null>)[tipo] ?? null));
+      return fTipoFecha === TODAS_LAS_FECHAS ? FECHAS_FILTRO.filter((f) => f.valor !== TODAS_LAS_FECHAS).map((f) => una(f.valor)) : [una(fTipoFecha)];
+    },
     [fTipoFecha],
+  );
+  /** ¿Alguna de las fechas cumple el rango y el mes y año elegidos (a la vez)? */
+  const cumpleFechas = useCallback(
+    (e: ExpedienteDto): boolean =>
+      fechasDeFiltro(e).some((f) => {
+        if (rangoActivo && !enRango(f, rangoOk)) return false;
+        if (fMes || fAnio) {
+          if (!f) return false;
+          const [a, m] = f.split("-");
+          if (!m) return false;
+          if (fAnio && a !== fAnio) return false;
+          if (fMes && m !== fMes) return false;
+        }
+        return true;
+      }),
+    [fechasDeFiltro, rangoActivo, rangoOk, fMes, fAnio],
   );
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
@@ -358,19 +380,11 @@ export default function ExpedientesList({
       if (fEstado && !e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(fEstado.toLowerCase())) return false;
       if (fIntranet && (fIntranet === "__sin__" ? !!e.estado_intranet : (e.estado_intranet ?? "").toLowerCase() !== fIntranet.toLowerCase())) return false;
       if (fVendedor && (e.usuario?.nombre?.toLowerCase().trim() ?? "") !== fVendedor.toLowerCase().trim()) return false;
-      if (rangoActivo && !enRango(fechaDeFiltro(e), rangoOk)) return false;
-      if (fMes || fAnio) {
-        const objetivo = fechaDeFiltro(e);
-        if (!objetivo) return false;
-        const [a, m] = objetivo.split("-");
-        if (!m) return false;
-        if (fAnio && a !== fAnio) return false;
-        if (fMes && m !== fMes) return false;
-      }
+      if ((rangoActivo || fMes || fAnio) && !cumpleFechas(e)) return false;
       if (fTienda && e.id_tienda !== Number(fTienda)) return false;
       return true;
     });
-  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fMes, fAnio, fTienda, rangoActivo, rangoOk, fechaDeFiltro]);
+  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fTienda, rangoActivo, fMes, fAnio, cumpleFechas]);
 
   const ordenados = useMemo(() => {
     const valor = (e: ExpedienteDto): string => {
@@ -698,13 +712,15 @@ export default function ExpedientesList({
   const mostrarCol = (c: Columna) => visibles[c] !== false;
 
   const hoyF = new Date();
+  // «Todas las fechas»: el filtro vale para cualquiera de las fechas del expediente, y el aviso lo dice así
+  const etiquetaFechaFiltro = fTipoFecha === TODAS_LAS_FECHAS ? "Cualquiera de las fechas" : (FECHAS_FILTRO.find((f) => f.valor === fTipoFecha)?.etiqueta ?? "Fecha");
   const filtrosActivos: string[] = [];
   if (busqueda.trim()) filtrosActivos.push(`Búsqueda: «${busqueda.trim()}»`);
   if (fMes || fAnio) {
     const esActual = (!fMes || fMes === String(hoyF.getMonth() + 1).padStart(2, "0")) && (!fAnio || fAnio === String(hoyF.getFullYear()));
-    filtrosActivos.push(`${FECHAS_FILTRO.find((f) => f.valor === fTipoFecha)?.etiqueta ?? "Fecha"}: ${[fMes ? MESES[Number(fMes) - 1] : "todos los meses", fAnio || "todos los años"].join(" ")}${esActual ? "" : " (no es el mes actual)"}`);
+    filtrosActivos.push(`${etiquetaFechaFiltro}: ${[fMes ? MESES[Number(fMes) - 1] : "todos los meses", fAnio || "todos los años"].join(" ")}${esActual ? "" : " (no es el mes actual)"}`);
   }
-  if (rangoActivo) filtrosActivos.push(`📅 ${FECHAS_FILTRO.find((f) => f.valor === fTipoFecha)?.etiqueta ?? "Fecha"} ${textoRango(rangoOk)}${rango.desde && rango.hasta && rango.desde > rango.hasta ? " (las fechas estaban al revés y se han cambiado de sitio)" : ""}`);
+  if (rangoActivo) filtrosActivos.push(`📅 ${etiquetaFechaFiltro} ${textoRango(rangoOk)}${rango.desde && rango.hasta && rango.desde > rango.hasta ? " (las fechas estaban al revés y se han cambiado de sitio)" : ""}`);
   if (fMarca) filtrosActivos.push(`Marca: ${fMarca === "VO_NO_BRAND" ? "sin marca" : fMarca}`);
   if (fModelo) filtrosActivos.push(`Modelo: ${fModelo}`);
   if (fTienda) filtrosActivos.push(`Tienda: ${tiendas.find((t) => String(t.id_tienda) === fTienda)?.nombre ?? fTienda}`);
@@ -1624,7 +1640,7 @@ export default function ExpedientesList({
         />
       </div>
 
-      <ResumenMensual expedientes={expedientes.filter((e) => (mostrarAnulados || !esAnulado(e.estado_intranet)) && (!rangoActivo || enRango(fechaDeFiltro(e), rangoOk)))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
+      <ResumenMensual expedientes={expedientes.filter((e) => (mostrarAnulados || !esAnulado(e.estado_intranet)) && (!rangoActivo || fechasDeFiltro(e).some((f) => enRango(f, rangoOk))))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
 
       {modales}
 
