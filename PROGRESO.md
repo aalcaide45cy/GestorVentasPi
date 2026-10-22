@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.15.0 (22/10/2026)
+
+- **Papelera con una pestaña por cada cosa** (Herramientas › Papelera): Resumen (espacio, purga por categoría, purga a fondo), Expedientes, Clientes, Pedidos, Pagos RCI, Otros documentos, Marcas, Modelos, Formas de pago, Estados de vehículo, Tiendas, Historial, Lecturas y Auditoría, cada una con su recuento, buscador, orden y gestor de columnas (`TablaDatos`).
+- **Restaurar** lo elegido de la Papelera (expedientes con recálculo de comisiones y su cliente, clientes sin DNI repetido, documentos, catálogos), por lotes y en segundo plano, con aviso de lo que no se pudo y por qué. Es la única forma de borrar de verdad: Purgar.
+- Regla acordada: todo lo que se elimine va a la Papelera. Siguientes versiones: Biblioteca y rejillas, planes y plantillas, pendientes de cobro, marcas de pagado/reclamado, usuarios.
+
 ## Versión 1.14.7 (22/10/2026)
 
 - **Buscador de la barra superior**: «Limpiar filtros» en el resultado de una búsqueda ahora quita también esa búsqueda (vuelve a Expedientes y la caja queda vacía); la caja tiene una ✕ para borrarla.

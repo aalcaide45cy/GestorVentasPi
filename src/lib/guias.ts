@@ -218,8 +218,8 @@ export const GUIAS: Record<string, Guia> = {
   },
   "herramientas.papelera": {
     titulo: "Papelera y purga",
-    queEs: "Todo lo que has eliminado sigue guardado aquí hasta que lo purgues de verdad. Puedes verlo, descargarlo y recuperarlo.",
-    pasos: ["Elige la sección (expedientes, clientes, documentos…) y mira lo eliminado.", "Restaura lo que borraste por error.", "«Purgar» borra de verdad y libera espacio; en cantidades grandes se hace por lotes y en segundo plano.", "«Compactar» devuelve al disco el espacio que dejaron los registros purgados."],
+    queEs: "Todo lo que eliminas en la aplicación viene aquí y sigue guardado hasta que lo purgues de verdad: solo la Papelera borra definitivamente. Puedes verlo, descargarlo y recuperarlo.",
+    pasos: ["Elige la pestaña de lo que buscas (expedientes, clientes, pedidos, pagos RCI, marcas, modelos…); cada una tiene buscador, orden y columnas.", "Marca lo que quieras y pulsa «Restaurar lo elegido» para recuperarlo (los expedientes vuelven a contar en las comisiones y recuperan a su cliente).", "«Purgar» borra de verdad y libera espacio; en cantidades grandes se hace por lotes y en segundo plano.", "«Compactar» devuelve al disco el espacio que dejaron los registros purgados."],
     ojo: ["Lo purgado no se puede recuperar. Haz una copia de seguridad antes de purgar a fondo."],
   },
   "config.bbdd.datos": {

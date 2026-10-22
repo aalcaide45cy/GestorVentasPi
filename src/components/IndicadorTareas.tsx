@@ -39,7 +39,8 @@ function resumenResultado(r: unknown): string[] {
   const lineas: string[] = [];
   if (Array.isArray(o.detalle) && o.detalle.length > 0) lineas.push(...o.detalle.map(String));
   else if (typeof o.purgados === "number") lineas.push(`${o.purgados.toLocaleString("es-ES")} elemento(s) purgados`);
-  if (typeof o.bloqueados === "number" && o.bloqueados > 0) lineas.push(`${o.bloqueados.toLocaleString("es-ES")} se han dejado porque algo los usa aún`);
+  if (typeof o.restaurados === "number") lineas.push(`${o.restaurados.toLocaleString("es-ES")} elemento(s) restaurados`);
+  if (typeof o.bloqueados === "number" && o.bloqueados > 0) lineas.push(`${o.bloqueados.toLocaleString("es-ES")} se han dejado como estaban porque algo lo impide`);
   if (typeof o.copiaPrevia === "string") lineas.push(`Copia previa: ${o.copiaPrevia}`);
   if (typeof o.message === "string") lineas.push(o.message);
   if (o.compactado && typeof o.compactado === "object") {

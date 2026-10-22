@@ -17,6 +17,7 @@ import { TareaCancelada, type ContextoTarea } from "./tareas";
 
 export const CATEGORIAS = ["expedientes", "clientes", "documentos", "catalogo", "historial", "lecturas", "auditoria"] as const;
 export type Categoria = (typeof CATEGORIAS)[number];
+export const CATEGORIAS_RESTAURABLES = ["expedientes", "clientes", "documentos", "catalogo"] as const;
 
 export interface InfoCategoria {
   categoria: Categoria;
@@ -31,6 +32,10 @@ export interface InfoCategoria {
   porFilas: boolean;
   /** Admite «anteriores a N días». */
   porAntiguedad: boolean;
+  /** Cuántos hay de cada clase (tipo de documento, tabla del catálogo), para las pestañas. */
+  porSubtipo?: Record<string, number>;
+  /** Lo eliminado se puede sacar de la papelera (restaurar). */
+  restaurable: boolean;
 }
 
 export interface FilaPapelera {
@@ -115,6 +120,10 @@ const SQL_DOCUMENTOS = sql`(a.eliminado_en is not null or a.ambito = 'pendiente'
 const SQL_DOCUMENTOS_JOIN = sql`from adjuntos a left join expedientes e on e.id_expediente = a.id_expediente left join clientes c on c.id = a.id_cliente`;
 
 export async function resumenPapelera(ej: Ejecutor): Promise<InfoCategoria[]> {
+  const [docTipos, catTablas] = await Promise.all([
+    filas<{ tipo: string; n: number }>(ej, sql`select a.tipo, count(*)::int n ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} group by a.tipo`),
+    filas<{ tabla: string; n: number }>(ej, sql`select 'marcas' tabla, count(*)::int n from marcas where eliminado_en is not null union all select 'modelos', count(*)::int from modelos where eliminado_en is not null union all select 'tipo_de_venta', count(*)::int from tipo_de_venta where eliminado_en is not null union all select 'estado_vehiculo', count(*)::int from estado_vehiculo where eliminado_en is not null union all select 'tiendas', count(*)::int from tiendas where eliminado_en is not null`),
+  ]);
   const [expe, cli, doc, cat, his, lec, aud] = await Promise.all([
     filas<{ n: number; b: string }>(ej, sql`select count(*)::int n, coalesce(sum(pg_column_size(e.*)), 0)::bigint b from expedientes e where e.eliminado_en is not null`),
     filas<{ n: number; b: string }>(ej, sql`select count(*)::int n, coalesce(sum(pg_column_size(c.*)), 0)::bigint b from clientes c where c.eliminado_en is not null`),
@@ -125,12 +134,12 @@ export async function resumenPapelera(ej: Ejecutor): Promise<InfoCategoria[]> {
     filas<{ n: number; b: string }>(ej, sql`select (select count(*) from auditoria)::int n, pg_total_relation_size('auditoria') b`),
   ]);
   // Los documentos de los expedientes y clientes eliminados se cuentan aparte, en «Documentos»
-  const dato = (categoria: Categoria, cantidad: number, bytes: number): InfoCategoria => ({ categoria, ...TEXTOS[categoria], cantidad, bytes });
+  const dato = (categoria: Categoria, cantidad: number, bytes: number, porSubtipo?: Record<string, number>): InfoCategoria => ({ categoria, ...TEXTOS[categoria], cantidad, bytes, porSubtipo, restaurable: (CATEGORIAS_RESTAURABLES as readonly string[]).includes(categoria) });
   return [
     dato("expedientes", num(expe[0]?.n), num(expe[0]?.b)),
     dato("clientes", num(cli[0]?.n), num(cli[0]?.b)),
-    dato("documentos", num(doc[0]?.n), num(doc[0]?.b)),
-    dato("catalogo", num(cat[0]?.n), 0),
+    dato("documentos", num(doc[0]?.n), num(doc[0]?.b), Object.fromEntries(docTipos.map((x) => [x.tipo, num(x.n)]))),
+    dato("catalogo", num(cat[0]?.n), 0, Object.fromEntries(catTablas.map((x) => [x.tabla, num(x.n)]))),
     dato("historial", num(his[0]?.n), num(his[0]?.b)),
     dato("lecturas", num(lec[0]?.n), num(lec[0]?.b)),
     dato("auditoria", num(aud[0]?.n), num(aud[0]?.b)),
@@ -539,8 +548,6 @@ export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.inf
 /* ------------------------------------------------------------------ */
 /* Restaurar                                                           */
 /* ------------------------------------------------------------------ */
-
-export const CATEGORIAS_RESTAURABLES = ["expedientes", "clientes", "documentos", "catalogo"] as const;
 
 export const esquemaRestaurar = z.object({
   accion: z.literal("restaurar"),

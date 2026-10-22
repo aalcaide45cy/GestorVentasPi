@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SubPestanas } from "@/components/admin/estructura";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { useToast } from "@/components/Toast";
@@ -30,6 +31,33 @@ const TEXTOS_PURGA: Record<Categoria, string> = {
   lecturas: "Se pierde el registro de lecturas.",
   auditoria: "Se pierde ese rastro de seguridad.",
 };
+
+/** Las pestañas de la papelera: una por cada cosa que se puede eliminar (más el resumen con el espacio y la purga a fondo). */
+interface DefPestana {
+  clave: string;
+  etiqueta: string;
+  ayuda: string;
+  categoria: Categoria;
+  clase?: { incluir?: string[]; excluir?: string[] };
+  explicacion: string;
+  cantidad: (c: InfoCategoria) => number;
+}
+const sub = (clave: string) => (c: InfoCategoria) => c.porSubtipo?.[clave] ?? 0;
+const DEFINICIONES: DefPestana[] = [
+  { clave: "expedientes", etiqueta: "📁 Expedientes", ayuda: "Expedientes eliminados", categoria: "expedientes", explicacion: "Expedientes que eliminaste: no se ven ni cuentan en ninguna comisión. Al restaurarlos vuelven a su sitio, recalculan las comisiones de sus meses y recuperan a su cliente si estaba eliminado.", cantidad: (c) => c.cantidad },
+  { clave: "clientes", etiqueta: "👥 Clientes", ayuda: "Clientes eliminados", categoria: "clientes", explicacion: "Clientes que eliminaste, con sus correos, teléfonos y documentos. No se restauran si ya hay otro cliente vigente con el mismo DNI.", cantidad: (c) => c.cantidad },
+  { clave: "pedidos", etiqueta: "🧾 Pedidos", ayuda: "Pedidos (documentos) eliminados o sin vincular", categoria: "documentos", clase: { incluir: ["pedido"] }, explicacion: "Documentos de pedido que siguen guardados aunque ya no se ven: eliminados, de expedientes o clientes eliminados, o leídos y nunca vinculados.", cantidad: sub("pedido") },
+  { clave: "pagos_rci", etiqueta: "💶 Pagos RCI", ayuda: "Pagos RCI (documentos) eliminados o sin vincular", categoria: "documentos", clase: { incluir: ["pago_rci"] }, explicacion: "Documentos de pago RCI que siguen guardados aunque ya no se ven.", cantidad: sub("pago_rci") },
+  { clave: "otros_documentos", etiqueta: "📎 Otros documentos", ayuda: "DNI, fotos y otros documentos eliminados", categoria: "documentos", clase: { excluir: ["pedido", "pago_rci"] }, explicacion: "DNI, fotos de cliente y otros documentos que siguen guardados aunque ya no se ven.", cantidad: (c) => Object.entries(c.porSubtipo ?? {}).filter(([k]) => k !== "pedido" && k !== "pago_rci").reduce((a, [, n]) => a + n, 0) },
+  { clave: "marcas", etiqueta: "🏷️ Marcas", ayuda: "Marcas eliminadas", categoria: "catalogo", clase: { incluir: ["marcas"] }, explicacion: "Marcas que eliminaste. Se pueden restaurar siempre que no haya otra vigente con el mismo nombre.", cantidad: sub("marcas") },
+  { clave: "modelos", etiqueta: "🚗 Modelos", ayuda: "Modelos eliminados", categoria: "catalogo", clase: { incluir: ["modelos"] }, explicacion: "Modelos que eliminaste. Un modelo solo se restaura si su marca está vigente (restaura antes la marca, o elige las dos a la vez).", cantidad: sub("modelos") },
+  { clave: "formas_pago", etiqueta: "💳 Formas de pago", ayuda: "Formas de pago eliminadas", categoria: "catalogo", clase: { incluir: ["tipo_de_venta"] }, explicacion: "Formas de pago (tipos de venta) que eliminaste.", cantidad: sub("tipo_de_venta") },
+  { clave: "estados", etiqueta: "🚙 Estados de vehículo", ayuda: "Estados de vehículo eliminados", categoria: "catalogo", clase: { incluir: ["estado_vehiculo"] }, explicacion: "Estados de vehículo que eliminaste.", cantidad: sub("estado_vehiculo") },
+  { clave: "tiendas", etiqueta: "🏬 Tiendas", ayuda: "Tiendas eliminadas", categoria: "catalogo", clase: { incluir: ["tiendas"] }, explicacion: "Tiendas que eliminaste.", cantidad: sub("tiendas") },
+  { clave: "historial", etiqueta: "↩️ Historial", ayuda: "Diario de deshacer y rehacer", categoria: "historial", explicacion: "El diario de cambios que permite deshacer y rehacer. Para vaciarlo por antigüedad o del todo, usa el Resumen.", cantidad: (c) => c.cantidad },
+  { clave: "lecturas", etiqueta: "📄 Lecturas", ayuda: "Registro de lecturas de pedidos", categoria: "lecturas", explicacion: "Una fila por cada documento subido para leer (leído, descartado, cancelado o con error). Para vaciarlo por antigüedad o del todo, usa el Resumen.", cantidad: (c) => c.cantidad },
+  { clave: "auditoria", etiqueta: "🛡️ Auditoría", ayuda: "Registro de auditoría", categoria: "auditoria", explicacion: "Quién hizo qué y cuándo. Para vaciarlo por antigüedad o del todo, usa el Resumen.", cantidad: (c) => c.cantidad },
+];
 
 const botonChico = { padding: "6px 12px", fontSize: "0.82rem" } as const;
 const tamano = (b: number): string => (b <= 0 ? "—" : tamanoLegible(b));
@@ -121,38 +149,94 @@ function PanelVista({ categoria, fila, alCerrar }: { categoria: Categoria; fila:
   );
 }
 
-/** Lista de lo que hay en una categoría, para ver (con vista previa de sus documentos), elegir, descargar y purgar fila a fila. */
-function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar }: { categoria: Categoria; titulo: string; explicacion: string; motivo?: string; alCerrar: () => void; alPurgar: (ids: string[]) => void }) {
-  const { datos } = useCarga<{ total: number; filas: FilaPapelera[] } | null>(`/api/admin/papelera?categoria=${categoria}${motivo ? `&motivo=${motivo}` : ""}`, null);
+interface DatosFilas {
+  total: number;
+  filas: FilaPapelera[];
+}
+
+/** Qué filas se ven en una pestaña: de una categoría, y solo de ciertas clases (por ejemplo, los pedidos entre todos los documentos). */
+interface FiltroClase {
+  incluir?: string[];
+  excluir?: string[];
+}
+
+/** Categorías de las que se puede restaurar (el historial, las lecturas y la auditoría son registros: solo se purgan). */
+const RESTAURABLES: Categoria[] = ["expedientes", "clientes", "documentos", "catalogo"];
+
+/** Carga las filas de una categoría, las filtra por clase y lleva la elección; se refresca sola cuando acaba una tarea de la papelera. */
+function useFilas(categoria: Categoria, motivo: string | undefined, clase: FiltroClase | undefined) {
+  const { datos, recargar } = useCarga<DatosFilas | null>(`/api/admin/papelera?categoria=${categoria}${motivo ? `&motivo=${motivo}` : ""}`, null);
   const [marcadas, setMarcadas] = useState<string[]>([]);
+  useEffect(
+    () =>
+      alTerminarTarea((t) => {
+        if (t.tipo === "papelera") {
+          setMarcadas([]);
+          recargar();
+        }
+      }),
+  );
+  const claseIncluir = clase?.incluir?.join("|");
+  const claseExcluir = clase?.excluir?.join("|");
+  const filas = useMemo(() => {
+    const incluir = claseIncluir ? claseIncluir.split("|") : null;
+    const excluir = claseExcluir ? claseExcluir.split("|") : [];
+    return (datos?.filas ?? []).filter((f) => (!incluir || incluir.includes(f.subtipo)) && !excluir.includes(f.subtipo));
+  }, [datos, claseIncluir, claseExcluir]);
+  return { datos, filas, marcadas, setMarcadas, recargar, filtrada: !!clase };
+}
+
+/** Pone en marcha, en segundo plano, la restauración de lo elegido. */
+function useRestaurar() {
+  const { mostrar, notificar } = useToast();
+  const [restaurando, setRestaurando] = useState(false);
+  const restaurar = async (categoria: Categoria, ids: string[]) => {
+    setRestaurando(true);
+    try {
+      await lanzarTarea("/api/admin/papelera", { accion: "restaurar", categoria, ids });
+      void notificar({ titulo: "Se está restaurando en segundo plano", texto: "Lo elegido vuelve a su sitio.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado (y con lo que no se haya podido restaurar, y por qué)."] });
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setRestaurando(false);
+    }
+  };
+  return { restaurando, restaurar };
+}
+
+/** Tabla de una categoría (o de una clase de ella) con elegir, ver documentos y descargar de uno en uno. */
+function CuerpoFilas({ categoria, explicacion, f, mostrarClase }: { categoria: Categoria; explicacion: string; f: ReturnType<typeof useFilas>; mostrarClase: boolean }) {
+  const { datos, filas, marcadas, setMarcadas } = f;
   const [vista, setVista] = useState<FilaPapelera | null>(null);
   const alternar = (id: string, v: boolean) => setMarcadas((m) => (v ? [...m, id] : m.filter((x) => x !== id)));
-  const filas = datos?.filas ?? [];
-  const purgables = filas.filter((f) => !f.bloqueo).map((f) => f.id);
+  const purgables = filas.filter((x) => !x.bloqueo).map((x) => x.id);
   const conVista = categoria === "expedientes" || categoria === "clientes" || categoria === "documentos";
+  const visibles = new Set(filas.map((x) => x.id));
+  const elegidasAqui = marcadas.filter((id) => visibles.has(id));
 
   const columnas: ColumnaTabla<FilaPapelera>[] = [
     {
       clave: "marca",
       etiqueta: "✔",
-      valor: (f) => (marcadas.includes(f.id) ? 1 : 0),
-      celda: (f) => <input type="checkbox" checked={marcadas.includes(f.id)} onChange={(e) => alternar(f.id, e.target.checked)} style={{ accentColor: "var(--primary)" }} title="Elige esta fila para descargarla o purgarla" />,
-      ayuda: "Elige filas para descargarlas o purgarlas",
+      valor: (x) => (marcadas.includes(x.id) ? 1 : 0),
+      celda: (x) => <input type="checkbox" checked={marcadas.includes(x.id)} onChange={(e) => alternar(x.id, e.target.checked)} style={{ accentColor: "var(--primary)" }} title="Elige esta fila para restaurarla, descargarla o purgarla" />,
+      ayuda: "Elige filas para restaurarlas, descargarlas o purgarlas",
     },
-    { clave: "texto", etiqueta: "Qué es", valor: (f) => f.texto, celda: (f) => <span style={{ whiteSpace: "normal", fontWeight: 600 }}>{f.texto}</span>, ayuda: "Nombre del documento, cliente o expediente" },
-    { clave: "detalle", etiqueta: "Detalle", valor: (f) => f.detalle, celda: (f) => <span style={{ whiteSpace: "normal", fontSize: "0.82rem" }}>{f.detalle}</span>, ayuda: "Cuándo se eliminó o se subió y qué arrastra" },
-    { clave: "eliminado", etiqueta: "Eliminado el", valor: (f) => f.eliminadoEn ?? "", celda: (f) => (f.eliminadoEn ? new Date(f.eliminadoEn).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "—"), ayuda: "Cuándo se eliminó (los documentos sin vincular no se han eliminado: nunca se vincularon)" },
-    { clave: "documentos", etiqueta: "Docs", valor: (f) => f.documentos, celda: (f) => f.documentos.toLocaleString("es-ES"), alinear: "right", ayuda: "Cuántos documentos tiene" },
-    { clave: "bytes", etiqueta: "Ocupa", valor: (f) => f.bytes, celda: (f) => tamano(f.bytes), alinear: "right", ayuda: "Lo que ocupa (con sus documentos, si los tiene)" },
-    { clave: "bloqueo", etiqueta: "Estado", valor: (f) => f.bloqueo ?? "", celda: (f) => (f.bloqueo ? <span style={{ color: "var(--warning)", whiteSpace: "normal", fontSize: "0.8rem" }}>⏳ {f.bloqueo}</span> : <span style={{ color: "var(--text-muted)" }}>Se puede purgar</span>), ayuda: "Si algo impide purgarla ahora mismo" },
+    { clave: "texto", etiqueta: "Qué es", valor: (x) => x.texto, celda: (x) => <span style={{ whiteSpace: "normal", fontWeight: 600 }}>{x.texto}</span>, ayuda: "Nombre del documento, cliente o expediente" },
+    { clave: "detalle", etiqueta: "Detalle", valor: (x) => x.detalle, celda: (x) => <span style={{ whiteSpace: "normal", fontSize: "0.82rem" }}>{x.detalle}</span>, ayuda: "Cuándo se eliminó o se subió y qué arrastra" },
+    { clave: "eliminado", etiqueta: "Eliminado el", valor: (x) => x.eliminadoEn ?? "", celda: (x) => (x.eliminadoEn ? new Date(x.eliminadoEn).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "—"), ayuda: "Cuándo se eliminó (los documentos sin vincular no se han eliminado: nunca se vincularon)" },
+    { clave: "documentos", etiqueta: "Docs", valor: (x) => x.documentos, celda: (x) => x.documentos.toLocaleString("es-ES"), alinear: "right", ayuda: "Cuántos documentos tiene", oculta: categoria !== "expedientes" && categoria !== "clientes" },
+    { clave: "bytes", etiqueta: "Ocupa", valor: (x) => x.bytes, celda: (x) => tamano(x.bytes), alinear: "right", ayuda: "Lo que ocupa (con sus documentos, si los tiene)" },
+    { clave: "bloqueo", etiqueta: "Para purgar", valor: (x) => x.bloqueo ?? "", celda: (x) => (x.bloqueo ? <span style={{ color: "var(--warning)", whiteSpace: "normal", fontSize: "0.8rem" }}>⏳ {x.bloqueo}</span> : <span style={{ color: "var(--text-muted)" }}>Se puede purgar</span>), ayuda: "Si algo impide purgarla ahora mismo" },
   ];
+  if (mostrarClase && (categoria === "documentos" || categoria === "catalogo")) columnas.splice(2, 0, { clave: "clase", etiqueta: "Clase", valor: (x) => x.subtipo, ayuda: "Tipo de documento o tabla del catálogo" });
   if (conVista) {
     columnas.push({
       clave: "ver",
       etiqueta: "Ver",
       valor: () => "",
-      celda: (f) => (
-        <button type="button" className={`btn ${vista?.id === f.id ? "btn-primary" : "btn-secondary"}`} style={{ padding: "2px 10px", fontSize: "0.78rem" }} disabled={f.documentos === 0} onClick={() => setVista(vista?.id === f.id ? null : f)} title={f.documentos === 0 ? "No tiene documentos" : "Vista previa de sus documentos (PDF o fotos) sin descargarlos"}>
+      celda: (x) => (
+        <button type="button" className={`btn ${vista?.id === x.id ? "btn-primary" : "btn-secondary"}`} style={{ padding: "2px 10px", fontSize: "0.78rem" }} disabled={x.documentos === 0} onClick={() => setVista(vista?.id === x.id ? null : x)} title={x.documentos === 0 ? "No tiene documentos" : "Vista previa de sus documentos (PDF o fotos) sin descargarlos"}>
           👁 Ver
         </button>
       ),
@@ -164,8 +248,8 @@ function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar
       clave: "archivo",
       etiqueta: "Archivo",
       valor: () => "",
-      celda: (f) => (
-        <a className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.78rem" }} href={`/api/admin/papelera/documento?id=${f.id}`} title="Descarga el archivo tal cual (ya descifrado)">
+      celda: (x) => (
+        <a className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.78rem" }} href={`/api/admin/papelera/documento?id=${x.id}`} title="Descarga el archivo tal cual (ya descifrado)">
           Descargar
         </a>
       ),
@@ -173,54 +257,83 @@ function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar
   }
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>{explicacion}</p>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+        <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMarcadas(purgables)} disabled={!datos}>
+          Elegir todo lo que se puede purgar ({purgables.length})
+        </button>
+        <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMarcadas(filas.map((x) => x.id))} disabled={!datos || filas.length === 0}>
+          Elegir todo lo que se ve ({filas.length})
+        </button>
+        <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMarcadas([])} disabled={marcadas.length === 0}>
+          Quitar la elección
+        </button>
+        {elegidasAqui.length > 0 && <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{elegidasAqui.length.toLocaleString("es-ES")} elegidas</span>}
+      </div>
+      <div style={{ display: "flex", gap: "14px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: vista ? "1.2 1 520px" : "1 1 100%", minWidth: 0 }}>
+          {!datos ? <p style={{ margin: 0, color: "var(--text-secondary)" }}>Cargando…</p> : <TablaDatos<FilaPapelera> id={`papelera-${categoria}`} columnas={columnas} filas={filas} clave={(x) => x.id} compacta ordenInicial={categoria === "historial" || categoria === "lecturas" || categoria === "auditoria" ? undefined : { clave: "bytes", asc: false }} placeholder="Buscar…" vacio="No hay nada." />}
+          {datos && !f.filtrada && datos.total > filas.length && <p style={{ margin: "8px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>Se muestran {filas.length.toLocaleString("es-ES")} de {datos.total.toLocaleString("es-ES")}. «Purgar todo» de la categoría los alcanza todos.</p>}
+        </div>
+        {vista && (
+          <div style={{ flex: "1 1 460px", minWidth: 0, position: "sticky", top: 0 }}>
+            <PanelVista key={vista.id} categoria={categoria} fila={vista} alCerrar={() => setVista(null)} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Restaurar, descargar y purgar lo elegido (los botones de cada lista). */
+function BotonesFilas({ categoria, marcadas, restaurable, porFilas, alPurgar }: { categoria: Categoria; marcadas: string[]; restaurable: boolean; porFilas: boolean; alPurgar: (ids: string[]) => void }) {
+  const { restaurando, restaurar } = useRestaurar();
+  const sin = marcadas.length === 0;
+  return (
+    <>
+      {restaurable && (
+        <button type="button" className="btn btn-primary" disabled={sin || restaurando} onClick={() => void restaurar(categoria, marcadas)} title="Lo elegido vuelve a su sitio y a contar donde estaba (los expedientes recalculan las comisiones y recuperan a su cliente)">
+          ♻️ Restaurar lo elegido ({marcadas.length})
+        </button>
+      )}
+      <a className="btn btn-secondary" aria-disabled={sin} style={sin ? { pointerEvents: "none", opacity: 0.5 } : undefined} href={`/api/admin/papelera?categoria=${categoria}&descargar=1&ids=${marcadas.join(",")}`} title="Descarga en JSON lo que has elegido (sin los archivos de los documentos)">
+        📥 Descargar lo elegido ({marcadas.length})
+      </a>
+      {porFilas && (
+        <button type="button" className="btn btn-danger" disabled={sin} onClick={() => alPurgar(marcadas)} title="Borra de verdad lo que has elegido (la única forma de borrar definitivamente)">
+          🗑️ Purgar lo elegido ({marcadas.length})
+        </button>
+      )}
+    </>
+  );
+}
+
+/** Lista de lo que hay en una categoría dentro de una ventana, para ver (con vista previa de sus documentos), elegir, restaurar, descargar y purgar fila a fila. */
+function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar }: { categoria: Categoria; titulo: string; explicacion: string; motivo?: string; alCerrar: () => void; alPurgar: (ids: string[]) => void }) {
+  const f = useFilas(categoria, motivo, undefined);
+  return (
     <Modal
-      titulo={`${ICONOS[categoria]} ${titulo}${datos ? ` (${datos.total.toLocaleString("es-ES")})` : ""}`}
+      titulo={`${ICONOS[categoria]} ${titulo}${f.datos ? ` (${f.datos.total.toLocaleString("es-ES")})` : ""}`}
       ancho="min(1600px, calc(96 * var(--uvw)))"
       pie={
         <>
-          <a className={`btn btn-secondary${marcadas.length === 0 ? " disabled" : ""}`} aria-disabled={marcadas.length === 0} style={marcadas.length === 0 ? { pointerEvents: "none", opacity: 0.5 } : undefined} href={`/api/admin/papelera?categoria=${categoria}&descargar=1&ids=${marcadas.join(",")}`} title="Descarga en JSON lo que has elegido (sin los archivos de los documentos)">
-            📥 Descargar lo elegido ({marcadas.length})
-          </a>
-          <button type="button" className="btn btn-danger" disabled={marcadas.length === 0} onClick={() => alPurgar(marcadas)} title="Borra de verdad lo que has elegido">
-            🗑️ Purgar lo elegido ({marcadas.length})
-          </button>
-          <button type="button" className="btn btn-primary" onClick={alCerrar}>
+          <BotonesFilas categoria={categoria} marcadas={f.marcadas} restaurable={RESTAURABLES.includes(categoria)} porFilas alPurgar={alPurgar} />
+          <button type="button" className="btn btn-secondary" onClick={alCerrar}>
             Cerrar
           </button>
         </>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "calc(72 * var(--uvh))", overflowY: "auto" }}>
-        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>{explicacion}</p>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMarcadas(purgables)} disabled={!datos}>
-            Elegir todo lo que se puede purgar ({purgables.length})
-          </button>
-          <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMarcadas([])} disabled={marcadas.length === 0}>
-            Quitar la elección
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: "14px", alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div style={{ flex: vista ? "1.2 1 520px" : "1 1 100%", minWidth: 0 }}>
-            {!datos ? <p style={{ margin: 0, color: "var(--text-secondary)" }}>Cargando…</p> : <TablaDatos<FilaPapelera> id={`papelera-${categoria}`} columnas={columnas} filas={filas} clave={(f) => f.id} compacta ordenInicial={categoria === "historial" || categoria === "lecturas" || categoria === "auditoria" ? undefined : { clave: "bytes", asc: false }} placeholder="Buscar…" vacio="No hay nada." />}
-            {datos && datos.total > filas.length && <p style={{ margin: "8px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>Se muestran {filas.length.toLocaleString("es-ES")} de {datos.total.toLocaleString("es-ES")}. «Purgar todo» de la categoría los alcanza todos.</p>}
-          </div>
-          {vista && (
-            <div style={{ flex: "1 1 460px", minWidth: 0, position: "sticky", top: 0 }}>
-              <PanelVista key={vista.id} categoria={categoria} fila={vista} alCerrar={() => setVista(null)} />
-            </div>
-          )}
-        </div>
+      <div style={{ maxHeight: "calc(72 * var(--uvh))", overflowY: "auto" }}>
+        <CuerpoFilas categoria={categoria} explicacion={explicacion} f={f} mostrarClase />
       </div>
     </Modal>
   );
 }
 
-/**
- * Lista de una categoría con todo lo necesario para gestionarla: ver, previsualizar documentos, elegir, descargar y purgar con
- * confirmación. Lo usan la Papelera y las tarjetas del análisis que hablan de documentos, clientes y expedientes eliminados.
- */
-export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, alCerrar, alTerminar }: { categoria: Categoria; titulo: string; explicacion: string; alPurga?: string; motivo?: string; alCerrar: () => void; alTerminar: () => void }) {
+/** Purga lo elegido de una categoría (con la confirmación de dos pulsaciones y copia previa), en segundo plano. */
+function usePurgaElegidos(categoria: Categoria, alPurgado: () => void) {
   const { mostrar, notificar } = useToast();
   const [ids, setIds] = useState<string[] | null>(null);
   const [trabajando, setTrabajando] = useState(false);
@@ -231,28 +344,63 @@ export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, a
       await lanzarTarea("/api/admin/papelera", { categoria, ids, confirmacion: "PURGAR" });
       void notificar({ titulo: "Se está haciendo en segundo plano", texto: "La purga está en marcha.", detalles: ["Puedes seguir usando la aplicación mientras tanto.", "Verás el avance en la barra de tareas de arriba.", "Al terminar saldrá un aviso con el resultado."] });
       setIds(null);
-      alTerminar();
-      alCerrar();
+      alPurgado();
     } catch (e) {
       mostrar(textoError(e), "error");
     } finally {
       setTrabajando(false);
     }
   };
+  return { ids, setIds, trabajando, purgar };
+}
+
+/**
+ * Lista de una categoría con todo lo necesario para gestionarla: ver, previsualizar documentos, elegir, restaurar, descargar y purgar con
+ * confirmación. La usan las tarjetas del análisis que hablan de documentos, clientes y expedientes eliminados.
+ */
+export function GestorFilas({ categoria, titulo, explicacion, alPurga, motivo, alCerrar, alTerminar }: { categoria: Categoria; titulo: string; explicacion: string; alPurga?: string; motivo?: string; alCerrar: () => void; alTerminar: () => void }) {
+  const p = usePurgaElegidos(categoria, () => {
+    alTerminar();
+    alCerrar();
+  });
   return (
     <>
-      <ModalFilas categoria={categoria} titulo={titulo} explicacion={explicacion} motivo={motivo} alCerrar={alCerrar} alPurgar={setIds} />
-      {ids && (
+      <ModalFilas categoria={categoria} titulo={titulo} explicacion={explicacion} motivo={motivo} alCerrar={alCerrar} alPurgar={p.setIds} />
+      {p.ids && (
         <ModalConfirmarPurga
-          titulo={`🗑️ Purgar ${ids.length.toLocaleString("es-ES")} elegidos de «${titulo}»`}
+          titulo={`🗑️ Purgar ${p.ids.length.toLocaleString("es-ES")} elegidos de «${titulo}»`}
           texto={`Se borran de verdad y no se pueden recuperar salvo restaurando la copia previa. ${alPurga ?? TEXTOS_PURGA[categoria]}`}
           boton="Purgar de verdad"
-          trabajando={trabajando}
-          alConfirmar={() => void purgar()}
-          alCancelar={() => setIds(null)}
+          trabajando={p.trabajando}
+          alConfirmar={() => void p.purgar()}
+          alCancelar={() => p.setIds(null)}
         />
       )}
     </>
+  );
+}
+
+/** Una pestaña de la papelera: lo eliminado de una clase (pedidos, marcas…), con restaurar, descargar y purgar por filas. */
+function PestanaFilas({ info, explicacion, clase, alPurgado }: { info: InfoCategoria; explicacion: string; clase?: FiltroClase; alPurgado: () => void }) {
+  const f = useFilas(info.categoria, undefined, clase);
+  const p = usePurgaElegidos(info.categoria, alPurgado);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+        <BotonesFilas categoria={info.categoria} marcadas={f.marcadas} restaurable={info.restaurable} porFilas={info.porFilas} alPurgar={p.setIds} />
+      </div>
+      <CuerpoFilas categoria={info.categoria} explicacion={explicacion} f={f} mostrarClase={false} />
+      {p.ids && (
+        <ModalConfirmarPurga
+          titulo={`🗑️ Purgar ${p.ids.length.toLocaleString("es-ES")} elegidos`}
+          texto={`Se borran de verdad y no se pueden recuperar salvo restaurando la copia previa. ${info.alPurgar}`}
+          boton="Purgar de verdad"
+          trabajando={p.trabajando}
+          alConfirmar={() => void p.purgar()}
+          alCancelar={() => p.setIds(null)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -324,10 +472,26 @@ export default function PanelPapelera() {
       <div>
         <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🗑️ Papelera y purga</h3>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.5, margin: 0 }}>
-          Al eliminar un cliente, un expediente, un documento o un elemento de un catálogo, la aplicación <b>solo lo oculta</b> (así se puede deshacer y el histórico de comisiones se conserva). Aquí ves <b>todo lo que sigue guardado</b>, lo descargas, eliges y <b>purgas de verdad</b>. Antes de purgar se guarda siempre una copia de seguridad completa. Las liquidaciones y los puntos ya guardados no se tocan: son el histórico de lo cobrado.
+          Todo lo que se elimina en la aplicación <b>viene aquí</b> y se puede <b>restaurar</b>: solo la Papelera borra de verdad. Hay una pestaña por cada cosa (expedientes, pedidos, pagos RCI, marcas, modelos…) con buscador, orden y columnas a tu gusto. Aquí ves <b>todo lo que sigue guardado</b>, lo restauras, lo descargas, eliges y <b>purgas de verdad</b>. Antes de purgar se guarda siempre una copia de seguridad completa. Las liquidaciones y los puntos ya guardados no se tocan: son el histórico de lo cobrado.
         </p>
       </div>
 
+      <SubPestanas
+        id="papelera"
+        pestanas={[
+          { clave: "resumen", etiqueta: "📊 Resumen", ayuda: "Espacio, purga por categorías y purga a fondo", insignia: datos.categorias.reduce((a, c) => a + (c.restaurable ? c.cantidad : 0), 0) || undefined },
+          ...DEFINICIONES.map((d) => {
+            const info = datos.categorias.find((c) => c.categoria === d.categoria);
+            return { clave: d.clave, etiqueta: d.etiqueta, ayuda: d.ayuda, insignia: info ? d.cantidad(info) : undefined };
+          }),
+        ]}
+      >
+        {(pestana) => {
+          const def = DEFINICIONES.find((d) => d.clave === pestana);
+          const info = def ? datos.categorias.find((c) => c.categoria === def.categoria) : undefined;
+          if (def) return info ? <PestanaFilas key={def.clave} info={info} explicacion={def.explicacion} clase={def.clase} alPurgado={refrescar} /> : <p style={{ margin: 0, color: "var(--text-secondary)" }}>Cargando…</p>;
+          return (
+            <>
       <div className="glass-panel" style={{ padding: "14px 16px", display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap", border: "1px solid var(--border-light)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
           <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>La base de datos ocupa en disco</span>
@@ -404,6 +568,10 @@ export default function PanelPapelera() {
           </button>
         </div>
       </div>
+            </>
+          );
+        }}
+      </SubPestanas>
 
       {ver && <GestorFilas categoria={ver.categoria} titulo={ver.titulo} explicacion={ver.explicacion} alPurga={ver.alPurgar} alCerrar={() => setVer(null)} alTerminar={refrescar} />}
       {purga && (
