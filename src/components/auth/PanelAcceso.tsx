@@ -5,7 +5,7 @@ export default function PanelAcceso({ subtitulo, ancho = "440px", children }: { 
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "calc(100 * var(--uvh))",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

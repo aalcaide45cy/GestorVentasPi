@@ -156,7 +156,7 @@ No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras est
         ) : datos.grupos.length === 0 ? (
           <div style={{ color: "var(--success)", fontWeight: 600 }}>✅ No hay expedientes duplicados entre los {datos.revisados} revisados.</div>
         ) : (
-          <TablaDatos<Fila> id="duplicados-expedientes" columnas={columnas} filas={visibles} clave={(f) => `${f.grupo}-${f.id}`} placeholder={`Buscar entre ${n} filas por cliente, matrícula, bastidor…`} ordenInicial={{ clave: "grupo", asc: true }} alto="min(55vh, 600px)" bloque={200} compacta />
+          <TablaDatos<Fila> id="duplicados-expedientes" columnas={columnas} filas={visibles} clave={(f) => `${f.grupo}-${f.id}`} placeholder={`Buscar entre ${n} filas por cliente, matrícula, bastidor…`} ordenInicial={{ clave: "grupo", asc: true }} alto="min(calc(55 * var(--uvh)), 600px)" bloque={200} compacta />
         )}
       </div>
     </Modal>

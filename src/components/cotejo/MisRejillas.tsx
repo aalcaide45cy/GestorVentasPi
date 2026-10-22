@@ -166,7 +166,7 @@ export default function MisRejillas({ esAdministrador }: { esAdministrador: bool
 
       {viendo && (
         <Modal titulo={`Rejilla de ${viendo.vendedor}: ${nombreMes(viendo.mes)}`} ancho="1200px" pie={<button type="button" className="btn btn-secondary" onClick={() => { setViendo(null); setEdicion(null); }}>Cerrar</button>}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "70vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "calc(70 * var(--uvh))", overflowY: "auto" }}>
             <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>
               {viendo.nombreArchivo ?? viendo.origen} · {viendo.filas} filas · guardada el {fechaHora(viendo.creadaEn)}
               {viendo.totalHoja !== null ? ` · total de la hoja ${euros(viendo.totalHoja)}` : ""}

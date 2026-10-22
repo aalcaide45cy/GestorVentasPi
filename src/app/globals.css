@@ -33,6 +33,11 @@
 }
 
 :root {
+  /* Tamaño de la página (ver ControlZoom): al ampliar o reducir con `zoom`, las unidades de ventana (vw, vh) no se compensan solas; todo el código usa estas */
+  --z: 1;
+  --uvw: calc(1vw / var(--z));
+  --uvh: calc(1vh / var(--z));
+  --udvh: calc(1dvh / var(--z));
   /* Paleta de colores HSL */
   --primary-hue: 255;
   --accent-rgb: 124, 58, 237;
@@ -129,7 +134,7 @@ html, body {
   color: var(--text-primary);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
+  min-height: calc(100 * var(--uvh));
   overflow-x: hidden;
 }
 
@@ -171,8 +176,8 @@ a:hover {
   position: fixed;
   top: -10%;
   left: -10%;
-  width: 120vw;
-  height: 120vh;
+  width: calc(120 * var(--uvw));
+  height: calc(120 * var(--uvh));
   background:
     radial-gradient(circle at 10% 20%, rgba(var(--accent-rgb), 0.15) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(var(--secondary-rgb), 0.12) 0%, transparent 45%);
@@ -321,7 +326,7 @@ select, select option {
 .badge-invitado { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.2); }
 
 /* Tabla con scroll solo en las filas: la cabecera queda fija y la página no se alarga con miles de filas */
-.tabla-scroll { max-height: var(--alto-tabla, 68vh); overflow: auto; padding: 0 2px 2px 2px; }
+.tabla-scroll { max-height: var(--alto-tabla, calc(68 * var(--uvh))); overflow: auto; padding: 0 2px 2px 2px; }
 .tabla-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
 
 /* Tablas */
@@ -475,9 +480,9 @@ tr.fila-aviso > td:last-child {
     top: 0 !important;
     left: 0 !important;
     margin: 0 !important;
-    width: min(300px, 86vw) !important;
-    height: 100vh !important;
-    height: 100dvh !important;
+    width: min(300px, calc(86 * var(--uvw))) !important;
+    height: calc(100 * var(--uvh)) !important;
+    height: calc(100 * var(--udvh)) !important;
     min-height: 0 !important;
     border-radius: 0 var(--radius-lg) var(--radius-lg) 0 !important;
     padding: 56px 18px 24px !important;
@@ -573,18 +578,18 @@ tr.fila-aviso > td:last-child {
   .laboratorio-panel {
     right: 8px !important;
     bottom: 8px !important;
-    width: calc(100vw - 16px) !important;
-    max-height: calc(100dvh - 16px) !important;
+    width: calc(calc(100 * var(--uvw)) - 16px) !important;
+    max-height: calc(calc(100 * var(--udvh)) - 16px) !important;
   }
 
   /* Ventanas emergentes casi a pantalla completa */
   [aria-modal="true"] {
     padding: 8px !important;
-    height: 100dvh !important;
+    height: calc(100 * var(--udvh)) !important;
   }
   [aria-modal="true"] > .glass-panel {
     padding: 18px !important;
-    max-height: 96dvh !important;
+    max-height: calc(96 * var(--udvh)) !important;
   }
 
   /* Tablas: se desplazan en horizontal en vez de aplastar las columnas */

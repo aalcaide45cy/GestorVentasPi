@@ -216,7 +216,7 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
       {abierta && (
                 <Modal
                   titulo={`${abierta.titulo} (${abierta.cantidad})`}
-                  ancho="min(1500px, 96vw)"
+                  ancho="min(1500px, calc(96 * var(--uvw)))"
                   pie={
                     <button type="button" className="btn btn-secondary" onClick={() => setAbierta(null)}>
                       Cerrar

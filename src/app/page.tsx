@@ -20,7 +20,7 @@ export default async function Home() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: "100vh",
+        minHeight: "calc(100 * var(--uvh))",
         padding: "40px 24px",
         position: "relative",
         background:

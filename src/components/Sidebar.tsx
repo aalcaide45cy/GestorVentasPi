@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import BarraHistorial from "@/components/BarraHistorial";
 import BotonAyuda from "@/components/BotonAyuda";
 import BotonApagar, { BotonCambiarModo, BotonReiniciarServidor } from "@/components/BotonApagar";
+import ControlZoom from "@/components/ControlZoom";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
 import Modal from "@/components/Modal";
@@ -22,6 +23,8 @@ interface SidebarProps {
   };
   /** Versión instalada (la del archivo de configuración del contenedor o, en desarrollo, la del paquete). */
   version: string;
+  /** Tamaño de la página elegido en este navegador (porcentaje). */
+  zoom?: number;
 }
 
 const iconoProps = {
@@ -170,7 +173,7 @@ function GrupoSistema({ colapsado }: { colapsado: boolean }) {
   );
 }
 
-export default function Sidebar({ user, version }: SidebarProps) {
+export default function Sidebar({ user, version, zoom = 100 }: SidebarProps) {
   const [colapsadoGuardado, guardarColapsado] = usePreferencia("sidebar-collapsed");
   const movil = useMovil();
   const [labAbierto, fijarLabAbierto] = usePreferencia(CLAVE_ABIERTO);
@@ -228,7 +231,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
       className="glass-panel app-sidebar"
       style={{
         width: asideWidth,
-        minHeight: "calc(100vh - 32px)",
+        minHeight: "calc(calc(100 * var(--uvh)) - 32px)",
         margin: "16px 0 16px 16px",
         display: "flex",
         flexDirection: "column",
@@ -237,7 +240,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
         borderRadius: "var(--radius-lg)",
         position: "sticky",
         top: "16px",
-        height: "calc(100vh - 32px)",
+        height: "calc(calc(100 * var(--uvh)) - 32px)",
         zIndex: 10,
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         overflow: "visible",
@@ -520,6 +523,7 @@ export default function Sidebar({ user, version }: SidebarProps) {
       {/* Pie */}
       <div className="sidebar-pie" style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
         <BarraHistorial colapsado={isCollapsed} />
+        {!isCollapsed && <ControlZoom inicial={zoom} />}
         <button
           onClick={cerrarSesion}
           className="glass-panel-interactive"

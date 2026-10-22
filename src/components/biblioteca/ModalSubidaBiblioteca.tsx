@@ -373,7 +373,7 @@ export default function ModalSubidaBiblioteca({ archivos, tipoFijo, alCerrar }: 
             </div>
           )}
 
-          <TablaDatos<Fila> id="subida-biblioteca" columnas={columnas} filas={filasTabla} clave={(f) => f.i} placeholder="Buscar por nombre, tipo, formato…" alto="min(52vh, 560px)" bloque={150} alVerFilas={alVerFilas} compacta />
+          <TablaDatos<Fila> id="subida-biblioteca" columnas={columnas} filas={filasTabla} clave={(f) => f.i} placeholder="Buscar por nombre, tipo, formato…" alto="min(calc(52 * var(--uvh)), 560px)" bloque={150} alVerFilas={alVerFilas} compacta />
         </div>
       </Modal>
       {viendo && <VistaPreviaBiblioteca archivo={{ id: 0, nombre: viendo.name, mime: viendo.type || "application/octet-stream", tamano: viendo.size }} local={viendo} alCerrar={() => setViendo(null)} />}

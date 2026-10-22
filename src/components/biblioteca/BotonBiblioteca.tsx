@@ -204,7 +204,7 @@ function Selector({ categorias, multiple, alElegir, alCerrar }: { categorias: Ca
               clave={(f) => f.id}
               placeholder="Buscar por nombre, tipo, formato, asignación…"
               vacio={lista.length === 0 ? "Todavía no hay archivos en la biblioteca. Usa «Añadir a la biblioteca»." : "No hay archivos de este tipo. Prueba con «Todos» u otro tipo."}
-              alto="min(52vh, 560px)"
+              alto="min(calc(52 * var(--uvh)), 560px)"
               bloque={200}
               alVerFilas={alVerFilas}
               compacta

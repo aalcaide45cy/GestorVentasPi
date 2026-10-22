@@ -40,5 +40,5 @@ export default function PantallaError({ error, reset, completa = false }: { erro
       {avisando && <AvisarFallo alCerrar={() => setAvisando(false)} version={null} textoInicial={`Se rompió la pantalla ${typeof location !== "undefined" ? location.pathname : ""}: `} />}
     </div>
   );
-  return completa ? <div style={{ minHeight: "100vh", background: "var(--bg-app)", color: "var(--text-primary)", padding: "20px" }}>{contenido}</div> : contenido;
+  return completa ? <div style={{ minHeight: "calc(100 * var(--uvh))", background: "var(--bg-app)", color: "var(--text-primary)", padding: "20px" }}>{contenido}</div> : contenido;
 }

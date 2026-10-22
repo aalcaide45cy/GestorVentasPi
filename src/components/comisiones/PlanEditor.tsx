@@ -228,7 +228,7 @@ export default function PlanEditor({ inicial, cat, solapados, onGuardado, onVolv
           </div>
           <div style={campoCabecera}>
             <label style={etiquetaCabecera}>Nombre:</label>
-            <input className="form-input" style={{ width: "min(420px, 80vw)", fontSize: "1.05rem", fontWeight: 600 }} value={plan.nombre} onChange={(e) => { setNombreManual(!esNombreAutomatico(e.target.value)); setPlan((p) => ({ ...p, nombre: e.target.value })); }} />
+            <input className="form-input" style={{ width: "min(420px, calc(80 * var(--uvw)))", fontSize: "1.05rem", fontWeight: 600 }} value={plan.nombre} onChange={(e) => { setNombreManual(!esNombreAutomatico(e.target.value)); setPlan((p) => ({ ...p, nombre: e.target.value })); }} />
           </div>
           <div style={{ ...campoCabecera, flexWrap: "wrap", gap: "12px 20px" }}>
             <span style={campoCabecera}>

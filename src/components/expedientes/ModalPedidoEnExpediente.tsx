@@ -290,7 +290,7 @@ export default function ModalPedidoEnExpediente({ pedido, actuales, opcionesMode
   return (
     <Modal
       titulo="📄 Completar el expediente con el pedido"
-      ancho={verPdf ? "min(96vw, 1500px)" : "min(96vw, 800px)"}
+      ancho={verPdf ? "min(calc(96 * var(--uvw)), 1500px)" : "min(calc(96 * var(--uvw)), 800px)"}
       pie={
         <>
           <button type="button" className="btn btn-secondary" onClick={() => setVerPdf((v) => !v)} title="Muestra el PDF del pedido al lado de los datos para decidir qué aplicar mirando el original">

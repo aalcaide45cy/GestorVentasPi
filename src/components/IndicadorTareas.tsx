@@ -118,7 +118,7 @@ export default function IndicadorTareas() {
             </button>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "60vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "calc(60 * var(--uvh))", overflowY: "auto" }}>
             <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Puedes seguir usando la aplicación mientras se hacen: aquí ves cómo van. Se ejecutan de una en una, por orden.</div>
             {tareas.map((t) => (
               <div key={t.id} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>

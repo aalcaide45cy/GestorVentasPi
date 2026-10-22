@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
+import { COOKIE_ZOOM, zoomValido } from "@/lib/zoom";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 import IndicadorRecursos from "@/components/IndicadorRecursos";
@@ -37,7 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          minHeight: "100vh",
+          minHeight: "calc(100 * var(--uvh))",
           background: "var(--bg-app)",
           color: "var(--text-primary)",
           padding: "20px",
@@ -88,10 +90,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <OverlaySubida />
       <VigilanteFallos version={versionDeLaApp()} />
       <RefrescoDeDatos />
-      <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-app)", position: "relative" }}>
+      <div style={{ display: "flex", minHeight: "calc(100 * var(--uvh))", background: "var(--bg-app)", position: "relative" }}>
         <div className="glow-bg"></div>
 
-        <Sidebar user={{ nombre: user.nombre, rol: user.rol }} version={versionDeLaApp()} />
+        <Sidebar user={{ nombre: user.nombre, rol: user.rol }} version={versionDeLaApp()} zoom={zoomValido((await cookies()).get(COOKIE_ZOOM)?.value)} />
 
         <main
           className="app-main"
@@ -99,7 +101,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             flex: 1,
             padding: "16px 28px",
             overflowY: "auto",
-            maxHeight: "100vh",
+            maxHeight: "calc(100 * var(--uvh))",
             display: "flex",
             flexDirection: "column",
             gap: "14px",

@@ -39,10 +39,10 @@ export function VistaPrevia({ adjunto, alCerrar }: { adjunto: Pick<AdjuntoDto, "
       }
     >
       {esPdf ? (
-        <iframe title={adjunto.nombre} src={`/api/adjuntos?id=${adjunto.id}`} style={{ width: "100%", height: "70vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />
+        <iframe title={adjunto.nombre} src={`/api/adjuntos?id=${adjunto.id}`} style={{ width: "100%", height: "calc(70 * var(--uvh))", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/api/adjuntos?id=${adjunto.id}`} alt={adjunto.nombre} style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", alignSelf: "center", borderRadius: "var(--radius-sm)" }} />
+        <img src={`/api/adjuntos?id=${adjunto.id}`} alt={adjunto.nombre} style={{ maxWidth: "100%", maxHeight: "calc(70 * var(--uvh))", objectFit: "contain", alignSelf: "center", borderRadius: "var(--radius-sm)" }} />
       )}
     </Modal>
   );

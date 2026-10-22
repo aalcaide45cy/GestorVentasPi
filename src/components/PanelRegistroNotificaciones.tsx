@@ -92,7 +92,7 @@ export default function PanelRegistroNotificaciones({ alCerrar }: { alCerrar: ()
         ))}
         <input className="form-input" style={{ flex: "1 1 180px", minWidth: "140px" }} placeholder="Buscar en el registro…" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "52vh", overflowY: "auto" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "calc(52 * var(--uvh))", overflowY: "auto" }}>
         {dias.length === 0 && <div style={{ color: "var(--text-muted)", padding: "18px 0", textAlign: "center" }}>{registro.length === 0 ? "Todavía no hay notificaciones guardadas." : "Ninguna notificación coincide con el filtro."}</div>}
         {dias.map((g) => (
           <section key={g.dia} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>

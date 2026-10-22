@@ -980,7 +980,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
               estiloFila={(e) => (e.__duplicado ? { background: "rgba(239, 68, 68, 0.08)" } : {})}
               placeholder="Buscar por código, vehículo, matrícula, bastidor, vendedor…"
               vacio="No hay expedientes asociados a este cliente."
-              alto="min(60vh, 640px)"
+              alto="min(calc(60 * var(--uvh)), 640px)"
             />
           )}
         </Modal>

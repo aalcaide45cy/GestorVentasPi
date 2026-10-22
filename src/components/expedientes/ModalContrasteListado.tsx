@@ -94,7 +94,7 @@ export default function ModalContrasteListado({ nombreArchivo, resultado: r, alC
     >
       <div
         className="modal-content glass-panel"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)", padding: "24px", width: "100%", maxWidth: "1100px", maxHeight: "90vh", overflowY: "auto" }}
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)", padding: "24px", width: "100%", maxWidth: "1100px", maxHeight: "calc(90 * var(--uvh))", overflowY: "auto" }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <h3 style={{ margin: 0, fontSize: "1.25rem" }}>🔎 Contraste con el listado</h3>

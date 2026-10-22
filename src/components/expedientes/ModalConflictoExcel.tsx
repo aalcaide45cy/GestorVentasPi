@@ -52,7 +52,7 @@ export default function ModalConflictoExcel({ conflicto, indice, total, alElegir
           padding: "24px",
           width: "100%",
           maxWidth: "850px",
-          maxHeight: "90vh",
+          maxHeight: "calc(90 * var(--uvh))",
           overflowY: "auto",
           boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
         }}

@@ -134,7 +134,7 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
           </button>
         }
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "72vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "calc(72 * var(--uvh))", overflowY: "auto" }}>
           <p style={{ margin: 0, fontSize: "0.86rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
             La <b>fecha de pago</b> de cada documento de la financiera es la fecha RCI (contratación) del expediente. Si el pago se asocia solo (por bastidor, matrícula o documento del adquiriente) la fecha se fija directamente; si hay dudas o no hay expediente, queda <b>pendiente</b> para que decidas. Nunca se crea un expediente desde aquí.
           </p>
@@ -335,7 +335,7 @@ function DetallePago({ pago, trabajando, alCerrar, accion }: { pago: PagoRciDto;
         </button>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "72vh", overflowY: "auto" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "calc(72 * var(--uvh))", overflowY: "auto" }}>
         <div style={{ minHeight: "300px", overflow: "hidden", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
           {pago.idAdjunto !== null ? <VisorPedido key={pago.idAdjunto} idAdjunto={pago.idAdjunto} nombre={pago.nombreArchivo} /> : <div style={{ padding: "16px", color: "var(--text-muted)" }}>El archivo ya no está guardado.</div>}
         </div>

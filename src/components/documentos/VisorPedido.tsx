@@ -73,14 +73,14 @@ export default function VisorPedido({ idAdjunto, nombre, alRecargado }: { idAdju
         </span>
       </div>
       {estado === "falta" ? (
-        <div style={{ height: "72vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", textAlign: "center", padding: "24px", border: "1px dashed var(--border-light)", borderRadius: "var(--radius-sm)", color: "var(--text-secondary)" }}>
+        <div style={{ height: "calc(72 * var(--uvh))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", textAlign: "center", padding: "24px", border: "1px dashed var(--border-light)", borderRadius: "var(--radius-sm)", color: "var(--text-secondary)" }}>
           <div style={{ fontSize: "2rem" }}>🗃️</div>
           <strong>El archivo de este pedido ya no está guardado</strong>
           <span style={{ fontSize: "0.88rem", lineHeight: 1.5 }}>Seguramente se purgó desde Herramientas › Papelera. Los datos leídos siguen aquí, pero el PDF no se puede enseñar.{alRecargado ? " Si todavía lo tienes, puedes volver a cargarlo." : ""}</span>
           {botonRecargar}
         </div>
       ) : (
-        <iframe src={`/api/adjuntos?id=${idActual}`} title={`Pedido ${nombre}`} style={{ width: "100%", height: "72vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff", opacity: estado === "comprobando" ? 0.4 : 1 }} />
+        <iframe src={`/api/adjuntos?id=${idActual}`} title={`Pedido ${nombre}`} style={{ width: "100%", height: "calc(72 * var(--uvh))", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff", opacity: estado === "comprobando" ? 0.4 : 1 }} />
       )}
     </div>
   );

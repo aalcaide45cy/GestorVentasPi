@@ -114,7 +114,7 @@ export default function PanelRegistro() {
           const c = e.currentTarget;
           alFinal.current = c.scrollHeight - c.scrollTop - c.clientHeight < 40;
         }}
-        style={{ margin: 0, padding: "12px 14px", maxHeight: "60vh", minHeight: "200px", overflow: "auto", background: "var(--bg-surface-tint)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", fontSize: "0.78rem", lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", userSelect: "text" }}
+        style={{ margin: 0, padding: "12px 14px", maxHeight: "calc(60 * var(--uvh))", minHeight: "200px", overflow: "auto", background: "var(--bg-surface-tint)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", fontSize: "0.78rem", lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", userSelect: "text" }}
       >
         {contenido || "No hay entradas con este filtro."}
       </pre>

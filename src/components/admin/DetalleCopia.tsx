@@ -50,7 +50,7 @@ export default function ModalDetalleCopia({ copia, alCerrar }: { copia: CopiaDto
         </button>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "70vh", overflowY: "auto", paddingRight: "4px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "calc(70 * var(--uvh))", overflowY: "auto", paddingRight: "4px" }}>
         {!d && <p style={{ margin: 0, color: "var(--text-secondary)" }}>Leyendo el archivo de la copia… (si es muy grande, puede tardar unos segundos)</p>}
         {d && (
           <>

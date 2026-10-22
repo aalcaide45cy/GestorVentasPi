@@ -111,9 +111,9 @@ function PanelVista({ categoria, fila, alCerrar }: { categoria: Categoria; fila:
           </div>
           {actual.mime.startsWith("image/") ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt={actual.nombre} style={{ maxWidth: "100%", maxHeight: "68vh", objectFit: "contain", borderRadius: "var(--radius-sm)", background: "#fff" }} />
+            <img src={url} alt={actual.nombre} style={{ maxWidth: "100%", maxHeight: "calc(68 * var(--uvh))", objectFit: "contain", borderRadius: "var(--radius-sm)", background: "#fff" }} />
           ) : (
-            <iframe key={actual.id} src={url} title={actual.nombre} style={{ width: "100%", height: "68vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />
+            <iframe key={actual.id} src={url} title={actual.nombre} style={{ width: "100%", height: "calc(68 * var(--uvh))", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />
           )}
         </>
       )}
@@ -175,7 +175,7 @@ function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar
   return (
     <Modal
       titulo={`${ICONOS[categoria]} ${titulo}${datos ? ` (${datos.total.toLocaleString("es-ES")})` : ""}`}
-      ancho="min(1600px, 96vw)"
+      ancho="min(1600px, calc(96 * var(--uvw)))"
       pie={
         <>
           <a className={`btn btn-secondary${marcadas.length === 0 ? " disabled" : ""}`} aria-disabled={marcadas.length === 0} style={marcadas.length === 0 ? { pointerEvents: "none", opacity: 0.5 } : undefined} href={`/api/admin/papelera?categoria=${categoria}&descargar=1&ids=${marcadas.join(",")}`} title="Descarga en JSON lo que has elegido (sin los archivos de los documentos)">
@@ -190,7 +190,7 @@ function ModalFilas({ categoria, titulo, explicacion, motivo, alCerrar, alPurgar
         </>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "72vh", overflowY: "auto" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "calc(72 * var(--uvh))", overflowY: "auto" }}>
         <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>{explicacion}</p>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-secondary" style={botonChico} onClick={() => setMarcadas(purgables)} disabled={!datos}>

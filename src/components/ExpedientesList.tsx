@@ -1289,7 +1289,7 @@ export default function ExpedientesList({
           alIrAPagina={(p) => setPagina(Math.max(1, Math.min(p, totalPaginas)))}
         />
 
-        <div className="table-container tabla-scroll" style={{ ["--alto-tabla" as string]: "min(68vh, 760px)" }}>
+        <div className="table-container tabla-scroll" style={{ ["--alto-tabla" as string]: "min(calc(68 * var(--uvh)), 760px)" }}>
           <table className="table-premium table-compact tabla-fija" style={{ width: (seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + ANCHO_COLUMNA[c.clave], 0) + ANCHO_ACCIONES, minWidth: "100%" }}>
             <colgroup>
               {seleccionActiva && <col style={{ width: ANCHO_SELECCION }} />}

@@ -237,7 +237,7 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
             </button>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "65vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "calc(65 * var(--uvh))", overflowY: "auto" }}>
             <table className="table-premium table-compact">
               <thead>
                 <tr>
@@ -315,7 +315,7 @@ export default function TabLiquidacion({ plan, cat, hayCambios }: PropsPestana &
             </button>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "65vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "calc(65 * var(--uvh))", overflowY: "auto" }}>
             <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
               <span>Puntos: <b>{puntos(detalle.liquidacion.puntosMes)}</b> / X = {puntos(detalle.liquidacion.objetivoX)}</span>
               <span>Tramo: <b>{etiquetaTramo(detalle.liquidacion.tramo)}</b></span>

@@ -193,7 +193,7 @@ export default function LaboratorioComisiones({ esAdministrador }: { esAdministr
     <aside
       className="glass-panel laboratorio-panel"
       aria-label="Laboratorio de comisiones"
-      style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: `min(${ancho}px, 100vw)`, zIndex: 900, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "-12px 0 40px rgba(0,0,0,0.45)", borderRadius: "var(--radius-md) 0 0 var(--radius-md)" }}
+      style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: `min(${ancho}px, calc(100 * var(--uvw)))`, zIndex: 900, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg-card)", boxShadow: "-12px 0 40px rgba(0,0,0,0.45)", borderRadius: "var(--radius-md) 0 0 var(--radius-md)" }}
     >
       <div onPointerDown={iniciarTamano} className="laboratorio-borde" title="Arrastra el borde para cambiar el ancho del laboratorio" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "8px", cursor: "ew-resize", touchAction: "none", zIndex: 2 }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", position: "sticky", top: "-16px", zIndex: 1, background: "var(--bg-card)", padding: "16px 0 8px", margin: "-16px 0 0" }}>

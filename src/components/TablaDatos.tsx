@@ -60,7 +60,7 @@ interface Props<T> {
 const sinAcentos = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Para pantallas que son solo una tabla: ocupa el alto que queda bajo el título y los filtros (mínimo 420 px). */
-export const PANTALLA_COMPLETA = "max(420px, calc(100vh - 330px))";
+export const PANTALLA_COMPLETA = "max(420px, calc(calc(100 * var(--uvh)) - 330px))";
 
 export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, placeholder = "Buscar…", vacio = "No hay datos.", pie, estiloFila, claseFila, compacta, ordenInicial, alVerFilas, bloque, alto }: Props<T>) {
   const relleno = compacta ? "5px 6px" : "6px 8px";
@@ -138,7 +138,7 @@ export default function TablaDatos<T>({ id, columnas, filas, clave, textoExtra, 
       {visibles.length === 0 ? (
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>{filas.length === 0 ? vacio : "Ningún resultado con esa búsqueda."}</p>
       ) : (
-        <div className="tabla-scroll" style={{ ["--alto-tabla" as string]: alto ?? "min(55vh, 420px)" }}>
+        <div className="tabla-scroll" style={{ ["--alto-tabla" as string]: alto ?? "min(calc(55 * var(--uvh)), 420px)" }}>
           <table style={{ width: "100%", fontSize: "0.82rem", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr style={{ color: "var(--text-secondary)" }}>

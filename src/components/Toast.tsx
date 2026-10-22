@@ -126,7 +126,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {visibles.length > 0 && (
         <div
           aria-live="polite"
-          style={{ position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", width: "min(440px, calc(100vw - 24px))", display: "flex", flexDirection: "column", gap: "10px", zIndex: 7000, pointerEvents: "none" }}
+          style={{ position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", width: "min(440px, calc(calc(100 * var(--uvw)) - 24px))", display: "flex", flexDirection: "column", gap: "10px", zIndex: 7000, pointerEvents: "none" }}
         >
           {visibles.map((item) => (
             <Tarjeta key={item.id} item={item} alCerrar={cerrarFlotante} alVerRegistro={abrirRegistro} />
@@ -214,9 +214,9 @@ function Ventana({ item, pendientes, alCerrar }: { item: Item; pendientes: numbe
       aria-modal="true"
       aria-live="assertive"
       className="modal-fondo"
-      style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "var(--bg-overlay)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 6000, backdropFilter: "blur(4px)", padding: "20px" }}
+      style={{ position: "fixed", top: 0, left: 0, width: "calc(100 * var(--uvw))", height: "calc(100 * var(--uvh))", background: "var(--bg-overlay)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 6000, backdropFilter: "blur(4px)", padding: "20px" }}
     >
-      <div className="glass-panel modal-panel" style={{ width: "100%", maxWidth: "520px", maxHeight: "85vh", overflow: "hidden", padding: "26px 28px 22px", display: "flex", flexDirection: "column", gap: "16px", background: "var(--bg-card)", borderLeft: `4px solid ${estilo.borde}`, position: "relative" }}>
+      <div className="glass-panel modal-panel" style={{ width: "100%", maxWidth: "520px", maxHeight: "calc(85 * var(--uvh))", overflow: "hidden", padding: "26px 28px 22px", display: "flex", flexDirection: "column", gap: "16px", background: "var(--bg-card)", borderLeft: `4px solid ${estilo.borde}`, position: "relative" }}>
         <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
           <div aria-hidden style={{ width: "42px", height: "42px", borderRadius: "50%", background: estilo.fondo, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.3rem", flexShrink: 0 }}>
             {estilo.icono}

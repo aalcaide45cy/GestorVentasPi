@@ -94,13 +94,13 @@ export default function VistaPreviaBiblioteca({ archivo, local, alCerrar }: { ar
     >
       {vista === null && <div style={{ color: "var(--text-muted)" }}>Abriendo…</div>}
       {vista?.tipo === "pdf" && !url && <div style={{ color: "var(--text-muted)" }}>Preparando la vista previa…</div>}
-      {vista?.tipo === "pdf" && url && <iframe title={archivo.nombre} src={url} style={{ width: "100%", height: "70vh", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />}
+      {vista?.tipo === "pdf" && url && <iframe title={archivo.nombre} src={url} style={{ width: "100%", height: "calc(70 * var(--uvh))", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />}
       {vista?.tipo === "pdf" && url && <div style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>¿No se ve el documento? Pulsa «Abrir en pestaña nueva».</div>}
       {vista?.tipo === "imagen" && url && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={archivo.nombre} style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", alignSelf: "center", borderRadius: "var(--radius-sm)" }} />
+        <img src={url} alt={archivo.nombre} style={{ maxWidth: "100%", maxHeight: "calc(70 * var(--uvh))", objectFit: "contain", alignSelf: "center", borderRadius: "var(--radius-sm)" }} />
       )}
-      {vista?.tipo === "texto" && <pre style={{ margin: 0, padding: "12px", maxHeight: "70vh", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.82rem", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>{vista.texto}</pre>}
+      {vista?.tipo === "texto" && <pre style={{ margin: 0, padding: "12px", maxHeight: "calc(70 * var(--uvh))", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.82rem", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>{vista.texto}</pre>}
       {vista?.tipo === "hoja" && actual && (
         <>
           {vista.hojas.length > 1 && (
@@ -112,7 +112,7 @@ export default function VistaPreviaBiblioteca({ archivo, local, alCerrar }: { ar
               ))}
             </div>
           )}
-          <div className="table-container" style={{ maxHeight: "65vh", overflow: "auto" }}>
+          <div className="table-container" style={{ maxHeight: "calc(65 * var(--uvh))", overflow: "auto" }}>
             <table className="table-premium" style={{ fontSize: "0.8rem" }}>
               <tbody>
                 {actual.filas.map((fila, i) => (

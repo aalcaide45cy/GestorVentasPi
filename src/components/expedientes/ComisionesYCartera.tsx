@@ -272,7 +272,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
   return (
     <Modal
       titulo={`${titulos[tipo]} · ${resultado.mes}`}
-      ancho="min(96vw, 1500px)"
+      ancho="min(calc(96 * var(--uvw)), 1500px)"
       pie={
         <button type="button" className="btn btn-secondary" onClick={alCerrar}>
           Cerrar
@@ -395,7 +395,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
           <div style={{ display: "flex", gap: "18px", alignItems: "stretch", flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: "0 0 150px", minWidth: 0 }}>
               <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>Neto a cobrar</span>
-              <h3 role="button" tabIndex={0} title="Pulsa para ver cómo sale el neto" onClick={() => setDetalle("neto")} style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", overflowWrap: "anywhere", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1, cursor: "pointer" }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
+              <h3 role="button" tabIndex={0} title="Pulsa para ver cómo sale el neto" onClick={() => setDetalle("neto")} style={{ fontSize: "clamp(1.5rem, calc(3 * var(--uvw)), 2.1rem)", overflowWrap: "anywhere", margin: 0, color: "var(--success)", fontWeight: "bold", lineHeight: 1.1, cursor: "pointer" }}>{!cargado ? "…" : euros(resultado.neto)}</h3>
               <span title={pagoAyuda} style={{ fontSize: "0.75rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>💶 {pagoTexto}</span>
             </div>
             <div style={{ flex: 1, minWidth: "260px", display: "flex", flexDirection: "column", gap: "8px" }}>

@@ -341,7 +341,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
           </>
         }
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "72vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "calc(72 * var(--uvh))", overflowY: "auto" }}>
           <p style={{ margin: 0, fontSize: "0.88rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
             Sube uno o varios listados del fabricante (Expedientes de VN y de VO, Llamadas de calidad…; Excel o CSV). La app reconoce las columnas sola, busca tus expedientes y te propone rellenar lo que falta o corregir lo que no coincide. <b>No crea expedientes, ni clientes, ni modelos</b>. Antes de aplicar ves todo: filtra, busca, abre cada fila para ver el pedido en PDF, edita el dato que se guardará y asocia a mano las filas dudosas.
           </p>
@@ -605,7 +605,7 @@ function DetalleFila({
         </button>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "72vh", overflowY: "auto" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", maxHeight: "calc(72 * var(--uvh))", overflowY: "auto" }}>
         <div style={{ minHeight: "300px", overflow: "hidden", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
           {fila.idAdjuntoPedido !== null ? (
             <VisorPedido key={fila.idAdjuntoPedido} idAdjunto={fila.idAdjuntoPedido} nombre={fila.clienteApp ?? fila.clienteListado} />

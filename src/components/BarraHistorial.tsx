@@ -134,7 +134,7 @@ export default function BarraHistorial({ colapsado }: { colapsado: boolean }) {
       {lista && (
         <Modal
           titulo="🕘 Historial de cambios"
-          ancho="min(96vw, 820px)"
+          ancho="min(calc(96 * var(--uvw)), 820px)"
           pie={
             <button type="button" className="btn btn-secondary" onClick={() => setLista(false)}>
               Cerrar

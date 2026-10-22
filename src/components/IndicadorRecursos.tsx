@@ -94,14 +94,14 @@ export default function IndicadorRecursos() {
       {abierto && (
         <Modal
           titulo={`🩺 Rendimiento${r ? ` de ${r.equipo.nombre || r.equipo.tipo} (${r.equipo.tipo})` : " del equipo"}`}
-          ancho="min(1100px, 96vw)"
+          ancho="min(1100px, calc(96 * var(--uvw)))"
           pie={
             <button type="button" className="btn btn-secondary" data-tecla="escape" onClick={() => setAbierto(false)}>
               Cerrar
             </button>
           }
         >
-          <div style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: "6px" }}>
+          <div style={{ maxHeight: "calc(70 * var(--uvh))", overflowY: "auto", paddingRight: "6px" }}>
             <PanelRendimiento />
           </div>
         </Modal>
