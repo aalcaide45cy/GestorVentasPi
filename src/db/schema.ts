@@ -1121,6 +1121,27 @@ export const lecturasPedidos = pgTable(
  * fallidas, lentitud, avisos del equipo y fallos que avisa una persona). Las repetidas se juntan por `huella` y cuentan cuántas veces ocurrieron.
  * Nunca se guardan contraseñas, tokens ni valores de formularios: solo mensajes, rutas y los pasos previos (qué botón se pulsó, qué petición fue).
  */
+/**
+ * Papelera de elementos sueltos: cada vez que algo se elimina (una rejilla, una plantilla, un pendiente de cobro…) se guarda aquí una copia exacta de
+ * sus filas (`datos`, en JSON) antes de borrarlo de su tabla; desde la Papelera se restaura (se vuelve a insertar tal cual) o se purga (se borra de
+ * verdad). Sin claves foráneas a propósito: es una copia de seguridad del elemento, no depende de que sus tablas sigan teniendo esas filas.
+ */
+export const papeleraElementos = pgTable(
+  "papelera_elementos",
+  {
+    id: serial("id").primaryKey(),
+    /** rejilla | plantilla_plan | plantilla_tarifas | paleta | pendiente_cobro | validacion */
+    tipo: varchar("tipo", { length: 30 }).notNull(),
+    etiqueta: text("etiqueta").notNull(),
+    detalle: text("detalle"),
+    datos: jsonb("datos").$type<Record<string, unknown>>().notNull(),
+    bytes: integer("bytes").notNull().default(0),
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }).notNull().defaultNow(),
+    eliminadoPor: integer("eliminado_por"),
+  },
+  (t) => [index("papelera_elementos_tipo_idx").on(t.tipo, t.eliminadoEn)],
+);
+
 export const incidencias = pgTable(
   "incidencias",
   {

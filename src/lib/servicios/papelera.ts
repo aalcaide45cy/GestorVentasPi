@@ -5,6 +5,7 @@ import { descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearCopia } from "./copias";
 import { conRecalculo } from "./liquidaciones";
+import { motivoDeFallo, reinsertarElemento, TEXTO_TIPO, TIPOS_ELEMENTO, type TipoElemento } from "./papelera-elementos";
 import { TareaCancelada, type ContextoTarea } from "./tareas";
 
 /**
@@ -15,9 +16,9 @@ import { TareaCancelada, type ContextoTarea } from "./tareas";
  * No se tocan las liquidaciones guardadas ni el libro de puntos: son el histórico de lo cobrado y la base de datos los protege.
  */
 
-export const CATEGORIAS = ["expedientes", "clientes", "documentos", "biblioteca", "catalogo", "historial", "lecturas", "auditoria"] as const;
+export const CATEGORIAS = ["expedientes", "clientes", "documentos", "biblioteca", "elementos", "catalogo", "historial", "lecturas", "auditoria"] as const;
 export type Categoria = (typeof CATEGORIAS)[number];
-export const CATEGORIAS_RESTAURABLES = ["expedientes", "clientes", "documentos", "biblioteca", "catalogo"] as const;
+export const CATEGORIAS_RESTAURABLES = ["expedientes", "clientes", "documentos", "biblioteca", "elementos", "catalogo"] as const;
 
 export interface InfoCategoria {
   categoria: Categoria;
@@ -83,6 +84,13 @@ const TEXTOS: Record<Categoria, Pick<InfoCategoria, "titulo" | "explicacion" | "
     porFilas: true,
     porAntiguedad: false,
   },
+  elementos: {
+    titulo: "Rejillas, plantillas y otros elementos eliminados",
+    explicacion: "Rejillas leídas, plantillas de plan y de tarifas, paletas de colores, pendientes de cobro y marcas de pagado/reclamado que eliminaste (o que se sustituyeron al guardar otra).",
+    alPurgar: "Se borra la copia guardada: ya no se podrán restaurar.",
+    porFilas: true,
+    porAntiguedad: false,
+  },
   catalogo: {
     titulo: "Catálogos eliminados",
     explicacion: "Marcas, modelos, formas de pago, estados de vehículo y tiendas que eliminaste.",
@@ -129,6 +137,8 @@ const SQL_DOCUMENTOS_JOIN = sql`from adjuntos a left join expedientes e on e.id_
 export async function resumenPapelera(ej: Ejecutor): Promise<InfoCategoria[]> {
   const [bib] = await filas<{ n: number; b: string }>(ej, sql`select count(*)::int n, coalesce(sum(tamano), 0)::bigint b from biblioteca where eliminado_en is not null`);
   const bibClases = await filas<{ c: string; n: number }>(ej, sql`select categoria c, count(*)::int n from biblioteca where eliminado_en is not null group by categoria`);
+  const [ele] = await filas<{ n: number; b: string }>(ej, sql`select count(*)::int n, coalesce(sum(bytes), 0)::bigint b from papelera_elementos`);
+  const eleTipos = await filas<{ t: string; n: number }>(ej, sql`select tipo t, count(*)::int n from papelera_elementos group by tipo`);
   const [docTipos, catTablas] = await Promise.all([
     filas<{ tipo: string; n: number }>(ej, sql`select a.tipo, count(*)::int n ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} group by a.tipo`),
     filas<{ tabla: string; n: number }>(ej, sql`select 'marcas' tabla, count(*)::int n from marcas where eliminado_en is not null union all select 'modelos', count(*)::int from modelos where eliminado_en is not null union all select 'tipo_de_venta', count(*)::int from tipo_de_venta where eliminado_en is not null union all select 'estado_vehiculo', count(*)::int from estado_vehiculo where eliminado_en is not null union all select 'tiendas', count(*)::int from tiendas where eliminado_en is not null`),
@@ -149,6 +159,7 @@ export async function resumenPapelera(ej: Ejecutor): Promise<InfoCategoria[]> {
     dato("clientes", num(cli[0]?.n), num(cli[0]?.b)),
     dato("documentos", num(doc[0]?.n), num(doc[0]?.b), Object.fromEntries(docTipos.map((x) => [x.tipo, num(x.n)]))),
     dato("biblioteca", num(bib?.n), num(bib?.b), Object.fromEntries(bibClases.map((x) => [x.c, num(x.n)]))),
+    dato("elementos", num(ele?.n), num(ele?.b), Object.fromEntries(eleTipos.map((x) => [x.t, num(x.n)]))),
     dato("catalogo", num(cat[0]?.n), 0, Object.fromEntries(catTablas.map((x) => [x.tabla, num(x.n)]))),
     dato("historial", num(his[0]?.n), num(his[0]?.b)),
     dato("lecturas", num(lec[0]?.n), num(lec[0]?.b)),
@@ -256,6 +267,11 @@ export async function filasPapelera(ej: Ejecutor, categoria: Categoria, limite =
       filas: r.map((x) => ({ id: String(x.id), texto: x.nombre, detalle: `Eliminado el ${fechaCorta(x.eliminado_en)} · ${x.categoria}${x.nombre_original && x.nombre_original !== x.nombre ? ` · se subió como «${x.nombre_original}»` : ""} · ${mb(num(x.tamano))}`, bytes: num(x.tamano), eliminadoEn: iso(x.eliminado_en), documentos: 1, subtipo: x.categoria, bloqueo: null })),
     };
   }
+  if (categoria === "elementos") {
+    const r = await filas<{ id: number; tipo: string; etiqueta: string; detalle: string | null; bytes: number; eliminado_en: string }>(ej, sql`select id, tipo, etiqueta, detalle, bytes, eliminado_en from papelera_elementos order by eliminado_en desc, id desc limit ${lim}`);
+    const [{ n }] = await filas<{ n: number }>(ej, sql`select count(*)::int n from papelera_elementos`);
+    return { total: num(n), filas: r.map((x) => ({ id: String(x.id), texto: x.etiqueta, detalle: `${TEXTO_TIPO[x.tipo as TipoElemento]?.singular ?? x.tipo}${x.detalle ? ` · ${x.detalle}` : ""} · eliminado el ${fechaCorta(x.eliminado_en)}`, bytes: num(x.bytes), eliminadoEn: iso(x.eliminado_en), documentos: 0, subtipo: x.tipo, bloqueo: null })) };
+  }
   if (categoria === "historial") {
     const r = await filas<{ id: string; en: string; accion: string; tabla: string; operacion: string; usuario: string | null; bytes: string }>(
       ej,
@@ -294,6 +310,8 @@ export async function descargarPapelera(ej: Ejecutor, categoria: Categoria, ids:
     datos = await filas(ej, sql`select to_jsonb(c) as cliente, (select coalesce(jsonb_agg(to_jsonb(m)), '[]'::jsonb) from emails_clientes m where m.id_cliente = c.id) as correos, (select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) from telefonos_clientes t where t.id_cliente = c.id) as telefonos, (select coalesce(jsonb_agg(to_jsonb(a)), '[]'::jsonb) from adjuntos a where a.id_cliente = c.id) as documentos from clientes c where c.eliminado_en is not null ${filtro(sql`c.id`)} order by c.id`);
   } else if (categoria === "documentos") {
     datos = await filas(ej, sql`select to_jsonb(a) as documento ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} ${filtro(sql`a.id`)} order by a.id`);
+  } else if (categoria === "elementos") {
+    datos = await filas(ej, sql`select to_jsonb(e) as elemento from papelera_elementos e where true ${filtro(sql`e.id`)} order by e.id`);
   } else if (categoria === "biblioteca") {
     datos = await filas(ej, sql`select to_jsonb(b) as archivo from biblioteca b where eliminado_en is not null ${filtro(sql`b.id`)} order by b.id`);
   } else if (categoria === "catalogo") {
@@ -407,6 +425,11 @@ async function purgarClientes(tx: Ejecutor, ids: number[]): Promise<{ purgados: 
   return { purgados: ok.length, bloqueados: elegibles.length - ok.length };
 }
 
+async function purgarElementos(tx: Ejecutor, ids: number[]): Promise<number> {
+  const r = await tx.execute(sql`delete from papelera_elementos where id in (${lista(ids)}) returning id`);
+  return (r as unknown as Filas<unknown>).rows.length;
+}
+
 async function purgarBiblioteca(tx: Ejecutor, ids: number[]): Promise<number> {
   const r = await tx.execute(sql`delete from biblioteca where eliminado_en is not null and id in (${lista(ids)}) returning id`);
   return (r as unknown as Filas<unknown>).rows.length;
@@ -499,6 +522,10 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
     await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos"], progreso);
     return res;
   }
+  if (categoria === "elementos") {
+    res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 100, "Elementos", progreso, (tx, lote) => purgarElementos(tx, lote));
+    return res;
+  }
   if (categoria === "biblioteca") {
     res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 20, "Archivos de la biblioteca", progreso, (tx, lote) => purgarBiblioteca(tx, lote));
     await limpiarEspacio(ej, ["biblioteca_datos", "biblioteca"], progreso);
@@ -566,6 +593,8 @@ export async function purgarAFondo(ej: Ejecutor, idAdmin: number, entrada: z.inf
   if (docs.length > 0) suma("documentos", await purgarPorLotes(ej, docs, 20, "Documentos", progreso, (tx, lote) => purgarDocumentos(tx, lote)));
   const bibs = (await filas<{ id: number }>(ej, sql`select id from biblioteca where eliminado_en is not null`)).map((x) => x.id);
   if (bibs.length > 0) suma("archivos de la biblioteca", await purgarPorLotes(ej, bibs, 20, "Archivos de la biblioteca", progreso, (tx, lote) => purgarBiblioteca(tx, lote)));
+  const eles = (await filas<{ id: number }>(ej, sql`select id from papelera_elementos`)).map((x) => x.id);
+  if (eles.length > 0) suma("rejillas, plantillas y otros elementos", await purgarPorLotes(ej, eles, 100, "Elementos", progreso, (tx, lote) => purgarElementos(tx, lote)));
   progreso.avance(0, 0, "Purgando catálogos, lecturas y registros…");
   await ej.transaction(async (tx) => {
     await tx.execute(SIN_HISTORIAL);
@@ -672,6 +701,32 @@ export async function restaurar(ej: Ejecutor, entrada: z.infer<typeof esquemaRes
     }
     res.bloqueados = total - res.restaurados;
     if (res.bloqueados > 0) res.detalle.push(`${res.bloqueados} no se han restaurado: pertenecen a un expediente o cliente que sigue en la papelera (restáuralo primero) o no estaban eliminados.`);
+    return res;
+  }
+
+  if (entrada.categoria === "elementos") {
+    const numeros = ids as number[];
+    let hecho = 0;
+    for (const id of numeros) {
+      parar(hecho);
+      const [e] = await filas<{ tipo: string; etiqueta: string; datos: Record<string, unknown> }>(ej, sql`select tipo, etiqueta, datos from papelera_elementos where id = ${id}`);
+      if (!e || !(TIPOS_ELEMENTO as readonly string[]).includes(e.tipo)) {
+        res.bloqueados++;
+      } else {
+        try {
+          // Cada elemento en su propia transacción: si no se puede, no deja nada a medias
+          await ej.transaction(async (tx) => {
+            await reinsertarElemento(tx, e.tipo as TipoElemento, e.datos);
+            await tx.execute(sql`delete from papelera_elementos where id = ${id}`);
+          });
+          res.restaurados++;
+        } catch (err) {
+          res.bloqueados++;
+          if (res.detalle.length < 20) res.detalle.push(`«${e.etiqueta}» no se ha restaurado: ${motivoDeFallo(err)}.`);
+        }
+      }
+      avanzar(++hecho);
+    }
     return res;
   }
 

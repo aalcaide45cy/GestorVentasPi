@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { expedientes, rejillas, validacionesComision } from "@/db/schema";
@@ -6,6 +6,7 @@ import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { sumarMeses } from "@/lib/formato";
 import { comprobarRejilla } from "./rejillas";
+import { archivarElementos } from "./papelera-elementos";
 
 /**
  * «Comisionado» de un expediente: lo que dice el Cotejo de pagos (coche que cuadra con una hoja guardada o marcado a mano como
@@ -74,6 +75,8 @@ export async function fijarComisionado(ej: Ejecutor, u: UsuarioActual, entrada: 
   comprobarPermiso(u, e.idUsuario);
   if (e.idUsuario === null) throw new HttpError(400, "El expediente no tiene vendedor");
   if (entrada.estado === "automatico") {
+    // Volver a «automático» quita la marca manual de pagado/reclamado: se guarda antes en la Papelera
+    await archivarElementos(ej, "validacion", sql`t.id_expediente = ${entrada.idExpediente} and t.mes = ${entrada.mes}`, { etiqueta: `Marca de ${entrada.mes} del expediente #EXP-${String(entrada.idExpediente).padStart(4, "0")}`, detalle: "Vuelta a automático" });
     await ej.delete(validacionesComision).where(and(eq(validacionesComision.idExpediente, entrada.idExpediente), eq(validacionesComision.mes, entrada.mes)));
   } else {
     await ej

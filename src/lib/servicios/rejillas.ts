@@ -7,6 +7,7 @@ import { sumarMeses } from "@/lib/formato";
 import { normalizarMatricula } from "@/lib/rejilla/analizar";
 import { cotejo } from "./comisiones-gestion";
 import { detalleDeExpedientes } from "./detalle-expedientes";
+import { archivarElementos } from "./papelera-elementos";
 
 /**
  * Validación de comisiones: el vendedor sube la «rejilla» que entrega la empresa y la app la cruza, por matrícula,
@@ -90,11 +91,18 @@ export interface ResultadoRejilla {
 
 const PROBLEMAS: EstadoComprobacion[] = ["falta_en_hoja", "distinto", "sin_importe", "no_en_app", "otro_mes"];
 
+/** Manda a la Papelera la rejilla de un vendedor y mes (si la hay), con todas sus filas, antes de que se borre o se sustituya. */
+async function archivarRejilla(ej: Ejecutor, idUsuario: number, mes: string, motivo: string): Promise<void> {
+  const [u] = await ej.select({ nombre: usuarios.nombre }).from(usuarios).where(eq(usuarios.idUsuario, idUsuario));
+  await archivarElementos(ej, "rejilla", sql`t.id_usuario = ${idUsuario} and t.mes = ${mes}`, { etiqueta: `Rejilla ${mes}${u ? ` · ${u.nombre}` : ""}`, detalle: motivo });
+}
+
 /** Guarda (sustituyendo la anterior) la rejilla de un vendedor y mes. */
 export async function guardarRejilla(ej: Ejecutor, idUsuario: number, creadaPor: number, entrada: EntradaGuardarRejilla): Promise<number> {
   return ej.transaction(async (tx) => {
     const [u] = await tx.select({ id: usuarios.idUsuario }).from(usuarios).where(eq(usuarios.idUsuario, idUsuario));
     if (!u) throw new HttpError(404, "Usuario no encontrado");
+    await archivarRejilla(tx, idUsuario, entrada.mes, "Sustituida al volver a guardar la rejilla de ese mes");
     await tx.delete(rejillas).where(and(eq(rejillas.idUsuario, idUsuario), eq(rejillas.mes, entrada.mes)));
     const [r] = await tx
       .insert(rejillas)
@@ -119,8 +127,11 @@ export async function guardarRejilla(ej: Ejecutor, idUsuario: number, creadaPor:
 }
 
 export async function eliminarRejilla(ej: Ejecutor, idUsuario: number, mes: string): Promise<void> {
-  const filas = await ej.delete(rejillas).where(and(eq(rejillas.idUsuario, idUsuario), eq(rejillas.mes, mes))).returning({ id: rejillas.id });
-  if (filas.length === 0) throw new HttpError(404, "No hay rejilla de ese mes");
+  await ej.transaction(async (tx) => {
+    await archivarRejilla(tx, idUsuario, mes, "Eliminada");
+    const filas = await tx.delete(rejillas).where(and(eq(rejillas.idUsuario, idUsuario), eq(rejillas.mes, mes))).returning({ id: rejillas.id });
+    if (filas.length === 0) throw new HttpError(404, "No hay rejilla de ese mes");
+  });
 }
 
 /** Fija el estado de un coche en un mes (pagado, pendiente o reclamado) con una nota opcional. */

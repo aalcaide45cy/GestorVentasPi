@@ -1,10 +1,11 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { plantillasPlan } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { esquemaFragmento } from "@/lib/plantillas-plan/esquema-fragmento";
 import { AMBITOS, COMPONENTES, COMPONENTES_AMBITO, contarComponente, type Ambito, type Componente, type Fragmento } from "@/lib/plantillas-plan/fragmentos";
+import { archivarElementos } from "./papelera-elementos";
 
 /** Plantillas de partes de un plan de comisionamiento (por pestaña y del plan entero). Ver `lib/plantillas-plan/fragmentos.ts`. */
 
@@ -85,9 +86,12 @@ export async function actualizarPlantillaPlan(ej: Ejecutor, id: number, entrada:
 }
 
 export async function borrarPlantillaPlan(ej: Ejecutor, id: number): Promise<void> {
-  const [actual] = await ej.select({ id: plantillasPlan.id }).from(plantillasPlan).where(eq(plantillasPlan.id, id));
+  const [actual] = await ej.select({ id: plantillasPlan.id, nombre: plantillasPlan.nombre }).from(plantillasPlan).where(eq(plantillasPlan.id, id));
   if (!actual) throw new HttpError(404, "La plantilla ya no existe.");
-  await ej.delete(plantillasPlan).where(eq(plantillasPlan.id, id));
+  await ej.transaction(async (tx) => {
+    await archivarElementos(tx, "plantilla_plan", sql`t.id = ${id}`, { etiqueta: `Plantilla de plan «${actual.nombre}»`, detalle: "Eliminada" });
+    await tx.delete(plantillasPlan).where(eq(plantillasPlan.id, id));
+  });
 }
 
 export async function duplicarPlantillaPlan(ej: Ejecutor, id: number): Promise<PlantillaPlanDto> {

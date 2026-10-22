@@ -19,7 +19,7 @@ interface Resumen {
 }
 
 const VACIO: Resumen = { categorias: [], espacio: { total: 0, tablas: [] } };
-const ICONOS: Record<Categoria, string> = { expedientes: "📁", clientes: "👥", documentos: "📎", biblioteca: "📚", catalogo: "🏷️", historial: "↩️", lecturas: "📄", auditoria: "🛡️" };
+const ICONOS: Record<Categoria, string> = { expedientes: "📁", clientes: "👥", documentos: "📎", biblioteca: "📚", elementos: "🧩", catalogo: "🏷️", historial: "↩️", lecturas: "📄", auditoria: "🛡️" };
 
 /** Qué arrastra purgar cada categoría (para la confirmación cuando se purga desde fuera de la Papelera). */
 const TEXTOS_PURGA: Record<Categoria, string> = {
@@ -27,6 +27,7 @@ const TEXTOS_PURGA: Record<Categoria, string> = {
   clientes: "Se borran el cliente, sus correos, teléfonos y documentos.",
   documentos: "Se borra el archivo de verdad. Si un pedido sin vincular sigue en tu cola de pedidos, esa entrada ya no se podrá usar.",
   biblioteca: "Se borra el archivo de verdad. Los pedidos o pagos que ya se crearon con él no cambian.",
+  elementos: "Se borra la copia guardada: ya no se podrá restaurar.",
   catalogo: "Se borran los que ningún expediente ni plan usa ya.",
   historial: "Ya no se podrá deshacer nada de lo purgado.",
   lecturas: "Se pierde el registro de lecturas.",
@@ -51,6 +52,12 @@ const DEFINICIONES: DefPestana[] = [
   { clave: "pagos_rci", etiqueta: "💶 Pagos RCI", ayuda: "Pagos RCI (documentos) eliminados o sin vincular", categoria: "documentos", clase: { incluir: ["pago_rci"] }, explicacion: "Documentos de pago RCI que siguen guardados aunque ya no se ven.", cantidad: sub("pago_rci") },
   { clave: "otros_documentos", etiqueta: "📎 Otros documentos", ayuda: "DNI, fotos y otros documentos eliminados", categoria: "documentos", clase: { excluir: ["pedido", "pago_rci"] }, explicacion: "DNI, fotos de cliente y otros documentos que siguen guardados aunque ya no se ven.", cantidad: (c) => Object.entries(c.porSubtipo ?? {}).filter(([k]) => k !== "pedido" && k !== "pago_rci").reduce((a, [, n]) => a + n, 0) },
   { clave: "biblioteca", etiqueta: "📚 Biblioteca", ayuda: "Archivos quitados de la Biblioteca", categoria: "biblioteca", explicacion: "Pedidos, pagos de RCI, rejillas y listados que quitaste de la Biblioteca. Al restaurarlos vuelven a verse en Herramientas › Biblioteca.", cantidad: (c) => c.cantidad },
+  { clave: "rejillas", etiqueta: "📋 Rejillas leídas", ayuda: "Rejillas de comisiones eliminadas o sustituidas", categoria: "elementos", clase: { incluir: ["rejilla"] }, explicacion: "Rejillas de comisiones (las matrículas leídas de cada mes) que eliminaste o que se sustituyeron al guardar otra del mismo mes. No se restauran si ya hay otra de ese mes.", cantidad: sub("rejilla") },
+  { clave: "plantillas_plan", etiqueta: "📐 Plantillas de plan", ayuda: "Plantillas de plan de comisionamiento eliminadas", categoria: "elementos", clase: { incluir: ["plantilla_plan"] }, explicacion: "Plantillas de plan de comisionamiento que eliminaste.", cantidad: sub("plantilla_plan") },
+  { clave: "plantillas_tarifas", etiqueta: "📑 Plantillas de tarifas", ayuda: "Plantillas de tarifas VN eliminadas", categoria: "elementos", clase: { incluir: ["plantilla_tarifas"] }, explicacion: "Plantillas de tarifas de vehículo nuevo que eliminaste.", cantidad: sub("plantilla_tarifas") },
+  { clave: "paletas", etiqueta: "🎨 Paletas de colores", ayuda: "Paletas de colores eliminadas", categoria: "elementos", clase: { incluir: ["paleta"] }, explicacion: "Paletas de colores que eliminaste.", cantidad: sub("paleta") },
+  { clave: "pendientes_cobro", etiqueta: "💰 Pendientes de cobro", ayuda: "Pendientes de cobro eliminados", categoria: "elementos", clase: { incluir: ["pendiente_cobro"] }, explicacion: "Pendientes de cobro (comisiones a cobrar) que eliminaste.", cantidad: sub("pendiente_cobro") },
+  { clave: "marcas_pagado", etiqueta: "✔️ Marcas de pagado", ayuda: "Marcas de pagado o reclamado que se quitaron", categoria: "elementos", clase: { incluir: ["validacion"] }, explicacion: "Marcas manuales de pagado, pendiente o reclamado que se quitaron al volver un coche a «automático». Al restaurarlas vuelven a su estado.", cantidad: sub("validacion") },
   { clave: "marcas", etiqueta: "🏷️ Marcas", ayuda: "Marcas eliminadas", categoria: "catalogo", clase: { incluir: ["marcas"] }, explicacion: "Marcas que eliminaste. Se pueden restaurar siempre que no haya otra vigente con el mismo nombre.", cantidad: sub("marcas") },
   { clave: "modelos", etiqueta: "🚗 Modelos", ayuda: "Modelos eliminados", categoria: "catalogo", clase: { incluir: ["modelos"] }, explicacion: "Modelos que eliminaste. Un modelo solo se restaura si su marca está vigente (restaura antes la marca, o elige las dos a la vez).", cantidad: sub("modelos") },
   { clave: "formas_pago", etiqueta: "💳 Formas de pago", ayuda: "Formas de pago eliminadas", categoria: "catalogo", clase: { incluir: ["tipo_de_venta"] }, explicacion: "Formas de pago (tipos de venta) que eliminaste.", cantidad: sub("tipo_de_venta") },
@@ -164,7 +171,7 @@ interface FiltroClase {
 }
 
 /** Categorías de las que se puede restaurar (el historial, las lecturas y la auditoría son registros: solo se purgan). */
-const RESTAURABLES: Categoria[] = ["expedientes", "clientes", "documentos", "biblioteca", "catalogo"];
+const RESTAURABLES: Categoria[] = ["expedientes", "clientes", "documentos", "biblioteca", "elementos", "catalogo"];
 
 /** Carga las filas de una categoría, las filtra por clase y lleva la elección; se refresca sola cuando acaba una tarea de la papelera. */
 function useFilas(categoria: Categoria, motivo: string | undefined, clase: FiltroClase | undefined) {

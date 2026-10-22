@@ -1,8 +1,9 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { estadoVehiculo, marcas, plantillasColores, tipoDeVenta } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { clavePaleta, normalizarPaleta, PALETA_POR_DEFECTO, totalPaleta, type DatosPaleta } from "@/lib/paletas-colores";
+import { archivarElementos } from "./papelera-elementos";
 
 /** Paletas de colores guardadas y su aplicación a los tipos de venta, marcas y estados (se buscan por nombre, sin acentos ni mayúsculas). */
 
@@ -137,6 +138,10 @@ export async function renombrarPaleta(ej: Ejecutor, id: number, nombre: string, 
 }
 
 export async function eliminarPaleta(ej: Ejecutor, id: number): Promise<void> {
-  const filas = await ej.delete(plantillasColores).where(eq(plantillasColores.id, id)).returning({ id: plantillasColores.id });
-  if (filas.length === 0) throw new HttpError(404, "Paleta no encontrada");
+  await ej.transaction(async (tx) => {
+    const [p] = await tx.select({ nombre: plantillasColores.nombre }).from(plantillasColores).where(eq(plantillasColores.id, id));
+    if (!p) throw new HttpError(404, "Paleta no encontrada");
+    await archivarElementos(tx, "paleta", sql`t.id = ${id}`, { etiqueta: `Paleta «${p.nombre}»`, detalle: "Eliminada" });
+    await tx.delete(plantillasColores).where(eq(plantillasColores.id, id));
+  });
 }

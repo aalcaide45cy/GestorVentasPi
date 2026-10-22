@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { calcularVendedorMes, planDelMes, recalcularMes, type ResumenRecalculo, type SnapshotLiquidacion } from "./liquidaciones";
+import { archivarElementos } from "./papelera-elementos";
 
 /* ------------------------------------------------------------------ */
 /* Liquidaciones                                                       */
@@ -168,8 +169,12 @@ export async function actualizarPendiente(ej: Ejecutor, idUsuario: number, id: n
 }
 
 export async function eliminarPendiente(ej: Ejecutor, idUsuario: number, id: number): Promise<void> {
-  const filas = await ej.delete(pendientesCobro).where(and(eq(pendientesCobro.id, id), eq(pendientesCobro.idUsuario, idUsuario))).returning({ id: pendientesCobro.id });
-  if (filas.length === 0) throw new HttpError(404, "Pendiente no encontrado");
+  await ej.transaction(async (tx) => {
+    const [p] = await tx.select({ concepto: pendientesCobro.concepto, importe: pendientesCobro.importe }).from(pendientesCobro).where(and(eq(pendientesCobro.id, id), eq(pendientesCobro.idUsuario, idUsuario)));
+    if (!p) throw new HttpError(404, "Pendiente no encontrado");
+    await archivarElementos(tx, "pendiente_cobro", sql`t.id = ${id} and t.id_usuario = ${idUsuario}`, { etiqueta: `Pendiente de cobro «${p.concepto}»`, detalle: `${(p.importe / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })} · eliminado` });
+    await tx.delete(pendientesCobro).where(and(eq(pendientesCobro.id, id), eq(pendientesCobro.idUsuario, idUsuario)));
+  });
 }
 
 /* ------------------------------------------------------------------ */

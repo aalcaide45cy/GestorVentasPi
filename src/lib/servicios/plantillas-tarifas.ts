@@ -1,9 +1,10 @@
-import { asc, eq, isNull } from "drizzle-orm";
+import { asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { marcas, modelos, plantillasTarifasVn } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import type { DatosPlantillaTarifas } from "@/lib/plantillas-tarifas/generica";
+import { archivarElementos } from "./papelera-elementos";
 
 /**
  * Plantillas de «Tarifas de modelos VN por tramo». Guardan marcas y modelos por NOMBRE (no por número), así sirven para cualquier
@@ -103,7 +104,10 @@ export async function borrarPlantilla(ej: Ejecutor, id: number): Promise<void> {
   const [actual] = await ej.select().from(plantillasTarifasVn).where(eq(plantillasTarifasVn.id, id));
   if (!actual) throw new HttpError(404, "La plantilla ya no existe.");
   if (actual.sistema) throw new HttpError(403, "La plantilla incluida con la aplicación no se puede borrar.");
-  await ej.delete(plantillasTarifasVn).where(eq(plantillasTarifasVn.id, id));
+  await ej.transaction(async (tx) => {
+    await archivarElementos(tx, "plantilla_tarifas", sql`t.id = ${id}`, { etiqueta: `Plantilla de tarifas «${actual.nombre}»`, detalle: "Eliminada" });
+    await tx.delete(plantillasTarifasVn).where(eq(plantillasTarifasVn.id, id));
+  });
 }
 
 export async function duplicarPlantilla(ej: Ejecutor, id: number): Promise<ResumenPlantilla> {

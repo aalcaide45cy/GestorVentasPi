@@ -36,6 +36,7 @@ import { esquemaPlantilla } from "./plantillas-tarifas";
 export const FORMATO = "gv-seccion-1";
 
 import { INFO_SECCIONES, SECCIONES, type InfoSeccion, type Modo, type Seccion } from "@/lib/secciones-info";
+import { archivarElementos } from "./papelera-elementos";
 
 export { INFO_SECCIONES, SECCIONES };
 export type { InfoSeccion, Modo, Seccion };
@@ -1389,7 +1390,11 @@ async function importarRejillas(tx: Ejecutor, datos: unknown[], modo: Modo, inf:
       nota(inf, "omite", `${etiqueta}: ya existe`);
       continue;
     }
-    if (existente) await tx.delete(rejillas).where(eq(rejillas.id, existente.id));
+    if (existente) {
+      // La que se sustituye queda en la Papelera
+      await archivarElementos(tx, "rejilla", sql`t.id = ${existente.id}`, { etiqueta: `Rejilla ${f.mes} · ${f.vendedor}`, detalle: "Sustituida al importar" });
+      await tx.delete(rejillas).where(eq(rejillas.id, existente.id));
+    }
     const [cab] = await tx.insert(rejillas).values({ idUsuario: u.id, mes: f.mes, origen: f.origen, nombreArchivo: vacioANull(f.nombreArchivo), totalHoja: f.totalHoja ?? null, notas: vacioANull(f.notas) }).returning({ id: rejillas.id });
     if (f.filas.length > 0) {
       await tx.insert(rejillaFilas).values(f.filas.map((x) => ({ idRejilla: cab.id, matricula: x.matricula, cliente: vacioANull(x.cliente), financiacion: vacioANull(x.financiacion), concepto: vacioANull(x.concepto), importe: x.importe ?? null, textoOriginal: vacioANull(x.textoOriginal), confianza: x.confianza ?? null })));
