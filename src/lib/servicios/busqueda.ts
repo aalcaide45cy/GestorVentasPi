@@ -86,7 +86,7 @@ export async function sugerencias(ej: Ejecutor, q: string): Promise<SugerenciasB
       const matricula = e.matricula ? ` [${e.matricula}]` : "";
       return {
         id_expediente: e.idExpediente,
-        label: `#EXP-${String(e.idExpediente).padStart(4, "0")} - ${cliente} - ${marca} ${modelo}${matricula}${/anulad/i.test(e.estadoIntranet ?? "") ? " · ANULADO" : ""}`,
+        label: `#EXP-${String(e.idExpediente).padStart(4, "0")} - ${cliente} - ${marca} ${modelo}${matricula}${/anulad/i.test(e.estadoIntranet ?? "") ? " · ANULADO" : ""}${e.deshabilitado ? " · DESHABILITADO" : ""}`,
       };
     }),
   };

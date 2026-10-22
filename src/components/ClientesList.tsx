@@ -18,7 +18,7 @@ import ModalEdicionMasivaClientes, { type CambiosMasivosClientes } from "./clien
 import NombreConFoto from "./documentos/FotoCliente";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import { esAnulado } from "@/lib/anulados";
-import CasillaAnulados, { useMostrarAnulados } from "./CasillaAnulados";
+import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "./CasillaAnulados";
 import { columnasVehiculo } from "./etiquetas";
 import { datosVehiculoDeExpediente, mensajeDeError } from "./expedientes/comun";
 import TablaDatos, { type ColumnaTabla } from "./TablaDatos";
@@ -121,7 +121,10 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   // Los expedientes anulados en el listado de la intranet no son ventas: salen ocultos salvo que se active la casilla
   const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("clientes");
   const nAnuladosVentas = useMemo(() => (ventas ?? []).filter((v) => esAnulado(v.estado_intranet)).length, [ventas]);
-  const ventasConAviso = useMemo(() => (ventas ? marcarDuplicadas(mostrarAnulados ? ventas : ventas.filter((v) => !esAnulado(v.estado_intranet))) : null), [ventas, mostrarAnulados]);
+  // Los deshabilitados no cuentan: tampoco salen aquí salvo que se active su casilla
+  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("clientes");
+  const nDeshabilitadosVentas = useMemo(() => (ventas ?? []).filter((v) => v.deshabilitado).length, [ventas]);
+  const ventasConAviso = useMemo(() => (ventas ? marcarDuplicadas(ventas.filter((v) => (mostrarAnulados || !esAnulado(v.estado_intranet)) && (mostrarDeshabilitados || !v.deshabilitado))) : null), [ventas, mostrarAnulados, mostrarDeshabilitados]);
 
   const [marcados, setMarcados] = useState<number[]>([]);
   const [aBorrar, setABorrar] = useState<ClienteItem | null>(null);
@@ -978,8 +981,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
             <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>Cargando...</p>
           ) : (
             <>
-            <div style={{ display: "flex" }}>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnuladosVentas} />
+              <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={fijarMostrarDeshabilitados} deshabilitados={nDeshabilitadosVentas} />
             </div>
             <TablaDatos<VentaConAviso>
               id="cliente-ventas"

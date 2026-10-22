@@ -26,7 +26,7 @@ import {
   leerPredefinidos,
   type FiltrosActuales,
 } from "@/lib/filtros-expedientes";
-import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "@/components/CasillaAnulados";
 import { esAnulado } from "@/lib/anulados";
 import { TODAS_LAS_FECHAS } from "@/lib/filtros-expedientes";
 import { RANGO_VACIO, enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
@@ -86,6 +86,40 @@ interface Props {
    * sus resultados salen sin filtros, aunque en la lista de Expedientes hubiera alguno puesto.
    */
   recordarFiltros?: boolean;
+}
+
+const estiloSelectFiltro: React.CSSProperties = { padding: "4px 6px", fontSize: "0.8rem" };
+
+/** Un grupo de la barra de acciones: su nombre en pequeño y sus botones, separado de los demás por una línea. */
+function GrupoAcciones({ titulo, ayuda, destacado, children }: { titulo: string; ayuda?: string; destacado?: boolean; children: React.ReactNode }) {
+  return (
+    <div title={ayuda} style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", paddingRight: "6px", ...(destacado ? { background: "rgba(var(--primary-rgb), 0.08)", border: "1px solid var(--primary)", borderRadius: "var(--radius-sm)", padding: "4px 8px" } : {}) }}>
+      <span style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: destacado ? "var(--primary)" : "var(--text-muted)" }}>{titulo}</span>
+      {children}
+    </div>
+  );
+}
+
+/** Un bloque de filtros con su título (Fecha, Vehículo y venta, Comercial y tienda). */
+function BloqueFiltros({ titulo, ayuda, crece, children }: { titulo: string; ayuda?: string; crece?: boolean; children: React.ReactNode }) {
+  return (
+    <fieldset title={ayuda} style={{ margin: 0, padding: "8px 12px 10px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0, ...(crece ? { flex: "1 1 520px" } : {}) }}>
+      <legend style={{ padding: "0 6px", fontSize: "0.76rem", fontWeight: 700, color: "var(--text-secondary)" }}>{titulo}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
+/** Un filtro: su nombre encima y su control debajo. */
+function CampoFiltro({ etiqueta, ayuda, children }: { etiqueta: string; ayuda?: string; children: React.ReactNode }) {
+  return (
+    <div className="form-group" style={{ marginBottom: 0 }}>
+      <label className="form-label" style={etiquetaFiltro} title={ayuda}>
+        {etiqueta}
+      </label>
+      {children}
+    </div>
+  );
 }
 
 /** Cuatro botones pequeños bajo un campo de fecha: retroceden o avanzan un año («), un mes (‹, ›) o un año (»). Sin fecha en el campo parten de hoy. */
@@ -155,6 +189,9 @@ export default function ExpedientesList({
   // Los anulados en el listado de la intranet no son ventas: salen ocultos salvo que se active la casilla (o se pida «Anulado» a propósito)
   const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("expedientes");
   const nAnulados = useMemo(() => expedientes.filter((e) => esAnulado(e.estado_intranet)).length, [expedientes]);
+  // Los deshabilitados no cuentan (ni en la lista ni en los totales) salvo que se active la casilla
+  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("expedientes");
+  const nDeshabilitados = useMemo(() => expedientes.filter((e) => e.deshabilitado).length, [expedientes]);
   const [columnasGuardadas, fijarColumnas] = usePreferencia("exp-visible-columns");
   const visibles = useMemo<Visibles>(() => {
     try {
@@ -351,6 +388,7 @@ export default function ExpedientesList({
     const gs = busqueda.toLowerCase();
     return expedientes.filter((e) => {
       if (ocultarEntregados && e.fecha_entrega) return false;
+      if (!mostrarDeshabilitados && e.deshabilitado) return false;
       if (!mostrarAnulados && esAnulado(e.estado_intranet) && !/anulad/i.test(fIntranet) && !gs.includes("anulad")) return false;
       if (gs) {
         const campos = [
@@ -384,7 +422,7 @@ export default function ExpedientesList({
       if (fTienda && e.id_tienda !== Number(fTienda)) return false;
       return true;
     });
-  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fTienda, rangoActivo, fMes, fAnio, cumpleFechas]);
+  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, mostrarDeshabilitados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fTienda, rangoActivo, fMes, fAnio, cumpleFechas]);
 
   const ordenados = useMemo(() => {
     const valor = (e: ExpedienteDto): string => {
@@ -444,6 +482,14 @@ export default function ExpedientesList({
     </span>
   );
 
+  /** Pone el rango «Desde / Hasta» y quita mes y año: los tres juntos casi nunca coinciden y la lista saldría vacía sin que se entienda por qué. */
+  const ponerRango = (cambio: (r: RangoFechas) => RangoFechas) => {
+    setRango(cambio);
+    setFMes("");
+    setFAnio("");
+    setPagina(1);
+  };
+
   const limpiarFiltros = () => {
     setBusqueda("");
     setOcultarEntregados(false);
@@ -494,6 +540,7 @@ export default function ExpedientesList({
     setFTipoFecha(campo);
     setFMes(String(m).padStart(2, "0"));
     setFAnio(String(a));
+    setRango(RANGO_VACIO); // mes/año y rango se excluyen: si no, juntos casi nunca coinciden y la lista sale vacía
     setPagina(1);
   };
 
@@ -651,7 +698,7 @@ export default function ExpedientesList({
       setExpedientes((prev) => prev.filter((e) => !ids.includes(e.id_expediente)));
       setSeleccionados((prev) => prev.filter((x) => !ids.includes(x)));
       avisarCambioDeDatos();
-      mostrar(ids.length === 1 ? "Expediente eliminado con éxito." : `${ids.length} expedientes eliminados con éxito.`);
+      mostrar(ids.length === 1 ? "Expediente enviado a la Papelera (Herramientas › Papelera): se puede recuperar." : `${ids.length} expedientes enviados a la Papelera (Herramientas › Papelera): se pueden recuperar.`);
       setABorrar(null);
       setConfirmarBorradoMasivo(false);
       router.refresh();
@@ -675,7 +722,7 @@ export default function ExpedientesList({
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo cambiar el estado de los expedientes."));
       setExpedientes((prev) => prev.map((e) => (ids.includes(e.id_expediente) ? { ...e, deshabilitado } : e)));
       avisarCambioDeDatos();
-      mostrar(deshabilitado ? `${ids.length} expedientes deshabilitados: ya no cuentan en las comisiones.` : `${ids.length} expedientes habilitados: vuelven a contar en las comisiones.`);
+      mostrar(deshabilitado ? `${ids.length} expedientes deshabilitados: ya no cuentan en las comisiones ni en los totales y salen de la lista (activa «Mostrar deshabilitados» para verlos).` : `${ids.length} expedientes habilitados: vuelven a contar en las comisiones.`);
       router.refresh();
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error de conexión al actualizar.", "error");
@@ -796,55 +843,30 @@ export default function ExpedientesList({
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       {/* Cabecera fija: herramientas y filtros se quedan arriba al bajar por la lista (el buscador global es el del encabezado de la aplicación) */}
       <div style={{ position: "sticky", top: 0, zIndex: 40, background: "var(--bg-app)", paddingBottom: "6px", display: "flex", flexDirection: "column", gap: "10px" }}>
-      {/* BARRA DE HERRAMIENTAS */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "10px",
-          background: "rgba(255, 255, 255, 0.03)",
-          padding: "8px 12px",
-          borderRadius: "8px",
-          border: "1px solid var(--border-light)",
-        }}
-      >
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ ...botonHerramienta(false, "", ""), gap: "8px" }}>
-            <input
-              type="checkbox"
-              checked={ocultarEntregados}
-              onChange={(e) => {
-                setOcultarEntregados(e.target.checked);
-                setPagina(1);
-              }}
-              style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }}
-            />
-            <span>Ocultar Entregados</span>
-          </label>
+      {/* BARRA DE ACCIONES: lo que se hace con la lista, en cuatro grupos */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 16px", background: "rgba(255, 255, 255, 0.03)", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+        <GrupoAcciones titulo="Datos">
+          <button type="button" className="btn btn-primary" onClick={() => setMenuDatos(true)} style={{ padding: "5px 12px", fontSize: "0.82rem" }} title="Importar expedientes (Excel o CSV), contrastar un listado, exportar (CSV o JSON), copias internas y copia de seguridad: todo en una sola ventana, con la explicación de cada opción">
+            🗂️ Importar y exportar
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => setVerDuplicados(true)} style={{ padding: "5px 12px", fontSize: "0.82rem" }} title="Busca expedientes duplicados: mismo bastidor, misma matrícula, o mismo cliente y modelo. Solo lee, no cambia nada">
+            🔎 Detectar duplicados
+          </button>
+        </GrupoAcciones>
 
-          <label
-            style={{
-              ...botonHerramienta(false, "", ""),
-              gap: "8px",
-              background: mostrarCobros ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.05)",
-              border: `1px solid ${mostrarCobros ? "var(--primary)" : "var(--border-light)"}`,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={mostrarCobros}
-              onChange={(e) => {
-                fijarColumnas(JSON.stringify({ ...visibles, cobro: e.target.checked }));
-              }}
-              style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }}
-            />
-            <span>👁️ Mostrar Comisionados</span>
-          </label>
+        <GrupoAcciones titulo="Vista">
+          <button type="button" className="btn" onClick={() => setSelectorColumnas(true)} style={botonHerramienta(selectorColumnas, "var(--primary)", "white")} title="Ordena las columnas de la tabla (arrastrando), muéstralas u ocúltalas, vuelve a lo predeterminado o guarda tus propias vistas">
+            ⚙️ Columnas y vistas
+          </button>
+          <button type="button" className="btn" onClick={alternarPaneles} style={botonHerramienta(false, "", "")} title={hayPanelAbierto ? "Pliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera" : "Despliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera"}>
+            {hayPanelAbierto ? "⇕ Plegar paneles" : "⇕ Desplegar paneles"}
+          </button>
+          {selectorColumnas && (
+            <PanelColumnas columnas={COLUMNAS} actual={{ orden, visibles }} predeterminada={{ orden: ORDEN_POR_DEFECTO, visibles: POR_DEFECTO }} vistasIncluidas={VISTAS_INCLUIDAS} alCambiar={cambiarConfigColumnas} alCerrar={() => setSelectorColumnas(false)} />
+          )}
+        </GrupoAcciones>
 
-          <CasillaAnulados activa={mostrarAnulados} alCambiar={(v) => { fijarMostrarAnulados(v); setPagina(1); }} anulados={nAnulados} estilo={{ fontSize: "0.8rem" }} />
-
+        <GrupoAcciones titulo="Edición masiva (con candado)" ayuda="Para cambiar o borrar varios expedientes a la vez hay que desbloquear antes: se vuelven a bloquear solos pasado el tiempo configurado">
           <button
             type="button"
             className="btn"
@@ -858,7 +880,6 @@ export default function ExpedientesList({
             {seleccionActiva ? "🔓 Selección Activa" : "🔒 Selección Inactiva"}
             {modoSeleccion.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoSeleccion.restante)}</span>}
           </button>
-
           <button
             type="button"
             className="btn"
@@ -869,95 +890,39 @@ export default function ExpedientesList({
             {borradoActivo ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
             {modoBorrado.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoBorrado.restante)}</span>}
           </button>
+        </GrupoAcciones>
 
-          <button
-            type="button"
-            className="btn"
-            onClick={alternarPaneles}
-            style={botonHerramienta(false, "", "")}
-            title={hayPanelAbierto ? "Pliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera" : "Despliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera"}
-          >
-            {hayPanelAbierto ? "⇕ Plegar paneles" : "⇕ Desplegar paneles"}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setSelectorColumnas(true)}
-            style={botonHerramienta(selectorColumnas, "var(--primary)", "white")}
-            title="Ordena las columnas de la tabla (arrastrando), muéstralas u ocúltalas, vuelve a lo predeterminado o guarda tus propias vistas"
-          >
-            ⚙️ Columnas y vistas
-          </button>
-          {selectorColumnas && (
-            <PanelColumnas
-              columnas={COLUMNAS}
-              actual={{ orden, visibles }}
-              predeterminada={{ orden: ORDEN_POR_DEFECTO, visibles: POR_DEFECTO }}
-              vistasIncluidas={VISTAS_INCLUIDAS}
-              alCambiar={cambiarConfigColumnas}
-              alCerrar={() => setSelectorColumnas(false)}
-            />
-          )}
-
-          {seleccionActiva && seleccionados.length > 0 && (
-            <>
-              <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--primary)" }}>({seleccionados.length} seleccionados):</span>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => borradoActivo && setConfirmarBorradoMasivo(true)}
-                disabled={!borradoActivo}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "0.8rem",
-                  backgroundColor: borradoActivo ? "var(--danger)" : "rgba(255,255,255,0.02)",
-                  color: borradoActivo ? "white" : "var(--text-muted)",
-                  border: borradoActivo ? "none" : "1px solid var(--border-light)",
-                  cursor: borradoActivo ? "pointer" : "not-allowed",
-                  borderRadius: "var(--radius-sm)",
-                  fontWeight: 600,
-                  opacity: borradoActivo ? 1 : 0.5,
-                }}
-              >
-                🗑️ Eliminar Seleccionados
+        {seleccionActiva && seleccionados.length > 0 && (
+          <GrupoAcciones titulo={`${seleccionados.length} seleccionado${seleccionados.length === 1 ? "" : "s"}`} destacado>
+            <button type="button" className="btn" onClick={() => setEdicionMasiva(true)} style={{ padding: "5px 12px", fontSize: "0.8rem", backgroundColor: "#2e7d32", color: "white", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, cursor: "pointer" }} title="Cambia a la vez un dato de todos los seleccionados">
+              ✏️ Editar
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(true)} style={{ padding: "5px 12px", fontSize: "0.8rem" }} title="Los expedientes deshabilitados no cuentan en las comisiones, la tasa ni las liquidaciones, ni en los totales y listados, hasta que los vuelvas a habilitar (se ven con «Mostrar deshabilitados»)">
+              ⏸ Deshabilitar
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(false)} style={{ padding: "5px 12px", fontSize: "0.8rem" }} title="Vuelve a contar los expedientes seleccionados en las comisiones, la tasa y las liquidaciones">
+              ▶ Habilitar
+            </button>
+            {permitirDup && (
+              <button type="button" className="btn btn-secondary" onClick={() => { setCopias("1"); setDuplicando(seleccionados); }} style={{ padding: "5px 12px", fontSize: "0.8rem" }} title="Crea copias de los expedientes seleccionados (para pruebas)">
+                📑 Duplicar
               </button>
-              <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Los expedientes deshabilitados siguen en la lista, pero no cuentan en las comisiones, la tasa ni las liquidaciones hasta que los vuelvas a habilitar">
-                ⏸ Deshabilitar
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => void deshabilitarSeleccionados(false)} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Vuelve a contar los expedientes seleccionados en las comisiones, la tasa y las liquidaciones">
-                ▶ Habilitar
-              </button>
-              {permitirDup && (
-                <button type="button" className="btn btn-secondary" onClick={() => { setCopias("1"); setDuplicando(seleccionados); }} style={{ padding: "6px 12px", fontSize: "0.8rem" }} title="Crea copias de los expedientes seleccionados (para pruebas)">
-                  📑 Duplicar Seleccionados
-                </button>
-              )}
-              <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                📤 Exportar SOLO expedientes seleccionados (CSV)
-              </button>
-              <button
-                type="button"
-                onClick={() => setEdicionMasiva(true)}
-                style={{ padding: "6px 12px", fontSize: "0.8rem", backgroundColor: "#2e7d32", color: "white", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, cursor: "pointer" }}
-              >
-                ✏️ Editar
-              </button>
-            </>
-          )}
-        </div>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => setMenuDatos(true)}
-          style={{ padding: "6px 14px", fontSize: "0.85rem" }}
-          title="Importar expedientes (Excel o CSV), contrastar un listado, exportar (CSV o JSON), copias internas y copia de seguridad: todo en una sola ventana, con la explicación de cada opción"
-        >
-          🗂️ Importar y exportar
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => setVerDuplicados(true)} style={{ padding: "6px 14px", fontSize: "0.85rem" }} title="Busca expedientes duplicados: mismo bastidor, misma matrícula, o mismo cliente y modelo. Solo lee, no cambia nada">
-          🔎 Detectar duplicados
-        </button>
+            )}
+            <button type="button" className="btn btn-secondary" onClick={() => exportarCsv(true)} style={{ padding: "5px 12px", fontSize: "0.8rem" }} title="Descarga en CSV solo los expedientes seleccionados">
+              📤 Exportar (CSV)
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => borradoActivo && setConfirmarBorradoMasivo(true)}
+              disabled={!borradoActivo}
+              title={borradoActivo ? "Manda los seleccionados a la Papelera (se pueden recuperar)" : "Desbloquea antes «Eliminación»"}
+              style={{ padding: "5px 12px", fontSize: "0.8rem", backgroundColor: borradoActivo ? "var(--danger)" : "rgba(255,255,255,0.02)", color: borradoActivo ? "white" : "var(--text-muted)", border: borradoActivo ? "none" : "1px solid var(--border-light)", cursor: borradoActivo ? "pointer" : "not-allowed", borderRadius: "var(--radius-sm)", fontWeight: 600, opacity: borradoActivo ? 1 : 0.5 }}
+            >
+              🗑️ A la Papelera
+            </button>
+          </GrupoAcciones>
+        )}
       </div>
       {verDuplicados && <ModalDuplicados alCerrar={() => setVerDuplicados(false)} />}
 
@@ -1081,42 +1046,32 @@ export default function ExpedientesList({
           </div>
         </Modal>
       )}
-      {/* FILTRADO AVANZADO */}
-      <div className="glass-panel" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-          <h4 onClick={() => fijarFiltrosAbiertos(filtrosAbiertos ? "false" : "true")} title={filtrosAbiertos ? "Plegar filtros" : "Desplegar filtros"} style={{ cursor: "pointer", userSelect: "none", margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
-            <span>{filtrosAbiertos ? "▾" : "▸"} 🔍 Filtrado y Búsqueda Avanzada</span>
-          </h4>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }} title="Atajos para filtrar por mes sin abrir los desplegables">
-            Atajos de mes:
-          </span>
-          {(
-            [
-              { campo: "fecha_comisionado", etiqueta: "Se cobra en", ayuda: "expedientes comisionados (que se cobran) en el mes elegido; «Actual» es el mes en curso" },
-              { campo: "fecha_afectacion", etiqueta: "Afectados en", ayuda: "expedientes con fecha de afectación en el mes elegido" },
-            ] as const
-          ).map((g) => (
-            <div key={g.campo} style={cajaMes}>
-              <span style={textoCaja}>{g.etiqueta}</span>
-              <div style={{ display: "flex", gap: "4px" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "ant")} style={botonMes} title={`Mes anterior: ${g.ayuda}`}>
-                  ◀ Anterior
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "actual")} style={botonMes} title={`Mes actual: ${g.ayuda}`}>
-                  Actual
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "sig")} style={botonMes} title={`Mes siguiente: ${g.ayuda}`}>
-                  Siguiente ▶
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-          <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} title="Quita todos los filtros y deja solo los expedientes del comercial que ha iniciado sesión" style={{ padding: "4px 10px", fontSize: "0.75rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
-            🧹 Limpiar Filtros
-          </button>
+      {/* FILTROS: lo que se ve, la fecha, el vehículo y la venta, y quién */}
+      <div className="glass-panel" style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <h4 onClick={() => fijarFiltrosAbiertos(filtrosAbiertos ? "false" : "true")} title={filtrosAbiertos ? "Plegar filtros" : "Desplegar filtros"} style={{ cursor: "pointer", userSelect: "none", margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>{filtrosAbiertos ? "▾" : "▸"} 🔍 Filtros</span>
+            </h4>
+            <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} title="Quita todos los filtros y deja solo los expedientes del comercial que ha iniciado sesión" style={{ padding: "4px 10px", fontSize: "0.75rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
+              🧹 Limpiar filtros
+            </button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }} title="Qué expedientes entran en la lista y en los totales">
+            <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Mostrar:</span>
+            <label style={{ ...botonHerramienta(false, "", ""), gap: "8px", fontSize: "0.78rem" }} title="Quita de la lista los expedientes que ya tienen fecha de entrega">
+              <input type="checkbox" checked={ocultarEntregados} onChange={(e) => { setOcultarEntregados(e.target.checked); setPagina(1); }} style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }} />
+              <span>Ocultar entregados</span>
+            </label>
+            <label
+              style={{ ...botonHerramienta(false, "", ""), gap: "8px", fontSize: "0.78rem", background: mostrarCobros ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.05)", border: `1px solid ${mostrarCobros ? "var(--primary)" : "var(--border-light)"}` }}
+              title="Enseña la columna «Comisionado» (si la comisión ya aparece como pagada en el Cotejo de pagos). Es la misma casilla que en «Columnas y vistas»"
+            >
+              <input type="checkbox" checked={mostrarCobros} onChange={(e) => { fijarColumnas(JSON.stringify({ ...visibles, cobro: e.target.checked })); }} style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }} />
+              <span>👁️ Columna Comisionado</span>
+            </label>
+            <CasillaAnulados activa={mostrarAnulados} alCambiar={(v) => { fijarMostrarAnulados(v); setPagina(1); }} anulados={nAnulados} estilo={{ fontSize: "0.78rem" }} />
+            <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={(v) => { fijarMostrarDeshabilitados(v); setPagina(1); }} deshabilitados={nDeshabilitados} estilo={{ fontSize: "0.78rem" }} />
           </div>
         </div>
 
@@ -1133,252 +1088,191 @@ export default function ExpedientesList({
             </button>
           </div>
         )}
+
         {filtrosAbiertos && (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }} title="Rellenan «Desde» y «Hasta» con un clic; se aplican al campo de fecha elegido abajo">
-            Rango de fechas:
-          </span>
-          {(
-            [
-              { id: "hoy", texto: "Hoy" },
-              { id: "semana", texto: "Esta semana" },
-              { id: "mes", texto: "Este mes" },
-              { id: "mes_pasado", texto: "Mes pasado" },
-              { id: "anio", texto: "Este año" },
-            ] as { id: AtajoRango; texto: string }[]
-          ).map((a) => {
-            const r = rangoDeAtajo(a.id);
-            const activo = rango.desde === r.desde && rango.hasta === r.hasta;
-            return (
-              <button key={a.id} type="button" className={activo ? "btn btn-primary" : "btn btn-secondary"} onClick={() => { setRango(r); setPagina(1); }} style={botonMes} title={`${a.texto}: ${textoRango(r)}`}>
-                {a.texto}
-              </button>
-            );
-          })}
-          {rangoActivo && (
-            <button type="button" className="btn btn-secondary" onClick={() => { setRango(RANGO_VACIO); setPagina(1); }} style={{ ...botonMes, color: "var(--danger)" }} title="Quita el rango de fechas y deja los demás filtros">
-              ✕ Quitar rango
-            </button>
-          )}
-        </div>
-        )}
-        {filtrosAbiertos && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: "8px" }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Campo de Fecha</label>
-            <select
-              className="form-input"
-              value={fTipoFecha}
-              onChange={(e) => {
-                setFTipoFecha(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              {FECHAS_FILTRO.map((f) => (
-                <option key={f.valor} value={f.valor}>
-                  {f.etiqueta}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <BloqueFiltros titulo="📅 Fecha" ayuda="Se filtra por el campo de fecha elegido. El rango «Desde / Hasta» y el mes y año se excluyen: al usar uno se quita el otro">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+                <CampoFiltro etiqueta="Campo de fecha" ayuda="Sobre qué fecha del expediente se filtra. «Todas las fechas» vale con cualquiera de ellas">
+                  <select className="form-input" value={fTipoFecha} onChange={(e) => { setFTipoFecha(e.target.value); setPagina(1); }} style={estiloSelectFiltro}>
+                    {FECHAS_FILTRO.map((f) => (
+                      <option key={f.valor} value={f.valor}>
+                        {f.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </CampoFiltro>
+                <CampoFiltro etiqueta="Desde" ayuda="Primer día del rango, sobre el campo de fecha elegido (incluido)">
+                  <input type="date" className="form-input" value={rango.desde} max={rango.hasta || undefined} onChange={(e) => { ponerRango((r) => ({ ...r, desde: e.target.value })); }} style={{ ...estiloSelectFiltro, padding: "3px 6px" }} />
+                  <BotonesMoverFecha etiqueta="Desde" alMover={(meses) => { ponerRango((r) => ({ ...r, desde: moverMeses(r.desde, meses) })); }} />
+                </CampoFiltro>
+                <CampoFiltro etiqueta="Hasta" ayuda="Último día del rango, sobre el campo de fecha elegido (incluido)">
+                  <input type="date" className="form-input" value={rango.hasta} min={rango.desde || undefined} onChange={(e) => { ponerRango((r) => ({ ...r, hasta: e.target.value })); }} style={{ ...estiloSelectFiltro, padding: "3px 6px" }} />
+                  <BotonesMoverFecha etiqueta="Hasta" alMover={(meses) => { ponerRango((r) => ({ ...r, hasta: moverMeses(r.hasta, meses) })); }} />
+                </CampoFiltro>
+                <CampoFiltro etiqueta="Mes">
+                  <select className="form-input" value={fMes} onChange={(e) => { setFMes(e.target.value); if (e.target.value) setRango(RANGO_VACIO); setPagina(1); }} style={estiloSelectFiltro}>
+                    <option value="">Todos los meses</option>
+                    {MESES.map((nombre, i) => (
+                      <option key={nombre} value={String(i + 1).padStart(2, "0")}>
+                        {nombre}
+                      </option>
+                    ))}
+                  </select>
+                </CampoFiltro>
+                <CampoFiltro etiqueta="Año">
+                  <select className="form-input" value={fAnio} onChange={(e) => { setFAnio(e.target.value); if (e.target.value) setRango(RANGO_VACIO); setPagina(1); }} style={estiloSelectFiltro}>
+                    <option value="">Todos los años</option>
+                    {opciones.anios.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </CampoFiltro>
+              </div>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro} title="Primer día del rango, sobre el campo de fecha elegido (incluido)">Desde</label>
-            <input type="date" className="form-input" value={rango.desde} max={rango.hasta || undefined} onChange={(e) => { setRango((r) => ({ ...r, desde: e.target.value })); setPagina(1); }} style={{ padding: "3px 6px", fontSize: "0.8rem" }} />
-            <BotonesMoverFecha etiqueta="Desde" alMover={(meses) => { setRango((r) => ({ ...r, desde: moverMeses(r.desde, meses) })); setPagina(1); }} />
-          </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px 18px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }} title="Rellenan «Desde» y «Hasta» con un clic, sobre el campo de fecha elegido">
+                    Rangos rápidos:
+                  </span>
+                  {(
+                    [
+                      { id: "hoy", texto: "Hoy" },
+                      { id: "semana", texto: "Esta semana" },
+                      { id: "mes", texto: "Este mes" },
+                      { id: "mes_pasado", texto: "Mes pasado" },
+                      { id: "anio", texto: "Este año" },
+                    ] as { id: AtajoRango; texto: string }[]
+                  ).map((a) => {
+                    const r = rangoDeAtajo(a.id);
+                    const activo = rango.desde === r.desde && rango.hasta === r.hasta;
+                    return (
+                      <button key={a.id} type="button" className={activo ? "btn btn-primary" : "btn btn-secondary"} onClick={() => { ponerRango(() => r); }} style={botonMes} title={`${a.texto}: ${textoRango(r)}`}>
+                        {a.texto}
+                      </button>
+                    );
+                  })}
+                  {rangoActivo && (
+                    <button type="button" className="btn btn-secondary" onClick={() => { setRango(RANGO_VACIO); setPagina(1); }} style={{ ...botonMes, color: "var(--danger)" }} title="Quita el rango de fechas y deja los demás filtros">
+                      ✕ Quitar rango
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }} title="Filtran por mes completo y cambian el campo de fecha: pulsa Anterior / Actual / Siguiente para ir de mes en mes">
+                    Por mes:
+                  </span>
+                  {(
+                    [
+                      { campo: "fecha_comisionado", etiqueta: "Se cobra en", ayuda: "expedientes comisionados (que se cobran) en el mes elegido; «Actual» es el mes en curso" },
+                      { campo: "fecha_afectacion", etiqueta: "Afectados en", ayuda: "expedientes con fecha de afectación en el mes elegido" },
+                    ] as const
+                  ).map((g) => (
+                    <div key={g.campo} style={cajaMes}>
+                      <span style={textoCaja}>{g.etiqueta}</span>
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "ant")} style={botonMes} title={`Mes anterior: ${g.ayuda}`}>
+                          ◀ Anterior
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "actual")} style={botonMes} title={`Mes actual: ${g.ayuda}`}>
+                          Actual
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={() => cambiarMesFiltro(g.campo, "sig")} style={botonMes} title={`Mes siguiente: ${g.ayuda}`}>
+                          Siguiente ▶
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </BloqueFiltros>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro} title="Último día del rango, sobre el campo de fecha elegido (incluido)">Hasta</label>
-            <input type="date" className="form-input" value={rango.hasta} min={rango.desde || undefined} onChange={(e) => { setRango((r) => ({ ...r, hasta: e.target.value })); setPagina(1); }} style={{ padding: "3px 6px", fontSize: "0.8rem" }} />
-            <BotonesMoverFecha etiqueta="Hasta" alMover={(meses) => { setRango((r) => ({ ...r, hasta: moverMeses(r.hasta, meses) })); setPagina(1); }} />
-          </div>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "stretch" }}>
+              <BloqueFiltros titulo="🚗 Vehículo y venta" crece>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+                  <CampoFiltro etiqueta="Marca">
+                    <select className="form-input" value={fMarca} onChange={(e) => { setFMarca(e.target.value); setFModelo(""); setPagina(1); }} style={estiloSelectFiltro}>
+                      <option value="">Todas las marcas</option>
+                      <option value="VO_NO_BRAND">Sin Marca (VO)</option>
+                      {opciones.marcas.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                  <CampoFiltro etiqueta="Modelo">
+                    <select className="form-input" value={fModelo} onChange={(e) => { setFModelo(e.target.value); setPagina(1); }} style={estiloSelectFiltro} disabled={fMarca === "VO_NO_BRAND"}>
+                      <option value="">Todos los modelos</option>
+                      {opciones.modelos.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                  <CampoFiltro etiqueta="Tipo de venta">
+                    <select className="form-input" value={fTipo} onChange={(e) => { setFTipo(e.target.value); setPagina(1); }} style={estiloSelectFiltro}>
+                      <option value="">Todos los tipos</option>
+                      {opciones.tipos.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                  <CampoFiltro etiqueta="Estado del vehículo">
+                    <select className="form-input" value={fEstado} onChange={(e) => { setFEstado(e.target.value); setPagina(1); }} style={estiloSelectFiltro}>
+                      <option value="">Todos los estados</option>
+                      {opciones.estados.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                  <CampoFiltro etiqueta="Estado intranet" ayuda="Estado del expediente en la intranet del fabricante (Archivado, Anulado…), importado desde sus listados con «Completar datos desde listados»">
+                    <select className="form-input" value={fIntranet} onChange={(e) => { setFIntranet(e.target.value); setPagina(1); }} style={estiloSelectFiltro}>
+                      <option value="">Todos</option>
+                      <option value="__sin__">Sin estado importado</option>
+                      {opciones.estadosIntranet.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                </div>
+              </BloqueFiltros>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Mes</label>
-            <select
-              className="form-input"
-              value={fMes}
-              onChange={(e) => {
-                setFMes(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todos los meses</option>
-              {MESES.map((nombre, i) => (
-                <option key={nombre} value={String(i + 1).padStart(2, "0")}>
-                  {nombre}
-                </option>
-              ))}
-            </select>
+              <BloqueFiltros titulo="👤 Comercial y tienda">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(130px, 1fr))", gap: "8px" }}>
+                  <CampoFiltro etiqueta="Comercial">
+                    <select className="form-input" value={fVendedor} onChange={(e) => { setFVendedor(e.target.value); setPagina(1); }} style={estiloSelectFiltro}>
+                      <option value="">Todos los comerciales</option>
+                      {opciones.vendedores.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                  <CampoFiltro etiqueta="Tienda">
+                    <select className="form-input" value={fTienda} onChange={(e) => { setFTienda(e.target.value); setPagina(1); }} style={estiloSelectFiltro}>
+                      <option value="">Todas las tiendas</option>
+                      {tiendas.map((t) => (
+                        <option key={t.id_tienda} value={t.id_tienda}>
+                          {t.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                </div>
+              </BloqueFiltros>
+            </div>
           </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Año</label>
-            <select
-              className="form-input"
-              value={fAnio}
-              onChange={(e) => {
-                setFAnio(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todos los años</option>
-              {opciones.anios.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Marca</label>
-            <select
-              className="form-input"
-              value={fMarca}
-              onChange={(e) => {
-                setFMarca(e.target.value);
-                setFModelo("");
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todas las marcas</option>
-              <option value="VO_NO_BRAND">Sin Marca (VO)</option>
-              {opciones.marcas.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Modelo</label>
-            <select
-              className="form-input"
-              value={fModelo}
-              onChange={(e) => {
-                setFModelo(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-              disabled={fMarca === "VO_NO_BRAND"}
-            >
-              <option value="">Todos los modelos</option>
-              {opciones.modelos.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Tienda</label>
-            <select
-              className="form-input"
-              value={fTienda}
-              onChange={(e) => {
-                setFTienda(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todas las tiendas</option>
-              {tiendas.map((t) => (
-                <option key={t.id_tienda} value={t.id_tienda}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Comercial</label>
-            <select
-              className="form-input"
-              value={fVendedor}
-              onChange={(e) => {
-                setFVendedor(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todos los comerciales</option>
-              {opciones.vendedores.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Tipo Venta</label>
-            <select
-              className="form-input"
-              value={fTipo}
-              onChange={(e) => {
-                setFTipo(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todos los tipos</option>
-              {opciones.tipos.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro}>Estado Vehículo</label>
-            <select
-              className="form-input"
-              value={fEstado}
-              onChange={(e) => {
-                setFEstado(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todos los estados</option>
-              {opciones.estados.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={etiquetaFiltro} title="Estado del expediente en la intranet del fabricante (Archivado, Anulado…), importado desde sus listados con «Completar datos desde listados»">Estado intranet</label>
-            <select
-              className="form-input"
-              value={fIntranet}
-              onChange={(e) => {
-                setFIntranet(e.target.value);
-                setPagina(1);
-              }}
-              style={{ padding: "4px 6px", fontSize: "0.8rem" }}
-            >
-              <option value="">Todos</option>
-              <option value="__sin__">Sin estado importado</option>
-              {opciones.estadosIntranet.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
         )}
       </div>
 
@@ -1618,7 +1512,9 @@ export default function ExpedientesList({
               {visiblesPagina.length === 0 && (
                 <tr>
                   <td colSpan={totalColSpan} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
-                    {expedientes.length === 0 ? "No hay expedientes registrados en el sistema." : "No se encontraron expedientes con los filtros aplicados."}
+                    {expedientes.length === 0
+                      ? "No hay expedientes registrados en el sistema."
+                      : `No se encontraron expedientes con los filtros aplicados.${(!mostrarAnulados && nAnulados > 0) || (!mostrarDeshabilitados && nDeshabilitados > 0) ? ` Ojo: hay ${[!mostrarAnulados && nAnulados > 0 ? `${nAnulados} anulados` : "", !mostrarDeshabilitados && nDeshabilitados > 0 ? `${nDeshabilitados} deshabilitados` : ""].filter(Boolean).join(" y ")} ocultos (casillas «Mostrar…» de arriba).` : ""}`}
                   </td>
                 </tr>
               )}
@@ -1640,7 +1536,7 @@ export default function ExpedientesList({
         />
       </div>
 
-      <ResumenMensual expedientes={expedientes.filter((e) => (mostrarAnulados || !esAnulado(e.estado_intranet)) && (!rangoActivo || fechasDeFiltro(e).some((f) => enRango(f, rangoOk))))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
+      <ResumenMensual expedientes={expedientes.filter((e) => (mostrarAnulados || !esAnulado(e.estado_intranet)) && (mostrarDeshabilitados || !e.deshabilitado) && (!rangoActivo || fechasDeFiltro(e).some((f) => enRango(f, rangoOk))))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
 
       {modales}
 
@@ -1675,7 +1571,7 @@ export default function ExpedientesList({
       {aBorrar && (
         <ModalConfirmar
           titulo="Confirmar Eliminación"
-          mensaje="¿Estás seguro de que deseas eliminar permanentemente este expediente? Esta acción no se podrá deshacer."
+          mensaje="¿Eliminar este expediente? No se borra del todo: va a la Papelera (Herramientas › Papelera), donde se puede recuperar. Mientras esté allí no cuenta en listados, totales ni comisiones."
           textoConfirmar="Eliminar Expediente"
           ocupado={borrando}
           alConfirmar={() => void eliminar([aBorrar.id_expediente])}
@@ -1688,7 +1584,7 @@ export default function ExpedientesList({
           titulo="Confirmar Borrado Masivo"
           mensaje={
             <>
-              ¿Estás seguro de que deseas eliminar permanentemente los <strong>{seleccionados.length}</strong> expedientes seleccionados? Esta acción no se podrá deshacer.
+              ¿Eliminar los <strong>{seleccionados.length}</strong> expedientes seleccionados? No se borran del todo: van a la Papelera (Herramientas › Papelera), donde se pueden recuperar. Mientras estén allí no cuentan en listados, totales ni comisiones.
             </>
           }
           textoConfirmar="Eliminar Expedientes"

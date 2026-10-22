@@ -56,7 +56,7 @@ const SIN_DATO = new Set(["", "ND", "N/D", "NA", "N/A", "XXXX", "0"]);
  * Con `incluirAnulados` también se miran los anulados en el listado de la intranet. Por defecto no: un pedido anulado y el mismo pedido hecho de nuevo
  * es lo normal, no un descuido.
  */
-export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulados?: boolean } = {}): Promise<ResultadoDuplicados> {
+export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulados?: boolean; incluirDeshabilitados?: boolean } = {}): Promise<ResultadoDuplicados> {
   const filas = await ej
     .select({
       id: expedientes.idExpediente,
@@ -82,7 +82,7 @@ export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulad
     .leftJoin(tipoDeVenta, eq(tipoDeVenta.idTipoDeVenta, expedientes.idTipoDeVenta))
     .leftJoin(estadoVehiculo, eq(estadoVehiculo.idEstadoVehiculo, expedientes.idEstadoVehiculo))
     .leftJoin(usuarios, eq(usuarios.idUsuario, expedientes.idUsuario))
-    .where(and(isNull(expedientes.eliminadoEn), opciones.incluirAnulados ? undefined : or(isNull(expedientes.estadoIntranet), notIlike(expedientes.estadoIntranet, "%anulad%"))));
+    .where(and(isNull(expedientes.eliminadoEn), opciones.incluirDeshabilitados ? undefined : eq(expedientes.deshabilitado, false), opciones.incluirAnulados ? undefined : or(isNull(expedientes.estadoIntranet), notIlike(expedientes.estadoIntranet, "%anulad%"))));
 
   const agrupar = (clave: (f: (typeof filas)[number]) => string | null) => {
     const m = new Map<string, typeof filas>();

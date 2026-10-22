@@ -28,6 +28,8 @@ export interface CocheCotejo {
   /** Estado del listado del fabricante (Archivado, Anulado…); vacío en un expediente de la app. */
   estado: string;
   usado: boolean;
+  /** Expediente deshabilitado en la app: no cuenta (ni para comisiones ni en los listados) salvo que se pida. */
+  deshabilitado?: boolean;
 }
 
 export interface PagoRejilla {

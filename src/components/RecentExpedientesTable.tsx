@@ -69,7 +69,7 @@ export default function RecentExpedientesTable({
       const res = await fetch(`/api/expedientes?id=${aBorrar.id_expediente}`, { method: "DELETE" });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al eliminar el expediente"));
       setLista((prev) => prev.filter((e) => e.id_expediente !== aBorrar.id_expediente));
-      mostrar("Expediente eliminado con éxito.");
+      mostrar("Expediente enviado a la Papelera (Herramientas › Papelera): se puede recuperar.");
       setABorrar(null);
       router.refresh();
     } catch (e) {
@@ -240,7 +240,7 @@ export default function RecentExpedientesTable({
       {aBorrar && (
         <ModalConfirmar
           titulo="Confirmar Eliminación"
-          mensaje="¿Estás seguro de que deseas eliminar permanentemente este expediente? Esta acción no se podrá deshacer."
+          mensaje="¿Eliminar este expediente? No se borra del todo: va a la Papelera (Herramientas › Papelera), donde se puede recuperar."
           textoConfirmar="Eliminar Expediente"
           ocupado={borrando}
           alConfirmar={eliminar}

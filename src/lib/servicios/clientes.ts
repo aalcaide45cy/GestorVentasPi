@@ -197,7 +197,8 @@ export async function listarClientes(ej: Ejecutor, opciones: { limite?: number }
     : await ej
         .select({ id: expedientes.idCliente, n: count() })
         .from(expedientes)
-        .where(and(isNull(expedientes.eliminadoEn), acotado ? inArray(expedientes.idCliente, ids) : sql`${expedientes.idCliente} is not null`))
+        // Los deshabilitados no cuentan como ventas del cliente
+        .where(and(isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false), acotado ? inArray(expedientes.idCliente, ids) : sql`${expedientes.idCliente} is not null`))
         .groupBy(expedientes.idCliente);
   const mapa = new Map(cuentas.map((c) => [c.id, c.n]));
   return filas.map((c) => ({ ...clienteDto(c), num_expedientes: mapa.get(c.id) ?? 0 }));

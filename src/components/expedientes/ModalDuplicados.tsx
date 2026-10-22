@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
-import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "@/components/CasillaAnulados";
 import { useToast } from "@/components/Toast";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { mensajeDeError } from "@/components/expedientes/comun";
@@ -42,7 +42,9 @@ export default function ModalDuplicados({ alCerrar }: { alCerrar: () => void }) 
   const { mostrar, confirmar } = useToast();
   // Los anulados en el listado de la intranet no se miran salvo que se active la casilla (un pedido anulado y rehecho no es un descuido)
   const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("duplicados");
-  const { datos, recargar } = useCarga<ResultadoDuplicados | null>(`/api/expedientes/duplicados${mostrarAnulados ? "?anulados=1" : ""}`, null);
+  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("duplicados");
+  const parametros = [mostrarAnulados ? "anulados=1" : "", mostrarDeshabilitados ? "deshabilitados=1" : ""].filter(Boolean).join("&");
+  const { datos, recargar } = useCarga<ResultadoDuplicados | null>(`/api/expedientes/duplicados${parametros ? `?${parametros}` : ""}`, null);
   const [motivo, setMotivo] = useState<"todos" | MotivoDuplicado>("todos");
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
   const [enviando, setEnviando] = useState(false);
@@ -134,6 +136,7 @@ No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras est
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={0} siempre />
+          <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={fijarMostrarDeshabilitados} deshabilitados={0} siempre />
           <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>VER</span>
           <button type="button" className={motivo === "todos" ? "btn btn-primary" : "btn btn-secondary"} style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => setMotivo("todos")}>
             Todos ({datos?.grupos.length ?? 0})

@@ -78,6 +78,7 @@ export function aCocheCotejo(e: ExpedienteDto): CocheCotejo {
     // Si se importó el listado de la intranet, su estado (Anulado, Archivado…) permite revisar a mano lo que no se paga
     estado: e.estado_intranet ?? e.estadoVehiculo?.nombre_estado_vehiculo ?? "",
     usado: e.estadoVehiculo?.clase === "VO",
+    deshabilitado: e.deshabilitado,
   };
 }
 

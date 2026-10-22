@@ -8,6 +8,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { Seccion } from "@/components/comisiones/campos";
 import { codigoExpediente, formatDate } from "@/lib/date-utils";
+import { CasillaDeshabilitados, useMostrarDeshabilitados } from "@/components/CasillaAnulados";
 import { euros, mesActual, puntos } from "@/lib/formato";
 import type { Informe } from "@/lib/servicios/informes";
 
@@ -46,6 +47,8 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
   const [hasta, setHasta] = useState(mesActual());
   const [vendedor, setVendedor] = useState<number | "">("");
   const [marca, setMarca] = useState<number | "">("");
+  // Los deshabilitados no cuentan en los recuentos ni en las listas salvo que se active la casilla (las cifras económicas nunca los cuentan)
+  const [conDeshabilitados, fijarConDeshabilitados] = useMostrarDeshabilitados("informes");
   const [informe, setInforme] = useState<Informe | null>(null);
   const [cargando, setCargando] = useState(false);
 
@@ -53,7 +56,7 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
     if (desde > hasta) return mostrar("El mes inicial no puede ser posterior al final", "error");
     setCargando(true);
     try {
-      const { data } = await llamar<Informe>("/api/informes", { method: "POST", cuerpo: { desde, hasta, idVendedor: vendedor || undefined, idMarca: marca || undefined } });
+      const { data } = await llamar<Informe>("/api/informes", { method: "POST", cuerpo: { desde, hasta, idVendedor: vendedor || undefined, idMarca: marca || undefined, incluirDeshabilitados: conDeshabilitados || undefined } });
       setInforme(data);
     } catch (e) {
       mostrar(textoError(e), "error");
@@ -138,6 +141,7 @@ export default function InformesDashboard({ vendedores, marcas, puedeElegirVende
               ))}
             </select>
           </div>
+          <CasillaDeshabilitados activa={conDeshabilitados} alCambiar={fijarConDeshabilitados} deshabilitados={0} siempre />
           <button type="button" className="btn btn-primary" disabled={cargando} onClick={generar}>
             {cargando ? "Generando…" : "Generar informe"}
           </button>

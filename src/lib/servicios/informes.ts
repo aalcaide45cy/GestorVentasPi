@@ -10,6 +10,8 @@ export const esquemaInforme = z.object({
   hasta: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
   idVendedor: z.number().int().positive().optional(),
   idMarca: z.number().int().positive().optional(),
+  /** Contar también los expedientes deshabilitados en los recuentos y listados (las cifras económicas salen siempre del motor, que no los cuenta). */
+  incluirDeshabilitados: z.boolean().optional(),
 });
 export type FiltroInforme = z.infer<typeof esquemaInforme>;
 
@@ -85,6 +87,7 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
     .where(
       and(
         isNull(expedientes.eliminadoEn),
+        filtro.incluirDeshabilitados ? undefined : eq(expedientes.deshabilitado, false),
         idVendedor ? eq(expedientes.idUsuario, idVendedor) : undefined,
         filtro.idMarca ? eq(modelos.marcaId, filtro.idMarca) : undefined,
         or(

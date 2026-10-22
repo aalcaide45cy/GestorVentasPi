@@ -7,3 +7,6 @@ export const esAnulado = (estadoIntranet: string | null | undefined): boolean =>
 
 /** Preferencia del navegador de cada pantalla (`true` = enseñar también los anulados). Por defecto, ocultos. */
 export const claveMostrarAnulados = (pantalla: string): string => `mostrar-anulados-${pantalla}`;
+
+/** Preferencia del navegador de cada pantalla (`true` = enseñar y contar también los expedientes deshabilitados). Por defecto, no. */
+export const claveMostrarDeshabilitados = (pantalla: string): string => `mostrar-deshabilitados-${pantalla}`;

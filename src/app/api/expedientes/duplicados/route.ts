@@ -11,5 +11,5 @@ export const GET = manejar(async (req: Request) => {
   await requireSession("no_invitado");
   // `?anulados=1`: también los anulados en el listado de la intranet (por defecto se dejan fuera)
   const incluirAnulados = new URL(req.url).searchParams.get("anulados") === "1";
-  return NextResponse.json({ success: true, data: await detectarDuplicados(db, { incluirAnulados }) });
+  return NextResponse.json({ success: true, data: await detectarDuplicados(db, { incluirAnulados, incluirDeshabilitados: new URL(req.url).searchParams.get("deshabilitados") === "1" }) });
 });

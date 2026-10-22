@@ -21,8 +21,8 @@ export interface DatosPanel {
 export async function cargarDatosPanel(ej: Ejecutor): Promise<DatosPanel> {
   const [filasRecientes, ts, tvs, ms, todasMarcas, vendedores] = await Promise.all([
     ej.query.expedientes.findMany({
-      // Los anulados en el listado de la intranet no son ventas: no salen en «Últimos expedientes activos»
-      where: and(isNull(expedientes.eliminadoEn), or(isNull(expedientes.estadoIntranet), notIlike(expedientes.estadoIntranet, "%anulad%"))),
+      // Los anulados en el listado de la intranet no son ventas y los deshabilitados no cuentan: no salen en «Últimos expedientes activos»
+      where: and(isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false), or(isNull(expedientes.estadoIntranet), notIlike(expedientes.estadoIntranet, "%anulad%"))),
       orderBy: [desc(expedientes.idExpediente)],
       limit: 5,
       with: relacionesExpediente,

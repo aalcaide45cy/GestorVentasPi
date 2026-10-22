@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "@/components/CasillaAnulados";
 import { useCarga } from "@/components/comisiones/useCarga";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import { columnasVehiculo } from "@/components/etiquetas";
@@ -10,7 +10,7 @@ import type { EstadoFilaRejilla, EstadoSinPagar, ExpedienteContrastado, FilaCont
 import { formatDate } from "@/lib/date-utils";
 import { euros, nombreMes } from "@/lib/formato";
 
-type Filtro = "todo" | "coinciden" | "repetidas" | "otro_mes" | "sin_expediente" | "otro_vendedor" | "anulado" | "sin_pagar" | "sin_rejilla";
+type Filtro = "todo" | "coinciden" | "repetidas" | "otro_mes" | "sin_expediente" | "otro_vendedor" | "anulado" | "deshabilitado" | "sin_pagar" | "sin_rejilla";
 
 const ASPECTO: Record<EstadoFilaRejilla, { borde: string; icono: string; texto: string }> = {
   coincide: { borde: "#22c55e", icono: "🟢", texto: "Coincide" },
@@ -18,6 +18,7 @@ const ASPECTO: Record<EstadoFilaRejilla, { borde: string; icono: string; texto: 
   sin_expediente: { borde: "#a855f7", icono: "🟣", texto: "Sin expediente" },
   otro_vendedor: { borde: "#f97316", icono: "🟠", texto: "Expediente de otro vendedor" },
   anulado: { borde: "#64748b", icono: "🚫", texto: "Expediente anulado" },
+  deshabilitado: { borde: "#64748b", icono: "⏸", texto: "Expediente deshabilitado" },
 };
 const ASPECTO_SIN_PAGAR: Record<EstadoSinPagar, { borde: string; icono: string; texto: string }> = {
   no_pagado: { borde: "#ef4444", icono: "🔴", texto: "No figura en ninguna rejilla" },
@@ -53,9 +54,11 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
 
   // Los expedientes anulados en el listado de la intranet no son ventas: salen ocultos (también en las cifras) salvo que se active la casilla
   const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("contraste");
+  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("contraste");
   const nAnulados = (datos?.resumen.anulados ?? 0);
-  const filas = useMemo(() => (datos?.filas ?? []).filter((f) => mostrarAnulados || f.estado !== "anulado"), [datos, mostrarAnulados]);
-  const sinPagar = useMemo(() => (datos?.sinPagar ?? []).filter((s) => mostrarAnulados || !s.expediente.anulado), [datos, mostrarAnulados]);
+  const nDeshabilitados = (datos?.resumen.deshabilitados ?? 0);
+  const filas = useMemo(() => (datos?.filas ?? []).filter((f) => (mostrarAnulados || f.estado !== "anulado") && (mostrarDeshabilitados || f.estado !== "deshabilitado")), [datos, mostrarAnulados, mostrarDeshabilitados]);
+  const sinPagar = useMemo(() => (datos?.sinPagar ?? []).filter((s) => (mostrarAnulados || !s.expediente.anulado) && (mostrarDeshabilitados || !s.expediente.deshabilitado)), [datos, mostrarAnulados, mostrarDeshabilitados]);
   const rejillasLista = useMemo(() => {
     const m = new Map<number, string>();
     for (const f of filas) if (!m.has(f.idRejilla)) m.set(f.idRejilla, `${nombreMes(f.mes)}${todos ? ` · ${f.vendedorRejilla}` : ""}`);
@@ -67,7 +70,7 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
     let l = rejilla === "todas" ? filas : filas.filter((f) => String(f.idRejilla) === rejilla);
     if (filtro === "coinciden") l = l.filter((f) => f.estado === "coincide" && f.repetidaEn.length === 0);
     else if (filtro === "repetidas") l = l.filter((f) => f.repetidaEn.length > 0);
-    else if (filtro === "otro_mes" || filtro === "sin_expediente" || filtro === "otro_vendedor" || filtro === "anulado") l = l.filter((f) => f.estado === filtro);
+    else if (filtro === "otro_mes" || filtro === "sin_expediente" || filtro === "otro_vendedor" || filtro === "anulado" || filtro === "deshabilitado") l = l.filter((f) => f.estado === filtro);
     return l;
   }, [filas, filtro, rejilla]);
   const sinPagarVisibles = useMemo(() => sinPagar.filter((s) => (filtro === "sin_pagar" ? s.estado === "no_pagado" : s.estado !== "no_pagado")), [sinPagar, filtro]);
@@ -162,6 +165,7 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
     { id: "otro_mes", texto: "Pagadas en otro mes", n: cuenta("otro_mes"), color: ASPECTO.otro_mes.borde, icono: ASPECTO.otro_mes.icono, ayuda: "Se han pagado en una rejilla distinta de la que les tocaba" },
     { id: "sin_expediente", texto: "Sin expediente", n: cuenta("sin_expediente"), color: ASPECTO.sin_expediente.borde, icono: ASPECTO.sin_expediente.icono, ayuda: "Están en una rejilla, pero ningún expediente tiene esa matrícula" },
     { id: "otro_vendedor", texto: "De otro vendedor", n: cuenta("otro_vendedor"), color: ASPECTO.otro_vendedor.borde, icono: ASPECTO.otro_vendedor.icono, ayuda: "Su expediente es de un vendedor distinto al de la rejilla" },
+    ...(mostrarDeshabilitados ? [{ id: "deshabilitado" as Filtro, texto: "Deshabilitados pagados", n: cuenta("deshabilitado"), color: ASPECTO.deshabilitado.borde, icono: ASPECTO.deshabilitado.icono, ayuda: "Expedientes deshabilitados en la app cuya matrícula sale en una rejilla" }] : []),
     ...(mostrarAnulados ? [{ id: "anulado" as Filtro, texto: "Anulados pagados", n: cuenta("anulado"), color: ASPECTO.anulado.borde, icono: ASPECTO.anulado.icono, ayuda: "Expedientes anulados en la intranet cuya matrícula sale en una rejilla: revisa si te los han pagado por error" }] : []),
     { id: "sin_pagar", texto: "Expedientes sin pagar", n: sinPagar.filter((s) => s.estado === "no_pagado").length, color: ASPECTO_SIN_PAGAR.no_pagado.borde, icono: ASPECTO_SIN_PAGAR.no_pagado.icono, ayuda: "Expedientes con matrícula que no salen en ninguna rejilla aunque ya hay rejilla del mes que les tocaba: son los que te deben" },
     { id: "sin_rejilla", texto: "Aún sin rejilla", n: sinPagar.filter((s) => s.estado !== "no_pagado").length, color: "#94a3b8", icono: "⚪", ayuda: "Expedientes cuya rejilla todavía no has subido (o que no tienen fecha para saberlo)" },
@@ -204,6 +208,7 @@ export default function ContrasteRejillas({ vendedores, idUsuarioActual, esAdmin
             </label>
           )}
           <CasillaAnulados activa={mostrarAnulados} alCambiar={(v) => { fijarMostrarAnulados(v); if (!v && filtro === "anulado") setFiltro("todo"); }} anulados={nAnulados} />
+          <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={(v) => { fijarMostrarDeshabilitados(v); if (!v && filtro === "deshabilitado") setFiltro("todo"); }} deshabilitados={nDeshabilitados} />
           <button type="button" className="btn btn-secondary" onClick={recargar} title="Vuelve a leer las rejillas y los expedientes con los datos de ahora">
             🔄 Actualizar
           </button>

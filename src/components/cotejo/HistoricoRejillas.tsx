@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "@/components/CasillaAnulados";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { esAnulado } from "@/lib/anulados";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
@@ -41,7 +41,10 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
   const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("historico-rejillas");
   const todasLasFilas = useMemo(() => resultado?.filas ?? [], [resultado]);
   const nAnuladas = useMemo(() => todasLasFilas.filter((f) => f.coche && esAnulado(f.coche.estado)).length, [todasLasFilas]);
-  const filas = useMemo(() => (mostrarAnulados ? todasLasFilas : todasLasFilas.filter((f) => !(f.coche && esAnulado(f.coche.estado)))), [todasLasFilas, mostrarAnulados]);
+  // Los deshabilitados no cuentan: también salen ocultos salvo que se active su casilla
+  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("historico-rejillas");
+  const nDeshabilitadas = useMemo(() => todasLasFilas.filter((f) => f.coche?.deshabilitado).length, [todasLasFilas]);
+  const filas = useMemo(() => todasLasFilas.filter((f) => (mostrarAnulados || !(f.coche && esAnulado(f.coche.estado))) && (mostrarDeshabilitados || !f.coche?.deshabilitado)), [todasLasFilas, mostrarAnulados, mostrarDeshabilitados]);
   const cuentas = useMemo(() => {
     const c: Record<Exclude<Filtro, "todos">, number> = { coinciden: 0, no_figuran: 0, dudosos: 0, sin_rejilla: 0, sin_expediente: 0 };
     for (const f of filas) c[categoria(f)]++;
@@ -114,8 +117,9 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
         <p style={{ margin: 0, color: "var(--text-secondary)" }}>Todavía no hay ninguna rejilla guardada. Súbela en la pestaña «Mi mes» y sus matrículas quedarán aquí, comparadas con tus expedientes.</p>
       )}
 
-      <div style={{ display: "flex" }}>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnuladas} />
+        <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={fijarMostrarDeshabilitados} deshabilitados={nDeshabilitadas} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>

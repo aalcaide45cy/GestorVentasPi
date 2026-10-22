@@ -114,4 +114,21 @@ describe("contraste de rejillas", () => {
     const r = contrastarRejillas([rejilla(1, "2026-04", ["1234BCD"])], [coche(1, "1234BCD", { estado: "Anulado" }), coche(2, "1234BCD")]);
     expect(r.filas[0]).toMatchObject({ estado: "coincide", expediente: { idExpediente: 2 }, expedientesExtra: 1 });
   });
+
+  it("los expedientes deshabilitados no cuentan: no salen como sin pagar y los que se pagan en una rejilla se marcan aparte", () => {
+    const r = contrastarRejillas(
+      [rejilla(1, "2026-04", ["1234BCD"])],
+      [
+        coche(1, "1234BCD", { deshabilitado: true }), // deshabilitado y pagado en la rejilla
+        coche(3, "3333DDD", { f_matriculacion: "2026-04-20", deshabilitado: true }), // deshabilitado y sin pagar: no se debe
+        coche(4, "4444EEE", { f_matriculacion: "2026-04-21" }),
+      ],
+    );
+    expect(r.filas[0]).toMatchObject({ estado: "deshabilitado", expediente: { deshabilitado: true } });
+    expect(r.sinPagar.map((s) => [s.expediente.idExpediente, s.expediente.deshabilitado])).toEqual([
+      [3, true],
+      [4, false],
+    ]);
+    expect(r.resumen).toMatchObject({ deshabilitados: 2, sinPagar: 1, anulados: 0 });
+  });
 });

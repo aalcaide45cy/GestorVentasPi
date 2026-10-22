@@ -74,7 +74,8 @@ export async function resumenPanel(ej: Ejecutor): Promise<{
   const cuentas = await ej
     .select({ id: expedientes.idTipoDeVenta, n: sql<number>`count(*)::int` })
     .from(expedientes)
-    .where(isNull(expedientes.eliminadoEn))
+    // Los deshabilitados no cuentan en el panel
+    .where(and(isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false)))
     .groupBy(expedientes.idTipoDeVenta);
   const total = cuentas.reduce((suma, c) => suma + c.n, 0);
   const [{ mes }] = await ej
@@ -83,6 +84,7 @@ export async function resumenPanel(ej: Ejecutor): Promise<{
     .where(
       and(
         isNull(expedientes.eliminadoEn),
+        eq(expedientes.deshabilitado, false),
         sql`${expedientes.fechaExpediente} >= date_trunc('month', now() at time zone 'Europe/Madrid')::date`,
         sql`${expedientes.fechaExpediente} < (date_trunc('month', now() at time zone 'Europe/Madrid') + interval '1 month')::date`,
       ),

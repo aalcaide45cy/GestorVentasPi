@@ -5,7 +5,7 @@ import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { SIN_ESTADO, editarBorrador, leerRejillas, quitarBorrador, quitarHoja, releerHoja, subirHojas, suscribirRejillas, usarContextoRejillas, type BorradorRejilla, type HojaEnCola } from "@/lib/rejillas-lectura-cliente";
-import CasillaAnulados, { useMostrarAnulados } from "@/components/CasillaAnulados";
+import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "@/components/CasillaAnulados";
 import { esAnulado } from "@/lib/anulados";
 import { cotejarPagos, diaClave, filasDelMes, filasSinMes, resumenPorMes, type CocheCotejo, type EstadoCotejo, type FilaCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
 import { leerListadoVentas, type FilaListado } from "@/lib/contraste-listado";
@@ -125,8 +125,11 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   // (así una matrícula de la rejilla que es de un anulado no sale como «sin expediente»).
   const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("cotejo-mes");
   const nAnulados = useMemo(() => resultado.filas.filter((f) => f.coche && esAnulado(f.coche.estado)).length + resultado.sinMatricula.filter((c) => esAnulado(c.estado)).length, [resultado]);
-  const filasVisibles = useMemo(() => (mostrarAnulados ? resultado.filas : resultado.filas.filter((f) => !(f.coche && esAnulado(f.coche.estado)))), [resultado.filas, mostrarAnulados]);
-  const sinMatriculaVisibles = useMemo(() => (mostrarAnulados ? resultado.sinMatricula : resultado.sinMatricula.filter((c) => !esAnulado(c.estado))), [resultado.sinMatricula, mostrarAnulados]);
+  // Los deshabilitados no cuentan: salen ocultos salvo que se active su casilla
+  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("cotejo-mes");
+  const nDeshabilitados = useMemo(() => resultado.filas.filter((f) => f.coche?.deshabilitado).length + resultado.sinMatricula.filter((c) => c.deshabilitado).length, [resultado]);
+  const filasVisibles = useMemo(() => resultado.filas.filter((f) => (mostrarAnulados || !(f.coche && esAnulado(f.coche.estado))) && (mostrarDeshabilitados || !f.coche?.deshabilitado)), [resultado.filas, mostrarAnulados, mostrarDeshabilitados]);
+  const sinMatriculaVisibles = useMemo(() => resultado.sinMatricula.filter((c) => (mostrarAnulados || !esAnulado(c.estado)) && (mostrarDeshabilitados || !c.deshabilitado)), [resultado.sinMatricula, mostrarAnulados, mostrarDeshabilitados]);
   const resumenes = useMemo(() => resumenPorMes(filasVisibles), [filasVisibles]);
 
   const mesesGuardados = useMemo(() => new Set(datos.rejillas.map((r) => r.mes)), [datos.rejillas]);
@@ -491,7 +494,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
         <section className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
             <h3 style={{ margin: 0, fontSize: "1.02rem" }}>🚗 Resultado de {nombreMes(mes)}</h3>
-            <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnulados} />
+            <span style={{ display: "inline-flex", gap: "8px", flexWrap: "wrap" }}>
+              <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnulados} />
+              <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={fijarMostrarDeshabilitados} deshabilitados={nDeshabilitados} />
+            </span>
           </div>
           {resumen.total === 0 && !hayRejilla ? (
             <p style={{ margin: 0, color: "var(--text-secondary)" }}>Este mes no hay coches con fecha para cobrar y todavía no hay rejilla. Sube la hoja o elige otro mes.</p>
