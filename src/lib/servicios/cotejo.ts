@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { expedientes, rejillaFilas, rejillas } from "@/db/schema";
 import type { CocheCotejo, PagoRejilla } from "@/lib/cotejo-pagos";
+import type { ExpedienteDto } from "@/lib/dto";
 import { normalizarMatricula } from "@/lib/rejilla/analizar";
 import { HttpError } from "@/lib/auth/sesion";
 import { aDto, relacionesExpediente } from "./expedientes";
@@ -60,14 +61,10 @@ export interface DatosCotejo {
   rejillas: RejillaGuardada[];
 }
 
-/** Expedientes del vendedor como «coches» a cotejar, y todas sus rejillas guardadas. Solo lee. */
-export async function datosCotejo(ej: Ejecutor, idUsuario: number): Promise<DatosCotejo> {
-  const filas = await ej.query.expedientes.findMany({
-    where: and(eq(expedientes.idUsuario, idUsuario), isNull(expedientes.eliminadoEn)),
-    with: relacionesExpediente,
-  });
-  const coches: CocheCotejo[] = filas.map(aDto).map((e) => ({
-    origen: "app" as const,
+/** Un expediente como «coche» a cotejar con las rejillas. */
+export function aCocheCotejo(e: ExpedienteDto): CocheCotejo {
+  return {
+    origen: "app",
     id_expediente: e.id_expediente,
     cliente: e.cliente?.nombre ?? "",
     tipo_pago: e.tipoDeVenta?.nombre_tipo_venta ?? "",
@@ -81,7 +78,16 @@ export async function datosCotejo(ej: Ejecutor, idUsuario: number): Promise<Dato
     // Si se importó el listado de la intranet, su estado (Anulado, Archivado…) permite revisar a mano lo que no se paga
     estado: e.estado_intranet ?? e.estadoVehiculo?.nombre_estado_vehiculo ?? "",
     usado: e.estadoVehiculo?.clase === "VO",
-  }));
+  };
+}
+
+/** Expedientes del vendedor como «coches» a cotejar, y todas sus rejillas guardadas. Solo lee. */
+export async function datosCotejo(ej: Ejecutor, idUsuario: number): Promise<DatosCotejo> {
+  const filas = await ej.query.expedientes.findMany({
+    where: and(eq(expedientes.idUsuario, idUsuario), isNull(expedientes.eliminadoEn)),
+    with: relacionesExpediente,
+  });
+  const coches: CocheCotejo[] = filas.map(aDto).map(aCocheCotejo);
 
   const hojas = await ej.select().from(rejillas).where(eq(rejillas.idUsuario, idUsuario)).orderBy(desc(rejillas.mes));
   const pagos: PagoRejilla[] = [];

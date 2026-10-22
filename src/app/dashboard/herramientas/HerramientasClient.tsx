@@ -8,6 +8,7 @@ import ControlesLectura from "@/components/documentos/ControlesLectura";
 import { ZonaPedidos } from "@/components/documentos/leerPedidos";
 import PanelPapelera from "@/components/admin/PanelPapelera";
 import BotonAyuda from "@/components/BotonAyuda";
+import ContrasteRejillas from "@/components/herramientas/ContrasteRejillas";
 import TarjetaZona from "@/components/herramientas/TarjetaZona";
 import ZonaPagosRci from "@/components/pagos-rci/ZonaPagosRci";
 import type { TipoVentaDto, VendedorDto } from "@/lib/dto";
@@ -22,6 +23,7 @@ const PESTANAS = [
   { id: "cola", icono: "📋", titulo: "Cola de pedidos", ayuda: "Los pedidos ya leídos que esperan para crearse como expedientes, lo que se está leyendo y lo ignorado." },
   { id: "biblioteca", icono: "📚", titulo: "Biblioteca", ayuda: "Tus archivos de trabajo guardados una vez (pedidos, pagos de RCI, rejillas, Excel) para usarlos cuando quieras sin volver a buscarlos." },
   { id: "historial", icono: "📜", titulo: "Historial de lecturas", ayuda: "Qué ha pasado con cada PDF o foto que has subido para leer: si se leyó, se ignoró o falló." },
+  { id: "contraste", icono: "🔎", titulo: "Contraste", ayuda: "Las matrículas leídas de tus rejillas, agrupadas por rejilla y con su expediente al lado: en qué mes te han pagado cada coche, qué matrículas están repetidas en varias rejillas y qué expedientes todavía no te han pagado." },
   { id: "papelera", icono: "🗑️", titulo: "Papelera", ayuda: "Todo lo eliminado que sigue guardado (expedientes, clientes, documentos…): verlo, recuperarlo, descargarlo y purgarlo de verdad. Solo para administradores.", soloAdmin: true },
 ] as const;
 type IdPestana = (typeof PESTANAS)[number]["id"];
@@ -62,7 +64,7 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
       </Suspense>
       <div>
         <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Herramientas</h1>
-        <p style={{ color: "var(--text-secondary)" }}>Lectura de pedidos y pagos de la financiera, cola de pedidos, biblioteca de archivos, historial de lecturas y papelera, todo en un solo sitio.</p>
+        <p style={{ color: "var(--text-secondary)" }}>Lectura de pedidos y pagos de la financiera, cola de pedidos, biblioteca de archivos, historial de lecturas, contraste de rejillas y papelera, todo en un solo sitio.</p>
       </div>
 
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }} role="tablist">
@@ -129,6 +131,7 @@ export default function HerramientasClient({ marcas, tiposVenta, vendedores, idU
 
       {activa === "biblioteca" && <BibliotecaClient incrustada />}
       {activa === "historial" && <LogLecturasClient incrustada />}
+      {activa === "contraste" && <ContrasteRejillas vendedores={vendedores.map((v) => ({ id: v.id_usuario, nombre: v.nombre }))} idUsuarioActual={idUsuario} esAdmin={esAdmin} />}
       {activa === "papelera" && esAdmin && (
         <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
           <PanelPapelera />
