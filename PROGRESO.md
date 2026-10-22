@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.22.1 (22/10/2026)
+
+- **«Borrar absolutamente todo» conserva la configuración del equipo**: los motores de OCR, la configuración de las copias de seguridad, la de Google Drive (credenciales y conexión), el interruptor del cifrado, el reenvío de reportes, la clave de recuperación y la visibilidad de los botones CSV. El resto de ajustes vuelve a su valor de fábrica.
+
 ## Versión 1.22.0 (22/10/2026)
 
 - **Tamaño de la página**: se quita el deslizador; quedan solo los botones − y + que suben y bajan de 1 en 1 %.

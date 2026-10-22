@@ -4,7 +4,7 @@ import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { adjuntos, ajustes, auditoria, biblioteca, clientes, copiasSeguridad, expedientes, marcas, modelos, papeleraElementos, plantillasPlan, plantillasTarifasVn, tipoDeVenta, usuarios } from "@/db/schema";
+import { adjuntos, ajustes, auditoria, biblioteca, clientes, conexionDrive, copiasSeguridad, expedientes, marcas, modelos, papeleraElementos, plantillasPlan, plantillasTarifasVn, tipoDeVenta, usuarios } from "@/db/schema";
 import { sembrar, sembrarCatalogoInicial } from "@/db/semilla";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { guardarArchivo, eliminarArchivos } from "./biblioteca";
@@ -44,7 +44,8 @@ describe("borrar absolutamente todo", () => {
     await db.insert(auditoria).values({ accion: "algo" });
     await db.insert(plantillasPlan).values({ ambito: "x", nombre: "Mi plantilla", datos: {} });
     await db.insert(plantillasPlan).values({ ambito: "x", nombre: "Plantilla base", datos: {}, sistema: true });
-    await db.insert(ajustes).values([{ clave: "cifrado_activo", valor: "false" }, { clave: "ocr_motor", valor: "rapidocr" }]);
+    await db.insert(ajustes).values([{ clave: "cifrado_activo", valor: "false" }, { clave: "ocr_motor", valor: "rapidocr" }, { clave: "otro_dato", valor: "x" }, { clave: "backup_ultimo_error", valor: "fallo" }]);
+    await db.insert(conexionDrive).values({ refreshTokenCifrado: "p0.x", email: "a@b.c" });
     writeFileSync(path.join(process.env.BACKUP_DIR as string, "gv_20261022_120000_manual.dump"), "dump");
     mkdirSync(path.join(process.env.BACKUP_DIR as string, "papelera"), { recursive: true });
     writeFileSync(path.join(process.env.BACKUP_DIR as string, "papelera", "gv_20261022_110000_manual.dump"), "dump");
@@ -74,10 +75,13 @@ describe("borrar absolutamente todo", () => {
     // Grabado a fuego: marcas y modelos intactos
     expect(await db.select().from(marcas)).toHaveLength(nMarcas);
     expect(await db.select().from(modelos)).toHaveLength(nModelos);
-    // Ajustes de fábrica salvo el interruptor del cifrado; catálogos de partida repuestos
-    expect((await db.select().from(ajustes)).map((a) => a.clave).filter((c) => c === "ocr_motor")).toEqual([]);
+    // La configuración del equipo (OCR, cifrado, copias, Drive) se conserva; lo demás, de fábrica; catálogos de partida repuestos
+    expect((await db.select().from(ajustes)).map((a) => a.clave).filter((c) => c === "ocr_motor")).toEqual(["ocr_motor"]);
+    expect((await db.select().from(ajustes)).map((a) => a.clave).filter((c) => c === "otro_dato")).toEqual([]);
     expect((await db.select().from(ajustes).where(eq(ajustes.clave, "cifrado_activo"))).length).toBe(1);
     expect((await db.select().from(tipoDeVenta)).length).toBeGreaterThan(0);
+    expect((await db.select().from(conexionDrive)).length).toBe(1);
+    expect((await db.select().from(ajustes).where(eq(ajustes.clave, "backup_ultimo_error"))).length).toBe(0);
     // Los números vuelven a empezar
     const [nuevo] = await db.insert(clientes).values({ clienteId: "c1", nombre: "Nuevo" }).returning();
     expect(nuevo.id).toBe(1);

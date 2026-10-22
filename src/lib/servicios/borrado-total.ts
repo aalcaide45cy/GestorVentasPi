@@ -13,12 +13,12 @@ import { TareaCancelada, type ContextoTarea } from "./tareas";
 /**
  * «Borrar absolutamente todo»: deja la aplicación como de fábrica. Es el único borrado que no deja nada: también se va lo que ya estaba en la Papelera
  * (borrado lógico), el historial de deshacer, la auditoría, todos los documentos (PDF, fotos, Excel), la biblioteca, las rejillas, las incidencias, las copias de
- * seguridad guardadas, la conexión con Google Drive y todos los usuarios menos el administrador que lo ordena. Y al final se compactan las tablas para que no
+ * seguridad guardadas y todos los usuarios menos el administrador que lo ordena. Y al final se compactan las tablas para que no
  * quede ni un byte de lo borrado en el disco.
  *
  * Lo ÚNICO que se conserva («grabado a fuego»): las marcas y los modelos (con sus colores), las plantillas base de los planes de comisionamiento y de tarifas,
- * el usuario administrador, el interruptor del cifrado y la configuración del reenvío de reportes entre equipos. Los catálogos de partida (formas de pago y
- * estados) se vuelven a poner como en una instalación nueva.
+ * el usuario administrador y la configuración del equipo (cifrado, OCR, copias de seguridad, Google Drive con su conexión, reenvío de reportes). Los catálogos de
+ * partida (formas de pago y estados) se vuelven a poner como en una instalación nueva.
  */
 
 export const FRASE_BORRADO_TOTAL = "BORRAR ABSOLUTAMENTE TODO";
@@ -41,13 +41,16 @@ const TABLAS_A_VACIAR = [
   "commission_bonus_rules", "commission_brand_intervention_rates", "commission_finance_rates", "commission_liquidation_line_items", "commission_liquidation_lines",
   "commission_liquidation_versions", "commission_liquidations", "commission_model_points", "commission_plan_model_rates", "commission_plan_pending",
   "commission_plan_vendedores", "commission_plans", "commission_preference_rules", "commission_rules", "commission_used_rates", "commission_vo_patterns",
-  "conexion_drive", "copias_seccion", "copias_seguridad", "estado_vehiculo", "expedientes", "historial_cambios", "importaciones_bloques", "importaciones_registros",
+  "copias_seccion", "copias_seguridad", "estado_vehiculo", "expedientes", "historial_cambios", "importaciones_bloques", "importaciones_registros",
   "incidencias", "incidencias_capturas", "lecturas_pedidos", "libro_puntos", "login_intentos", "pagos_rci", "papelera_elementos", "pendientes_cobro",
   "plantillas_colores", "promociones_puntos", "rejilla_filas", "rejillas", "tipo_de_venta", "usuarios_tiendas", "validaciones_comision",
 ];
 
-/** Lo único de `ajustes` que se conserva: el interruptor del cifrado y el reenvío de reportes entre equipos (configuración del equipo, no datos). */
-const AJUSTES_QUE_SE_CONSERVAN = ["cifrado_activo", "incidencias_clave_recepcion", "incidencias_principal_url", "incidencias_principal_clave", "incidencias_equipo_nombre", "incidencias_reenvio_desde"];
+/**
+ * Lo que se conserva de `ajustes` (configuración del equipo, no datos): el interruptor del cifrado, los motores de lectura de documentos (OCR), la configuración de las
+ * copias de seguridad y de Google Drive (con su conexión), el reenvío de reportes entre equipos, la clave de recuperación y la visibilidad de los botones CSV.
+ */
+const PATRONES_AJUSTES_QUE_SE_CONSERVAN = ["cifrado\\_activo", "ocr\\_%", "lectura\\_manual", "backup\\_%", "drive\\_%", "incidencias\\_%", "clave\\_recuperacion\\_envuelta", "mostrar\\_botones\\_csv"];
 
 /** Tablas que se compactan al final (todas las de usuario) para devolver al disco hasta el último byte. */
 async function compactarTodo(ej: Ejecutor, ctx?: ContextoTarea): Promise<void> {
@@ -113,7 +116,7 @@ export async function borrarAbsolutamenteTodo(ej: Ejecutor, idAdmin: number, ent
       await tx.execute(sql`delete from plantillas_plan where not sistema`);
       await tx.execute(sql`delete from plantillas_tarifas_vn where not sistema`);
       // Ajustes: de fábrica, salvo la configuración del equipo
-      await tx.execute(sql`delete from ajustes where clave not in (${sql.join(AJUSTES_QUE_SE_CONSERVAN.map((c) => sql`${c}`), sql`, `)})`);
+      await tx.execute(sql`delete from ajustes where clave = 'backup_ultimo_error' or not (clave like any (array[${sql.join(PATRONES_AJUSTES_QUE_SE_CONSERVAN.map((c) => sql`${c}`), sql`, `)}]))`);
       // Catálogos de partida (formas de pago, estados…) como en una instalación nueva; las marcas y los modelos ya están
       await sembrar(tx);
     });

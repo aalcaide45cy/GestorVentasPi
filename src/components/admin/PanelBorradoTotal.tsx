@@ -42,7 +42,7 @@ export default function PanelBorradoTotal() {
     <div style={{ display: "flex", flexDirection: "column", gap: "14px", padding: "18px", border: "2px solid var(--danger)", borderRadius: "var(--radius-sm)" }}>
       <h3 style={{ fontSize: "1.15rem", color: "var(--danger)" }}>☢️ Borrar absolutamente todo</h3>
       <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0, lineHeight: 1.5 }}>
-        Deja la aplicación <b>como de fábrica</b>, sin un solo byte de lo anterior: también se van lo que hay en la <b>Papelera</b>, el historial de deshacer, la auditoría, <b>todos los documentos</b> (PDF, fotos, Excel), la Biblioteca, las rejillas, las incidencias, las <b>copias de seguridad guardadas</b>, la conexión con Google Drive y <b>todos los usuarios menos el administrador</b>. Solo se conservan, grabados a fuego, <b>las marcas y los modelos (con sus colores) y las plantillas base de comisiones</b>. A diferencia de «Borrar todos los datos», esto no se puede deshacer salvo con la copia previa, y esa copia es opcional.
+        Deja la aplicación <b>como de fábrica</b>, sin un solo byte de lo anterior: también se van lo que hay en la <b>Papelera</b>, el historial de deshacer, la auditoría, <b>todos los documentos</b> (PDF, fotos, Excel), la Biblioteca, las rejillas, las incidencias, las <b>copias de seguridad guardadas</b> y <b>todos los usuarios menos el administrador</b>. Solo se conservan, grabados a fuego, <b>las marcas y los modelos (con sus colores) y las plantillas base de comisiones</b>, y la configuración del equipo (cifrado, motores de OCR, copias de seguridad y Google Drive con su conexión). A diferencia de «Borrar todos los datos», esto no se puede deshacer salvo con la copia previa, y esa copia es opcional.
       </p>
       <div>
         <button type="button" className="btn btn-danger" onClick={() => setPaso(1)}>
@@ -102,7 +102,7 @@ export default function PanelBorradoTotal() {
             <li>Todos los PDF, fotos y Excel (documentos y Biblioteca)</li>
             <li>Planes, liquidaciones, puntos, rejillas y pendientes de cobro</li>
             <li>Historial de deshacer, auditoría, incidencias y la Papelera entera</li>
-            <li>Copias de seguridad guardadas y la conexión con Google Drive</li>
+            <li>Copias de seguridad guardadas (la configuración de Drive y de las copias se conserva)</li>
             <li>Todos los usuarios menos el tuyo</li>
           </ul>
           <p style={{ margin: 0, fontSize: "0.88rem", color: "var(--text-secondary)" }}>Se conservan solo las marcas, los modelos, las plantillas base de comisiones y tu usuario.</p>
