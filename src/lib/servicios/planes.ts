@@ -22,6 +22,7 @@ import {
 } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { recalcularAfectados } from "./liquidaciones";
+import { archivarElementos } from "./papelera-elementos";
 
 /* ------------------------------------------------------------------ */
 /* Esquemas (importes en céntimos, puntos en centésimas)               */
@@ -374,6 +375,9 @@ export async function eliminarPlan(ej: Ejecutor, idPlan: number, conLiquidacione
   if (n > 0 && !conLiquidaciones) throw new HttpError(409, `Este plan tiene ${n} liquidación(es) calculada(s). Si lo eliminas se borran con él (se pueden volver a generar con otro plan). Confirma el borrado para continuar.`);
   try {
     await ej.transaction(async (tx) => {
+      // Antes de borrar nada, el plan entero (con sus tarifas, reglas y liquidaciones) queda en la Papelera
+      const [datosPlan] = await tx.select({ nombre: commissionPlans.nombre, inicio: commissionPlans.fechaInicio, fin: commissionPlans.fechaFin }).from(commissionPlans).where(eq(commissionPlans.idPlan, idPlan));
+      if (datosPlan) await archivarElementos(tx, "plan", sql`t.id_plan = ${idPlan}`, { etiqueta: `Plan «${datosPlan.nombre}»`, detalle: `${datosPlan.inicio} a ${datosPlan.fin}${n > 0 ? ` · con ${n} liquidación(es)` : ""} · eliminado` });
       if (conLiquidaciones) {
         await tx.execute(sql`select set_config('app.borrado_autorizado', 'on', true)`);
         const liqs = (await tx.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idPlan, idPlan))).map((l) => l.id);

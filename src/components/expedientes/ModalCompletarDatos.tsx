@@ -85,7 +85,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
   const [busqueda, setBusqueda] = useState("");
   const [columnas, setColumnas] = useState<Set<Columna>>(new Set(["estadoListado", "documentos", "expediente", "propuestas"]));
   const [detalle, setDetalle] = useState<number | null>(null);
-  const [hecho, setHecho] = useState<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number } | null>(null);
+  const [hecho, setHecho] = useState<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number; copiaPrevia?: string | null } | null>(null);
   const [referencias, setReferencias] = useState<Referencia[]>(["bastidor", "matricula", "nif", "email", "nombre"]);
 
   /** Busca los expedientes de las filas con las referencias elegidas; si hay una selección guardada, la conserva. */
@@ -291,7 +291,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
     if (!await confirmar({ texto: `Se van a cambiar ${elegidos.size} dato(s) en ${cambios.length} expediente(s)${deshabilitar.size > 0 ? ` y deshabilitar ${deshabilitar.size} expediente(s) anulado(s)` : ""}. Quedará en el Log de importaciones y se podrá deshacer. ¿Continuar?`, peligro: true })) return;
     setTrabajando(true);
     try {
-      const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number }>("/api/expedientes/completar/aplicar", {
+      const { data } = await llamar<{ expedientesCambiados: number; camposCambiados: number; omitidos: string[]; pagosEnlazados?: number; copiaPrevia?: string | null }>("/api/expedientes/completar/aplicar", {
         method: "POST",
         cuerpo: { archivo: listados.map((l) => l.nombre).join(", ").slice(0, 250), cambios, deshabilitar: [...deshabilitar] },
       });
@@ -375,6 +375,7 @@ export default function ModalCompletarDatos({ alCerrar, alAplicar }: { alCerrar:
           {hecho && (
             <div role="status" style={{ padding: "12px 14px", borderLeft: "4px solid var(--success)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)" }}>
               ✅ Hecho: {hecho.camposCambiados} dato(s) cambiado(s) en {hecho.expedientesCambiados} expediente(s). Está en el <b>Log de importaciones</b>, donde puedes deshacerlo.
+              {hecho.copiaPrevia && <div style={{ marginTop: "4px" }}>💾 Antes de aplicar se guardó una copia de seguridad ({hecho.copiaPrevia}); la tienes en Configuración › Base de datos › Copias de seguridad por si hubiera que volver atrás. Además, esta importación se puede deshacer desde el log de importaciones.</div>}
               {(hecho.pagosEnlazados ?? 0) > 0 && <div style={{ marginTop: "4px" }}>💳 Además, {hecho.pagosEnlazados} pago(s) de la financiera que estaban pendientes se han enlazado con su expediente y han fijado su fecha RCI.</div>}
               {hecho.omitidos.length > 0 && (
                 <ul style={{ margin: "6px 0 0", paddingLeft: "18px", fontSize: "0.82rem", color: "var(--warning)" }}>

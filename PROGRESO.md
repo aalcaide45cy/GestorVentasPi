@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.19.0 (22/10/2026)
+
+- **Planes de comisionamiento a la Papelera**: al eliminar un plan, queda en la Papelera entero (tarifas, reglas, vendedores y liquidaciones) y se restaura tal cual. Pestaña «📊 Planes».
+- **Reportes de fallo desde cualquier equipo** (Configuración › Incidencias › «📡 Reportes desde otros equipos», migración 0053): el servidor principal (el PC) crea una clave de recepción; en el Mac (u otro equipo) se escribe la dirección del PC y esa clave, y desde ese momento **cada reporte manual con captura se reenvía solo** al PC; si no hay conexión queda en cola y se reintenta cada minuto. En la lista de incidencias hay una columna «Equipo». Botones: probar la conexión y reenviar ahora. Solo se reenvía lo que se reporte a partir de configurarlo.
+- **Completar datos desde un listado** (p. ej. la facturación de los usados con la «Fra. prevista» del Excel): si se aplican 20 o más cambios, antes se guarda automáticamente una copia de seguridad «previa» (y si no se puede, no se aplica nada); la importación sigue pudiéndose deshacer desde el log de importaciones.
+
 ## Versión 1.18.1 (22/10/2026)
 
 - **Rejillas, plantillas, paletas, pendientes de cobro y marcas de pagado/reclamado van a la Papelera**: al eliminarlos (o al sustituir una rejilla del mismo mes, o importarla encima) se guarda una copia exacta de sus filas en `papelera_elementos` (migración 0052) y desde Herramientas › Papelera se restauran o se purgan. Seis pestañas nuevas: Rejillas leídas, Plantillas de plan, Plantillas de tarifas, Paletas de colores, Pendientes de cobro y Marcas de pagado. Si al restaurar ya hay otro igual (mismo mes, nombre…), se dice el motivo y se deja donde estaba.

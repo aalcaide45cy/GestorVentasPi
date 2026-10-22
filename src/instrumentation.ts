@@ -12,6 +12,9 @@ export async function register(): Promise<void> {
     const { db: bdIncidencias } = await import("./db");
     const { instalarIncidencias } = await import("./lib/servicios/incidencias");
     instalarIncidencias(bdIncidencias, process.env.npm_package_version ?? null);
+    // Si este equipo reenvía sus reportes de fallo a un servidor principal, cada minuto reintenta los que no hayan llegado (cola con reintentos)
+    const { reenviarPendientes } = await import("./lib/servicios/incidencias-remotas");
+    setInterval(() => void reenviarPendientes(bdIncidencias), 60_000).unref?.();
     // En el PC con Windows se anota el modo en que arranca el servidor para que start.bat lo arranque igual la proxima vez
     if (process.platform === "win32") {
       try {

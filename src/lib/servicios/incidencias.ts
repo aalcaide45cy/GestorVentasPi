@@ -21,6 +21,8 @@ export const huellaDe = (origen: string, titulo: string, ruta: string | null | u
 
 export interface IncidenciaDto extends IncidenciaParaInforme {
   idUsuario: number | null;
+  /** Equipo desde el que se reenvió el reporte (si no se hizo en este servidor). */
+  equipo: string | null;
   capturas: number[];
 }
 
@@ -40,6 +42,7 @@ const aDto = (f: Fila, capturas: number[] = []): IncidenciaDto => ({
   nota: f.nota,
   version: f.version,
   idUsuario: f.idUsuario,
+  equipo: f.equipo,
   capturas,
 });
 

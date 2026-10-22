@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { pendientesCobro, rejillaFilas, rejillas } from "@/db/schema";
+import { commissionFinanceRates, commissionPlans, marcas, pendientesCobro, rejillaFilas, rejillas } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { crearPendiente, eliminarPendiente } from "./comisiones-gestion";
 import { filasPapelera, resumenPapelera, restaurar } from "./papelera";
+import { eliminarPlan, guardarPlan } from "./planes";
 import { eliminarRejilla, esquemaGuardarRejilla, guardarRejilla } from "./rejillas";
 
 beforeEach(reiniciarBd);
@@ -52,5 +53,21 @@ describe("papelera de elementos sueltos", () => {
     expect(fila.subtipo).toBe("pendiente_cobro");
     await restaurar(db, { accion: "restaurar", categoria: "elementos", ids: [fila.id] });
     expect((await db.select().from(pendientesCobro))[0]).toMatchObject({ concepto: "Bonus extra", importe: 12000 });
+  });
+
+  it("un plan eliminado se guarda con sus tarifas y se restaura entero", async () => {
+    const [marca] = await db.insert(marcas).values({ nombre: "Dacia" }).returning();
+    const fila = { idMarca: marca.idMarca, tipoFinanciacion: "CREDITO" as const, aplicaA: "VN", importe: 5000 };
+    const g = await guardarPlan(db, null, { nombre: "Octubre 2026", fechaInicio: "2026-10-01", fechaFin: "2026-10-31", financiacion: [fila] });
+    const id = g.plan.idPlan;
+    await eliminarPlan(db, id);
+    expect(await db.select().from(commissionPlans)).toHaveLength(0);
+    expect(await db.select().from(commissionFinanceRates)).toHaveLength(0);
+    const guardado = (await filasPapelera(db, "elementos")).filas[0];
+    expect(guardado).toMatchObject({ subtipo: "plan", texto: expect.stringContaining("Octubre 2026") });
+    const r = await restaurar(db, { accion: "restaurar", categoria: "elementos", ids: [guardado.id] });
+    expect(r).toMatchObject({ restaurados: 1, bloqueados: 0 });
+    expect((await db.select().from(commissionPlans))[0]).toMatchObject({ idPlan: id, nombre: "Octubre 2026" });
+    expect((await db.select().from(commissionFinanceRates))[0]).toMatchObject({ idPlan: id, importe: 5000 });
   });
 });

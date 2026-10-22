@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/sesion";
 import { leerJson, manejar } from "@/lib/http";
 import { prepararEvento } from "@/lib/incidencias";
 import { crearIncidenciaManual, MAX_CAPTURA_BYTES, registrarIncidencia } from "@/lib/servicios/incidencias";
+import { reenviarPendientes } from "@/lib/servicios/incidencias-remotas";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,8 @@ export const POST = manejar(async (req: Request) => {
     const trozos = m.captura ? /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(m.captura) : null;
     if (trozos) captura = { mime: trozos[1], datos: Buffer.from(trozos[2], "base64") };
     const id = await crearIncidenciaManual(db, { texto: m.texto, ruta: m.ruta ?? null, contexto: { ...(m.contexto ?? {}), avisadoPor: u.nombre ?? `usuario ${u.idUsuario}` }, idUsuario: u.idUsuario, version, captura });
+    // Si este equipo manda sus reportes a un servidor principal, sale ya (y si no hay conexión se reintenta solo cada minuto)
+    void reenviarPendientes(db);
     return NextResponse.json({ success: true, id }, { status: 201 });
   }
   return NextResponse.json({ success: true });

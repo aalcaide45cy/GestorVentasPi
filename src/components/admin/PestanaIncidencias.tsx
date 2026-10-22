@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import TablaDatos, { PANTALLA_COMPLETA, type ColumnaTabla } from "@/components/TablaDatos";
+import PanelReenvioIncidencias from "@/components/admin/PanelReenvioIncidencias";
 import { useCarga } from "@/components/comisiones/useCarga";
 import { ESTADOS_INCIDENCIA, ETIQUETA_ORIGEN, ICONO_ORIGEN, informeDe, ORIGENES, type EstadoIncidencia, type OrigenIncidencia } from "@/lib/incidencias";
 import type { IncidenciaDto, ResumenIncidencias } from "@/lib/servicios/incidencias";
@@ -105,6 +106,7 @@ export default function PestanaIncidencias() {
   const columnas: ColumnaTabla<IncidenciaDto>[] = [
     { clave: "marca", etiqueta: "Elegir", cabecera: "☑", valor: (i) => (marcados.has(i.id) ? 0 : 1), celda: (i) => <input type="checkbox" checked={marcados.has(i.id)} onChange={() => alternar(i.id)} aria-label={`Elegir la incidencia ${i.id}`} />, ancho: 40, alinear: "center" },
     { clave: "nivel", etiqueta: "Nivel", valor: (i) => (i.nivel === "error" ? 0 : 1), celda: (i) => <span title={i.nivel === "error" ? "Error" : "Aviso"}>{i.nivel === "error" ? "🔴" : "🟡"}</span>, ancho: 50, alinear: "center" },
+    { clave: "equipo", etiqueta: "Equipo", valor: (i) => i.equipo ?? "Este servidor", celda: (i) => (i.equipo ? <span title="Reporte que llegó desde otro equipo" style={{ whiteSpace: "nowrap", fontWeight: 600 }}>📡 {i.equipo}</span> : <span style={{ color: "var(--text-muted)" }}>Este servidor</span>), ayuda: "Desde qué equipo se hizo el reporte" },
     { clave: "origen", etiqueta: "Origen", valor: (i) => ETIQUETA_ORIGEN[i.origen], celda: (i) => <span style={{ whiteSpace: "nowrap" }}>{ICONO_ORIGEN[i.origen]} {ETIQUETA_ORIGEN[i.origen]}</span> },
     {
       clave: "titulo",
@@ -151,6 +153,7 @@ export default function PestanaIncidencias() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <PanelReenvioIncidencias />
       <div style={{ color: "var(--text-secondary)", lineHeight: 1.5, fontSize: "0.9rem" }}>
         Aquí se reúne todo lo que falla o va mal: errores del servidor y del navegador, avisos de error que ha visto alguien, tareas y lecturas fallidas, lentitud y fallos que avisa una persona con «🐞 Avisar de un fallo». Los iguales se juntan y cuentan las veces. Si algo resuelto vuelve a ocurrir, se reabre solo.
       </div>

@@ -1164,6 +1164,10 @@ export const incidencias = pgTable(
     nota: text("nota"),
     idUsuario: integer("id_usuario").references(() => usuarios.idUsuario, { onDelete: "set null" }),
     version: varchar("version", { length: 20 }),
+    /** Equipo desde el que llegó este reporte (otro dispositivo que lo reenvió); null si se creó aquí. */
+    equipo: text("equipo"),
+    /** Cuándo se reenvió este reporte al servidor principal (en un equipo secundario); null si aún no. */
+    enviadaEn: timestamp("enviada_en", { withTimezone: true }),
   },
   (t) => [uniqueIndex("incidencias_huella_uq").on(t.huella), index("incidencias_estado_idx").on(t.estado, t.ultimaVez)],
 );
