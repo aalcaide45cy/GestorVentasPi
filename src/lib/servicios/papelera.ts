@@ -5,7 +5,7 @@ import { descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { crearCopia } from "./copias";
 import { conRecalculo } from "./liquidaciones";
-import { motivoDeFallo, reinsertarElemento, TEXTO_TIPO, TIPOS_ELEMENTO, type TipoElemento } from "./papelera-elementos";
+import { borrarFicherosDeCopias, motivoDeFallo, reinsertarElemento, TEXTO_TIPO, TIPOS_ELEMENTO, type TipoElemento } from "./papelera-elementos";
 import { TareaCancelada, type ContextoTarea } from "./tareas";
 
 /**
@@ -311,7 +311,7 @@ export async function descargarPapelera(ej: Ejecutor, categoria: Categoria, ids:
   } else if (categoria === "documentos") {
     datos = await filas(ej, sql`select to_jsonb(a) as documento ${SQL_DOCUMENTOS_JOIN} where ${SQL_DOCUMENTOS} ${filtro(sql`a.id`)} order by a.id`);
   } else if (categoria === "elementos") {
-    datos = await filas(ej, sql`select to_jsonb(e) as elemento from papelera_elementos e where true ${filtro(sql`e.id`)} order by e.id`);
+    datos = await filas(ej, sql`select case when e.tipo = 'usuario' then to_jsonb(e) - 'datos' else to_jsonb(e) end as elemento from papelera_elementos e where true ${filtro(sql`e.id`)} order by e.id`);
   } else if (categoria === "biblioteca") {
     datos = await filas(ej, sql`select to_jsonb(b) as archivo from biblioteca b where eliminado_en is not null ${filtro(sql`b.id`)} order by b.id`);
   } else if (categoria === "catalogo") {
@@ -426,6 +426,7 @@ async function purgarClientes(tx: Ejecutor, ids: number[]): Promise<{ purgados: 
 }
 
 async function purgarElementos(tx: Ejecutor, ids: number[]): Promise<number> {
+  await borrarFicherosDeCopias(tx, ids);
   const r = await tx.execute(sql`delete from papelera_elementos where id in (${lista(ids)}) returning id`);
   return (r as unknown as Filas<unknown>).rows.length;
 }

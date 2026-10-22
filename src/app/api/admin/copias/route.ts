@@ -85,7 +85,7 @@ export const DELETE = manejar(async (req: Request) => {
     const idsDrive: string[] = [];
     for (const unico of [...new Set(ids)]) {
       try {
-        const { driveFileId } = await borrarCopia(db, unico);
+        const { driveFileId } = await borrarCopia(db, unico, true);
         if (driveFileId) idsDrive.push(driveFileId);
         borradas++;
       } catch (e) {
@@ -104,7 +104,7 @@ export const DELETE = manejar(async (req: Request) => {
     return NextResponse.json({ success: true, data: { borradas, fallos, aviso: avisoDrive } });
   }
   if (!id) return errorJson(400, "Falta el ID de la copia");
-  const { driveFileId } = await borrarCopia(db, id);
+  const { driveFileId } = await borrarCopia(db, id, true);
   let aviso: string | null = null;
   if (driveFileId) {
     try {

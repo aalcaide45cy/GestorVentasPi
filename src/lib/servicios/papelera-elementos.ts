@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { rename, rm } from "node:fs/promises";
+import path from "node:path";
 import { sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 
@@ -7,7 +10,7 @@ import type { Ejecutor } from "@/db";
  * `jsonb_populate_record`, así que vale para cualquier tipo de columna sin conversiones a mano.
  */
 
-export const TIPOS_ELEMENTO = ["rejilla", "plantilla_plan", "plantilla_tarifas", "paleta", "pendiente_cobro", "validacion", "plan"] as const;
+export const TIPOS_ELEMENTO = ["rejilla", "plantilla_plan", "plantilla_tarifas", "paleta", "pendiente_cobro", "validacion", "plan", "usuario", "copia", "copia_seccion", "incidencia"] as const;
 export type TipoElemento = (typeof TIPOS_ELEMENTO)[number];
 
 export const TEXTO_TIPO: Record<TipoElemento, { pestana: string; singular: string }> = {
@@ -18,6 +21,10 @@ export const TEXTO_TIPO: Record<TipoElemento, { pestana: string; singular: strin
   pendiente_cobro: { pestana: "Pendientes de cobro", singular: "Pendiente de cobro" },
   validacion: { pestana: "Marcas de pagado/reclamado", singular: "Marca de pagado/reclamado" },
   plan: { pestana: "Planes de comisionamiento", singular: "Plan de comisionamiento" },
+  usuario: { pestana: "Usuarios", singular: "Usuario" },
+  copia: { pestana: "Copias de seguridad", singular: "Copia de seguridad" },
+  copia_seccion: { pestana: "Copias internas", singular: "Copia interna de una sección" },
+  incidencia: { pestana: "Incidencias", singular: "Incidencia" },
 };
 
 /** Una tabla que cuelga de otra por la columna `fk` (y, a su vez, puede tener las suyas). */
@@ -36,7 +43,37 @@ interface Forma {
   hijas?: Hija[];
 }
 
+/** Lo que cuelga siempre de un usuario (sus datos de contacto, tiendas y códigos de recuperación del doble factor). */
+const HIJAS_USUARIO: Hija[] = [
+  { tabla: "emails_usuarios", fk: "id_usuario" },
+  { tabla: "telefonos_usuarios", fk: "id_usuario" },
+  { tabla: "usuarios_tiendas", fk: "id_usuario" },
+  { tabla: "codigos_recuperacion", fk: "id_usuario" },
+];
+
+/** Además, cuando se elimina «con todo lo suyo»: su historial de comisiones, rejillas, pendientes y validaciones. */
+export const HIJAS_USUARIO_CON_TODO: Hija[] = [
+  { tabla: "commission_plan_vendedores", fk: "id_usuario" },
+  { tabla: "libro_puntos", fk: "id_usuario" },
+  { tabla: "validaciones_comision", fk: "id_usuario" },
+  { tabla: "pendientes_cobro", fk: "id_usuario" },
+  { tabla: "rejillas", fk: "id_usuario", pk: "id", hijas: [{ tabla: "rejilla_filas", fk: "id_rejilla" }] },
+  {
+    tabla: "commission_liquidations",
+    fk: "id_usuario",
+    pk: "id_liquidation",
+    hijas: [
+      { tabla: "commission_liquidation_lines", fk: "id_liquidation", pk: "id_line", hijas: [{ tabla: "commission_liquidation_line_items", fk: "id_line" }] },
+      { tabla: "commission_liquidation_versions", fk: "id_liquidation" },
+    ],
+  },
+];
+
 const FORMAS: Record<TipoElemento, Forma> = {
+  copia: { tabla: "copias_seguridad" },
+  copia_seccion: { tabla: "copias_seccion" },
+  incidencia: { tabla: "incidencias", hijas: [{ tabla: "incidencias_capturas", fk: "id_incidencia" }] },
+  usuario: { tabla: "usuarios", pk: "id_usuario", hijas: HIJAS_USUARIO },
   rejilla: { tabla: "rejillas", hijas: [{ tabla: "rejilla_filas", fk: "id_rejilla" }] },
   plantilla_plan: { tabla: "plantillas_plan" },
   plantilla_tarifas: { tabla: "plantillas_tarifas_vn" },
@@ -95,12 +132,13 @@ async function recogerHijas(ej: Ejecutor, hijas: Hija[], idMadre: unknown, salid
  * Guarda en la Papelera la copia de las filas que cumplen `donde` (una condición SQL sobre la tabla principal del tipo, con alias `t`), SIN borrarlas:
  * quien llama las borra después, en la misma transacción. Devuelve cuántos elementos se han guardado.
  */
-export async function archivarElementos(ej: Ejecutor, tipo: TipoElemento, donde: ReturnType<typeof sql>, descripcion: { etiqueta: string; detalle?: string | null }, eliminadoPor: number | null = null): Promise<number> {
+export async function archivarElementos(ej: Ejecutor, tipo: TipoElemento, donde: ReturnType<typeof sql>, descripcion: { etiqueta: string; detalle?: string | null }, eliminadoPor: number | null = null, hijasExtra: Hija[] = [], extra: FilaGuardada[] = []): Promise<number> {
   const forma = FORMAS[tipo];
   const principales = await filas<{ fila: Record<string, unknown> }>(ej, sql`select to_jsonb(t) fila from ${sql.raw(forma.tabla)} t where ${donde}`);
   for (const p of principales) {
     const todas: FilaGuardada[] = [{ tabla: forma.tabla, fila: p.fila }];
-    if (forma.hijas) await recogerHijas(ej, forma.hijas, p.fila[forma.pk ?? "id"], todas);
+    if (forma.hijas || hijasExtra.length > 0) await recogerHijas(ej, [...(forma.hijas ?? []), ...hijasExtra], p.fila[forma.pk ?? "id"], todas);
+    todas.push(...extra);
     const json = JSON.stringify({ filas: todas });
     await ej.execute(
       sql`insert into papelera_elementos (tipo, etiqueta, detalle, datos, bytes, eliminado_por) values (${tipo}, ${descripcion.etiqueta.slice(0, 300)}, ${descripcion.detalle ?? null}, ${json}::jsonb, ${json.length}, ${eliminadoPor})`,
@@ -116,15 +154,58 @@ export async function reinsertarElemento(ej: Ejecutor, tipo: TipoElemento, datos
   const lista: FilaGuardada[] = Array.isArray(datos.filas)
     ? (datos.filas as FilaGuardada[])
     : [{ tabla: forma.tabla, fila: datos.fila as Record<string, unknown> }, ...(forma.hijas ?? []).flatMap((h) => ((datos[h.tabla] as Record<string, unknown>[] | undefined) ?? []).map((fila) => ({ tabla: h.tabla, fila })))];
+  const pendientes: FilaGuardada[] = [];
   for (let i = 0; i < lista.length; ) {
     // Las filas seguidas de la misma tabla se insertan juntas
+    if (lista[i].tabla === TABLA_EXPEDIENTES_DEL_USUARIO || lista[i].tabla === TABLA_ARCHIVO_COPIA) {
+      pendientes.push(lista[i]);
+      i++;
+      continue;
+    }
     let j = i;
     while (j < lista.length && lista[j].tabla === lista[i].tabla && j - i < 200) j++;
     const tabla = lista[i].tabla;
     await ej.execute(sql`insert into ${sql.raw(tabla)} select r.* from jsonb_populate_recordset(null::${sql.raw(tabla)}, ${JSON.stringify(lista.slice(i, j).map((x) => x.fila))}::jsonb) r`);
     i = j;
   }
+  // Los expedientes que se quedaron sin vendedor al eliminar al usuario vuelven a ser suyos (si siguen sin vendedor)
+  for (const p of pendientes) {
+    if (p.tabla === TABLA_ARCHIVO_COPIA) {
+      // El fichero de la copia vuelve de la carpeta de la Papelera a la de las copias
+      const { dirCopias } = await import("./copias");
+      const nombre = String(p.fila.nombre);
+      const origen = path.join(dirCopias(), "papelera", nombre);
+      if (existsSync(origen)) await rename(origen, path.join(dirCopias(), nombre));
+      continue;
+    }
+    const ids = (p.fila.ids as number[] | undefined) ?? [];
+    if (ids.length > 0) await ej.execute(sql`update expedientes set id_usuario = ${Number(p.fila.id_usuario)} where id_usuario is null and id_expediente in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+  }
 }
+
+/** Marca especial dentro de lo guardado de una copia de seguridad: el nombre de su fichero (que se mueve a la carpeta «papelera» de las copias). */
+export const TABLA_ARCHIVO_COPIA = "__archivo_copia";
+
+/** Borra de verdad los ficheros de las copias de seguridad que se purgan de la Papelera (y, si se puede, su copia en Google Drive). */
+export async function borrarFicherosDeCopias(ej: Ejecutor, ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  const lista = await filas<{ datos: { filas?: FilaGuardada[] } }>(ej, sql`select datos from papelera_elementos where tipo = 'copia' and id in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`);
+  const { dirCopias } = await import("./copias");
+  const idsDrive: string[] = [];
+  for (const e of lista) {
+    for (const f of e.datos.filas ?? []) {
+      if (f.tabla === TABLA_ARCHIVO_COPIA) await rm(path.join(dirCopias(), "papelera", String(f.fila.nombre)), { force: true }).catch(() => undefined);
+      if (f.tabla === "copias_seguridad" && f.fila.drive_file_id) idsDrive.push(String(f.fila.drive_file_id));
+    }
+  }
+  if (idsDrive.length > 0) {
+    const { borrarEnDrive } = await import("./drive");
+    await borrarEnDrive(ej, idsDrive).catch(() => undefined);
+  }
+}
+
+/** Marca especial dentro de lo guardado de un usuario: los expedientes que tenía asignados. */
+export const TABLA_EXPEDIENTES_DEL_USUARIO = "__expedientes_del_usuario";
 
 /** Texto de por qué falla una restauración, en lenguaje sencillo. */
 export function motivoDeFallo(e: unknown): string {

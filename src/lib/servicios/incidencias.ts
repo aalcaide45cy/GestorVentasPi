@@ -6,6 +6,7 @@ import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 import { claveDeFallo, ESTADOS_INCIDENCIA, prepararEvento, type EstadoIncidencia, type EventoIncidencia, type IncidenciaParaInforme, type NivelIncidencia, type OrigenIncidencia } from "@/lib/incidencias";
 import { emitirIncidencia, instalarReceptorIncidencias } from "@/lib/incidencias-hook";
+import { archivarElementos } from "./papelera-elementos";
 
 /**
  * Centro de incidencias: guarda en un solo sitio todo lo que falla o va mal. Las repeticiones del mismo fallo se juntan (por huella) y suman
@@ -139,7 +140,14 @@ export async function cambiarIncidencias(ej: Ejecutor, ids: number[], cambios: {
 
 export async function eliminarIncidencias(ej: Ejecutor, ids: number[]): Promise<number> {
   if (ids.length === 0) return 0;
-  return (await ej.delete(incidencias).where(inArray(incidencias.id, ids)).returning({ id: incidencias.id })).length;
+  // Las que elimina una persona van a la Papelera (con sus capturas); la limpieza automática de las cerradas viejas (`depurarIncidencias`) las borra del todo
+  return ej.transaction(async (tx) => {
+    for (const id of ids) {
+      const [i] = await tx.select({ id: incidencias.id, titulo: incidencias.titulo, origen: incidencias.origen }).from(incidencias).where(eq(incidencias.id, id));
+      if (i) await archivarElementos(tx, "incidencia", sql`t.id = ${id}`, { etiqueta: i.titulo.slice(0, 200), detalle: `Incidencia #${i.id} · ${i.origen} · eliminada` });
+    }
+    return (await tx.delete(incidencias).where(inArray(incidencias.id, ids)).returning({ id: incidencias.id })).length;
+  });
 }
 
 export interface ResumenIncidencias {

@@ -617,6 +617,15 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.21.0 (22/10/2026)
+
+- **Usuarios, copias de seguridad, copias internas e incidencias a la Papelera** (completa la regla «todo lo que se elimine va a la Papelera»). Cuatro pestañas más: 👤 Usuarios, 💾 Copias de seguridad, 🗂️ Copias internas y 🩺 Incidencias.
+  - **Usuarios**: al eliminar uno (también «con todo lo suyo») queda guardado con su contacto, tiendas, códigos de recuperación y, si procede, su historial de comisiones, rejillas, liquidaciones y qué expedientes tenía. Restaurarlo lo deja exactamente como estaba (misma contraseña y doble factor: no se cambia ninguno), le devuelve los expedientes que siguieran sin vendedor y no se restaura si ya hay otro con el mismo correo de acceso. Las descargas de la Papelera no incluyen contraseñas ni doble factor. Sigue sin poder eliminarse al último administrador ni a uno mismo.
+  - **Copias de seguridad**: al eliminar una a mano, el `.dump` pasa a la subcarpeta `papelera` de las copias (la copia de Google Drive no se toca); restaurar lo devuelve y purgar lo borra (y su copia de Drive). La limpieza automática por retención y las copias rotas se siguen borrando del todo.
+  - **Copias internas** e **incidencias** eliminadas a mano se guardan y se restauran (con sus capturas); la limpieza automática de incidencias cerradas viejas sigue borrando del todo.
+  - **«Deshacer importación»** ya mandaba lo que creó la importación a la Papelera (expedientes eliminados); no cambia.
+- Los vaciados en bloque («Borrar todos los datos», importar la copia de la app antigua, restaurar una copia) se quedan como estaban, con su copia previa automática.
+
 ## Versión 1.20.0 (22/10/2026)
 
 - **Interruptor general del cifrado de los datos** (Configuración › BBDD › Sistema › «🔐 Cifrado de los datos»; estado guardado en la base, **desactivado por defecto** hasta que el propietario lo active). Con él desactivado, los documentos, los archivos de la Biblioteca, las capturas de las incidencias, el doble factor y la conexión con Drive se guardan **en claro** (con una marca: `GVP0` en los ficheros, `p0.` en los textos); lo que ya estuviera cifrado se sigue leyendo igual, esté el interruptor como esté. Así no hay problemas de claves entre equipos ni al restaurar copias.

@@ -13,6 +13,7 @@ import { ajustes, codigosRecuperacion, conexionDrive, copiasSeguridad, emailsUsu
 import { HttpError } from "@/lib/auth/sesion";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { ajustarCifradoTrasRestaurar, asegurarComprobacion, prepararPortabilidad } from "./clave-recuperacion";
+import { archivarElementos, TABLA_ARCHIVO_COPIA } from "./papelera-elementos";
 
 /* ------------------------------------------------------------------ */
 /* Configuración y utilidades                                          */
@@ -635,8 +636,24 @@ function limitarTamano(fijar: (n: number) => void) {
   };
 }
 
-export async function borrarCopia(ej: Ejecutor, id: number): Promise<{ driveFileId: string | null }> {
+/**
+ * Borra una copia. Con `aPapelera` (cuando la elimina una persona) no se destruye: el fichero pasa a la subcarpeta «papelera» de las copias, la ficha se
+ * guarda en la Papelera (Herramientas › Papelera) y la copia de Google Drive se queda; allí se restaura o se purga. Sin ella (limpieza automática de
+ * copias que sobran por retención o están rotas) se borra del todo, como siempre.
+ */
+export async function borrarCopia(ej: Ejecutor, id: number, aPapelera = false): Promise<{ driveFileId: string | null }> {
   const { fila, ruta } = await obtenerCopia(ej, id);
+  if (aPapelera) {
+    const carpeta = path.join(/*turbopackIgnore: true*/ dirCopias(), "papelera");
+    mkdirSync(/*turbopackIgnore: true*/ carpeta, { recursive: true, mode: 0o700 });
+    await ej.transaction(async (tx) => {
+      const tieneFichero = existsSync(/*turbopackIgnore: true*/ ruta);
+      await archivarElementos(tx, "copia", sql`t.id = ${id}`, { etiqueta: `Copia ${fila.nombre}`, detalle: `${fila.tipo} · ${(fila.tamano / 1048576).toFixed(0)} MB${tieneFichero ? "" : " · sin fichero"}` }, null, [], tieneFichero ? [{ tabla: TABLA_ARCHIVO_COPIA, fila: { nombre: fila.nombre } }] : []);
+      await tx.delete(copiasSeguridad).where(eq(copiasSeguridad.id, id));
+      if (tieneFichero) await rename(/*turbopackIgnore: true*/ ruta, path.join(/*turbopackIgnore: true*/ carpeta, fila.nombre));
+    });
+    return { driveFileId: null };
+  }
   await rm(/*turbopackIgnore: true*/ ruta, { force: true });
   await ej.delete(copiasSeguridad).where(eq(copiasSeguridad.id, id));
   return { driveFileId: fila.driveFileId };

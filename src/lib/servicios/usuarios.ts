@@ -7,6 +7,7 @@ import { generarPasswordTemporal, hashPassword } from "@/lib/auth/password";
 import { ROLES } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { idOpcional, textoOpcional } from "./comun";
+import { archivarElementos, HIJAS_USUARIO_CON_TODO, TABLA_EXPEDIENTES_DEL_USUARIO } from "./papelera-elementos";
 
 const rolEnum = z.enum(ROLES);
 const tipoVendedorEnum = z.enum(["VN", "VO"]);
@@ -226,6 +227,8 @@ export async function eliminarUsuarioConTodo(ej: Ejecutor, admin: UsuarioActual,
   if (u.rol === "administrador" && !u.bloqueado && (await otrosAdministradoresActivos(ej, id)) === 0) throw new HttpError(400, SIN_ADMIN);
   await ej.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.borrado_autorizado', 'on', true)`);
+    // Antes de borrar nada, el usuario con todo lo suyo (y qué expedientes tenía) queda en la Papelera
+    await archivarUsuario(tx, u, true);
     await tx.update(expedientes).set({ eliminadoEn: new Date() }).where(and(eq(expedientes.idUsuario, id), isNull(expedientes.eliminadoEn)));
     await tx.update(expedientes).set({ idUsuario: null }).where(eq(expedientes.idUsuario, id));
     const liqs = (await tx.select({ id: commissionLiquidations.idLiquidation }).from(commissionLiquidations).where(eq(commissionLiquidations.idUsuario, id))).map((l) => l.id);
@@ -271,8 +274,25 @@ export async function eliminarUsuario(ej: Ejecutor, admin: UsuarioActual, id: nu
   if (libro || liq || objetivo || rej || val) {
     throw new HttpError(409, "No se puede eliminar el usuario porque tiene historial de comisiones (puntos, liquidaciones o planes). Bloquea su cuenta para suspender su acceso.");
   }
-  const filas = await ej.delete(usuarios).where(eq(usuarios.idUsuario, id)).returning({ id: usuarios.idUsuario });
-  if (filas.length === 0) throw new HttpError(404, "Usuario no encontrado");
+  await ej.transaction(async (tx) => {
+    await archivarUsuario(tx, usuarioBorrar, false);
+    const filas = await tx.delete(usuarios).where(eq(usuarios.idUsuario, id)).returning({ id: usuarios.idUsuario });
+    if (filas.length === 0) throw new HttpError(404, "Usuario no encontrado");
+  });
+}
+
+/** Manda a la Papelera la copia del usuario (con su contacto, tiendas y códigos de recuperación; con `conTodo`, también su historial de comisiones, rejillas, etc.). */
+async function archivarUsuario(ej: Ejecutor, u: typeof usuarios.$inferSelect, conTodo: boolean): Promise<void> {
+  const asignados = (await ej.select({ id: expedientes.idExpediente }).from(expedientes).where(eq(expedientes.idUsuario, u.idUsuario))).map((e) => e.id);
+  await archivarElementos(
+    ej,
+    "usuario",
+    sql`t.id_usuario = ${u.idUsuario}`,
+    { etiqueta: `Usuario «${u.nombre}» (${u.loginEmail})`, detalle: `${u.rol}${conTodo ? " · eliminado con todo lo suyo" : " · eliminado"}` },
+    null,
+    conTodo ? HIJAS_USUARIO_CON_TODO : [],
+    asignados.length > 0 ? [{ tabla: TABLA_EXPEDIENTES_DEL_USUARIO, fila: { id_usuario: u.idUsuario, ids: asignados } }] : [],
+  );
 }
 
 export async function guardarPerfil(ej: Ejecutor, idUsuario: number, entrada: EntradaPerfil): Promise<void> {

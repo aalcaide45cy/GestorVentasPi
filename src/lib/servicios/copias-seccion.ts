@@ -3,6 +3,7 @@ import type { Ejecutor } from "@/db";
 import { copiasSeccion } from "@/db/schema";
 import { HttpError } from "@/lib/auth/sesion";
 import { INFO_SECCIONES, SECCIONES, exportarSeccion, importarSeccion, type Informe, type Modo, type Seccion } from "./intercambio";
+import { archivarElementos } from "./papelera-elementos";
 
 /**
  * Copias «internas» de cada sección de datos: se guardan dentro de la propia aplicación (en la base de datos, así también
@@ -108,8 +109,13 @@ export async function leerCopiaInterna(ej: Ejecutor, id: number) {
 }
 
 export async function borrarCopiaInterna(ej: Ejecutor, id: number): Promise<void> {
-  const filas = await ej.delete(copiasSeccion).where(eq(copiasSeccion.id, id)).returning({ id: copiasSeccion.id });
-  if (filas.length === 0) throw new HttpError(404, "La copia ya no existe.");
+  await ej.transaction(async (tx) => {
+    const [c] = await tx.select().from(copiasSeccion).where(eq(copiasSeccion.id, id));
+    if (!c) throw new HttpError(404, "La copia ya no existe.");
+    // Se guarda en la Papelera antes de borrarla
+    await archivarElementos(tx, "copia_seccion", sql`t.id = ${id}`, { etiqueta: `Copia interna «${c.nombre}» (${c.seccion})`, detalle: "Eliminada" });
+    await tx.delete(copiasSeccion).where(eq(copiasSeccion.id, id));
+  });
 }
 
 /**
