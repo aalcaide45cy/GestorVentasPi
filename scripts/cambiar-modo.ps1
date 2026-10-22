@@ -43,26 +43,39 @@ function Lanzar($orden, $salida) {
   Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "$orden > `"$salida`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden
 }
 
+# Modo normal: primero se COMPILA EN UNA CARPETA APARTE (.next-nueva) con el servidor actual todavia en marcha, y solo cuando ha salido bien se
+# para el servidor, se cambia la carpeta y se arranca: el corte dura segundos y una compilacion fallida no deja la aplicacion caida ni a medias.
+$salidaBuild = Join-Path $env:TEMP "gestorventas-build.log"
+if ($Modo -eq "build") {
+  Anotar "Compilando en .next-nueva (npm run build) con el servidor todavia en marcha..."
+  if (Test-Path (Join-Path $Carpeta ".next-nueva")) { Remove-Item (Join-Path $Carpeta ".next-nueva") -Recurse -Force -ErrorAction SilentlyContinue }
+  $env:NEXT_DIST_DIR = ".next-nueva"
+  $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run build > `"$salidaBuild`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden -PassThru -Wait
+  Remove-Item Env:NEXT_DIST_DIR -ErrorAction SilentlyContinue
+  if ($p.ExitCode -ne 0) {
+    Anotar "La compilacion ha fallado (codigo $($p.ExitCode)); detalle en $salidaBuild. El servidor actual sigue como estaba."
+    exit 1
+  }
+}
+
 Parar-Servidor
+if ($Modo -eq "build") {
+  # Cambio de carpeta: la compilada pasa a ser .next (la anterior se guarda como .next-vieja hasta la siguiente vez)
+  $actual = Join-Path $Carpeta ".next"
+  $vieja = Join-Path $Carpeta ".next-vieja"
+  if (Test-Path $vieja) { Remove-Item $vieja -Recurse -Force -ErrorAction SilentlyContinue }
+  if (Test-Path $actual) { Rename-Item $actual ".next-vieja" -ErrorAction SilentlyContinue }
+  Rename-Item (Join-Path $Carpeta ".next-nueva") ".next"
+  Anotar "Carpeta cambiada: .next es la compilacion nueva"
+}
 if ($Modo -eq "dev") {
   Anotar "Lanzando npm run dev"
   Lanzar "npm run dev" (Join-Path $env:TEMP "gestorventas-dev-$Puerto.log")
   exit 0
 }
 
-# Modo normal: compilar (aqui esta la espera larga; con "start" se salta), aplicar las migraciones y arrancar
-$salidaBuild = Join-Path $env:TEMP "gestorventas-build.log"
-if ($Modo -eq "build") {
-  Anotar "Compilando (npm run build)..."
-  $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run build > `"$salidaBuild`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden -PassThru -Wait
-  if ($p.ExitCode -ne 0) {
-    Anotar "La compilacion ha fallado (codigo $($p.ExitCode)); detalle en $salidaBuild. Se vuelve al modo desarrollo."
-    Lanzar "npm run dev" (Join-Path $env:TEMP "gestorventas-dev-$Puerto.log")
-    exit 1
-  }
-} else {
-  Anotar "Reinicio en modo normal sin recompilar"
-}
+# Modo normal: aplicar las migraciones y arrancar
+if ($Modo -ne "build") { Anotar "Reinicio en modo normal sin recompilar" }
 Anotar "Compilado. Aplicando migraciones y arrancando npm start"
 $m = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run db:migrate > `"$(Join-Path $env:TEMP 'gestorventas-migrar.log')`" 2>&1" -WorkingDirectory $Carpeta -WindowStyle Hidden -PassThru -Wait
 if ($m.ExitCode -ne 0) { Anotar "Las migraciones han fallado (codigo $($m.ExitCode)); se vuelve al modo desarrollo."; Lanzar "npm run dev" (Join-Path $env:TEMP "gestorventas-dev-$Puerto.log"); exit 1 }

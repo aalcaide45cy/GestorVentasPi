@@ -41,8 +41,12 @@ const cabeceras = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Carpeta de la compilacion. Al actualizar el servidor del PC se compila en `.next-nueva` (NEXT_DIST_DIR) con el servidor todavia en marcha y luego se cambia la carpeta
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Oculta el círculo «N» de Next.js que sale solo en desarrollo (en la aplicación instalada no existe)
   devIndicators: false,
+  // Acceso desde fuera (Tailscale Funnel / red Tailscale) con el servidor en desarrollo: sin esto Next bloquea el código de la página
+  allowedDevOrigins: ["pcamd.tail047528.ts.net", "100.85.73.108"],
   // OCR de la rejilla (Tesseract en WebAssembly, lectura de PDF y lienzo nativo): se cargan desde node_modules en tiempo de ejecución
   serverExternalPackages: ["tesseract.js", "pdfjs-dist", "@napi-rs/canvas", "onnxruntime-node", "onnxruntime-common"],
   outputFileTracingIncludes: {

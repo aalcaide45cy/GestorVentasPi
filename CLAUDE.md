@@ -50,6 +50,7 @@ El plan por fases y sus **criterios de aceptación** están en `docs/informe/16-
 - Migraciones: `npm run db:generate` / `npm run db:migrate`
 - Construir imagen: `docker build -t gestorventaspi:local .` (multi-arquitectura la hace GitHub Actions, ver `.github/workflows/`)
 - Instalador: `./scripts/empaquetar.sh [versión] [--offline]` · scripts de administración: `npm run build:scripts`
+- Servidor del PC (puerto 3000) en modo normal, sin recargas al editar: `powershell -ExecutionPolicy Bypass -File scripts\publicar-local.ps1` (compila aparte y cambia en segundos; el modo desarrollo es solo para pruebas en otro puerto)
 - Rendimiento: `npx tsx scripts/medir-rendimiento.ts` (solo contra una BD `*_test`)
 
 ## 6. Entorno del propietario (datos útiles)

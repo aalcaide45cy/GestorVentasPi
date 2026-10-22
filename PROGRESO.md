@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.21.1 (22/10/2026)
+
+- **El servidor del PC ya no se recarga ni «se reinicia» solo.** Causa real: en modo desarrollo la caché de Turbopack (`.next/dev`) se corrompía y la página entraba en un bucle de recargas (medido: 468 recompilaciones y 1.053 recargas en 30 segundos con una sola página parada abierta; tras borrar la caché, 0). Además, en desarrollo cada edición de código recompila y recarga las páginas abiertas, y si el proceso caía, el vigilante tardaba un par de minutos en relanzarlo.
+- **Solución de raíz**: el servidor del puerto 3000 corre ahora en **modo normal** (compilado, sin recargas en caliente). Actualizarlo es `scripts\publicar-local.ps1`: compila en una carpeta aparte (`.next-nueva`, `NEXT_DIST_DIR`) con el servidor todavía en marcha, y solo si sale bien lo para unos segundos, cambia la carpeta y lo arranca; si la compilación falla, el servidor sigue como estaba. Las pruebas visuales con edición continua se hacen en la copia (puertos 3100/3101), en desarrollo.
+- `cambiar-modo.ps1` (el que usa «Equipo y servidor» y `start.bat`) también compila así.
+
 ## Versión 1.21.0 (22/10/2026)
 
 - **Usuarios, copias de seguridad, copias internas e incidencias a la Papelera** (completa la regla «todo lo que se elimine va a la Papelera»). Cuatro pestañas más: 👤 Usuarios, 💾 Copias de seguridad, 🗂️ Copias internas y 🩺 Incidencias.
