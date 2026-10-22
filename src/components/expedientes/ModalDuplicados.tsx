@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { EnlaceCliente, EnlaceExpediente } from "@/components/Enlaces";
 import { useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
@@ -122,9 +122,9 @@ No se pierden: se pueden recuperar desde Herramientas › Papelera. Mientras est
       { clave: "grupo", etiqueta: "Grupo", valor: (f) => f.grupo, celda: (f) => <b style={{ color: GRAVEDAD[f.motivo].color }}>#{f.grupo}</b>, ancho: 60, ayuda: "Los expedientes con el mismo número de grupo se parecen entre sí" },
       { clave: "motivo", etiqueta: "Motivo", valor: (f) => f.motivoTexto, celda: (f) => <span title={GRAVEDAD[f.motivo].texto} style={{ color: GRAVEDAD[f.motivo].color, fontWeight: 600 }}>{f.motivoTexto}</span> },
       { clave: "comun", etiqueta: "Lo que comparten", valor: (f) => f.clave },
-      { clave: "id", etiqueta: "Expediente", valor: (f) => f.id, celda: (f) => <Link href={`/dashboard/expedientes/editar/${f.id}`} target="_blank" style={{ fontWeight: 700 }}>#EXP-{String(f.id).padStart(4, "0")}</Link> },
+      { clave: "id", etiqueta: "Expediente", valor: (f) => f.id, celda: (f) => <EnlaceExpediente id={f.id} nuevaPestana />, ayuda: "Pulsa el código para abrir el expediente en otra pestaña" },
       { clave: "situacion", etiqueta: "Situación", valor: (f) => (f.anulado ? "Anulado" : f.deshabilitado ? "Deshabilitado" : "Vigente"), celda: (f) => (f.anulado ? <b style={{ color: "var(--danger)" }}>Anulado</b> : f.deshabilitado ? <b style={{ color: "var(--warning)" }}>Deshabilitado</b> : <span style={{ color: "var(--text-muted)" }}>Vigente</span>), ayuda: "Anulado en la intranet o deshabilitado en la aplicación" },
-      { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente ?? "" },
+      { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente ?? "", celda: (f) => <EnlaceCliente id={f.idCliente} nombre={f.cliente ?? "—"} nuevaPestana />, ayuda: "Pulsa el nombre para abrir la ficha del cliente en otra pestaña" },
       { clave: "dni", etiqueta: "DNI", valor: (f) => f.dni ?? "", oculta: true },
       { clave: "vehiculo", etiqueta: "Vehículo", valor: (f) => [f.marca, f.modelo].filter(Boolean).join(" ") },
       { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula ?? "" },

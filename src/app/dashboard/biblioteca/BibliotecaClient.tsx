@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/components/Modal";
+import { EnlaceCliente } from "@/components/Enlaces";
 import { useToast } from "@/components/Toast";
 import TablaDatos, { PANTALLA_COMPLETA, type ColumnaTabla } from "@/components/TablaDatos";
 import ModalSubidaBiblioteca from "@/components/biblioteca/ModalSubidaBiblioteca";
@@ -223,7 +224,9 @@ export default function BibliotecaClient({ incrustada = false }: { incrustada?: 
               {f.asignadoA}
             </Link>
           ) : (
-            <span style={{ fontWeight: 600 }}>👤 {f.asignadoA}</span>
+            <span style={{ fontWeight: 600 }}>
+              👤 <EnlaceCliente id={f.idCliente} nombre={f.asignadoA} />
+            </span>
           )
         ) : (
           <span style={{ color: "var(--text-muted)" }}>Sin asignar</span>

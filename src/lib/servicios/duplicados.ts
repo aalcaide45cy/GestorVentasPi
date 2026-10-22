@@ -18,6 +18,7 @@ export const TEXTO_MOTIVO: Record<MotivoDuplicado, string> = {
 
 export interface FilaDuplicado {
   id: number;
+  idCliente: number | null;
   cliente: string | null;
   dni: string | null;
   marca: string | null;
@@ -123,7 +124,7 @@ export async function detectarDuplicados(ej: Ejecutor, opciones: { incluirAnulad
         motivo: d.motivo,
         clave: d.motivo === "bastidor" || d.motivo === "matricula" ? clave : `${v[0].cliente ?? "—"} · ${[v[0].marca, v[0].modelo].filter(Boolean).join(" ")}${d.motivo === "pedido" ? ` · ${v[0].fechaPedido}` : ""}`,
         filas: v
-          .map((f) => ({ id: f.id, cliente: f.cliente, dni: f.dni, marca: f.marca, modelo: f.modelo, matricula: f.matricula, vin: f.vin, fechaPedido: f.fechaPedido, pago: f.pago, estado: f.estado, vendedor: f.vendedor, copiaDe: f.copiaDe, deshabilitado: f.deshabilitado, anulado: esAnulado(f.estadoIntranet) }))
+          .map((f) => ({ id: f.id, idCliente: f.idCliente, cliente: f.cliente, dni: f.dni, marca: f.marca, modelo: f.modelo, matricula: f.matricula, vin: f.vin, fechaPedido: f.fechaPedido, pago: f.pago, estado: f.estado, vendedor: f.vendedor, copiaDe: f.copiaDe, deshabilitado: f.deshabilitado, anulado: esAnulado(f.estadoIntranet) }))
           .sort((a, b) => a.id - b.id),
       });
       for (const f of v) vistos.add(f.id);

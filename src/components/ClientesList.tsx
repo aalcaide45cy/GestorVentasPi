@@ -1,6 +1,7 @@
 "use client";
 
 import { señalarCampo } from "@/lib/resaltar";
+import Link from "next/link";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
@@ -10,19 +11,15 @@ import { useToast } from "@/components/Toast";
 import { construirCsvClientes, interpretarCsvClientes } from "@/lib/csv-clientes";
 import { descargarTexto } from "@/lib/csv-expedientes";
 import { formatDate } from "@/lib/date-utils";
-import type { ClienteDto, ExpedienteDto, TiendaDto } from "@/lib/dto";
+import { rutaCliente } from "@/components/Enlaces";
+import CamposCliente, { useCamposCliente } from "@/components/clientes/CamposCliente";
+import type { ClienteDto, TiendaDto } from "@/lib/dto";
 import { BotonLeerDni, ListaPendientes, ZonaDocumentosVarios, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
 import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
 import type { ResultadoDni } from "@/lib/servicios/documentos";
 import ModalEdicionMasivaClientes, { type CambiosMasivosClientes } from "./clientes/ModalEdicionMasivaClientes";
 import NombreConFoto from "./documentos/FotoCliente";
-import VisorAdjuntos from "./documentos/VisorAdjuntos";
-import { esAnulado } from "@/lib/anulados";
-import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "./CasillaAnulados";
-import { columnasVehiculo } from "./etiquetas";
-import { datosVehiculoDeExpediente, mensajeDeError } from "./expedientes/comun";
-import TablaDatos, { type ColumnaTabla } from "./TablaDatos";
-import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
+import { mensajeDeError } from "./expedientes/comun";
 
 export type ClienteItem = ClienteDto & { num_expedientes: number };
 
@@ -51,56 +48,6 @@ const botonBloqueo = (activo: boolean, fondo: string, color: string) =>
     gap: "6px",
   }) as const;
 
-/** Un expediente del cliente con la señal de si parece repetido entre los suyos (mismo bastidor, matrícula, o mismo modelo y fecha de pedido). */
-type VentaConAviso = ExpedienteDto & { __duplicado?: string };
-
-const normalizarClave = (t: string | null) => (t ?? "").replace(/[\s-]/g, "").toUpperCase();
-const SIN_DATO_VENTA = new Set(["", "ND", "N/D", "NA", "N/A", "0"]);
-function marcarDuplicadas(lista: ExpedienteDto[]): VentaConAviso[] {
-  const motivo = new Map<number, string>();
-  const claves: { motivo: string; clave: (e: ExpedienteDto) => string | null }[] = [
-    { motivo: "mismo bastidor", clave: (e) => (SIN_DATO_VENTA.has(normalizarClave(e.vin)) ? null : normalizarClave(e.vin)) },
-    { motivo: "misma matrícula", clave: (e) => (SIN_DATO_VENTA.has(normalizarClave(e.matricula)) ? null : normalizarClave(e.matricula)) },
-    { motivo: "mismo modelo y fecha de pedido", clave: (e) => (e.id_modelo && e.fecha_expediente ? `${e.id_modelo}|${e.fecha_expediente}` : null) },
-  ];
-  for (const c of claves) {
-    const grupos = new Map<string, ExpedienteDto[]>();
-    for (const e of lista) {
-      const k = c.clave(e);
-      if (k !== null) (grupos.get(k) ?? grupos.set(k, []).get(k)!).push(e);
-    }
-    for (const g of grupos.values()) if (g.length > 1) for (const e of g) if (!motivo.has(e.id_expediente)) motivo.set(e.id_expediente, `${c.motivo} que ${g.filter((o) => o !== e).map((o) => `#EXP-${String(o.id_expediente).padStart(4, "0")}`).join(", ")}`);
-  }
-  return lista.map((e) => ({ ...e, __duplicado: motivo.get(e.id_expediente) }));
-}
-
-const columnasVentas: ColumnaTabla<VentaConAviso>[] = [
-  { clave: "codigo", etiqueta: "Código", valor: (e) => e.id_expediente, celda: (e) => <b style={{ color: "var(--primary)" }}>#EXP-{String(e.id_expediente).padStart(4, "0")}</b> },
-  ...columnasVehiculo<VentaConAviso>((e) => datosVehiculoDeExpediente(e), { vacio: "N/D", punto: true }),
-  { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => e.matricula || "N/D" },
-  { clave: "fecha", etiqueta: "Fecha pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => (e.fecha_expediente ? formatDate(e.fecha_expediente) : "N/D") },
-  { clave: "vin", etiqueta: "Bastidor", valor: (e) => e.vin ?? "", celda: (e) => e.vin || "N/D" },
-  { clave: "f_afect", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => (e.fecha_afectacion ? formatDate(e.fecha_afectacion) : "—") },
-  { clave: "f_rci", etiqueta: "F. RCI", valor: (e) => e.fecha_rci ?? "", celda: (e) => (e.fecha_rci ? formatDate(e.fecha_rci) : "—") },
-  { clave: "f_mat", etiqueta: "F. matriculación", valor: (e) => e.fecha_matriculacion ?? "", celda: (e) => (e.fecha_matriculacion ? formatDate(e.fecha_matriculacion) : "—") },
-  { clave: "f_fact", etiqueta: "F. facturación", valor: (e) => e.fecha_facturacion ?? "", celda: (e) => (e.fecha_facturacion ? formatDate(e.fecha_facturacion) : "—") },
-  { clave: "f_entrega", etiqueta: "F. entrega", valor: (e) => e.fecha_entrega ?? "", celda: (e) => (e.fecha_entrega ? formatDate(e.fecha_entrega) : "—") },
-  { clave: "vendedor", etiqueta: "Vendedor", valor: (e) => e.usuario?.nombre ?? "" },
-  { clave: "intranet", etiqueta: "Intranet", valor: (e) => e.estado_intranet ?? "", oculta: true },
-  { clave: "comentarios", etiqueta: "Comentarios", valor: (e) => e.comentarios ?? "", oculta: true },
-  { clave: "aviso", etiqueta: "Aviso", valor: (e) => (e.__duplicado ? "Posible duplicado" : ""), celda: (e) => (e.__duplicado ? <span title={e.__duplicado} style={{ color: "var(--danger)", fontWeight: 700 }}>⚠️ Posible duplicado</span> : "") },
-  {
-    clave: "editar",
-    etiqueta: "Editar",
-    valor: () => "",
-    celda: (e) => (
-      <a href={`/dashboard/expedientes/editar/${e.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-        ✏️ Editar
-      </a>
-    ),
-  },
-];
-
 /** «Base de Clientes»: directorio con filtros por columna, alta/edición, importación y exportación CSV. */
 export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, userRole, tiendaPredeterminadaId }: Props) {
   const router = useRouter();
@@ -113,19 +60,8 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     setInicialesPrevios(clientesIniciales);
     setClientes(clientesIniciales);
   }
-  const [formulario, setFormulario] = useState<"crear" | "editar" | null>(null);
-  const [seleccionado, setSeleccionado] = useState<ClienteItem | null>(null);
+  const [formulario, setFormulario] = useState<"crear" | null>(null);
   const [cargando, setCargando] = useState(false);
-  const [ventasDe, setVentasDe] = useState<ClienteItem | null>(null);
-  const [ventas, setVentas] = useState<ExpedienteDto[] | null>(null);
-  // Los expedientes anulados en el listado de la intranet no son ventas: salen ocultos salvo que se active la casilla
-  const [mostrarAnulados, fijarMostrarAnulados] = useMostrarAnulados("clientes");
-  const nAnuladosVentas = useMemo(() => (ventas ?? []).filter((v) => esAnulado(v.estado_intranet)).length, [ventas]);
-  // Los deshabilitados no cuentan: tampoco salen aquí salvo que se active su casilla
-  const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("clientes");
-  const nDeshabilitadosVentas = useMemo(() => (ventas ?? []).filter((v) => v.deshabilitado).length, [ventas]);
-  const ventasConAviso = useMemo(() => (ventas ? marcarDuplicadas(ventas.filter((v) => (mostrarAnulados || !esAnulado(v.estado_intranet)) && (mostrarDeshabilitados || !v.deshabilitado))) : null), [ventas, mostrarAnulados, mostrarDeshabilitados]);
-
   const [marcados, setMarcados] = useState<number[]>([]);
   const [aBorrar, setABorrar] = useState<ClienteItem | null>(null);
   const [borradoMasivo, setBorradoMasivo] = useState(false);
@@ -144,72 +80,34 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [campo, setCampo] = useState<Campo>("id");
   const [asc, setAsc] = useState(false);
 
-  // Formulario
-  const [dni, setDni] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [fechaNacimiento, setFechaNacimiento] = useState("");
-  const [domicilio, setDomicilio] = useState("");
-  const [poblacion, setPoblacion] = useState("");
-  const [codigoPostal, setCodigoPostal] = useState("");
-  const [comentarios, setComentarios] = useState("");
-  const [tiendaId, setTiendaId] = useState("");
-  const [emails, setEmails] = useState<ContactoEdicion[]>([contactoVacio()]);
-  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>([contactoVacio()]);
+  // Formulario de alta (la edición de un cliente es una página aparte: /dashboard/clientes/[id])
+  const campos = useCamposCliente();
+  const { dni, nombre, fechaNacimiento, domicilio, poblacion, codigoPostal, comentarios, tiendaId, emails, telefonos } = campos;
   const [duplicado, setDuplicado] = useState<ClienteDto | null>(null);
   // Documentos leídos con el lector de DNI y aún sin vincular al cliente (se vinculan al guardar)
   const [pendientes, setPendientes] = useState<number[]>([]);
   /** Nombres de los documentos pendientes (para mostrarlos mientras el cliente aún no está guardado). */
   const [nombresPend, setNombresPend] = useState<Record<number, string>>({});
   const [fotoPendiente, setFotoPendiente] = useState<number | null>(null);
-  /** Se incrementa para que la lista de documentos del modal se vuelva a pedir al servidor. */
-  const [refrescoAdjuntos, setRefrescoAdjuntos] = useState(0);
 
   const nombreTienda = (id: number | null) => tiendas.find((t) => t.id_tienda === id)?.nombre;
 
   const abrirCrear = () => {
-    setSeleccionado(null);
-    setDni("");
-    setNombre("");
-    setFechaNacimiento("");
-    setDomicilio("");
-    setPoblacion("");
-    setCodigoPostal("");
-    setTiendaId(tiendaPredeterminadaId ? String(tiendaPredeterminadaId) : "");
-    setEmails([contactoVacio()]);
-    setTelefonos([contactoVacio()]);
+    campos.cargar(null, tiendaPredeterminadaId ? String(tiendaPredeterminadaId) : "");
     setPendientes([]);
     setFotoPendiente(null);
     setFormulario("crear");
   };
 
-  const abrirEditar = (c: ClienteItem) => {
-    setSeleccionado(c);
-    setDni(c.dni ?? "");
-    setNombre(c.nombre ?? "");
-    setFechaNacimiento(c.fecha_de_nacimiento ?? "");
-    setDomicilio(c.domicilio ?? "");
-    setPoblacion(c.poblacion ?? "");
-    setCodigoPostal(c.codigo_postal ?? "");
-    setComentarios(c.comentarios ?? "");
-    setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
-    setEmails(emailsDeCliente(c));
-    setTelefonos(telefonosDeCliente(c));
-    setPendientes([]);
-    setFotoPendiente(null);
-    setFormulario("editar");
-  };
-
   const guardarCliente = async () => {
     setCargando(true);
     try {
-      const esEdicion = formulario === "editar";
       const emailsOk = emails.filter((e) => e.valor.trim());
       const telefonosOk = telefonos.filter((t) => t.valor.trim());
       const res = await fetch("/api/clientes", {
-        method: esEdicion ? "PUT" : "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: esEdicion ? seleccionado?.id : undefined,
           dni: dni.trim() || null,
           nombre,
           fecha_de_nacimiento: fechaNacimiento || null,
@@ -224,7 +122,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar cliente."));
       const datos = (await res.json()) as { data?: ClienteDto };
-      const idGuardado = esEdicion ? seleccionado?.id : datos.data?.id;
+      const idGuardado = datos.data?.id;
       if (idGuardado && pendientes.length > 0) {
         try {
           await vincularAdjuntos(pendientes, { idCliente: idGuardado });
@@ -235,21 +133,11 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
 
       const emailsDto = emailsOk.map((e) => ({ email: e.valor.trim(), tipo_email: e.tipo }));
       const telefonosDto = telefonosOk.map((t) => ({ telefono: t.valor.trim(), tipo_telefono: t.tipo }));
-      if (esEdicion && seleccionado) {
-        setClientes((prev) =>
-          prev.map((c) =>
-            c.id === seleccionado.id
-              ? { ...c, dni: dni.trim() || null, nombre, fecha_de_nacimiento: fechaNacimiento || null, domicilio: domicilio.trim() || null, poblacion: poblacion.trim() || null, codigo_postal: codigoPostal.trim() || null, comentarios: comentarios.trim() || null, tienda_id: tiendaId ? Number(tiendaId) : null, emails: emailsDto, telefonos: telefonosDto, foto_id: fotoPendiente ?? c.foto_id }
-              : c,
-          ),
-        );
-        mostrar("Cliente actualizado correctamente.");
-      } else if (datos.data) {
+      if (datos.data) {
         setClientes((prev) => [{ ...datos.data!, emails: emailsDto, telefonos: telefonosDto, num_expedientes: 0, foto_id: fotoPendiente }, ...prev]);
         mostrar("Cliente registrado correctamente.");
       }
       setFormulario(null);
-      setSeleccionado(null);
       router.refresh();
     } catch (e) {
       mostrar(e instanceof Error ? e.message : "Error al guardar cliente.", "error");
@@ -261,16 +149,6 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   /** Guarda al momento los documentos si el cliente ya existe; si es un alta, quedan pendientes hasta guardar. */
   const registrarDocumentos = (docs: { id: number; nombre: string }[], fotoId: number | null = null) => {
     const ids = docs.map((d) => d.id);
-    if (formulario === "editar" && seleccionado) {
-      const idCliente = seleccionado.id;
-      void vincularAdjuntos(ids, { idCliente })
-        .then(() => {
-          setRefrescoAdjuntos((n) => n + 1);
-          if (fotoId) setClientes((prev) => prev.map((x) => (x.id === idCliente ? { ...x, foto_id: fotoId } : x)));
-        })
-        .catch((e: unknown) => mostrar(e instanceof Error ? e.message : "No se han podido guardar los documentos.", "error"));
-      return;
-    }
     setPendientes((prev) => [...prev, ...ids]);
     setNombresPend((prev) => ({ ...prev, ...Object.fromEntries(docs.map((d) => [d.id, d.nombre])) }));
     if (fotoId) setFotoPendiente(fotoId);
@@ -300,27 +178,25 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       señalarCampo("nombreCliente");
       return;
     }
-    if (formulario === "crear") {
-      setCargando(true);
-      try {
-        const res = await fetch("/api/clientes/verificar-existencia", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dni: dni.trim() || null, nombre: nombre.trim() }),
-        });
-        if (res.ok) {
-          const r = (await res.json()) as { exists?: boolean; cliente?: ClienteDto };
-          if (r.exists && r.cliente) {
-            setDuplicado(r.cliente);
-            setCargando(false);
-            return;
-          }
+    setCargando(true);
+    try {
+      const res = await fetch("/api/clientes/verificar-existencia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dni: dni.trim() || null, nombre: nombre.trim() }),
+      });
+      if (res.ok) {
+        const r = (await res.json()) as { exists?: boolean; cliente?: ClienteDto };
+        if (r.exists && r.cliente) {
+          setDuplicado(r.cliente);
+          setCargando(false);
+          return;
         }
-      } catch {
-        /* si falla la comprobación se guarda igualmente */
       }
-      setCargando(false);
+    } catch {
+      /* si falla la comprobación se guarda igualmente */
     }
+    setCargando(false);
     await guardarCliente();
   };
 
@@ -375,19 +251,6 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       mostrar(e instanceof Error ? e.message : "Error de conexión al actualizar.", "error");
     } finally {
       setCargando(false);
-    }
-  };
-
-  const abrirVentas = async (c: ClienteItem) => {
-    setVentasDe(c);
-    setVentas(null);
-    try {
-      const res = await fetch(`/api/clientes/expedientes?id=${c.id}`);
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al cargar los expedientes."));
-      setVentas(((await res.json()) as { data: ExpedienteDto[] }).data);
-    } catch (e) {
-      mostrar(e instanceof Error ? e.message : "Error al cargar los expedientes.", "error");
-      setVentasDe(null);
     }
   };
 
@@ -712,23 +575,23 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                       </td>
                       <td>
                         {c.num_expedientes > 0 ? (
-                          <button
-                            type="button"
+                          <Link
+                            href={`${rutaCliente(c.id)}#expedientes`}
                             className="btn btn-secondary"
-                            onClick={() => void abrirVentas(c)}
+                            title="Abre la ficha del cliente con todos sus expedientes"
                             style={{ padding: "6px 12px", fontSize: "0.8rem", fontWeight: "bold", color: "var(--primary)", border: "1px solid var(--primary)", background: "rgba(6, 182, 212, 0.05)", borderRadius: "var(--radius-sm)", cursor: "pointer" }}
                           >
                             {c.num_expedientes} venta(s)
-                          </button>
+                          </Link>
                         ) : (
                           <span style={{ color: "var(--text-muted)", fontSize: "0.9rem", paddingLeft: "12px" }}>0</span>
                         )}
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <button type="button" className="btn btn-secondary" onClick={() => abrirEditar(c)} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
+                          <Link href={rutaCliente(c.id)} className="btn btn-secondary" title="Abre la ficha del cliente: sus datos, sus documentos y todos sus expedientes" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
                             ✏️ Editar
-                          </button>
+                          </Link>
                           <button
                             type="button"
                             onClick={() => borradoActivo && setABorrar(c)}
@@ -882,121 +745,30 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       )}
 
       {formulario && (
-        <Modal titulo={formulario === "editar" ? "Editar Cliente" : "Registrar Nuevo Cliente"} ancho="1000px" tamanoTitulo="1.25rem">
+        <Modal titulo="Registrar Nuevo Cliente" ancho="1000px" tamanoTitulo="1.25rem">
           <form onSubmit={enviarFormulario} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <BotonLeerDni disabled={cargando} alLeer={alLeerDni} />
-                {formulario !== "editar" && <ZonaDocumentosVarios disabled={cargando} alSubir={anadirPendientes} />}
+                <ZonaDocumentosVarios disabled={cargando} alSubir={anadirPendientes} />
               </div>
               <ListaPendientes docs={pendientes.map((id) => ({ id, nombre: nombresPend[id] ?? `Documento ${id}` }))} alQuitar={(id) => void quitarPendiente(id)} />
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {formulario === "editar"
-                  ? "Los documentos que subas aquí se guardan al momento con este cliente."
-                  : pendientes.length > 0
-                    ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.`
-                    : "Arrastra el DNI para guardarlo y tomar la foto del cliente (los datos se escriben a mano) o documentos varios."}
+                {pendientes.length > 0
+                  ? `${pendientes.length} documento(s) se guardarán con el cliente${fotoPendiente ? ", incluida su foto" : ""}.`
+                  : "Arrastra el DNI para guardarlo y tomar la foto del cliente (los datos se escriben a mano) o documentos varios."}
               </span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">DNI / NIE</label>
-                <input type="text" className="form-input" placeholder="Ej. 12345678Z" value={dni} onChange={(e) => setDni(e.target.value)} />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Nombre Completo *</label>
-                <input type="text" className="form-input" placeholder="Ej. María López" value={nombre} onChange={(e) => setNombre(e.target.value)} data-campo="nombreCliente" />
-              </div>
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Domicilio</label>
-              <input type="text" className="form-input" maxLength={255} value={domicilio} onChange={(e) => setDomicilio(e.target.value)} placeholder="Calle, número, piso…" autoComplete="off" />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Población</label>
-                <input type="text" className="form-input" maxLength={120} value={poblacion} onChange={(e) => setPoblacion(e.target.value)} autoComplete="off" />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Código postal</label>
-                <input type="text" className="form-input" inputMode="numeric" maxLength={10} value={codigoPostal} onChange={(e) => setCodigoPostal(e.target.value)} autoComplete="off" />
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Fecha de Nacimiento</label>
-                <input type="date" className="form-input" value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)} />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Tienda de Registro</label>
-                <select className="form-select" value={tiendaId} onChange={(e) => setTiendaId(e.target.value)}>
-                  <option value="">Selecciona Tienda (Opcional)</option>
-                  {tiendas.map((t) => (
-                    <option key={t.id_tienda} value={t.id_tienda}>
-                      {t.nombre} {t.ciudad ? `(${t.ciudad})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
-              <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
-              <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Comentarios</label>
-              <textarea className="form-input" rows={4} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre el cliente…" style={{ resize: "vertical", minHeight: "90px" }} />
-            </div>
-            {formulario === "editar" && seleccionado && <VisorAdjuntos key={refrescoAdjuntos} idCliente={seleccionado.id} />}
+            <CamposCliente f={campos} tiendas={tiendas} />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
               <button type="button" className="btn btn-secondary" onClick={() => setFormulario(null)} disabled={cargando}>
                 Cancelar
               </button>
               <button type="submit" className="btn btn-primary" disabled={cargando}>
-                {cargando ? "Guardando..." : formulario === "editar" ? "Guardar Cambios" : "Registrar Cliente"}
+                {cargando ? "Guardando..." : "Registrar Cliente"}
               </button>
             </div>
           </form>
-        </Modal>
-      )}
-
-      {ventasDe && (
-        <Modal
-          titulo={
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-              <span>
-                Expedientes de {ventasDe.nombre}
-                {ventasConAviso !== null && ` · ${ventasConAviso.length} ${ventasConAviso.length === 1 ? "expediente" : "expedientes"}`}
-                {ventasConAviso && ventasConAviso.some((v) => v.__duplicado) && <span style={{ color: "var(--danger)", fontSize: "0.9rem" }}> · ⚠️ {ventasConAviso.filter((v) => v.__duplicado).length} posibles duplicados</span>}
-              </span>
-              <button type="button" className="btn btn-secondary" onClick={() => setVentasDe(null)} style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}>
-                Cerrar
-              </button>
-            </div>
-          }
-          ancho="1400px"
-          tamanoTitulo="1.25rem"
-        >
-          {ventasConAviso === null ? (
-            <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>Cargando...</p>
-          ) : (
-            <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnuladosVentas} />
-              <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={fijarMostrarDeshabilitados} deshabilitados={nDeshabilitadosVentas} />
-            </div>
-            <TablaDatos<VentaConAviso>
-              id="cliente-ventas"
-              columnas={columnasVentas}
-              filas={ventasConAviso}
-              clave={(e) => e.id_expediente}
-              estiloFila={(e) => (e.__duplicado ? { background: "rgba(239, 68, 68, 0.08)" } : {})}
-              placeholder="Buscar por código, vehículo, matrícula, bastidor, vendedor…"
-              vacio="No hay expedientes asociados a este cliente."
-              alto="min(calc(60 * var(--uvh)), 640px)"
-            />
-            </>
-          )}
         </Modal>
       )}
 

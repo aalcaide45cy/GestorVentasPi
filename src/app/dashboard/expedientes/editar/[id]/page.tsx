@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import EditarExpedienteForm from "@/components/EditarExpedienteForm";
@@ -37,6 +38,11 @@ export default async function EditarExpedientePage({ params }: PageProps) {
         <p style={{ color: "var(--text-secondary)" }}>
           Modifica los datos del expediente #EXP-{String(expediente.id_expediente).padStart(4, "0")} y guarda los cambios.
         </p>
+        {expediente.id_cliente && (
+          <Link href={`/dashboard/clientes/${expediente.id_cliente}`} className="btn btn-secondary" title="Abre la ficha del cliente con todos sus expedientes" style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginTop: "10px", padding: "6px 14px", fontSize: "0.85rem" }}>
+            👤 Ver cliente{expediente.cliente?.nombre ? `: ${expediente.cliente.nombre}` : ""} y sus expedientes
+          </Link>
+        )}
       </div>
 
       <EditarExpedienteForm

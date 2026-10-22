@@ -4,6 +4,7 @@ import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
+import { IconoCliente } from "../Enlaces";
 import { useToast } from "../Toast";
 import { EtiquetaEstado, EtiquetaPago, type DatosVehiculo } from "../etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
@@ -115,9 +116,12 @@ interface CeldaClienteProps {
 export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
   if (exp.cliente?.nombre) {
     return (
-      <TextoCopiable texto={exp.cliente.nombre}>
-        <NombreConFoto fotoId={exp.cliente.foto_id}>{exp.cliente.nombre}</NombreConFoto>
-      </TextoCopiable>
+      <>
+        <TextoCopiable texto={exp.cliente.nombre}>
+          <NombreConFoto fotoId={exp.cliente.foto_id}>{exp.cliente.nombre}</NombreConFoto>
+        </TextoCopiable>
+        <IconoCliente id={exp.cliente.id} />
+      </>
     );
   }
   return (
