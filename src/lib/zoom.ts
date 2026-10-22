@@ -1,22 +1,24 @@
 /** Nombre de la cookie con el tamaño de la página elegido en este navegador (por pantalla): así el servidor pinta ya la primera vista a ese tamaño. */
 export const COOKIE_ZOOM = "gv_zoom";
 
-/** Tamaños que se pueden elegir (porcentaje); 100 es el normal. */
-export const NIVELES_ZOOM = [60, 70, 80, 90, 100, 110, 125, 150, 175, 200] as const;
+/** Tamaño mínimo y máximo que se pueden elegir (porcentaje); se avanza de 1 en 1 %. */
+export const ZOOM_MIN = 60;
+export const ZOOM_MAX = 200;
+/** Extremos de la escala, por si algo necesita recorrerla. */
+export const NIVELES_ZOOM = [ZOOM_MIN, ZOOM_MAX] as const;
 
 export const ZOOM_NORMAL = 100;
 
-/** Un tamaño válido (de los de la lista) o 100 si no es uno de ellos. */
+/** Un tamaño válido (entero entre el mínimo y el máximo) o 100 si no lo es. */
 export function zoomValido(v: unknown): number {
   const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
-  return (NIVELES_ZOOM as readonly number[]).includes(n) ? n : ZOOM_NORMAL;
+  return Number.isInteger(n) && n >= ZOOM_MIN && n <= ZOOM_MAX ? n : ZOOM_NORMAL;
 }
 
 /** Valor de la propiedad CSS `zoom` (1 = normal). */
 export const factorZoom = (porcentaje: number): number => porcentaje / 100;
 
-/** El nivel siguiente (+1) o anterior (-1) al actual, sin salirse de la lista. */
+/** El tamaño un 1 % mayor (+1) o menor (-1) que el actual, sin salirse de los límites. */
 export function moverZoom(actual: number, paso: 1 | -1): number {
-  const i = (NIVELES_ZOOM as readonly number[]).indexOf(zoomValido(actual));
-  return NIVELES_ZOOM[Math.min(NIVELES_ZOOM.length - 1, Math.max(0, i + paso))];
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomValido(actual) + paso));
 }

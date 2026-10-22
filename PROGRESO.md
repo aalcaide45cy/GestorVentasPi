@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.15.1 (22/10/2026)
+
+- **Tamaño de la página de 1 en 1 %** (60 % a 200 %): los botones − y + suben y bajan un 1 %, y hay un deslizador con paso 1 (antes saltaba de 10 en 10).
+
 ## Versión 1.15.0 (22/10/2026)
 
 - **Papelera con una pestaña por cada cosa** (Herramientas › Papelera): Resumen (espacio, purga por categoría, purga a fondo), Expedientes, Clientes, Pedidos, Pagos RCI, Otros documentos, Marcas, Modelos, Formas de pago, Estados de vehículo, Tiendas, Historial, Lecturas y Auditoría, cada una con su recuento, buscador, orden y gestor de columnas (`TablaDatos`).
