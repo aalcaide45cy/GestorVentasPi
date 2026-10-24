@@ -112,7 +112,7 @@ export default function AdminCatalogosForm({
       {pestana === "tiendas" && <PestanaTiendas tiendas={tiendas} setTiendas={setTiendas} predeterminadaId={predeterminadaId} setPredeterminadaId={setPredeterminadaId} />}
       {pestana === "pagos" && <PestanaPagos tipos={tipos} setTipos={setTipos} />}
       {pestana === "estados" && <PestanaEstados estados={estados} setEstados={setEstados} />}
-      {pestana === "expedientes" && <PestanaExpedientes />}
+      {pestana === "expedientes" && <PestanaExpedientes sugerencias={{ tiposVenta: tipos.map((t) => t.nombre_tipo_venta), estados: estados.map((e) => e.nombre_estado_vehiculo), marcas: marcas.map((m) => m.nombre) }} />}
       {pestana === "dashboard" && <PestanaDashboard />}
       {pestana === "temas" && <PestanaTemas />}
       {pestana === "bbdd" && <PestanaBbdd mostrarBotonesCsvInicial={mostrarBotonesCsv} />}

@@ -197,6 +197,12 @@ export const GUIAS: Record<string, Guia> = {
     pasos: ["Marca u oculta cada panel; el cambio se guarda solo y se ve al volver al Dashboard.", "Pon cuántos expedientes recientes quieres ver (de 1 a 50).", "Para cambiar de sitio los paneles, entra en el Dashboard, pulsa «🔒 Mover paneles» y arrástralos por su asa ⠿.", "«Restaurar el Dashboard» vuelve a mostrar todo, en su orden y con 5 expedientes."],
     ojo: ["Estos ajustes se guardan en el navegador de cada equipo (el PC y el Mac pueden tenerlos distintos)."],
   },
+  "config.expedientes.reglas": {
+    titulo: "Colores de fila",
+    queEs: "Reglas que pintan de un color las filas de la lista de Expedientes cuando se cumplen unas condiciones (el estado de la intranet, hace cuántos días se hizo el pedido, la marca, el vendedor…).",
+    pasos: ["Pulsa «+ Añadir regla», ponle nombre y elige las condiciones, el color y la intensidad.", "Si una fila cumple varias reglas, gana la que esté más arriba: usa ▲ y ▼ para cambiar la prioridad.", "Desmarca una regla para dejar de aplicarla sin borrarla.", "«Guardar el esquema actual» guarda el conjunto con un nombre; «Exportar» e «Importar» lo llevan a otro equipo en un archivo."],
+    ojo: ["Las reglas se guardan en el navegador de cada equipo."],
+  },
   "config.bbdd": {
     titulo: "BBDD (base de datos y sistema)",
     queEs: "El mantenimiento de la aplicación: revisar la base de datos, las copias de seguridad, las actualizaciones y el estado del equipo. Solo para administradores.",

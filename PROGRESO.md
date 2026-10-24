@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.24.0 (24/10/2026)
+
+- **Expedientes: reglas de color de fila** (Configuración › Expedientes › «Colores de fila»). Cada regla tiene nombre, color (paleta o libre), intensidad, condiciones combinables con «todas» o «alguna» (estado intranet, tipo de venta, estado del vehículo, VN/VO, marca, modelo, vendedor, cliente, comisionado y las seis fechas: tiene/no tiene fecha, de hoy, de hace como máximo N días, de hace más de N días) y un interruptor para activarla. Gana la primera regla activa por orden (▲▼ cambian la prioridad). La regla de antes («pedidos de los últimos N días») pasa a ser la regla «Pedidos recientes», hecha con lo que cada persona tenía configurado.
+- **Esquemas, exportar e importar:** se guarda el conjunto de reglas con nombre, se aplica o se borra, y se exporta/importa en un archivo JSON (validado con Zod). Todo se guarda en el navegador (`exp-reglas-color`, `exp-esquemas-color`). Motor puro y probado en `lib/reglas-color.ts`.
+- **Lista de Expedientes:** casilla nueva «🏷️ Columna Estado intranet» junto a «Ocultar entregados» y «Columna Comisionado» (la misma casilla que el gestor de columnas).
+
 ## Versión 1.23.0 (24/10/2026)
 
 - **Dashboard: paneles movibles.** Botón «🔒 Mover paneles» arriba a la derecha: al desbloquear, cada panel (validación de comisiones, métricas del mes, Pedidos y pagos, Últimos expedientes activos y Crear un expediente con un clic) tiene un asa ⠿ para arrastrarlo y flechas ▲▼; el orden se recuerda en el navegador. Con el candado cerrado nada es arrastrable, para no estorbar a soltar pedidos sobre las cajas y filas. «↺ Orden por defecto» lo restaura.

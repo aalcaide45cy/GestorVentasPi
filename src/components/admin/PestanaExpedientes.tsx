@@ -7,8 +7,9 @@ import {
   CLAVE_RECORDAR_FILTROS,
   leerPredefinidos,
 } from "@/lib/filtros-expedientes";
-import { CLAVE_COLOR_PEDIDO_DESTACADO, CLAVE_DIAS_PEDIDO_DESTACADO, CLAVE_FUERZA_PEDIDO_DESTACADO, COLORES_PEDIDO_DESTACADO, COLOR_PEDIDO_DESTACADO_POR_DEFECTO, FUERZAS_PEDIDO_DESTACADO, fondoPedidoDestacado, CLAVE_RETRASO_FOTO, MAX_DIAS_PEDIDO_DESTACADO, RETRASO_FOTO_POR_DEFECTO, leerDiasPedidoDestacado, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
 import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
+import GestorReglasColor, { type SugerenciasReglas } from "./GestorReglasColor";
 import { SubPestanas } from "./estructura";
 import { estiloPanel } from "./utilidades";
 
@@ -70,7 +71,7 @@ function TiempoModo({ titulo, ayuda, clave }: { titulo: string; ayuda: string; c
 }
 
 /** Pestaña «Expedientes»: paginación por defecto de la lista (se guarda en el navegador). */
-export default function PestanaExpedientes() {
+export default function PestanaExpedientes({ sugerencias }: { sugerencias: SugerenciasReglas }) {
   const { mostrar } = useToast();
   const [retrasoFoto, guardarRetrasoFoto] = usePreferencia(CLAVE_RETRASO_FOTO);
   const segundosFoto = retrasoFoto !== null && Number(retrasoFoto) >= 0 ? Number(retrasoFoto) : RETRASO_FOTO_POR_DEFECTO;
@@ -88,13 +89,6 @@ export default function PestanaExpedientes() {
     guardarPredefinidos(JSON.stringify({ ...predefinidos, soloMios: o.soloMios, mesActual: o.mesActual }));
     mostrar("Guardado.");
   };
-  const [diasGuardado, guardarDias] = usePreferencia(CLAVE_DIAS_PEDIDO_DESTACADO);
-  const diasDestacado = leerDiasPedidoDestacado(diasGuardado);
-  const elegirDias = (d: number) => guardarDias(String(Math.max(0, Math.min(MAX_DIAS_PEDIDO_DESTACADO, Math.round(d) || 0))));
-  const [colorGuardado, guardarColor] = usePreferencia(CLAVE_COLOR_PEDIDO_DESTACADO);
-  const [fuerzaGuardada, guardarFuerza] = usePreferencia(CLAVE_FUERZA_PEDIDO_DESTACADO);
-  const colorElegido = colorGuardado && /^#[0-9a-f]{6}$/i.test(colorGuardado) ? colorGuardado.toLowerCase() : COLOR_PEDIDO_DESTACADO_POR_DEFECTO;
-  const fuerzaElegida = FUERZAS_PEDIDO_DESTACADO.find((f) => f.clave === fuerzaGuardada)?.clave ?? "media";
   const [recordarGuardado, guardarRecordar] = usePreferencia(CLAVE_RECORDAR_FILTROS);
   const recordar = recordarGuardado !== "false";
   const elegirRecordar = (v: boolean) => {
@@ -116,12 +110,14 @@ export default function PestanaExpedientes() {
         guiaBase="config.expedientes"
         pestanas={[
           { clave: "lista", etiqueta: "📄 Lista", ayuda: "Cuántos expedientes se ven por página, qué se ve al abrir la lista y si se recuerda el filtro" },
+          { clave: "reglas", etiqueta: "🎨 Colores de fila", ayuda: "Reglas para pintar de un color las filas de la lista de expedientes según su estado, sus fechas, su marca…, con esquemas guardados y exportación" },
           { clave: "modos", etiqueta: "🔓 Selección y eliminación", ayuda: "Cuánto tiempo se quedan activos los modos de selección y de eliminación de la lista" },
           { clave: "foto", etiqueta: "🖼️ Foto del cliente", ayuda: "Cuántos segundos hay que esperar con el ratón encima del cliente para ver su foto" },
         ]}
       >
         {(pestana) => (
           <>
+            {pestana === "reglas" && <GestorReglasColor sugerencias={sugerencias} />}
             {pestana === "lista" && (
               <>
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", borderLeft: "3px solid var(--primary)" }}>
@@ -188,53 +184,6 @@ export default function PestanaExpedientes() {
               </button>
             );
           })}
-        </div>
-      </div>
-
-      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>
-        <div>
-          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>🎨 Pedidos recientes resaltados</h4>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>
-            Los pedidos de hoy y de los últimos días que pongas salen en la lista con el color que elijas para verlos de un vistazo. Pon 0 para no marcar ninguno. Se guarda sola.
-          </p>
-        </div>
-        <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.95rem" }}>
-          Días:
-          <input type="number" className="form-input" min={0} max={MAX_DIAS_PEDIDO_DESTACADO} step={1} style={{ width: "90px" }} value={diasDestacado} onChange={(e) => elegirDias(Number(e.target.value))} />
-          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{diasDestacado === 0 ? "No se marca ninguno" : diasDestacado === 1 ? "Los pedidos de hoy y de ayer" : `Los pedidos de hoy y de los ${diasDestacado} días anteriores`}</span>
-        </label>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <span style={{ fontSize: "0.95rem" }}>Color:</span>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-            {COLORES_PEDIDO_DESTACADO.map((c) => (
-              <button
-                key={c.color}
-                type="button"
-                title={c.texto}
-                aria-label={c.texto}
-                aria-pressed={colorElegido === c.color}
-                onClick={() => guardarColor(c.color)}
-                style={{ width: "38px", height: "38px", borderRadius: "var(--radius-sm)", cursor: "pointer", background: fondoPedidoDestacado(c.color, "fuerte"), border: `3px solid ${colorElegido === c.color ? "var(--text-primary)" : "var(--border-light)"}`, color: c.color, fontWeight: 800 }}
-              >
-                {colorElegido === c.color ? "✓" : ""}
-              </button>
-            ))}
-            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-              Otro color:
-              <input type="color" value={colorElegido} onChange={(e) => guardarColor(e.target.value)} style={{ width: "44px", height: "34px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "transparent", cursor: "pointer" }} />
-            </label>
-          </div>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: "0.95rem" }}>Intensidad:</span>
-            {FUERZAS_PEDIDO_DESTACADO.map((f) => (
-              <button key={f.clave} type="button" style={estiloOpcion(fuerzaElegida === f.clave)} onClick={() => guardarFuerza(f.clave)}>
-                {f.texto}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", background: fondoPedidoDestacado(colorElegido, fuerzaElegida), fontSize: "0.9rem" }}>
-            Así se verá la fila de un pedido reciente
-          </div>
         </div>
       </div>
 

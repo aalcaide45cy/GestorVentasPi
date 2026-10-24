@@ -30,7 +30,9 @@ import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarD
 import { esAnulado, estaEntregadoEnIntranet } from "@/lib/anulados";
 import { TODAS_LAS_FECHAS } from "@/lib/filtros-expedientes";
 import { RANGO_VACIO, enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
-import { CLAVE_COLOR_PEDIDO_DESTACADO, CLAVE_DIAS_PEDIDO_DESTACADO, CLAVE_ETIQUETA_COPIA, CLAVE_FUERZA_PEDIDO_DESTACADO, fondoPedidoDestacado, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, leerDiasPedidoDestacado, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
+import { fondoDeRegla, reglaQueAplica } from "@/lib/reglas-color";
+import { useReglasColor } from "@/lib/reglas-color-cliente";
+import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
@@ -203,6 +205,7 @@ export default function ExpedientesList({
     }
   }, [columnasGuardadas, cobrosGuardado]);
   const mostrarCobros = visibles.cobro !== false;
+  const mostrarIntranet = visibles.estado_intranet === true;
   const [ordenGuardado, fijarOrden] = usePreferencia("exp-column-order");
   const orden = useMemo<Columna[]>(() => {
     try {
@@ -385,22 +388,13 @@ export default function ExpedientesList({
       }),
     [fechasDeFiltro, rangoActivo, rangoOk, fMes, fAnio],
   );
-  // Primer día que cuenta como pedido reciente (hora local, mismo formato que la fecha del pedido): hoy menos los días configurados. Sin días, ninguno.
-  const [diasRecienteGuardado] = usePreferencia(CLAVE_DIAS_PEDIDO_DESTACADO);
-  const diasReciente = leerDiasPedidoDestacado(diasRecienteGuardado);
-  const [colorRecienteGuardado] = usePreferencia(CLAVE_COLOR_PEDIDO_DESTACADO);
-  const [fuerzaRecienteGuardada] = usePreferencia(CLAVE_FUERZA_PEDIDO_DESTACADO);
-  const fondoReciente = fondoPedidoDestacado(colorRecienteGuardado, fuerzaRecienteGuardada);
+  // Reglas de color de las filas (Configuración › Expedientes › Colores de fila): gana la primera que se cumple
+  const [reglasColor] = useReglasColor();
   const hoyLocal = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
-  const desdeReciente = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - diasReciente);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })();
-  const esPedidoReciente = (fecha: string | null) => diasReciente > 0 && !!fecha && fecha >= desdeReciente && fecha <= hoyLocal;
+  const reglaDe = (e: ExpedienteDto) => reglaQueAplica(e, reglasColor, hoyLocal);
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
     return expedientes.filter((e) => {
@@ -1089,6 +1083,13 @@ export default function ExpedientesList({
               <input type="checkbox" checked={mostrarCobros} onChange={(e) => { fijarColumnas(JSON.stringify({ ...visibles, cobro: e.target.checked })); }} style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }} />
               <span>👁️ Columna Comisionado</span>
             </label>
+            <label
+              style={{ ...botonHerramienta(false, "", ""), gap: "8px", fontSize: "0.78rem", background: mostrarIntranet ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.05)", border: `1px solid ${mostrarIntranet ? "var(--primary)" : "var(--border-light)"}` }}
+              title="Enseña la columna «Estado intranet» (el estado del expediente en la intranet del fabricante). Es la misma casilla que en «Columnas y vistas»"
+            >
+              <input type="checkbox" checked={mostrarIntranet} onChange={(e) => { fijarColumnas(JSON.stringify({ ...visibles, estado_intranet: e.target.checked })); }} style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }} />
+              <span>🏷️ Columna Estado intranet</span>
+            </label>
             <CasillaAnulados activa={mostrarAnulados} alCambiar={(v) => { fijarMostrarAnulados(v); setPagina(1); }} anulados={nAnulados} estilo={{ fontSize: "0.78rem" }} />
             <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={(v) => { fijarMostrarDeshabilitados(v); setPagina(1); }} deshabilitados={nDeshabilitados} estilo={{ fontSize: "0.78rem" }} />
           </div>
@@ -1351,8 +1352,8 @@ export default function ExpedientesList({
                 return (
                   <tr
                     key={exp.id_expediente}
-                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : esPedidoReciente(exp.fecha_expediente) ? fondoReciente : undefined, opacity: exp.deshabilitado ? 0.5 : undefined }}
-                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : esPedidoReciente(exp.fecha_expediente) ? "Pedido reciente" : undefined}
+                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : reglaDe(exp) ? fondoDeRegla(reglaDe(exp)!) : undefined, opacity: exp.deshabilitado ? 0.5 : undefined }}
+                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : reglaDe(exp) ? `Regla de color: ${reglaDe(exp)!.nombre}` : undefined}
                   >
                     {seleccionActiva && (
                       <td style={{ textAlign: "center" }}>
