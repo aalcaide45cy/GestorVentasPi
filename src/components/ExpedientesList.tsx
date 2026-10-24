@@ -143,6 +143,9 @@ function BotonesMoverFecha({ etiqueta, alMover }: { etiqueta: string; alMover: (
 }
 
 /** Listado completo de expedientes con filtros, ordenación, paginación, selección masiva e importación/exportación. */
+/** Fondo azulado claro de las filas cuyo pedido se hizo hace tres días (para localizarlas de un vistazo). */
+const FONDO_PEDIDO_HACE_3_DIAS = "rgba(59, 130, 246, 0.16)";
+
 export default function ExpedientesList({
   expedientesIniciales,
   totalEnBd,
@@ -385,6 +388,12 @@ export default function ExpedientesList({
       }),
     [fechasDeFiltro, rangoActivo, rangoOk, fMes, fAnio],
   );
+  // Día de hace tres días (hora local), en el mismo formato que la fecha del pedido; se recalcula al cambiar de día con cada pintado de la lista
+  const hace3Dias = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 3);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
     return expedientes.filter((e) => {
@@ -1335,8 +1344,8 @@ export default function ExpedientesList({
                 return (
                   <tr
                     key={exp.id_expediente}
-                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : undefined, opacity: exp.deshabilitado ? 0.5 : undefined }}
-                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : undefined}
+                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : exp.fecha_expediente === hace3Dias ? FONDO_PEDIDO_HACE_3_DIAS : undefined, opacity: exp.deshabilitado ? 0.5 : undefined }}
+                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : exp.fecha_expediente === hace3Dias ? "Pedido hecho hace tres días" : undefined}
                   >
                     {seleccionActiva && (
                       <td style={{ textAlign: "center" }}>

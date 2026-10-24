@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.22.8 (24/10/2026)
+
+- **Expedientes: los pedidos hechos hace tres días tienen fondo azulado claro** (fecha de pedido = hoy menos 3 días, hora local; al pasar el ratón por la fila sale «Pedido hecho hace tres días»). No cambia nada más de la lista.
+
 ## Versión 1.22.7 (24/10/2026)
 
 - **Cajitas del Resumen Estadístico: ya no se salen las letras.** Las tarjetas son algo más anchas (mínimo 230 px), recortan lo que no cabe en vez de desbordar y, si la cifra y su desglose no caben en una fila, el desglose baja debajo de la cifra (antes «5/6 ✓» y «8/6 (133,3 %) ✓» cruzaban el borde de la tasa).
