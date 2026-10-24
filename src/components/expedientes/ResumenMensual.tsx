@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type KeyboardEvent } from "react";
+import { useMemo, type KeyboardEvent, type ReactNode } from "react";
 import { usePreferencia } from "@/lib/preferencias";
 import { useCarga } from "@/components/comisiones/useCarga";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
@@ -53,6 +53,23 @@ const enMes = (fecha: string | null, anio: number, mes: number) => {
 
 const estiloTarjeta = { padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" } as const;
 const estiloEtiqueta = { fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 } as const;
+/** Cifra grande a la izquierda y, a su derecha, el desglose en líneas (nombre a un lado, valor al otro). */
+function CifraConDesglose({ cifra, color, lineas }: { cifra: ReactNode; color: string; lineas: { texto: ReactNode; valor: ReactNode }[] }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "14px", margin: "8px 0" }}>
+      <h3 style={{ fontSize: "1.85rem", margin: 0, color, fontWeight: "bold", lineHeight: 1.1 }}>{cifra}</h3>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "1px", borderLeft: "1px solid var(--border-light)", paddingLeft: "12px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+        {lineas.map((l, i) => (
+          <span key={i} style={{ display: "flex", justifyContent: "space-between", gap: "8px", whiteSpace: "nowrap" }}>
+            <span>{l.texto}</span>
+            <strong style={{ color: "var(--text-primary)" }}>{l.valor}</strong>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const estiloPie = { display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)" } as const;
 
 /** Año y mes recordados («AAAA-MM»); si no hay o no valen, el mes actual. */
@@ -246,57 +263,39 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
         <div className="glass-panel-interactive" {...tarjeta("matriculados")}>
           <span style={estiloEtiqueta}>MATRICULADOS EN EL MES</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{r.matriculados}</h3>
-          <div style={estiloPie}>
-            <span>Contado {r.mContado} · Crédito {r.mCredito} · Preference {r.mPref}</span>
-          </div>
+          <CifraConDesglose cifra={r.matriculados} color="var(--success)" lineas={[{ texto: "Contado", valor: r.mContado }, { texto: "Crédito", valor: r.mCredito }, { texto: "Preference", valor: r.mPref }]} />
         </div>
         <div className="glass-panel-interactive" {...tarjeta("financiados")}>
           <span style={estiloEtiqueta}>TASA INT. FINANCIERA</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: m && m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)", fontWeight: "bold" }}>
-            {m ? (m.tasaGlobal.porcentaje !== null ? `${m.tasaGlobal.porcentaje.toFixed(1)}%` : "—") : r.vn > 0 ? `${((r.vnFinanciados / r.vn) * 100).toFixed(1)}%` : "0.0%"}
-          </h3>
-          <div style={estiloPie}>
-            <span>{m ? "Global (todos los nuevos):" : "VN Finan/Total:"}</span>
-            <strong>
-              {m ? `${m.tasaGlobal.numerador}/${m.tasaGlobal.denominador}${m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? " ✔" : " ✘") : ""}` : `${r.vnFinanciados}/${r.vn}`}
-            </strong>
-          </div>
-          {m && m.tasaIntervencion.length > 0 && (
-            <div style={{ ...estiloPie, flexDirection: "column", alignItems: "stretch", gap: "2px", marginTop: "4px" }}>
-              {m.tasaIntervencion.map((t) => (
-                <span key={t.idMarca} style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
-                  <span>{expedientes.find((e) => e.modelo?.marca?.id_marca === t.idMarca)?.modelo?.marca?.nombre ?? `Marca ${t.idMarca}`}:</span>
-                  <strong>
-                    {t.numerador}/{t.denominador}
-                    {t.porcentaje !== null ? ` (${t.porcentaje.toFixed(1)}%)` : ""} {t.cumplida ? "✔" : "✘"}
-                  </strong>
-                </span>
-              ))}
-            </div>
-          )}
+          <CifraConDesglose
+            cifra={m ? (m.tasaGlobal.porcentaje !== null ? `${m.tasaGlobal.porcentaje.toFixed(1)}%` : "—") : r.vn > 0 ? `${((r.vnFinanciados / r.vn) * 100).toFixed(1)}%` : "0.0%"}
+            color={m && m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)"}
+            lineas={
+              m
+                ? [
+                    { texto: "Global (nuevos)", valor: `${m.tasaGlobal.numerador}/${m.tasaGlobal.denominador}${m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? " ✔" : " ✘") : ""}` },
+                    ...m.tasaIntervencion.map((t) => ({
+                      texto: expedientes.find((e) => e.modelo?.marca?.id_marca === t.idMarca)?.modelo?.marca?.nombre ?? `Marca ${t.idMarca}`,
+                      valor: `${t.numerador}/${t.denominador}${t.porcentaje !== null ? ` (${t.porcentaje.toFixed(1)}%)` : ""} ${t.cumplida ? "✔" : "✘"}`,
+                    })),
+                  ]
+                : [{ texto: "VN Finan/Total", valor: `${r.vnFinanciados}/${r.vn}` }]
+            }
+          />
         </div>
         {m && (
           <div className="glass-panel-interactive" style={estiloTarjeta}>
             <span style={estiloEtiqueta}>TASA INT. FINANCIERA USADOS</span>
-            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)", fontWeight: "bold" }}>
-              {m.tasaVo.porcentaje !== null ? `${m.tasaVo.porcentaje.toFixed(1)}%` : "—"}
-            </h3>
-            <div style={estiloPie}>
-              <span>VO Finan/Total:</span>
-              <strong>
-                {m.tasaVo.numerador}/{m.tasaVo.denominador}
-                {m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? " ✔" : " ✘") : ""}
-              </strong>
-            </div>
+            <CifraConDesglose
+              cifra={m.tasaVo.porcentaje !== null ? `${m.tasaVo.porcentaje.toFixed(1)}%` : "—"}
+              color={m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)"}
+              lineas={[{ texto: "VO Finan/Total", valor: `${m.tasaVo.numerador}/${m.tasaVo.denominador}${m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? " ✔" : " ✘") : ""}` }]}
+            />
           </div>
         )}
         <div className="glass-panel-interactive" {...tarjeta("pedidos")}>
           <span style={estiloEtiqueta}>PEDIDOS EN EL MES</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--warning)", fontWeight: "bold" }}>{r.pedidos}</h3>
-          <div style={estiloPie}>
-            <span>Contado {r.pContado} · Crédito {r.pCredito} · Preference {r.pPref}</span>
-          </div>
+          <CifraConDesglose cifra={r.pedidos} color="var(--warning)" lineas={[{ texto: "Contado", valor: r.pContado }, { texto: "Crédito", valor: r.pCredito }, { texto: "Preference", valor: r.pPref }]} />
         </div>
         <div className="glass-panel-interactive" {...tarjeta("puntos")}>
           <span style={estiloEtiqueta}>PUNTOS / OBJETIVO</span>
