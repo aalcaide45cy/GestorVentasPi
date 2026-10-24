@@ -11,6 +11,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -1182,3 +1183,19 @@ export const incidenciasCapturas = pgTable("incidencias_capturas", {
   datos: bytea("datos").notNull(),
   creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ------------------------------------------------------------------ */
+/* Preferencias de cada usuario (las mismas en cualquier equipo)       */
+/* ------------------------------------------------------------------ */
+
+/** Ajustes de pantalla de cada usuario (orden de paneles, reglas de color, columnas…): antes solo vivían en el navegador. */
+export const preferenciasUsuario = pgTable(
+  "preferencias_usuario",
+  {
+    idUsuario: integer("id_usuario").notNull().references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    clave: varchar("clave", { length: 120 }).notNull(),
+    valor: text("valor").notNull(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.idUsuario, t.clave] })],
+);

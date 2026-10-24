@@ -386,6 +386,13 @@
       "when": 1792682799688,
       "tag": "0054_grabado_a_fuego",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1792880689019,
+      "tag": "0055_preferencias_usuario",
+      "breakpoints": true
     }
   ]
 }

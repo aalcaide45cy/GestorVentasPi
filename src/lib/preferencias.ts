@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import { esPreferenciaSincronizada } from "./preferencias-sincronizadas";
 
 const EVENTO = "gv-preferencia";
 
@@ -84,14 +85,35 @@ export function permitirDuplicadosAhora(): boolean {
   return leer(CLAVE_PERMITIR_DUPLICADOS) === "true";
 }
 
-/** Guarda una preferencia del navegador y avisa a los componentes que la leen. */
-export function guardarPreferencia(clave: string, valor: string): void {
+// Las preferencias de ajustes (ver `preferencias-sincronizadas.ts`) se guardan también en el servidor, por usuario. Los cambios se juntan unos instantes y se mandan de una vez.
+let sincronizacionActiva = false;
+const pendientesDeEnviar = new Map<string, string>();
+let temporizadorEnvio: ReturnType<typeof setTimeout> | null = null;
+
+function enviarPendientes(): void {
+  temporizadorEnvio = null;
+  if (pendientesDeEnviar.size === 0) return;
+  const valores = Object.fromEntries(pendientesDeEnviar);
+  pendientesDeEnviar.clear();
+  fetch("/api/preferencias", { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ valores }), keepalive: true }).catch(() => undefined);
+}
+
+/** La llama el sincronizador cuando ya ha traído las preferencias del servidor: desde ahí, cada cambio también se guarda allí. */
+export function activarSincronizacion(): void {
+  sincronizacionActiva = true;
+}
+
+/** Guarda una preferencia del navegador (y, si es de ajustes, también en el servidor) y avisa a los componentes que la leen. */
+export function guardarPreferencia(clave: string, valor: string, opciones: { soloLocal?: boolean } = {}): void {
   try {
     localStorage.setItem(clave, valor);
   } catch {
     /* sin almacenamiento: la preferencia no se recuerda */
   }
   window.dispatchEvent(new Event(EVENTO));
+  if (opciones.soloLocal || !sincronizacionActiva || !esPreferenciaSincronizada(clave)) return;
+  pendientesDeEnviar.set(clave, valor);
+  if (temporizadorEnvio === null) temporizadorEnvio = setTimeout(enviarPendientes, 600);
 }
 
 /**

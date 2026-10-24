@@ -14,6 +14,7 @@ import OverlaySubida from "@/components/OverlaySubida";
 import BotonAvisarFallo from "@/components/incidencias/BotonAvisarFallo";
 import VigilanteFallos from "@/components/incidencias/VigilanteFallos";
 import Sidebar from "@/components/Sidebar";
+import SincronizadorPreferencias from "@/components/SincronizadorPreferencias";
 import { versionDeLaApp } from "@/lib/version";
 import { ToastProvider } from "@/components/Toast";
 import { esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
@@ -90,6 +91,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <OverlaySubida />
       <VigilanteFallos version={versionDeLaApp()} />
       <RefrescoDeDatos />
+      <SincronizadorPreferencias idUsuario={user.idUsuario} />
       <div style={{ display: "flex", minHeight: "calc(100 * var(--uvh))", background: "var(--bg-app)", position: "relative" }}>
         <div className="glow-bg"></div>
 
