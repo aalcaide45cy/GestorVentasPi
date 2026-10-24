@@ -13,6 +13,8 @@ import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, F
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
 import { useEdicionFechas } from "./expedientes/useEdicionFechas";
 import { useLeerPedidos } from "./documentos/leerPedidos";
+import { CLAVE_DASH_RECIENTES, recientesDashboard } from "@/lib/dashboard-paneles";
+import { usePreferencia } from "@/lib/preferencias";
 
 interface Props {
   initialExpedientes: ExpedienteDto[];
@@ -21,7 +23,7 @@ interface Props {
   vendedores?: VendedorDto[];
 }
 
-/** Últimos 5 expedientes del panel principal. */
+/** Últimos expedientes del panel principal (5 por defecto; la cifra se elige en Configuración › Dashboard). */
 export default function RecentExpedientesTable({
   initialExpedientes,
   tiendas = [],
@@ -30,7 +32,9 @@ export default function RecentExpedientesTable({
 }: Props) {
   const router = useRouter();
   const { mostrar } = useToast();
-  const [lista, setLista] = useState<ExpedienteDto[]>(initialExpedientes);
+  const [completa, setLista] = useState<ExpedienteDto[]>(initialExpedientes);
+  const [cuantosGuardado] = usePreferencia(CLAVE_DASH_RECIENTES);
+  const lista = completa.slice(0, recientesDashboard(cuantosGuardado));
   const [aBorrar, setABorrar] = useState<ExpedienteDto | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [asignandoId, setAsignandoId] = useState<number | null>(null);

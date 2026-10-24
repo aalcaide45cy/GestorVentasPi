@@ -17,14 +17,14 @@ export interface DatosPanel {
   vendedores: { id_usuario: number; nombre: string }[];
 }
 
-/** Datos auxiliares del panel principal (todo acotado: 5 expedientes y catálogos). */
-export async function cargarDatosPanel(ej: Ejecutor): Promise<DatosPanel> {
+/** Datos auxiliares del panel principal (todo acotado: los últimos expedientes que se pidan, 5 por defecto, y los catálogos). */
+export async function cargarDatosPanel(ej: Ejecutor, limiteRecientes = 5): Promise<DatosPanel> {
   const [filasRecientes, ts, tvs, ms, todasMarcas, vendedores] = await Promise.all([
     ej.query.expedientes.findMany({
       // Los anulados en el listado de la intranet no son ventas y los deshabilitados no cuentan: no salen en «Últimos expedientes activos»
       where: and(isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false), or(isNull(expedientes.estadoIntranet), notIlike(expedientes.estadoIntranet, "%anulad%"))),
       orderBy: [desc(expedientes.idExpediente)],
-      limit: 5,
+      limit: limiteRecientes,
       with: relacionesExpediente,
     }),
     ej.select().from(tiendas).where(isNull(tiendas.eliminadoEn)).orderBy(asc(tiendas.nombre)),

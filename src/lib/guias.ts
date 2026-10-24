@@ -191,6 +191,12 @@ export const GUIAS: Record<string, Guia> = {
     queEs: "Cómo se comporta la lista de expedientes: cuántos se ven por página, qué se ve al abrirla y cómo funcionan los modos de selección y eliminación.",
     pasos: ["Entra en cada subpestaña, cambia el valor y se guarda solo.", "«Lista»: expedientes por página y filtros que se recuerdan.", "«Selección y eliminación»: cuánto tiempo se quedan activos esos modos.", "«Foto del cliente»: segundos que hay que esperar con el ratón sobre el cliente para ver su foto."],
   },
+  "config.dashboard": {
+    titulo: "Dashboard (ajustes)",
+    queEs: "Qué paneles se ven en el Dashboard y cuántos expedientes enseña «Últimos expedientes activos». El orden de los paneles se cambia en el propio Dashboard.",
+    pasos: ["Marca u oculta cada panel; el cambio se guarda solo y se ve al volver al Dashboard.", "Pon cuántos expedientes recientes quieres ver (de 1 a 50).", "Para cambiar de sitio los paneles, entra en el Dashboard, pulsa «🔒 Mover paneles» y arrástralos por su asa ⠿.", "«Restaurar el Dashboard» vuelve a mostrar todo, en su orden y con 5 expedientes."],
+    ojo: ["Estos ajustes se guardan en el navegador de cada equipo (el PC y el Mac pueden tenerlos distintos)."],
+  },
   "config.bbdd": {
     titulo: "BBDD (base de datos y sistema)",
     queEs: "El mantenimiento de la aplicación: revisar la base de datos, las copias de seguridad, las actualizaciones y el estado del equipo. Solo para administradores.",

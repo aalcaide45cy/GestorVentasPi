@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.23.0 (24/10/2026)
+
+- **Dashboard: paneles movibles.** Botón «🔒 Mover paneles» arriba a la derecha: al desbloquear, cada panel (validación de comisiones, métricas del mes, Pedidos y pagos, Últimos expedientes activos y Crear un expediente con un clic) tiene un asa ⠿ para arrastrarlo y flechas ▲▼; el orden se recuerda en el navegador. Con el candado cerrado nada es arrastrable, para no estorbar a soltar pedidos sobre las cajas y filas. «↺ Orden por defecto» lo restaura.
+- **Configuración › Dashboard** (pestaña nueva): mostrar u ocultar cada panel y elegir cuántos expedientes enseña «Últimos expedientes activos» (1 a 50, por defecto 5; el servidor trae hasta 50 y la tabla recorta). «Restaurar el Dashboard» lo deja como al principio. Los ajustes se guardan en el navegador (`dash-orden-paneles`, `dash-paneles-ocultos`, `dash-n-recientes`).
+- **Corrección de 1.22.11:** la cola de pedidos salía dos veces en el Dashboard (la mía y la antigua «Pedidos leídos esperando» de la creación rápida), lo que podía abrir dos ventanas de «Pedido leído». Se quita la antigua.
+
 ## Versión 1.22.11 (24/10/2026)
 
 - **Dashboard: bloque «Pedidos y pagos» plegable** (como «Últimos expedientes activos»), con dos pestañas: «Subir documentos» (solo las dos cajas de arrastre, pedidos de clientes y pagos de RCI) y «Cola de pedidos» (con el número de pedidos esperando). Es una versión simplificada de Herramientas, que sigue teniendo la biblioteca, el historial de lecturas, el contraste de rejillas, la papelera y los ajustes de lectura (enlace «Más herramientas»). Componente `DocumentosDashboard`.

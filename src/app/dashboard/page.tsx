@@ -2,6 +2,8 @@ import Link from "next/link";
 import { db } from "@/db";
 import { Plegable } from "@/components/admin/estructura";
 import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
+import { RECIENTES_MAXIMO } from "@/lib/dashboard-paneles";
+import PanelesDashboard from "@/components/PanelesDashboard";
 import DocumentosDashboard from "@/components/herramientas/DocumentosDashboard";
 import RecentExpedientesTable from "@/components/RecentExpedientesTable";
 import { esAdministrador, esRolActivo } from "@/lib/auth/permisos";
@@ -101,161 +103,166 @@ export default async function DashboardPage() {
 
 async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId: number; esAdmin: boolean; tiendaPredeterminadaId: number | null }) {
   const mesIso = new Date().toISOString().slice(0, 7);
-  const [resumen, datos, motor, avisos] = await Promise.all([resumenPanel(db), cargarDatosPanel(db), calcularVendedorMes(db, userId, mesIso), avisosRejilla(db, esAdmin ? null : userId, mesIso)]);
+  const [resumen, datos, motor, avisos] = await Promise.all([resumenPanel(db), cargarDatosPanel(db, RECIENTES_MAXIMO), calcularVendedorMes(db, userId, mesIso), avisosRejilla(db, esAdmin ? null : userId, mesIso)]);
   const hayPlan = motor !== null && motor.idPlan !== null;
 
   return (
-    <>
-      {/* Validación de comisiones pendiente */}
-      {avisos.length > 0 && (
-        <div className="glass-panel" style={{ padding: "20px 24px", borderLeft: "4px solid var(--warning)", display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-            <h3 style={{ fontSize: "1.1rem" }}>✅ Validación de comisiones pendiente ({avisos.length})</h3>
-            <Link href="/dashboard/comisiones" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
-              Ir a validar
-            </Link>
-          </div>
-          {avisos.slice(0, 5).map((a) => (
-            <div key={`${a.tipo}-${a.idUsuario}-${a.mes}`} style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
-              {esAdmin && a.vendedor ? <b>{a.vendedor}: </b> : null}
-              {a.detalle}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Métricas clave */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
-        <div className="glass-panel-interactive" style={estiloTarjeta}>
-          <div style={estiloCabeceraTarjeta}>
-            <span style={estiloEtiqueta}>OBJETIVO DEL MES</span>
-            <Icono color="var(--warning)">
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="12" r="6" />
-              <circle cx="12" cy="12" r="2" />
-            </Icono>
-          </div>
-          <h2 style={estiloNumero}>
-            {hayPlan ? (
-              <>
-                <span className={efectoPuntos(motor.puntosMes, motor.objetivoX).className} style={efectoPuntos(motor.puntosMes, motor.objetivoX).style} title={efectoPuntos(motor.puntosMes, motor.objetivoX).titulo}>
-                  {puntos(motor.puntosMes)}
-                </span>{" "}
-                / {puntos(motor.objetivoX)}
-              </>
-            ) : (
-              "—"
-            )}
-          </h2>
-          <p style={estiloPie}>
-            {hayPlan ? (
-              <>
-                Tramo{" "}
-                <strong className={efectoTramo(motor.tramo).className} style={efectoTramo(motor.tramo).style} title={efectoTramo(motor.tramo).titulo}>
-                  {etiquetaTramo(motor.tramo)}
-                </strong>{" "}
-                · comisión estimada {euros(motor.neto)}
-              </>
-            ) : (
-              `Sin plan de comisionamiento para ${nombreMes(mesIso)}`
-            )}
-          </p>
-        </div>
-
-        <div className="glass-panel-interactive" style={estiloTarjeta}>
-          <div style={estiloCabeceraTarjeta}>
-            <span style={estiloEtiqueta}>MES ACTUAL</span>
-            <Icono color="var(--success)">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </Icono>
-          </div>
-          <h2 style={estiloNumero}>{resumen.mesActual}</h2>
-          <p style={estiloPie}>Expedientes creados este mes</p>
-        </div>
-
-        <div className="glass-panel-interactive" style={estiloTarjeta}>
-          <div style={estiloCabeceraTarjeta}>
-            <span style={estiloEtiqueta}>EXPEDIENTES TOTALES</span>
-            <Icono color="var(--primary)">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </Icono>
-          </div>
-          <h2 style={estiloNumero}>{resumen.total}</h2>
-          <p style={estiloPie}>Registrados en base de datos</p>
-        </div>
-
-        <div className="glass-panel-interactive" style={estiloTarjeta}>
-          <div style={estiloCabeceraTarjeta}>
-            <span style={estiloEtiqueta}>CLIENTES REGISTRADOS</span>
-            <Icono color="var(--secondary)">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <line x1="19" y1="8" x2="19" y2="14" />
-              <line x1="22" y1="11" x2="16" y2="11" />
-            </Icono>
-          </div>
-          <h2 style={estiloNumero}>{resumen.clientes}</h2>
-          <p style={estiloPie}>Directorio activo</p>
-        </div>
-
-        <div className="glass-panel-interactive" style={estiloTarjeta}>
-          <div style={estiloCabeceraTarjeta}>
-            <span style={estiloEtiqueta}>TIPO DE PAGO</span>
-            <Icono color="var(--accent)">
-              <rect x="2" y="4" width="20" height="16" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </Icono>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "64px", overflowY: "auto" }}>
-            {resumen.porTipoVenta.map((t) => (
-              <div key={t.nombre} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between" }}>
-                <span>Expedientes {t.nombre}:</span>
-                <strong style={{ color: "var(--text-primary)" }}>{t.cantidad}</strong>
+    <PanelesDashboard
+      esAdmin={esAdmin}
+      paneles={{
+        validacion:
+          avisos.length > 0 ? (
+              <div className="glass-panel" style={{ padding: "20px 24px", borderLeft: "4px solid var(--warning)", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                  <h3 style={{ fontSize: "1.1rem" }}>✅ Validación de comisiones pendiente ({avisos.length})</h3>
+                  <Link href="/dashboard/comisiones" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+                    Ir a validar
+                  </Link>
+                </div>
+                {avisos.slice(0, 5).map((a) => (
+                  <div key={`${a.tipo}-${a.idUsuario}-${a.mes}`} style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+                    {esAdmin && a.vendedor ? <b>{a.vendedor}: </b> : null}
+                    {a.detalle}
+                  </div>
+                ))}
               </div>
-            ))}
-            {resumen.porTipoVenta.length === 0 && (
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>Sin tipos de venta creados</p>
-            )}
+
+          ) : null,
+        metricas: (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+            <div className="glass-panel-interactive" style={estiloTarjeta}>
+              <div style={estiloCabeceraTarjeta}>
+                <span style={estiloEtiqueta}>OBJETIVO DEL MES</span>
+                <Icono color="var(--warning)">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" />
+                </Icono>
+              </div>
+              <h2 style={estiloNumero}>
+                {hayPlan ? (
+                  <>
+                    <span className={efectoPuntos(motor.puntosMes, motor.objetivoX).className} style={efectoPuntos(motor.puntosMes, motor.objetivoX).style} title={efectoPuntos(motor.puntosMes, motor.objetivoX).titulo}>
+                      {puntos(motor.puntosMes)}
+                    </span>{" "}
+                    / {puntos(motor.objetivoX)}
+                  </>
+                ) : (
+                  "—"
+                )}
+              </h2>
+              <p style={estiloPie}>
+                {hayPlan ? (
+                  <>
+                    Tramo{" "}
+                    <strong className={efectoTramo(motor.tramo).className} style={efectoTramo(motor.tramo).style} title={efectoTramo(motor.tramo).titulo}>
+                      {etiquetaTramo(motor.tramo)}
+                    </strong>{" "}
+                    · comisión estimada {euros(motor.neto)}
+                  </>
+                ) : (
+                  `Sin plan de comisionamiento para ${nombreMes(mesIso)}`
+                )}
+              </p>
+            </div>
+
+            <div className="glass-panel-interactive" style={estiloTarjeta}>
+              <div style={estiloCabeceraTarjeta}>
+                <span style={estiloEtiqueta}>MES ACTUAL</span>
+                <Icono color="var(--success)">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </Icono>
+              </div>
+              <h2 style={estiloNumero}>{resumen.mesActual}</h2>
+              <p style={estiloPie}>Expedientes creados este mes</p>
+            </div>
+
+            <div className="glass-panel-interactive" style={estiloTarjeta}>
+              <div style={estiloCabeceraTarjeta}>
+                <span style={estiloEtiqueta}>EXPEDIENTES TOTALES</span>
+                <Icono color="var(--primary)">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </Icono>
+              </div>
+              <h2 style={estiloNumero}>{resumen.total}</h2>
+              <p style={estiloPie}>Registrados en base de datos</p>
+            </div>
+
+            <div className="glass-panel-interactive" style={estiloTarjeta}>
+              <div style={estiloCabeceraTarjeta}>
+                <span style={estiloEtiqueta}>CLIENTES REGISTRADOS</span>
+                <Icono color="var(--secondary)">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="19" y1="8" x2="19" y2="14" />
+                  <line x1="22" y1="11" x2="16" y2="11" />
+                </Icono>
+              </div>
+              <h2 style={estiloNumero}>{resumen.clientes}</h2>
+              <p style={estiloPie}>Directorio activo</p>
+            </div>
+
+            <div className="glass-panel-interactive" style={estiloTarjeta}>
+              <div style={estiloCabeceraTarjeta}>
+                <span style={estiloEtiqueta}>TIPO DE PAGO</span>
+                <Icono color="var(--accent)">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <line x1="2" y1="10" x2="22" y2="10" />
+                </Icono>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "64px", overflowY: "auto" }}>
+                {resumen.porTipoVenta.map((t) => (
+                  <div key={t.nombre} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between" }}>
+                    <span>Expedientes {t.nombre}:</span>
+                    <strong style={{ color: "var(--text-primary)" }}>{t.cantidad}</strong>
+                  </div>
+                ))}
+                {resumen.porTipoVenta.length === 0 && (
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>Sin tipos de venta creados</p>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Pedidos y pagos: cajas de arrastre y cola de pedidos (versión simplificada de Herramientas) */}
-      <DocumentosDashboard marcas={datos.marcasCatalogo} tiposVenta={datos.tiposVenta} vendedores={datos.vendedores} idUsuario={userId} esAdmin={esAdmin} />
-
-      {/* Expedientes recientes */}
-      <Plegable
-        id="dash-recientes"
-        titulo="Últimos expedientes activos"
-        resumen="💡 Arrastra el pedido de un cliente sobre un expediente para rellenarlo"
-        acciones={
-          <Link href="/dashboard/expedientes" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
-            Ver todos
-          </Link>
-        }
-      >
-        <RecentExpedientesTable
-          initialExpedientes={datos.recientes}
-          tiendas={datos.tiendas}
-          tiendaPredeterminadaId={tiendaPredeterminadaId}
-          vendedores={datos.vendedores}
-        />
-      </Plegable>
-
-      <QuickExpedienteCreator
-        marcas={datos.marcasAccesoRapido}
-        marcasCatalogo={datos.marcasCatalogo}
-        tiposVenta={datos.tiposVenta}
-        vendedores={datos.vendedores}
-        currentUserId={userId}
-      />
-    </>
+        ),
+        documentos: (
+          <DocumentosDashboard marcas={datos.marcasCatalogo} tiposVenta={datos.tiposVenta} vendedores={datos.vendedores} idUsuario={userId} esAdmin={esAdmin} />
+        ),
+        recientes: (
+          <Plegable
+            id="dash-recientes"
+            titulo="Últimos expedientes activos"
+            resumen="💡 Arrastra el pedido de un cliente sobre un expediente para rellenarlo"
+            acciones={
+              <Link href="/dashboard/expedientes" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+                Ver todos
+              </Link>
+            }
+          >
+            <RecentExpedientesTable
+              initialExpedientes={datos.recientes}
+              tiendas={datos.tiendas}
+              tiendaPredeterminadaId={tiendaPredeterminadaId}
+              vendedores={datos.vendedores}
+            />
+          </Plegable>
+        ),
+        rapida: (
+          <QuickExpedienteCreator
+            marcas={datos.marcasAccesoRapido}
+            marcasCatalogo={datos.marcasCatalogo}
+            tiposVenta={datos.tiposVenta}
+            vendedores={datos.vendedores}
+            currentUserId={userId}
+          />
+        ),
+      }}
+    />
   );
 }

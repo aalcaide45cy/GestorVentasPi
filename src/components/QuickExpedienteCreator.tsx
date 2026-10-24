@@ -1,13 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plegable } from "@/components/admin/estructura";
 import { useToast } from "@/components/Toast";
 import type { MarcaDto, ModeloDto, TipoVentaDto, VendedorDto } from "@/lib/dto";
-import { colaVacia, leerCola, suscribirCola, type EleccionRapida } from "@/lib/pedidos-cola";
-import ColaPedidos from "./ColaPedidos";
+import type { EleccionRapida } from "@/lib/pedidos-cola";
 import { useLeerPedidos } from "./documentos/leerPedidos";
 import { mensajeDeError } from "./expedientes/comun";
 
@@ -57,7 +55,6 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
   const { mostrar } = useToast();
   const [cargandoModelo, setCargandoModelo] = useState<number | "VO" | null>(null);
   const [cargandoTipo, setCargandoTipo] = useState<number | null>(null);
-  const enCola = useSyncExternalStore(suscribirCola, leerCola, colaVacia).items.length;
 
   const [vendedorId, setVendedorId] = useState<number>(currentUserId);
   /** Pedidos soltados sobre un botón de pago: se leen y pasan a la cola de pedidos. */
@@ -323,16 +320,7 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
       </div>
 
       {/* Cada zona se pliega y se despliega con su botón (se recuerda en este navegador): el panel entero era demasiado para verlo de golpe */}
-      {/* Subir pedidos y pagos, la cola y las lecturas viven ahora en Herramientas; aquí solo queda un aviso si hay pedidos esperando */}
-      {enCola > 0 && (
-        <Plegable id="dash-cola" titulo="📋 Pedidos leídos esperando" resumen={`${enCola} pedido${enCola === 1 ? "" : "s"} en la cola`}>
-          <ColaPedidos marcas={marcasCatalogo ?? marcas} tiposVenta={tiposVenta} vendedorId={vendedorId} />
-          <Link href="/dashboard/herramientas?p=docs" style={{ fontSize: "0.82rem", color: "var(--primary)" }}>
-            Subir más pedidos y pagos en Herramientas
-          </Link>
-        </Plegable>
-      )}
-
+      {/* La cola de pedidos leídos está en el bloque «Pedidos y pagos» del Dashboard (y en Herramientas) */}
       <Plegable id="dash-modelos" titulo="⚡ Crear un expediente con un clic" resumen="Elige modelo y forma de pago, o arrastra aquí el pedido de un cliente">
       <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", justifyContent: "center", width: "100%" }}>
         {marcasConModelos.map((marca) => (
