@@ -191,6 +191,12 @@ export const GUIAS: Record<string, Guia> = {
     queEs: "Cómo se comporta la lista de expedientes: cuántos se ven por página, qué se ve al abrirla y cómo funcionan los modos de selección y eliminación.",
     pasos: ["Entra en cada subpestaña, cambia el valor y se guarda solo.", "«Lista»: expedientes por página y filtros que se recuerdan.", "«Selección y eliminación»: cuánto tiempo se quedan activos esos modos.", "«Foto del cliente»: segundos que hay que esperar con el ratón sobre el cliente para ver su foto."],
   },
+  "config.clientes": {
+    titulo: "Clientes (ajustes)",
+    queEs: "Cómo se abre la lista de clientes: en qué orden, qué columnas, cuántos clientes de entrada y si solo salen los que ya tienen ventas.",
+    pasos: ["Elige el orden con el que quieres ver la lista al entrar.", "Marca u oculta las columnas (correos, teléfonos, tienda, ventas, fecha de nacimiento).", "Si tienes muchos clientes, elige cuántos se ven de primeras; debajo de la tabla hay un botón para ver más.", "«Restaurar la lista de clientes» vuelve a lo de siempre."],
+    ojo: ["Se guarda en el navegador de cada equipo. Lo que pulses en la propia lista (una cabecera, una casilla) manda mientras la tengas abierta."],
+  },
   "config.dashboard": {
     titulo: "Dashboard (ajustes)",
     queEs: "Qué paneles se ven en el Dashboard y cuántos expedientes enseña «Últimos expedientes activos». El orden de los paneles se cambia en el propio Dashboard.",

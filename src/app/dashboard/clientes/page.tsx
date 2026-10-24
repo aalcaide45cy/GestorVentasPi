@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { db } from "@/db";
+import BotonAjustes from "@/components/BotonAjustes";
 import ClientesList from "@/components/ClientesList";
-import { esRolActivo } from "@/lib/auth/permisos";
+import { esAdministrador, esRolActivo } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
 import { leerCatalogos } from "@/lib/servicios/catalogos";
 import { LIMITE_LISTA_CLIENTES, contarClientes, listarClientes } from "@/lib/servicios/clientes";
@@ -21,6 +22,7 @@ export default async function ClientesPage() {
           <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Base de Clientes</h1>
           <p style={{ color: "var(--text-secondary)" }}>Directorio de clientes registrados y su información de contacto (correos y teléfonos).</p>
         </div>
+        {esAdministrador(user.rol) && <BotonAjustes pestana="clientes" titulo="Ajustes de Clientes" ayuda="Configuración › Clientes: orden, columnas y cuántos clientes se ven al abrir la lista" />}
       </div>
 
       <ClientesList clientesIniciales={clientes} totalEnBd={totalEnBd} userRole={user.rol} tiendas={catalogos.tiendas} tiendaPredeterminadaId={user.tiendaPredeterminadaId} />

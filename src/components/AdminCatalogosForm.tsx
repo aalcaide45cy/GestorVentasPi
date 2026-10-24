@@ -10,6 +10,7 @@ import BotonAyuda from "./BotonAyuda";
 import PanelPaletas from "./admin/PanelPaletas";
 import PestanaIncidencias from "./admin/PestanaIncidencias";
 import PestanaBbdd from "./admin/PestanaBbdd";
+import PestanaClientes from "./admin/PestanaClientes";
 import PestanaDashboard from "./admin/PestanaDashboard";
 import PestanaEstados from "./admin/PestanaEstados";
 import PestanaExpedientes from "./admin/PestanaExpedientes";
@@ -30,21 +31,39 @@ interface Props {
   panelUsuarios: ReactNode;
 }
 
-type Pestana = "usuarios" | "incidencias" | "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "dashboard" | "bbdd" | "temas";
+type Pestana = "usuarios" | "incidencias" | "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "clientes" | "dashboard" | "bbdd" | "temas";
 
-const PESTANAS: { clave: Pestana; etiqueta: string }[] = [
-  { clave: "usuarios", etiqueta: "👥 Usuarios" },
-  { clave: "incidencias", etiqueta: "🩺 Incidencias" },
-  { clave: "marcas", etiqueta: "🏷️ Marcas" },
-  { clave: "modelos", etiqueta: "🚙 Modelos" },
-  { clave: "tiendas", etiqueta: "🏢 Tiendas" },
-  { clave: "pagos", etiqueta: "💰 Pagos" },
-  { clave: "estados", etiqueta: "🚗 Estados" },
-  { clave: "expedientes", etiqueta: "📋 Expedientes" },
-  { clave: "dashboard", etiqueta: "🏠 Dashboard" },
-  { clave: "bbdd", etiqueta: "🗄️ BBDD" },
-  { clave: "temas", etiqueta: "🎨 Tema" },
+/** Las pestañas, agrupadas por lo que ajustan: cada pantalla de la app, los catálogos y el sistema. */
+const GRUPOS_PESTANAS: { titulo: string; pestanas: { clave: Pestana; etiqueta: string }[] }[] = [
+  {
+    titulo: "Pantallas",
+    pestanas: [
+      { clave: "dashboard", etiqueta: "🏠 Dashboard" },
+      { clave: "expedientes", etiqueta: "📋 Expedientes" },
+      { clave: "clientes", etiqueta: "👤 Clientes" },
+    ],
+  },
+  {
+    titulo: "Catálogos",
+    pestanas: [
+      { clave: "marcas", etiqueta: "🏷️ Marcas" },
+      { clave: "modelos", etiqueta: "🚙 Modelos" },
+      { clave: "tiendas", etiqueta: "🏢 Tiendas" },
+      { clave: "pagos", etiqueta: "💰 Pagos" },
+      { clave: "estados", etiqueta: "🚗 Estados" },
+    ],
+  },
+  {
+    titulo: "Sistema",
+    pestanas: [
+      { clave: "usuarios", etiqueta: "👥 Usuarios" },
+      { clave: "incidencias", etiqueta: "🩺 Incidencias" },
+      { clave: "bbdd", etiqueta: "🗄️ BBDD" },
+      { clave: "temas", etiqueta: "🎨 Tema" },
+    ],
+  },
 ];
+const PESTANAS = GRUPOS_PESTANAS.flatMap((g) => g.pestanas);
 
 const SECCION_DE_PESTANA: Partial<Record<Pestana, Seccion>> = { marcas: "marcas_modelos", modelos: "marcas_modelos", tiendas: "tiendas", pagos: "tipos_venta", estados: "estados" };
 
@@ -60,7 +79,7 @@ export default function AdminCatalogosForm({
 }: Props) {
   // La pestaña abierta se recuerda: al recargar la página no vuelve a «Marcas»
   const [pestanaGuardada, setPestanaGuardada] = usePreferencia("config-pestana");
-  const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaGuardada) ? (pestanaGuardada as Pestana) : "usuarios";
+  const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaGuardada) ? (pestanaGuardada as Pestana) : PESTANAS[0].clave;
   const setPestana = (p: Pestana) => setPestanaGuardada(p);
   const router = useRouter();
   const [verPaletas, setVerPaletas] = useState(false);
@@ -81,14 +100,21 @@ export default function AdminCatalogosForm({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-      <div style={{ display: "flex", justifyContent: "center", gap: "8px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", flexWrap: "wrap" }}>
-        {PESTANAS.map((p) => (
-          <span key={p.clave} style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-            <button type="button" className={`btn ${pestana === p.clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setPestana(p.clave)} style={{ padding: "9px 11px", fontSize: "0.88rem" }}>
-              {p.etiqueta}
-            </button>
-            <BotonAyuda guia={`config.${p.clave}`} />
-          </span>
+      <div style={{ display: "flex", justifyContent: "center", gap: "14px 36px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", flexWrap: "wrap" }}>
+        {GRUPOS_PESTANAS.map((g) => (
+          <div key={g.titulo} style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "center" }}>
+            <span style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{g.titulo}</span>
+            <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
+              {g.pestanas.map((p) => (
+                <span key={p.clave} style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                  <button type="button" className={`btn ${pestana === p.clave ? "btn-primary" : "btn-secondary"}`} onClick={() => setPestana(p.clave)} style={{ padding: "9px 11px", fontSize: "0.88rem" }}>
+                    {p.etiqueta}
+                  </button>
+                  <BotonAyuda guia={`config.${p.clave}`} />
+                </span>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
@@ -114,6 +140,7 @@ export default function AdminCatalogosForm({
       {pestana === "estados" && <PestanaEstados estados={estados} setEstados={setEstados} />}
       {pestana === "expedientes" && <PestanaExpedientes sugerencias={{ tiposVenta: tipos.map((t) => t.nombre_tipo_venta), estados: estados.map((e) => e.nombre_estado_vehiculo), marcas: marcas.map((m) => m.nombre) }} />}
       {pestana === "dashboard" && <PestanaDashboard />}
+      {pestana === "clientes" && <PestanaClientes />}
       {pestana === "temas" && <PestanaTemas />}
       {pestana === "bbdd" && <PestanaBbdd mostrarBotonesCsvInicial={mostrarBotonesCsv} />}
     </div>

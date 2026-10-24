@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import BotonAjustes from "@/components/BotonAjustes";
 import { useState, type ReactNode } from "react";
 import { CLAVE_DASH_ORDEN, CLAVE_DASH_OCULTOS, PANELES_DASHBOARD, moverPanel, ordenPanelesDashboard, panelesOcultosDashboard, type IdPanelDashboard } from "@/lib/dashboard-paneles";
 import { usePreferencia } from "@/lib/preferencias";
@@ -50,11 +50,7 @@ export default function PanelesDashboard({ paneles, esAdmin }: Props) {
             ↺ Orden por defecto
           </button>
         )}
-        {esAdmin && (
-          <Link href="/dashboard/admin" className="btn btn-secondary" style={{ ...estiloBoton, textDecoration: "none" }} title="Mostrar u ocultar paneles y elegir cuántos expedientes salen (Configuración › Dashboard)" onClick={() => { try { localStorage.setItem("config-pestana", "dashboard"); } catch { /* sin almacenamiento */ } }}>
-            ⚙️ Ajustes del Dashboard
-          </Link>
-        )}
+        {esAdmin && <BotonAjustes pestana="dashboard" titulo="Ajustes del Dashboard" ayuda="Mostrar u ocultar paneles y elegir cuántos expedientes salen (Configuración › Dashboard)" />}
         <button type="button" className={desbloqueado ? "btn btn-primary" : "btn btn-secondary"} style={estiloBoton} onClick={() => setDesbloqueado((v) => !v)} aria-pressed={desbloqueado} title={desbloqueado ? "Bloquea los paneles en su sitio" : "Desbloquea los paneles para cambiarlos de sitio arrastrándolos"}>
           {desbloqueado ? "🔓 Bloquear" : "🔒 Mover paneles"}
         </button>

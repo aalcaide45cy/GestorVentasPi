@@ -3,6 +3,8 @@
 import { señalarCampo } from "@/lib/resaltar";
 import Link from "next/link";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { CLAVE_CLIENTES_COLUMNAS_OCULTAS, CLAVE_CLIENTES_ORDEN, CLAVE_CLIENTES_POR_PANTALLA, CLAVE_CLIENTES_SOLO_CON_VENTAS, clientesPorPantalla, columnasOcultasClientes, ordenClientes, type ColumnaCliente } from "@/lib/clientes-ajustes";
+import { usePreferencia } from "@/lib/preferencias";
 import { useRouter } from "next/navigation";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
@@ -77,8 +79,19 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const [fCorreo, setFCorreo] = useState("");
   const [fTelefono, setFTelefono] = useState("");
   const [fTienda, setFTienda] = useState("");
-  const [campo, setCampo] = useState<Campo>("id");
-  const [asc, setAsc] = useState(false);
+  // Orden, columnas y cantidad de clientes: lo elegido en Configuración › Clientes (en este navegador); al pulsar una cabecera manda lo que se pulse
+  const [ordenGuardado] = usePreferencia(CLAVE_CLIENTES_ORDEN);
+  const [ordenLocal, setOrdenLocal] = useState<{ campo: Campo; asc: boolean } | null>(null);
+  const campo: Campo = ordenLocal?.campo ?? ordenClientes(ordenGuardado).campo;
+  const asc = ordenLocal?.asc ?? ordenClientes(ordenGuardado).asc;
+  const [ocultasGuardado] = usePreferencia(CLAVE_CLIENTES_COLUMNAS_OCULTAS);
+  const ocultas = columnasOcultasClientes(ocultasGuardado);
+  const oculta = (c: ColumnaCliente) => ocultas.includes(c);
+  const [porPantallaGuardado] = usePreferencia(CLAVE_CLIENTES_POR_PANTALLA);
+  const porPantalla = clientesPorPantalla(porPantallaGuardado);
+  const [soloConVentasGuardado, fijarSoloConVentas] = usePreferencia(CLAVE_CLIENTES_SOLO_CON_VENTAS);
+  const soloConVentas = soloConVentasGuardado === "true";
+  const [extra, setExtra] = useState(0);
 
   // Formulario de alta (la edición de un cliente es una página aparte: /dashboard/clientes/[id])
   const campos = useCamposCliente();
@@ -258,6 +271,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
     return clientes.filter((c) => {
+      if (soloConVentas && c.num_expedientes === 0) return false;
       if (gs) {
         const ok =
           c.nombre?.toLowerCase().includes(gs) ||
@@ -281,7 +295,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientes, busqueda, fNombre, fDni, fFecha, fCorreo, fTelefono, fTienda, tiendas]);
+  }, [clientes, busqueda, soloConVentas, fNombre, fDni, fFecha, fCorreo, fTelefono, fTienda, tiendas]);
 
   const ordenados = useMemo(() => {
     const lista = [...filtrados].sort((a, b) => {
@@ -304,13 +318,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrados, campo, asc, tiendas]);
 
-  const ordenar = (c: Campo) => {
-    if (campo === c) setAsc(!asc);
-    else {
-      setCampo(c);
-      setAsc(true);
-    }
-  };
+  const ordenar = (c: Campo) => setOrdenLocal(campo === c ? { campo: c, asc: !asc } : { campo: c, asc: true });
   const flecha = (c: Campo) => (campo === c ? (asc ? "▲" : "▼") : "↕");
   const hayFiltros = fNombre || fDni || fFecha || fCorreo || fTelefono || fTienda;
 
@@ -349,7 +357,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
     }
   };
 
-  const columnasTotales = seleccionActiva ? 9 : 8;
+  const columnasTotales = (seleccionActiva ? 4 : 3) + 5 - ocultas.length;
+  const limite = porPantalla > 0 ? porPantalla + extra : Infinity;
+  const mostrados = ordenados.slice(0, limite);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -452,8 +462,14 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
       )}
 
       <div className="glass-panel" style={{ padding: "8px" }}>
-        <div style={{ padding: "10px 16px 4px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
-          {ordenados.length} cliente(s){busqueda || hayFiltros ? ` (de ${clientes.length} totales)` : ""}
+        <div style={{ padding: "10px 16px 4px", fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+          <span>
+            {ordenados.length} cliente(s){busqueda || hayFiltros || soloConVentas ? ` (de ${clientes.length} totales)` : ""}
+          </span>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }} title="Oculta los clientes que todavía no tienen ningún expediente. Es el mismo ajuste que en Configuración › Clientes">
+            <input type="checkbox" checked={soloConVentas} onChange={(e) => fijarSoloConVentas(e.target.checked ? "true" : "false")} style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }} />
+            Solo clientes con ventas
+          </label>
         </div>
         <div className="table-container">
           <table className="table-premium">
@@ -471,21 +487,22 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                 )}
                 <th onClick={() => ordenar("nombre")} style={{ cursor: "pointer" }}>Nombre {flecha("nombre")}</th>
                 <th onClick={() => ordenar("dni")} style={{ cursor: "pointer" }}>DNI / NIE {flecha("dni")}</th>
-                <th onClick={() => ordenar("fecha_de_nacimiento")} style={{ cursor: "pointer" }}>F. Nacimiento {flecha("fecha_de_nacimiento")}</th>
-                <th>Correos</th>
-                <th>Teléfonos</th>
-                <th onClick={() => ordenar("tienda")} style={{ cursor: "pointer" }}>Tienda {flecha("tienda")}</th>
-                <th onClick={() => ordenar("expedientes")} style={{ cursor: "pointer" }}>Ventas {flecha("expedientes")}</th>
+                {!oculta("fecha") && (<th onClick={() => ordenar("fecha_de_nacimiento")} style={{ cursor: "pointer" }}>F. Nacimiento {flecha("fecha_de_nacimiento")}</th>)}
+                {!oculta("correos") && (<th>Correos</th>)}
+                {!oculta("telefonos") && (<th>Teléfonos</th>)}
+                {!oculta("tienda") && (<th onClick={() => ordenar("tienda")} style={{ cursor: "pointer" }}>Tienda {flecha("tienda")}</th>)}
+                {!oculta("ventas") && (<th onClick={() => ordenar("expedientes")} style={{ cursor: "pointer" }}>Ventas {flecha("expedientes")}</th>)}
                 <th>Acciones</th>
               </tr>
               <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
                 {seleccionActiva && <td></td>}
                 <td><input type="text" placeholder="Filtrar..." className="form-input" value={fNombre} onChange={(e) => setFNombre(e.target.value)} style={{ ...celdaFiltro, minWidth: "100px" }} /></td>
                 <td><input type="text" placeholder="Filtrar..." className="form-input" value={fDni} onChange={(e) => setFDni(e.target.value)} style={{ ...celdaFiltro, minWidth: "80px" }} /></td>
-                <td><input type="text" placeholder="Filtrar..." className="form-input" value={fFecha} onChange={(e) => setFFecha(e.target.value)} style={{ ...celdaFiltro, minWidth: "80px" }} /></td>
-                <td><input type="text" placeholder="Filtrar..." className="form-input" value={fCorreo} onChange={(e) => setFCorreo(e.target.value)} style={{ ...celdaFiltro, minWidth: "100px" }} /></td>
-                <td><input type="text" placeholder="Filtrar..." className="form-input" value={fTelefono} onChange={(e) => setFTelefono(e.target.value)} style={{ ...celdaFiltro, minWidth: "80px" }} /></td>
-                <td>
+                {!oculta("fecha") && (<td><input type="text" placeholder="Filtrar..." className="form-input" value={fFecha} onChange={(e) => setFFecha(e.target.value)} style={{ ...celdaFiltro, minWidth: "80px" }} /></td>)}
+                {!oculta("correos") && (<td><input type="text" placeholder="Filtrar..." className="form-input" value={fCorreo} onChange={(e) => setFCorreo(e.target.value)} style={{ ...celdaFiltro, minWidth: "100px" }} /></td>)}
+                {!oculta("telefonos") && (<td><input type="text" placeholder="Filtrar..." className="form-input" value={fTelefono} onChange={(e) => setFTelefono(e.target.value)} style={{ ...celdaFiltro, minWidth: "80px" }} /></td>)}
+                {!oculta("tienda") && (
+                  <td>
                   <select className="form-select" value={fTienda} onChange={(e) => setFTienda(e.target.value)} style={{ ...celdaFiltro, minWidth: "120px" }}>
                     <option value="">Todas</option>
                     <option value="global">Global (Sin Tienda)</option>
@@ -496,7 +513,8 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                     ))}
                   </select>
                 </td>
-                <td></td>
+                )}
+                {!oculta("ventas") && <td></td>}
                 <td style={{ textAlign: "center" }}>
                   {hayFiltros && (
                     <button
@@ -526,7 +544,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                   </td>
                 </tr>
               ) : (
-                ordenados.map((c) => {
+                mostrados.map((c) => {
                   const tienda = nombreTienda(c.tienda_id);
                   const marcado = marcados.includes(c.id);
                   return (
@@ -545,8 +563,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                         <NombreConFoto fotoId={c.foto_id}>{c.nombre}</NombreConFoto>
                       </td>
                       <td>{c.dni || "N/D"}</td>
-                      <td>{c.fecha_de_nacimiento ? formatDate(c.fecha_de_nacimiento) : "No indicada"}</td>
-                      <td>
+                      {!oculta("fecha") && <td>{c.fecha_de_nacimiento ? formatDate(c.fecha_de_nacimiento) : "No indicada"}</td>}
+                      {!oculta("correos") && (
+                        <td>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           {c.emails.map((e, i) => (
                             <div key={i} style={{ fontSize: "0.85rem" }}>
@@ -557,7 +576,9 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                           {c.emails.length === 0 && <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Ninguno</span>}
                         </div>
                       </td>
-                      <td>
+                      )}
+                      {!oculta("telefonos") && (
+                        <td>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           {c.telefonos.map((t, i) => (
                             <div key={i} style={{ fontSize: "0.85rem" }}>
@@ -568,12 +589,16 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                           {c.telefonos.length === 0 && <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Ninguno</span>}
                         </div>
                       </td>
-                      <td>
+                      )}
+                      {!oculta("tienda") && (
+                        <td>
                         <span className={`badge ${tienda ? "badge-tienda" : "badge-invitado"}`} style={{ fontSize: "0.75rem" }}>
                           {tienda ?? "Global (Sin Tienda)"}
                         </span>
                       </td>
-                      <td>
+                      )}
+                      {!oculta("ventas") && (
+                        <td>
                         {c.num_expedientes > 0 ? (
                           <Link
                             href={`${rutaCliente(c.id)}#expedientes`}
@@ -587,6 +612,7 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                           <span style={{ color: "var(--text-muted)", fontSize: "0.9rem", paddingLeft: "12px" }}>0</span>
                         )}
                       </td>
+                      )}
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <Link href={rutaCliente(c.id)} className="btn btn-secondary" title="Abre la ficha del cliente: sus datos, sus documentos y todos sus expedientes" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
@@ -618,6 +644,17 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
             </tbody>
           </table>
         </div>
+        {mostrados.length < ordenados.length && (
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", padding: "10px 16px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+            Se ven {mostrados.length} de {ordenados.length}.
+            <button type="button" className="btn btn-secondary" style={{ padding: "3px 12px", fontSize: "0.8rem" }} onClick={() => setExtra((e) => e + porPantalla)}>
+              Ver {Math.min(porPantalla, ordenados.length - mostrados.length)} más
+            </button>
+            <button type="button" className="btn btn-secondary" style={{ padding: "3px 12px", fontSize: "0.8rem" }} onClick={() => setExtra(ordenados.length)}>
+              Ver todos
+            </button>
+          </div>
+        )}
       </div>
 
       {aBorrar && (
