@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.22.4 (24/10/2026)
+
+- **En «Comisiones», pulsar una cajita (Puntos, Tramo, Objetivo X, Coches, Bruto, Penalización, Neto o una tasa) ya no abre una ventana**: el detalle sale dentro de la propia tarjeta, en el sitio del desglose, con «Cerrar el detalle» (volver a pulsar la misma cajita también lo cierra).
+- **Las tablas de coches de Comisiones, del Resumen y de Cartera tienen las mismas 19 columnas que la lista de Expedientes** (Cliente, Teléfono, Email, VN/VO, punto de marca, Marca, Modelo, Marca y modelo, T. Venta, Estado, Vendedor, F. Exp., F. Afect, F. RCI, F. Mat, F. FAC., F. Entrega, Estado intranet y Comisionado), más las propias de cada una (matrícula, lo que aporta cada coche a la comisión, situación en la cartera…). Todas se ocultan, ordenan y guardan en vistas desde «Columnas y vistas». El código común está en `columnas-expediente.tsx`.
+- El gestor de columnas ya no dice que «Comisionado» necesita un interruptor aparte (ahora manda solo la casilla del gestor).
+
 ## Versión 1.22.3 (24/10/2026)
 
 - **«Ocultar entregados» ya no esconde un expediente por ponerle la fecha de entrega.** Solo se oculta cuando el estado de la intranet es Post-venta o superior (Archivado cuenta como superior). Los demás estados, incluidos los desconocidos, se siguen viendo.

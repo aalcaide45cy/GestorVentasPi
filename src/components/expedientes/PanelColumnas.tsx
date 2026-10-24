@@ -170,7 +170,6 @@ export default function PanelColumnas({ columnas, actual, predeterminada, vistas
                 Solo lo mínimo
               </button>
             </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>«Comisionado» solo se ve si activas «Mostrar Comisionados» en la barra de la tabla.</div>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, type KeyboardEvent } from "react";
 import { usePreferencia } from "@/lib/preferencias";
 import { useCarga } from "@/components/comisiones/useCarga";
@@ -9,8 +8,7 @@ import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
-import { columnasVehiculo } from "../etiquetas";
-import { TextoCopiable, datosVehiculoDeExpediente } from "./comun";
+import { columnaClienteExpediente, columnaMatricula, columnasExpediente } from "./columnas-expediente";
 import { BotonPlegar, PanelCartera, PanelComisiones, firmaExpedientes, usePlegable } from "./ComisionesYCartera";
 
 const MESES = [
@@ -30,28 +28,12 @@ const MESES = [
 
 export { MESES };
 
-const fechaCorta = (f: string | null) => (f ? f.split("-").reverse().join("/") : "—");
-
-/** Columnas de la lista que se abre al pulsar una tarjeta del resumen: las mismas de las demás tablas de coches (colores de marca y tipo). */
-const columnasListaResumen: ColumnaTabla<ExpedienteDto>[] = [
-  {
-    clave: "cliente",
-    etiqueta: "Cliente",
-    valor: (e) => e.cliente?.nombre ?? "Sin cliente",
-    celda: (e) => (
-      <Link href={`/dashboard/expedientes/editar/${e.id_expediente}`} style={{ color: "inherit", fontWeight: 600 }} title="Abrir el expediente">
-        {e.cliente?.nombre ?? "Sin cliente"}
-      </Link>
-    ),
-    ancho: 150,
-  },
-  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { punto: true }),
-  { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => (e.matricula ? <TextoCopiable texto={e.matricula} /> : "—") },
-  { clave: "comercial", etiqueta: "Comercial", valor: (e) => e.usuario?.nombre ?? "", celda: (e) => e.usuario?.nombre ?? "—" },
-  { clave: "pedido", etiqueta: "F. pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => fechaCorta(e.fecha_expediente) },
-  { clave: "afectacion", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => fechaCorta(e.fecha_afectacion), oculta: true },
-  { clave: "matriculacion", etiqueta: "F. matriculación", valor: (e) => e.fecha_matriculacion ?? "", celda: (e) => fechaCorta(e.fecha_matriculacion), oculta: true },
-];
+/** Columnas de la lista que se abre al pulsar una tarjeta del resumen: las mismas 19 de la lista de Expedientes (con sus colores de marca, estado y tipo de pago). */
+const columnasListaResumen: ColumnaTabla<ExpedienteDto>[] = columnasExpediente<ExpedienteDto>((e) => e, {
+  cliente: columnaClienteExpediente,
+  visibles: ["cliente", "clase", "punto", "marca", "modelo", "tipoPago", "estado", "vendedor", "fecha_expediente"],
+  propiasAlFinal: [columnaMatricula<ExpedienteDto>((e) => e.matricula)],
+});
 
 interface Props {
   expedientes: ExpedienteDto[];
