@@ -98,7 +98,7 @@ const AYUDAS: [RegExp, string][] = [
   [/^financiacion$/, "Importe o tipo de financiación."],
   [/^contacto$/, "Teléfono y correo del cliente."],
   [/^visibilidad columnas$/, "Elige qué columnas se ven en la tabla."],
-  [/^ocultar entregados$/, "Oculta los expedientes ya entregados."],
+  [/^ocultar entregados$/, "Oculta los expedientes que la intranet ya da por entregados (estado Post-venta o superior). Poner la fecha de entrega no los oculta."],
 
   // Comisiones
   [/^puntos/, "Puntos del mes: según ellos se calcula el tramo de comisión."],

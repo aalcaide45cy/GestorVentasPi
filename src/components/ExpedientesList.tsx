@@ -27,7 +27,7 @@ import {
   type FiltrosActuales,
 } from "@/lib/filtros-expedientes";
 import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarDeshabilitados } from "@/components/CasillaAnulados";
-import { esAnulado } from "@/lib/anulados";
+import { esAnulado, estaEntregadoEnIntranet } from "@/lib/anulados";
 import { TODAS_LAS_FECHAS } from "@/lib/filtros-expedientes";
 import { RANGO_VACIO, enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
 import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
@@ -388,7 +388,7 @@ export default function ExpedientesList({
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
     return expedientes.filter((e) => {
-      if (ocultarEntregados && e.fecha_entrega) return false;
+      if (ocultarEntregados && estaEntregadoEnIntranet(e.estado_intranet)) return false;
       if (!mostrarDeshabilitados && e.deshabilitado) return false;
       if (!mostrarAnulados && esAnulado(e.estado_intranet) && !/anulad/i.test(fIntranet) && !gs.includes("anulad")) return false;
       if (gs) {

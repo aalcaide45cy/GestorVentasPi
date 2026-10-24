@@ -16,3 +16,13 @@ describe("expedientes anulados", () => {
     expect(claveMostrarAnulados("contraste")).not.toBe(claveMostrarAnulados("expedientes"));
   });
 });
+
+import { estaEntregadoEnIntranet } from "./anulados";
+describe("estaEntregadoEnIntranet", () => {
+  it("solo Post-venta o superior (Archivado incluido) cuenta como entregado", () => {
+    expect(estaEntregadoEnIntranet("Post-venta")).toBe(true);
+    expect(estaEntregadoEnIntranet("Archivado")).toBe(true);
+    expect(estaEntregadoEnIntranet("Matriculación")).toBe(false);
+    expect(estaEntregadoEnIntranet(null)).toBe(false);
+  });
+});

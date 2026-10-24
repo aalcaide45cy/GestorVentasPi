@@ -10,3 +10,9 @@ export const claveMostrarAnulados = (pantalla: string): string => `mostrar-anula
 
 /** Preferencia del navegador de cada pantalla (`true` = enseñar y contar también los expedientes deshabilitados). Por defecto, no. */
 export const claveMostrarDeshabilitados = (pantalla: string): string => `mostrar-deshabilitados-${pantalla}`;
+
+/**
+ * «Ocultar entregados» de Expedientes: un expediente solo se oculta cuando el listado de la intranet ya lo da por entregado de verdad,
+ * es decir, con estado Post-venta o superior (Archivado cuenta como superior). Poner la fecha de entrega a mano no lo oculta.
+ */
+export const estaEntregadoEnIntranet = (estadoIntranet: string | null | undefined): boolean => /post[\s-]?venta|archivad/i.test(estadoIntranet ?? "");
