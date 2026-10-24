@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/db";
 import { Plegable } from "@/components/admin/estructura";
 import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
+import DocumentosDashboard from "@/components/herramientas/DocumentosDashboard";
 import RecentExpedientesTable from "@/components/RecentExpedientesTable";
 import { esAdministrador, esRolActivo } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
@@ -225,6 +226,9 @@ async function PanelActivo({ userId, esAdmin, tiendaPredeterminadaId }: { userId
           </div>
         </div>
       </div>
+
+      {/* Pedidos y pagos: cajas de arrastre y cola de pedidos (versión simplificada de Herramientas) */}
+      <DocumentosDashboard marcas={datos.marcasCatalogo} tiposVenta={datos.tiposVenta} vendedores={datos.vendedores} idUsuario={userId} esAdmin={esAdmin} />
 
       {/* Expedientes recientes */}
       <Plegable

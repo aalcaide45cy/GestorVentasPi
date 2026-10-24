@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.22.11 (24/10/2026)
+
+- **Dashboard: bloque «Pedidos y pagos» plegable** (como «Últimos expedientes activos»), con dos pestañas: «Subir documentos» (solo las dos cajas de arrastre, pedidos de clientes y pagos de RCI) y «Cola de pedidos» (con el número de pedidos esperando). Es una versión simplificada de Herramientas, que sigue teniendo la biblioteca, el historial de lecturas, el contraste de rejillas, la papelera y los ajustes de lectura (enlace «Más herramientas»). Componente `DocumentosDashboard`.
+
 ## Versión 1.22.10 (24/10/2026)
 
 - **El color de los pedidos recientes se elige** (Configuración › Expedientes › Lista › «Pedidos recientes resaltados»): 11 colores de paleta (azul, celeste, turquesa, verde, lima, amarillo, naranja, rojo, rosa, morado, gris), «Otro color» libre, e intensidad suave, media o fuerte, con una vista previa. Se guarda en el navegador (`exp-color-pedido-destacado`, `exp-fuerza-pedido-destacado`).

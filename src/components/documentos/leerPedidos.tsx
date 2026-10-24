@@ -72,8 +72,8 @@ export function useLeerPedidos() {
   };
 }
 
-/** Cuadro para arrastrar uno o varios pedidos (PDF o foto) de golpe. */
-export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clientes", compacta = false }: { etiqueta?: string; compacta?: boolean }) {
+/** Cuadro para arrastrar uno o varios pedidos (PDF o foto) de golpe. `sinOpciones` esconde las casillas de lectura (versión simplificada del Dashboard). */
+export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clientes", compacta = false, sinOpciones = false }: { etiqueta?: string; compacta?: boolean; sinOpciones?: boolean }) {
   const { leer, subiendo, cancelar } = useLeerPedidos();
   const lectura = useSyncExternalStore(suscribirLectura, leerLectura, () => null);
   const archivos = useRef<HTMLInputElement>(null);
@@ -113,8 +113,8 @@ export function ZonaPedidos({ etiqueta = "Arrastra aquí los pedidos de tus clie
           </button>
         </div>
       )}
-      <ControlesLectura parte="pedidos" />
-      <OpcionVentanaPedido />
+      {!sinOpciones && <ControlesLectura parte="pedidos" />}
+      {!sinOpciones && <OpcionVentanaPedido />}
     </div>
   );
 }
