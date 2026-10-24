@@ -51,18 +51,19 @@ const enMes = (fecha: string | null, anio: number, mes: number) => {
   return Number(a) === anio && Number(m) === mes;
 };
 
-const estiloTarjeta = { padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" } as const;
+const estiloTarjeta = { padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0, overflow: "hidden" } as const;
 const estiloEtiqueta = { fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 } as const;
 /** Cifra grande a la izquierda y, a su derecha, el desglose en líneas (nombre a un lado, valor al otro). */
 function CifraConDesglose({ cifra, color, lineas }: { cifra: ReactNode; color: string; lineas: { texto: ReactNode; valor: ReactNode }[] }) {
+  // Si no cabe todo en una fila (tarjeta estrecha), el desglose baja debajo de la cifra en vez de salirse de la tarjeta
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "14px", margin: "8px 0" }}>
-      <h3 style={{ fontSize: "1.85rem", margin: 0, color, fontWeight: "bold", lineHeight: 1.1 }}>{cifra}</h3>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "1px", borderLeft: "1px solid var(--border-light)", paddingLeft: "12px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px 14px", margin: "8px 0", minWidth: 0 }}>
+      <h3 style={{ fontSize: "1.85rem", margin: 0, color, fontWeight: "bold", lineHeight: 1.1, flex: "0 0 auto" }}>{cifra}</h3>
+      <div style={{ flex: "1 1 130px", minWidth: 0, display: "flex", flexDirection: "column", gap: "1px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
         {lineas.map((l, i) => (
-          <span key={i} style={{ display: "flex", justifyContent: "space-between", gap: "8px", whiteSpace: "nowrap" }}>
-            <span>{l.texto}</span>
-            <strong style={{ color: "var(--text-primary)" }}>{l.valor}</strong>
+          <span key={i} style={{ display: "flex", justifyContent: "space-between", gap: "8px", minWidth: 0 }}>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.texto}</span>
+            <strong style={{ color: "var(--text-primary)", flex: "0 0 auto", whiteSpace: "nowrap" }}>{l.valor}</strong>
           </span>
         ))}
       </div>
@@ -255,7 +256,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
       </div>
 
-      {panelAbierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", ...(esMesActual ? {} : { outline: "2px dashed var(--warning)", outlineOffset: "6px", borderRadius: "var(--radius-md)" }) }}>
+      {panelAbierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "15px", ...(esMesActual ? {} : { outline: "2px dashed var(--warning)", outlineOffset: "6px", borderRadius: "var(--radius-md)" }) }}>
         <div className="glass-panel-interactive" {...tarjeta("afectados")}>
           <span style={estiloEtiqueta}>AFECTADOS EN EL MES</span>
           <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{r.afectados}</h3>
