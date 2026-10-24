@@ -1,12 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, type KeyboardEvent } from "react";
 import { usePreferencia } from "@/lib/preferencias";
 import { useCarga } from "@/components/comisiones/useCarga";
+import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
+import { columnasVehiculo } from "../etiquetas";
+import { TextoCopiable, datosVehiculoDeExpediente } from "./comun";
 import { BotonPlegar, PanelCartera, PanelComisiones, firmaExpedientes, usePlegable } from "./ComisionesYCartera";
 
 const MESES = [
@@ -25,6 +29,29 @@ const MESES = [
 ];
 
 export { MESES };
+
+const fechaCorta = (f: string | null) => (f ? f.split("-").reverse().join("/") : "—");
+
+/** Columnas de la lista que se abre al pulsar una tarjeta del resumen: las mismas de las demás tablas de coches (colores de marca y tipo). */
+const columnasListaResumen: ColumnaTabla<ExpedienteDto>[] = [
+  {
+    clave: "cliente",
+    etiqueta: "Cliente",
+    valor: (e) => e.cliente?.nombre ?? "Sin cliente",
+    celda: (e) => (
+      <Link href={`/dashboard/expedientes/editar/${e.id_expediente}`} style={{ color: "inherit", fontWeight: 600 }} title="Abrir el expediente">
+        {e.cliente?.nombre ?? "Sin cliente"}
+      </Link>
+    ),
+    ancho: 150,
+  },
+  ...columnasVehiculo<ExpedienteDto>((e) => datosVehiculoDeExpediente(e), { punto: true }),
+  { clave: "matricula", etiqueta: "Matrícula", valor: (e) => e.matricula ?? "", celda: (e) => (e.matricula ? <TextoCopiable texto={e.matricula} /> : "—") },
+  { clave: "comercial", etiqueta: "Comercial", valor: (e) => e.usuario?.nombre ?? "", celda: (e) => e.usuario?.nombre ?? "—" },
+  { clave: "pedido", etiqueta: "F. pedido", valor: (e) => e.fecha_expediente ?? "", celda: (e) => fechaCorta(e.fecha_expediente) },
+  { clave: "afectacion", etiqueta: "F. afectación", valor: (e) => e.fecha_afectacion ?? "", celda: (e) => fechaCorta(e.fecha_afectacion), oculta: true },
+  { clave: "matriculacion", etiqueta: "F. matriculación", valor: (e) => e.fecha_matriculacion ?? "", celda: (e) => fechaCorta(e.fecha_matriculacion), oculta: true },
+];
 
 interface Props {
   expedientes: ExpedienteDto[];
@@ -160,10 +187,6 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
     matriculados: "Expedientes matriculados en el mes",
     financiados: "VN financiados (fecha RCI en el mes)",
     pedidos: "Pedidos del mes (contado, crédito y preference)",
-  };
-  const etiquetaTipo = (e: ExpedienteDto) => {
-    const c = e.tipoDeVenta?.categoria ?? "";
-    return c === "CONTADO" ? "Contado" : c === "PREFERENCE" ? "Preference" : c === "CREDITO" || c === "RENTING" ? "Crédito" : (e.tipoDeVenta?.nombre_tipo_venta ?? "—");
   };
   const lista = abierto ? r.listas[abierto] : undefined;
   const detalleMotor = abierto === "puntos" || abierto === "tramo" || abierto === "comision";
@@ -325,38 +348,16 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
           <h5 style={{ margin: "0 0 10px 0", fontSize: "0.95rem" }}>
             {TITULOS[abierto ?? ""]} ({lista.length})
           </h5>
-          {lista.length === 0 ? (
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>No hay expedientes en este período.</p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", fontSize: "0.85rem", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ textAlign: "left", color: "var(--text-secondary)" }}>
-                    <th style={{ padding: "6px 8px" }}>Cliente</th>
-                    <th style={{ padding: "6px 8px" }}>Modelo</th>
-                    <th style={{ padding: "6px 8px" }}>Tipo</th>
-                    <th style={{ padding: "6px 8px" }}>Estado</th>
-                    <th style={{ padding: "6px 8px" }}>Comercial</th>
-                    <th style={{ padding: "6px 8px" }}>Expediente</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...lista]
-                    .sort((a, b) => etiquetaTipo(a).localeCompare(etiquetaTipo(b), "es"))
-                    .map((e) => (
-                      <tr key={e.id_expediente} style={{ borderTop: "1px solid var(--border-light)" }}>
-                        <td style={{ padding: "6px 8px" }}>{e.cliente?.nombre ?? "—"}</td>
-                        <td style={{ padding: "6px 8px" }}>{[e.modelo?.marca?.nombre, e.modelo?.nombre_modelo].filter(Boolean).join(" ") || "—"}</td>
-                        <td style={{ padding: "6px 8px" }}>{etiquetaTipo(e)}</td>
-                        <td style={{ padding: "6px 8px" }}>{e.estadoVehiculo?.nombre_estado_vehiculo ?? "—"}</td>
-                        <td style={{ padding: "6px 8px" }}>{e.usuario?.nombre ?? "—"}</td>
-                        <td style={{ padding: "6px 8px" }}>{e.fecha_expediente ?? "—"}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <TablaDatos<ExpedienteDto>
+            id={`resumen-${abierto ?? "lista"}`}
+            columnas={columnasListaResumen}
+            filas={lista}
+            clave={(e) => e.id_expediente}
+            compacta
+            placeholder="Buscar por cliente, modelo, matrícula, tipo, comercial…"
+            vacio="No hay expedientes en este período."
+            pie={(fs) => ({ cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}` })}
+          />
         </div>
       )}
 

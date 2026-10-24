@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.22.3 (24/10/2026)
+
+- **«Ocultar entregados» ya no esconde un expediente por ponerle la fecha de entrega.** Solo se oculta cuando el estado de la intranet es Post-venta o superior (Archivado cuenta como superior). Los demás estados, incluidos los desconocidos, se siguen viendo.
+- **Las listas que se abren al pulsar las tarjetas del «Detalle y Resumen Estadístico»** (afectados, matriculados, tasa financiera, pedidos del mes) pasan a ser una tabla como la de Expedientes: filas alternas, buscador, orden por columna, selector «Columnas y vistas», colores de marca, estado y tipo de pago, y enlace al expediente.
+
 ## Versión 1.22.2 (22/10/2026)
 
 - **El Mac también tiene el botón «Modo: desarrollo / normal»** (menú «Equipo y servidor»), como el PC. Usa el nuevo `scripts/cambiar-modo.sh` (equivalente al de Windows): para pasar a modo normal compila en una carpeta aparte con el servidor todavía en marcha y solo cambia si sale bien; para pasar a desarrollo, lo relanza con `npm run dev`. Anota el modo en `.ultimo-modo`. La Raspberry (Docker) sigue siempre en modo normal. No probado en un Mac real desde este PC (la sintaxis del script sí está comprobada).
