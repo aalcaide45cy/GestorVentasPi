@@ -37,6 +37,17 @@ export const CLAVE_VENTANA_SOLO_SI_NUEVO = "pedidos-ventana-solo-si-falta-marca-
 export const CLAVE_RETRASO_FOTO = "foto-cliente-retraso-segundos";
 export const RETRASO_FOTO_POR_DEFECTO = 3;
 
+/** Preferencia del navegador: durante cuántos días, desde que se hace el pedido, la fila de Expedientes sale con fondo azulado. 0 = nunca. Por defecto, 3. */
+export const CLAVE_DIAS_PEDIDO_DESTACADO = "exp-dias-pedido-destacado";
+export const DIAS_PEDIDO_DESTACADO_POR_DEFECTO = 3;
+export const MAX_DIAS_PEDIDO_DESTACADO = 365;
+
+/** Días configurados a partir de lo guardado (vacío o no válido = el valor por defecto). */
+export function leerDiasPedidoDestacado(guardado: string | null): number {
+  const n = Number(guardado);
+  return guardado !== null && guardado !== "" && Number.isInteger(n) && n >= 0 && n <= MAX_DIAS_PEDIDO_DESTACADO ? n : DIAS_PEDIDO_DESTACADO_POR_DEFECTO;
+}
+
 /** Lectura puntual (fuera de componentes): ¿se permiten expedientes duplicados en este navegador? */
 export function permitirDuplicadosAhora(): boolean {
   return leer(CLAVE_PERMITIR_DUPLICADOS) === "true";

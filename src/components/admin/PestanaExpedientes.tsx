@@ -7,7 +7,7 @@ import {
   CLAVE_RECORDAR_FILTROS,
   leerPredefinidos,
 } from "@/lib/filtros-expedientes";
-import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_DIAS_PEDIDO_DESTACADO, CLAVE_RETRASO_FOTO, MAX_DIAS_PEDIDO_DESTACADO, RETRASO_FOTO_POR_DEFECTO, leerDiasPedidoDestacado, usePreferencia } from "@/lib/preferencias";
 import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
 import { SubPestanas } from "./estructura";
 import { estiloPanel } from "./utilidades";
@@ -88,6 +88,9 @@ export default function PestanaExpedientes() {
     guardarPredefinidos(JSON.stringify({ ...predefinidos, soloMios: o.soloMios, mesActual: o.mesActual }));
     mostrar("Guardado.");
   };
+  const [diasGuardado, guardarDias] = usePreferencia(CLAVE_DIAS_PEDIDO_DESTACADO);
+  const diasDestacado = leerDiasPedidoDestacado(diasGuardado);
+  const elegirDias = (d: number) => guardarDias(String(Math.max(0, Math.min(MAX_DIAS_PEDIDO_DESTACADO, Math.round(d) || 0))));
   const [recordarGuardado, guardarRecordar] = usePreferencia(CLAVE_RECORDAR_FILTROS);
   const recordar = recordarGuardado !== "false";
   const elegirRecordar = (v: boolean) => {
@@ -182,6 +185,20 @@ export default function PestanaExpedientes() {
             );
           })}
         </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>🔵 Pedidos recientes con fondo azulado</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>
+            Los pedidos de hoy y de los últimos días que pongas salen en la lista con un fondo azulado claro para verlos de un vistazo. Pon 0 para no marcar ninguno. Se guarda sola.
+          </p>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.95rem" }}>
+          Días:
+          <input type="number" className="form-input" min={0} max={MAX_DIAS_PEDIDO_DESTACADO} step={1} style={{ width: "90px" }} value={diasDestacado} onChange={(e) => elegirDias(Number(e.target.value))} />
+          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{diasDestacado === 0 ? "No se marca ninguno" : diasDestacado === 1 ? "Los pedidos de hoy y de ayer" : `Los pedidos de hoy y de los ${diasDestacado} días anteriores`}</span>
+        </label>
       </div>
 
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>

@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.22.9 (24/10/2026)
+
+- **Los días del fondo azulado de Expedientes se configuran** en Configuración › Expedientes › Lista («Pedidos recientes con fondo azulado»). Se marcan los pedidos de hoy y de los N días anteriores (por defecto 3; 0 = no marcar ninguno). Sustituye al «justo hace tres días» de 1.22.8. Se guarda en el navegador, como el resto de ajustes de esa pestaña (`exp-dias-pedido-destacado`).
+
 ## Versión 1.22.8 (24/10/2026)
 
 - **Expedientes: los pedidos hechos hace tres días tienen fondo azulado claro** (fecha de pedido = hoy menos 3 días, hora local; al pasar el ratón por la fila sale «Pedido hecho hace tres días»). No cambia nada más de la lista.

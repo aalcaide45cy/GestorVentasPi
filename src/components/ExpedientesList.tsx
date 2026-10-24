@@ -30,7 +30,7 @@ import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarD
 import { esAnulado, estaEntregadoEnIntranet } from "@/lib/anulados";
 import { TODAS_LAS_FECHAS } from "@/lib/filtros-expedientes";
 import { RANGO_VACIO, enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
-import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_DIAS_PEDIDO_DESTACADO, CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, leerDiasPedidoDestacado, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
 import { leerExcelExpedientes, type FilaExcel } from "@/lib/excel-expedientes";
 import type { ResultadoVerificacion } from "@/lib/servicios/importaciones";
@@ -143,8 +143,8 @@ function BotonesMoverFecha({ etiqueta, alMover }: { etiqueta: string; alMover: (
 }
 
 /** Listado completo de expedientes con filtros, ordenación, paginación, selección masiva e importación/exportación. */
-/** Fondo azulado claro de las filas cuyo pedido se hizo hace tres días (para localizarlas de un vistazo). */
-const FONDO_PEDIDO_HACE_3_DIAS = "rgba(59, 130, 246, 0.16)";
+/** Fondo azulado claro de las filas de pedidos recientes (los días se eligen en Configuración › Expedientes). */
+const FONDO_PEDIDO_RECIENTE = "rgba(59, 130, 246, 0.16)";
 
 export default function ExpedientesList({
   expedientesIniciales,
@@ -388,12 +388,19 @@ export default function ExpedientesList({
       }),
     [fechasDeFiltro, rangoActivo, rangoOk, fMes, fAnio],
   );
-  // Día de hace tres días (hora local), en el mismo formato que la fecha del pedido; se recalcula al cambiar de día con cada pintado de la lista
-  const hace3Dias = (() => {
+  // Primer día que cuenta como pedido reciente (hora local, mismo formato que la fecha del pedido): hoy menos los días configurados. Sin días, ninguno.
+  const [diasRecienteGuardado] = usePreferencia(CLAVE_DIAS_PEDIDO_DESTACADO);
+  const diasReciente = leerDiasPedidoDestacado(diasRecienteGuardado);
+  const hoyLocal = (() => {
     const d = new Date();
-    d.setDate(d.getDate() - 3);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
+  const desdeReciente = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - diasReciente);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const esPedidoReciente = (fecha: string | null) => diasReciente > 0 && !!fecha && fecha >= desdeReciente && fecha <= hoyLocal;
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
     return expedientes.filter((e) => {
@@ -1344,8 +1351,8 @@ export default function ExpedientesList({
                 return (
                   <tr
                     key={exp.id_expediente}
-                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : exp.fecha_expediente === hace3Dias ? FONDO_PEDIDO_HACE_3_DIAS : undefined, opacity: exp.deshabilitado ? 0.5 : undefined }}
-                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : exp.fecha_expediente === hace3Dias ? "Pedido hecho hace tres días" : undefined}
+                    style={{ background: marcada ? "rgba(var(--primary-rgb), 0.04)" : esPedidoReciente(exp.fecha_expediente) ? FONDO_PEDIDO_RECIENTE : undefined, opacity: exp.deshabilitado ? 0.5 : undefined }}
+                    title={exp.deshabilitado ? "Expediente deshabilitado: no cuenta en las comisiones ni en la tasa. Se vuelve a habilitar desde la selección o dentro del expediente." : esPedidoReciente(exp.fecha_expediente) ? "Pedido reciente" : undefined}
                   >
                     {seleccionActiva && (
                       <td style={{ textAlign: "center" }}>
