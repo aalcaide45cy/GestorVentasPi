@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdQuery, leerIdsParaBorrar, manejar } from "@/lib/http";
-import { MAX_BYTES_ADJUNTO, TIPOS_ADJUNTO, eliminarAdjunto, guardarAdjunto, leerAdjunto, listarAdjuntos, type TipoAdjunto } from "@/lib/servicios/adjuntos";
+import { MAX_BYTES_ADJUNTO, TIPOS_ADJUNTO, eliminarAdjunto, existeAdjunto, guardarAdjunto, leerAdjunto, listarAdjuntos, type TipoAdjunto } from "@/lib/servicios/adjuntos";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +35,14 @@ export const GET = manejar(async (req: Request) => {
   const idCliente = leerIdQuery(req, "idCliente") ?? undefined;
   const idExpediente = leerIdQuery(req, "idExpediente") ?? undefined;
   return NextResponse.json({ success: true, data: await listarAdjuntos(db, { idCliente, idExpediente }) });
+});
+
+/** `HEAD ?id=N`: dice si el fichero sigue guardado (200 o 404) sin leerlo ni descifrarlo. */
+export const HEAD = manejar(async (req: Request) => {
+  await requireSession("no_invitado");
+  const id = leerIdQuery(req);
+  const hay = id ? await existeAdjunto(db, id) : false;
+  return new NextResponse(null, { status: hay ? 200 : 404 });
 });
 
 /** Sube un fichero (cuerpo = el fichero tal cual). `?tipo=&nombre=&idCliente=&idExpediente=`. */

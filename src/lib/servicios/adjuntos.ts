@@ -126,6 +126,14 @@ export async function leerAdjunto(ej: Ejecutor, id: number, miniatura = false): 
   return { meta: aDto(a), datos: descifrarBuffer(d.datos), mime: a.mime };
 }
 
+/** Comprueba que el fichero sigue guardado sin leerlo ni descifrarlo (lo usa el visor para no cargar el PDF entero dos veces). */
+export async function existeAdjunto(ej: Ejecutor, id: number): Promise<boolean> {
+  const [a] = await ej.select({ id: adjuntos.id }).from(adjuntos).where(and(eq(adjuntos.id, id), isNull(adjuntos.eliminadoEn)));
+  if (!a) return false;
+  const [d] = await ej.select({ id: adjuntosDatos.idAdjunto }).from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, id));
+  return !!d;
+}
+
 /** Borrado lógico: deja de mostrarse, pero el fichero se conserva. Solo el administrador o quien lo subió. */
 export async function eliminarAdjunto(ej: Ejecutor, usuario: UsuarioActual, id: number): Promise<void> {
   const [a] = await ej.select().from(adjuntos).where(and(eq(adjuntos.id, id), isNull(adjuntos.eliminadoEn)));

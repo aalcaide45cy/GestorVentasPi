@@ -14,6 +14,7 @@ export default function VisorPedido({ idAdjunto, nombre, alRecargado }: { idAdju
   const [idActual, setIdActual] = useState(idAdjunto);
   const [estado, setEstado] = useState<"comprobando" | "ok" | "falta">("comprobando");
   const [subiendo, setSubiendo] = useState(false);
+  const [pintado, setPintado] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
 
   // Se mira si el fichero sigue guardado antes de enseñarlo (un iframe con un 404 sale en blanco y no dice por qué)
@@ -21,6 +22,7 @@ export default function VisorPedido({ idAdjunto, nombre, alRecargado }: { idAdju
     let vivo = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEstado("comprobando");
+    setPintado(false);
     fetch(`/api/adjuntos?id=${idActual}`, { method: "HEAD", credentials: "same-origin", cache: "no-store" })
       .then((r) => vivo && setEstado(r.ok ? "ok" : r.status === 404 ? "falta" : "ok"))
       .catch(() => vivo && setEstado("ok"));
@@ -79,8 +81,16 @@ export default function VisorPedido({ idAdjunto, nombre, alRecargado }: { idAdju
           <span style={{ fontSize: "0.88rem", lineHeight: 1.5 }}>Seguramente se purgó desde Herramientas › Papelera. Los datos leídos siguen aquí, pero el PDF no se puede enseñar.{alRecargado ? " Si todavía lo tienes, puedes volver a cargarlo." : ""}</span>
           {botonRecargar}
         </div>
+      ) : estado === "comprobando" ? (
+        <div style={{ height: "calc(72 * var(--uvh))", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", color: "var(--text-muted)", fontSize: "0.9rem" }}>Preparando el documento…</div>
       ) : (
-        <iframe src={`/api/adjuntos?id=${idActual}`} title={`Pedido ${nombre}`} style={{ width: "100%", height: "calc(72 * var(--uvh))", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff", opacity: estado === "comprobando" ? 0.4 : 1 }} />
+        <div style={{ position: "relative" }}>
+          {!pintado && (
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", color: "var(--text-muted)", fontSize: "0.9rem", background: "var(--bg-card, transparent)", zIndex: 1, pointerEvents: "none" }}>Cargando el PDF…</div>
+          )}
+          {/* «#view=FitH» abre el PDF ajustado al ancho del visor (si no, el visor del navegador lo enseña con el zoom que recordó, a veces recortado) */}
+          <iframe key={idActual} src={`/api/adjuntos?id=${idActual}#view=FitH`} onLoad={() => setPintado(true)} title={`Pedido ${nombre}`} style={{ display: "block", width: "100%", height: "calc(72 * var(--uvh))", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "#fff" }} />
+        </div>
       )}
     </div>
   );
