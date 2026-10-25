@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.30.1 (25/10/2026)
+
+- **Rendimiento: botón «🧹 Contar desde ahora»** (ya se había propuesto y no estaba hecho). Olvida el historial de mediciones, las peticiones y consultas lentas anotadas y los avisos ya dados, y pone a cero los contadores de PostgreSQL (`pg_stat_reset`: el acierto de caché que una restauración deja bajo). No toca ningún dato. Ruta `/api/admin/rendimiento/reiniciar` (solo administrador).
+- **El aviso «la base de datos acierta X % en memoria» ya no engaña:** si la base de datos cabe entera en su memoria (`shared_buffers`), el porcentaje se enseña como información (estadística acumulada, se normaliza con el uso o con «Contar desde ahora») y no como falta de memoria.
+
 ## Versión 1.30.0 (25/10/2026)
 
 - **Configuración › Marcas y Modelos: columna «Expedientes».** Cada marca y cada modelo muestra cuántos expedientes lo usan (los vigentes y, aparte, los que están en la Papelera, que siguen apuntando a él y por eso cuentan al borrarlo) y un botón «📄 N» que abre la lista de esos expedientes (cliente con enlace, modelo, matrícula, tipo de pago, estado, vendedor y fecha de pedido). La columna se puede ordenar. Un 0 gris significa que se puede borrar sin más. Ruta `/api/admin/catalogos/usos` (solo administrador) y `lib/servicios/usos-catalogo.ts`.

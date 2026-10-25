@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { instantanea, probarBd, probarDisco, recursosRapidos, swapPreocupa, textoConsecuenciaSwap } from "./rendimiento";
+import { instantanea, probarBd, probarDisco, recursosRapidos, reiniciarRendimiento, swapPreocupa, textoConsecuenciaSwap } from "./rendimiento";
 import { consultasLentas, normalizarRuta, olvidarRendimiento, registrarConsulta, registrarPeticion, resumenPeticiones } from "./rendimiento-registro";
 
 let dir = "";
@@ -72,6 +72,19 @@ describe("diagnóstico", () => {
     expect(r.memoriaUsadaPct).toBeGreaterThan(0);
     expect(r.memoriaTotalMb).toBeGreaterThan(0);
     expect(["ok", "aviso", "alto"]).toContain(r.nivel);
+  });
+});
+
+describe("contar desde ahora", () => {
+  it("olvida las peticiones y consultas lentas anotadas y el historial, y no toca datos", async () => {
+    registrarPeticion("GET", "/api/expedientes/1", 200, 100);
+    registrarConsulta(900, "select 1");
+    expect(resumenPeticiones(30).total).toBe(1);
+    const r = await reiniciarRendimiento();
+    expect(typeof r.contadoresBd).toBe("boolean");
+    expect(resumenPeticiones(30).total).toBe(0);
+    expect(consultasLentas()).toEqual([]);
+    expect((await instantanea()).bd).not.toHaveProperty("error");
   });
 });
 

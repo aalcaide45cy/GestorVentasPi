@@ -51,7 +51,7 @@ function Medidor({ titulo, valor, texto, pct, malo, ayuda, historia, maxHistoria
 
 /** «Rendimiento»: qué hace que el equipo vaya lento (CPU, memoria, temperatura, disco, base de datos, lecturas, peticiones lentas). */
 export default function PanelRendimiento() {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [d, setD] = useState<Respuesta | null>(null);
   const [auto, setAuto] = useState(true);
   const [cargando, setCargando] = useState(false);
@@ -112,6 +112,17 @@ export default function PanelRendimiento() {
     }
   };
 
+  const contarDesdeAhora = async () => {
+    if (!(await confirmar({ texto: "Se olvida el historial de mediciones y lo anotado de las peticiones lentas, y se ponen a cero los contadores de la base de datos (como el acierto de caché). No se toca ningún dato. ¿Contar desde ahora?" }))) return;
+    try {
+      const r = (await llamar<{ contadoresBd: boolean }>("/api/admin/rendimiento/reiniciar", { method: "POST" })).data;
+      mostrar(r.contadoresBd ? "Hecho: se cuenta desde ahora." : "Hecho, salvo los contadores de la base de datos: PostgreSQL no deja reiniciarlos con este usuario.");
+      await leer();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    }
+  };
+
   const copiarInforme = async () => {
     try {
       const r = await fetch("/api/admin/rendimiento?informe=1", { credentials: "same-origin" });
@@ -150,6 +161,9 @@ export default function PanelRendimiento() {
         </a>
         <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.85rem" }} disabled={cargando} onClick={() => void leer()}>
           {cargando ? "Midiendo…" : "🔄 Actualizar"}
+        </button>
+        <button type="button" className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.85rem" }} disabled={cargando} onClick={() => void contarDesdeAhora()} title="Olvida el historial de mediciones, las peticiones y consultas lentas anotadas y pone a cero los contadores de la base de datos (como el acierto de caché), para medir solo desde ahora. No toca ningún dato.">
+          🧹 Contar desde ahora
         </button>
         <label style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "0.85rem", cursor: "pointer" }} title="Vuelve a medir cada 5 segundos">
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ accentColor: "var(--primary)" }} />

@@ -9,10 +9,11 @@ import { db } from "@/db";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { identidadEquipo, type IdentidadEquipo } from "@/lib/equipo";
 import { memoriaMacOs } from "@/lib/memoria-macos";
+import { aMegas } from "@/lib/memoria-bd";
 import { swapPreocupa, textoConsecuenciaSwap } from "@/lib/swap";
 
 export { swapPreocupa, textoConsecuenciaSwap };
-import { consultasLentas, resumenPeticiones } from "@/lib/rendimiento-registro";
+import { consultasLentas, olvidarRendimiento, resumenPeticiones } from "@/lib/rendimiento-registro";
 import { ajustesOcr } from "@/lib/servicios/ocr-ajustes";
 
 /**
@@ -201,6 +202,23 @@ function avisarSiHaceFalta(i: Interno, s: Muestra, lim: Limitacion | null): void
   if ((s.ioPct ?? 0) >= 90) avisar("io", `el disco está al ${s.ioPct} % de uso`);
   if (s.cpu >= 95) avisar("cpu", `CPU al ${s.cpu} %`);
   if (s.lagMs >= 500) avisar("lag", `el servidor se quedó bloqueado ${s.lagMs} ms sin atender peticiones`);
+}
+
+/**
+ * «Contar desde ahora»: olvida el historial de mediciones, las peticiones y consultas lentas anotadas y los avisos ya dados, y pone a cero los contadores de
+ * PostgreSQL (el acierto de caché, que una restauración o una carga grande dejan bajo durante días). No toca ningún dato. Devuelve si PostgreSQL dejó reiniciar los suyos.
+ */
+export async function reiniciarRendimiento(): Promise<{ contadoresBd: boolean }> {
+  const i = interno();
+  i.historial.length = 0;
+  i.avisado.clear();
+  olvidarRendimiento();
+  try {
+    await db.execute(sql`select pg_stat_reset()`);
+    return { contadoresBd: true };
+  } catch {
+    return { contadoresBd: false };
+  }
 }
 
 /** Empieza a medir el equipo cada 30 s (una sola vez por proceso). */
@@ -479,7 +497,12 @@ function analizar(s: Omit<Instantanea, "hallazgos">, hist: Muestra[]): Hallazgo[
     const larga = s.bd.consultasActivas.find((c) => c.segundos >= 5);
     if (larga) h.push({ nivel: "alto", texto: `Hay una consulta a la base de datos que lleva ${larga.segundos} s en marcha: ${larga.sql.slice(0, 120)}` });
     if (s.bd.conexiones.esperando > 0) h.push({ nivel: "medio", texto: `${s.bd.conexiones.esperando} consulta(s) esperando un bloqueo de otra.` });
-    if (s.bd.aciertoCachePct !== null && s.bd.aciertoCachePct < 95) h.push({ nivel: "medio", texto: `La base de datos acierta ${s.bd.aciertoCachePct} % de las lecturas en memoria (lo sano es más del 99 %): lee mucho del disco. Puede faltar memoria para la base de datos (shared_buffers = ${s.bd.sharedBuffers}).` });
+    if (s.bd.aciertoCachePct !== null && s.bd.aciertoCachePct < 95) {
+      const sbMb = aMegas(s.bd.sharedBuffers);
+      // Si la base de datos cabe entera en su memoria, ese porcentaje es solo una estadística acumulada (restauraciones, cargas grandes): no falta memoria
+      if (sbMb !== null && s.bd.tamanoMb < sbMb) h.push({ nivel: "info", texto: `El acierto de caché de la base de datos marca ${s.bd.aciertoCachePct} %, pero la base de datos (${s.bd.tamanoMb} MB) cabe entera en su memoria (${s.bd.sharedBuffers}): es una estadística acumulada desde el último reinicio de los contadores y se normaliza con el uso. Puedes pulsar «Contar desde ahora».` });
+      else h.push({ nivel: "medio", texto: `La base de datos acierta ${s.bd.aciertoCachePct} % de las lecturas en memoria (lo sano es más del 99 %): lee mucho del disco. Puede faltar memoria para la base de datos (shared_buffers = ${s.bd.sharedBuffers}).` });
+    }
     const muertas = s.bd.tablasGrandes.filter((t) => t.filasMuertas > 20000);
     if (muertas.length > 0) h.push({ nivel: "medio", texto: `Hay muchas filas muertas sin limpiar en ${muertas.map((t) => t.tabla).join(", ")}: conviene «Compactar base de datos» en Herramientas › Papelera.` });
   }
