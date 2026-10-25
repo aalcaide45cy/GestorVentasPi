@@ -407,6 +407,13 @@
       "when": 1792931603456,
       "tag": "0057_quitar_proteccion_grabado_a_fuego",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792952417813,
+      "tag": "0058_permiso_pg_stat_reset",
+      "breakpoints": true
     }
   ]
 }

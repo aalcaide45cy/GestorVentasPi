@@ -51,7 +51,7 @@ function Medidor({ titulo, valor, texto, pct, malo, ayuda, historia, maxHistoria
 
 /** «Rendimiento»: qué hace que el equipo vaya lento (CPU, memoria, temperatura, disco, base de datos, lecturas, peticiones lentas). */
 export default function PanelRendimiento() {
-  const { mostrar, confirmar } = useToast();
+  const { mostrar, confirmar, notificar } = useToast();
   const [d, setD] = useState<Respuesta | null>(null);
   const [auto, setAuto] = useState(true);
   const [cargando, setCargando] = useState(false);
@@ -115,8 +115,9 @@ export default function PanelRendimiento() {
   const contarDesdeAhora = async () => {
     if (!(await confirmar({ texto: "Se olvida el historial de mediciones y lo anotado de las peticiones lentas, y se ponen a cero los contadores de la base de datos (como el acierto de caché). No se toca ningún dato. ¿Contar desde ahora?" }))) return;
     try {
-      const r = (await llamar<{ contadoresBd: boolean }>("/api/admin/rendimiento/reiniciar", { method: "POST" })).data;
-      mostrar(r.contadoresBd ? "Hecho: se cuenta desde ahora." : "Hecho, salvo los contadores de la base de datos: PostgreSQL no deja reiniciarlos con este usuario.");
+      const r = (await llamar<{ contadoresBd: boolean; ayuda: string | null }>("/api/admin/rendimiento/reiniciar", { method: "POST" })).data;
+      if (r.contadoresBd) mostrar("Hecho: se cuenta desde ahora.");
+      else await notificar({ titulo: "Hecho, salvo los contadores de la base de datos", texto: r.ayuda ?? "PostgreSQL no deja reiniciar sus contadores con este usuario.", tipo: "aviso" });
       await leer();
     } catch (e) {
       mostrar(textoError(e), "error");

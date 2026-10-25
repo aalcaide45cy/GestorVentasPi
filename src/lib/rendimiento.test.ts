@@ -82,6 +82,7 @@ describe("contar desde ahora", () => {
     expect(resumenPeticiones(30).total).toBe(1);
     const r = await reiniciarRendimiento();
     expect(typeof r.contadoresBd).toBe("boolean");
+    expect(r.contadoresBd ? r.ayuda : typeof r.ayuda).toSatisfy((v: unknown) => v === null || v === "string");
     expect(resumenPeticiones(30).total).toBe(0);
     expect(consultasLentas()).toEqual([]);
     expect((await instantanea()).bd).not.toHaveProperty("error");

@@ -206,18 +206,28 @@ function avisarSiHaceFalta(i: Interno, s: Muestra, lim: Limitacion | null): void
 
 /**
  * «Contar desde ahora»: olvida el historial de mediciones, las peticiones y consultas lentas anotadas y los avisos ya dados, y pone a cero los contadores de
- * PostgreSQL (el acierto de caché, que una restauración o una carga grande dejan bajo durante días). No toca ningún dato. Devuelve si PostgreSQL dejó reiniciar los suyos.
+ * PostgreSQL (el acierto de caché, que una restauración o una carga grande dejan bajo durante días). No toca ningún dato. Devuelve si PostgreSQL dejó reiniciar los suyos y, si no, cómo darle el permiso.
  */
-export async function reiniciarRendimiento(): Promise<{ contadoresBd: boolean }> {
+export async function reiniciarRendimiento(): Promise<{ contadoresBd: boolean; ayuda: string | null }> {
   const i = interno();
   i.historial.length = 0;
   i.avisado.clear();
   olvidarRendimiento();
   try {
     await db.execute(sql`select pg_stat_reset()`);
-    return { contadoresBd: true };
+    return { contadoresBd: true, ayuda: null };
   } catch {
-    return { contadoresBd: false };
+    // Solo un administrador de PostgreSQL puede ejecutarlo: se dice cómo darle el permiso al usuario de la aplicación
+    let usuario = "el usuario de la aplicación";
+    let bd = "la base de datos";
+    try {
+      const [f] = (await db.execute(sql`select current_user as u, current_database() as b`)).rows as { u: string; b: string }[];
+      usuario = f.u;
+      bd = f.b;
+    } catch {
+      /* sin los nombres, la ayuda sale genérica */
+    }
+    return { contadoresBd: false, ayuda: `PostgreSQL no deja que «${usuario}» ponga a cero sus contadores. Un administrador de PostgreSQL tiene que ejecutar una vez: psql -d ${bd} -c "GRANT EXECUTE ON FUNCTION pg_stat_reset() TO ${usuario};"` };
   }
 }
 
