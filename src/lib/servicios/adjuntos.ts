@@ -3,6 +3,7 @@ import sharp from "sharp";
 import type { Ejecutor } from "@/db";
 import { adjuntos, adjuntosDatos, clientes, expedientes } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
+import { bytesCifrados, compartirSiRepetido, huellaDe } from "./contenidos";
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 
@@ -102,7 +103,10 @@ export async function guardarAdjunto(ej: Ejecutor, e: EntradaAdjunto): Promise<A
       .insert(adjuntos)
       .values({ ambito, idCliente: e.idCliente ?? null, idExpediente: e.idExpediente ?? null, tipo: e.tipo, nombre, mime: mimeFinal, tamano: contenido.length, tieneMiniatura: miniatura !== null, creadoPor: e.creadoPor })
       .returning();
-    await tx.insert(adjuntosDatos).values({ idAdjunto: fila.id, datos: cifrarBuffer(contenido), miniatura: miniatura ? cifrarBuffer(miniatura) : null });
+    const huella = huellaDe(contenido);
+    await tx.insert(adjuntosDatos).values({ idAdjunto: fila.id, datos: cifrarBuffer(contenido), contenidoHash: huella, miniatura: miniatura ? cifrarBuffer(miniatura) : null });
+    // Si ya había exactamente el mismo archivo (en otro expediente, en la biblioteca…), se guarda una sola vez
+    await compartirSiRepetido(tx, huella);
     return aDto(fila);
   });
 }
@@ -123,7 +127,7 @@ export async function leerAdjunto(ej: Ejecutor, id: number, miniatura = false): 
   const [d] = await ej.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, id));
   if (!d) return null;
   if (miniatura && d.miniatura) return { meta: aDto(a), datos: descifrarBuffer(d.miniatura), mime: "image/jpeg" };
-  return { meta: aDto(a), datos: descifrarBuffer(d.datos), mime: a.mime };
+  return { meta: aDto(a), datos: descifrarBuffer(await bytesCifrados(ej, d)), mime: a.mime };
 }
 
 /** Comprueba que el fichero sigue guardado sin leerlo ni descifrarlo (lo usa el visor para no cargar el PDF entero dos veces). */

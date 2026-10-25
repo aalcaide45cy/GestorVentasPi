@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
-import { adjuntosDatos, ajustes, biblioteca, bibliotecaDatos, codigosRecuperacion, conexionDrive, usuarios } from "@/db/schema";
+import { adjuntosDatos, ajustes, biblioteca, bibliotecaDatos, codigosRecuperacion, conexionDrive, contenidosCompartidos, usuarios } from "@/db/schema";
 import { cifrar, cifrarBuffer, descifrarBuffer, descifrarBufferConSecreto, descifrarConSecreto } from "@/lib/auth/cifrado";
 import { HttpError } from "@/lib/auth/sesion";
 
@@ -113,8 +113,8 @@ export async function secretoValido(ej: Ejecutor, secreto: string): Promise<bool
   // Copias hechas antes de existir la comprobación: se prueba con datos reales
   const [u] = await ej.select({ t: usuarios.totpSecretoCifrado }).from(usuarios).where(eq(usuarios.totpActivo, true)).limit(1);
   if (u?.t) return prueba(() => descifrarConSecreto(secreto, u.t as string, "totp"));
-  const [a] = await ej.select({ d: adjuntosDatos.datos }).from(adjuntosDatos).limit(1);
-  if (a?.d) return prueba(() => descifrarBufferConSecreto(secreto, a.d, "ficheros"));
+  const [a] = await ej.select({ d: adjuntosDatos.datos }).from(adjuntosDatos).where(isNotNull(adjuntosDatos.datos)).limit(1);
+  if (a?.d) return prueba(() => descifrarBufferConSecreto(secreto, a.d as Buffer, "ficheros"));
   return true;
 }
 
@@ -141,6 +141,7 @@ export async function recifrarBiblioteca(ej: Ejecutor, secretoOrigen: string): P
   const ids = await ej.select({ id: bibliotecaDatos.idArchivo }).from(bibliotecaDatos);
   for (const { id } of ids) {
     const [d] = await ej.select().from(bibliotecaDatos).where(eq(bibliotecaDatos.idArchivo, id));
+    if (!d.datos) continue; // su contenido está en los archivos compartidos (se vuelve a cifrar más abajo)
     try {
       descifrarBuffer(d.datos);
       yaLegibles++;
@@ -150,6 +151,23 @@ export async function recifrarBiblioteca(ej: Ejecutor, secretoOrigen: string): P
     }
     try {
       await ej.update(bibliotecaDatos).set({ datos: cifrarBuffer(descifrarBufferConSecreto(secretoOrigen, d.datos, "ficheros")) }).where(eq(bibliotecaDatos.idArchivo, id));
+      recifrados++;
+    } catch {
+      ilegibles++;
+    }
+  }
+  // Archivos repetidos guardados una sola vez (los comparten documentos y biblioteca)
+  for (const { hash } of await ej.select({ hash: contenidosCompartidos.hash }).from(contenidosCompartidos)) {
+    const [c] = await ej.select().from(contenidosCompartidos).where(eq(contenidosCompartidos.hash, hash));
+    try {
+      descifrarBuffer(c.datos);
+      yaLegibles++;
+      continue;
+    } catch {
+      /* no se lee con la clave de esta instalación: se prueba con la de origen */
+    }
+    try {
+      await ej.update(contenidosCompartidos).set({ datos: cifrarBuffer(descifrarBufferConSecreto(secretoOrigen, c.datos, "ficheros")) }).where(eq(contenidosCompartidos.hash, hash));
       recifrados++;
     } catch {
       ilegibles++;
@@ -182,7 +200,7 @@ export async function recifrarTodo(ej: Ejecutor, secretoOrigen: string): Promise
       const [d] = await tx.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, id));
       await tx
         .update(adjuntosDatos)
-        .set({ datos: cifrarBuffer(descifrarBufferConSecreto(secretoOrigen, d.datos, "ficheros")), miniatura: d.miniatura ? cifrarBuffer(descifrarBufferConSecreto(secretoOrigen, d.miniatura, "ficheros")) : null })
+        .set({ datos: d.datos ? cifrarBuffer(descifrarBufferConSecreto(secretoOrigen, d.datos, "ficheros")) : null, miniatura: d.miniatura ? cifrarBuffer(descifrarBufferConSecreto(secretoOrigen, d.miniatura, "ficheros")) : null })
         .where(eq(adjuntosDatos.idAdjunto, id));
       nAdjuntos++;
     }
@@ -207,6 +225,7 @@ export async function descartarDatosCifrados(ej: Ejecutor): Promise<{ adjuntos: 
     nAdjuntos = (await tx.delete(adjuntosDatos).returning({ id: adjuntosDatos.idAdjunto })).length;
     // Los archivos de la biblioteca van cifrados con la misma clave: sin ella no se pueden abrir, así que se quitan del todo (con su ficha)
     await tx.delete(bibliotecaDatos);
+    await tx.delete(contenidosCompartidos);
     await tx.delete(biblioteca);
     nUsuarios = (await tx.update(usuarios).set({ totpSecretoCifrado: null, totpActivo: false, totpUltimoContador: null }).returning({ id: usuarios.idUsuario })).length;
     await tx.delete(conexionDrive);

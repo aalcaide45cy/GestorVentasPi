@@ -51,7 +51,7 @@ describe("clave de recuperación: restaurar en otra instalación", () => {
     const [u] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, idUsuario));
     expect(descifrar(u.totpSecretoCifrado!, "totp")).toBe("SECRETO-TOTP");
     const [d] = await db.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, idAdjunto));
-    expect(descifrarBuffer(d.datos).toString()).toBe("contenido");
+    expect(descifrarBuffer(d.datos as Buffer).toString()).toBe("contenido");
     expect(descifrarBuffer(d.miniatura!).toString()).toBe("mini");
     expect(await secretoValido(db, SECRETO_B)).toBe(true);
     // La misma clave sigue valiendo, ahora con el secreto de esta instalación
@@ -70,7 +70,7 @@ describe("clave de recuperación: restaurar en otra instalación", () => {
     const [u] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, idUsuario));
     expect(descifrar(u.totpSecretoCifrado!, "totp")).toBe("SECRETO-TOTP");
     const [d] = await db.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, idAdjunto));
-    expect(descifrarBuffer(d.datos).toString()).toBe("contenido");
+    expect(descifrarBuffer(d.datos as Buffer).toString()).toBe("contenido");
     // La clave guardada pasa a ser la de esta instalación: la próxima copia también se podrá llevar a otro PC
     const [fila] = await db.select().from(ajustes).where(eq(ajustes.clave, "clave_portable"));
     expect(fila.valor).toBe(SECRETO_B);
@@ -107,7 +107,7 @@ describe("clave de recuperación: restaurar en otra instalación", () => {
     process.env.APP_SECRET = SECRETO_B;
     expect(await ajustarCifradoTrasRestaurar(db, SECRETO_A)).toEqual({ recifrado: true });
     const [d] = await db.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, idAdjunto));
-    expect(descifrarBuffer(d.datos).toString()).toBe("contenido");
+    expect(descifrarBuffer(d.datos as Buffer).toString()).toBe("contenido");
     // Al recifrar con el secreto, la clave guardada era la de origen: se descarta
     expect(await estadoClaveRecuperacion(db)).toEqual({ configurada: false });
   });

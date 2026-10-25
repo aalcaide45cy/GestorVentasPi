@@ -356,7 +356,7 @@ export async function documentosDeFila(ej: Ejecutor, categoria: Categoria, id: n
 export async function leerDocumentoPapelera(ej: Ejecutor, id: number, origen: "adjuntos" | "biblioteca" = "adjuntos"): Promise<{ nombre: string; mime: string; datos: Buffer }> {
   const [a] = await filas<{ nombre: string; mime: string; datos: Buffer }>(
     ej,
-    origen === "biblioteca" ? sql`select a.nombre, a.mime, d.datos from biblioteca a join biblioteca_datos d on d.id_archivo = a.id where a.id = ${id}` : sql`select a.nombre, a.mime, d.datos from adjuntos a join adjuntos_datos d on d.id_adjunto = a.id where a.id = ${id}`,
+    origen === "biblioteca" ? sql`select a.nombre, a.mime, coalesce(d.datos, c.datos) as datos from biblioteca a join biblioteca_datos d on d.id_archivo = a.id left join contenidos_compartidos c on c.hash = d.contenido_hash where a.id = ${id}` : sql`select a.nombre, a.mime, coalesce(d.datos, c.datos) as datos from adjuntos a join adjuntos_datos d on d.id_adjunto = a.id left join contenidos_compartidos c on c.hash = d.contenido_hash where a.id = ${id}`,
   );
   if (!a) throw new HttpError(404, "Documento no encontrado");
   return { nombre: a.nombre, mime: a.mime, datos: descifrarBuffer(a.datos) };
@@ -524,7 +524,7 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
   // Documentos y expedientes pueden ser muchísimos (y pesados): por lotes pequeños y con avance
   if (categoria === "documentos") {
     res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 20, "Documentos", progreso, (tx, lote) => purgarDocumentos(tx, lote));
-    await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos"], progreso);
+    await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos", "contenidos_compartidos"], progreso);
     return res;
   }
   if (categoria === "elementos") {
@@ -533,12 +533,12 @@ export async function purgar(ej: Ejecutor, idAdmin: number, entrada: z.infer<typ
   }
   if (categoria === "biblioteca") {
     res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 20, "Archivos de la biblioteca", progreso, (tx, lote) => purgarBiblioteca(tx, lote));
-    await limpiarEspacio(ej, ["biblioteca_datos", "biblioteca"], progreso);
+    await limpiarEspacio(ej, ["biblioteca_datos", "biblioteca", "contenidos_compartidos"], progreso);
     return res;
   }
   if (categoria === "expedientes") {
     res.purgados = await purgarPorLotes(ej, idsNumericos(ids), 50, "Expedientes", progreso, (tx, lote) => purgarExpedientes(tx, lote));
-    await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos", "expedientes"], progreso);
+    await limpiarEspacio(ej, ["adjuntos_datos", "adjuntos", "expedientes", "contenidos_compartidos"], progreso);
     return res;
   }
   progreso.avance(0, 0, `Purgando ${TEXTOS[categoria].titulo.toLowerCase()}…`);
@@ -784,7 +784,7 @@ export interface ResultadoCompactado {
   despues: number;
 }
 
-const TABLAS_A_COMPACTAR = ["adjuntos_datos", "adjuntos", "biblioteca_datos", "biblioteca", "lecturas_pedidos", "historial_cambios", "expedientes", "clientes", "emails_clientes", "telefonos_clientes", "auditoria", "validaciones_comision", "importaciones_registros"];
+const TABLAS_A_COMPACTAR = ["adjuntos_datos", "adjuntos", "biblioteca_datos", "biblioteca", "contenidos_compartidos", "lecturas_pedidos", "historial_cambios", "expedientes", "clientes", "emails_clientes", "telefonos_clientes", "auditoria", "validaciones_comision", "importaciones_registros"];
 
 /** Tamaño de la base de datos y de las tablas que se compactan (lo que de verdad ocupa en disco, con el espacio de lo borrado sin devolver). */
 export async function espacioBaseDeDatos(ej: Ejecutor): Promise<{ total: number; tablas: { tabla: string; bytes: number; filas: number }[] }> {

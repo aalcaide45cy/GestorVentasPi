@@ -10,6 +10,7 @@ import type { AnalisisBbdd, CategoriaAnomalia, FilaAnomalia } from "@/lib/servic
 import PanelCopias from "./PanelCopias";
 import PanelDatos from "./PanelDatos";
 import PanelCifrado from "./PanelCifrado";
+import PanelDocumentosRepetidos from "./PanelDocumentosRepetidos";
 import { GestorFilas } from "./PanelPapelera";
 import { SubPestanas } from "./estructura";
 import { guardarPreferencia } from "@/lib/preferencias";
@@ -186,6 +187,8 @@ export default function PestanaBbdd({ mostrarBotonesCsvInicial }: Props) {
                   <strong style={{ color: "var(--warning)" }}>Seguro:</strong> solo se borra lo de «Se puede limpiar», y antes se guarda una copia de seguridad completa que puedes restaurar. Lo de «A revisar» nunca se toca solo.
                 </p>
               </div>
+
+              <PanelDocumentosRepetidos />
 
               <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-secondary" onClick={() => void analizar()} disabled={analizando || limpiando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px" }}>

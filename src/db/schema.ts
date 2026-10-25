@@ -1036,9 +1036,22 @@ export const adjuntosDatos = pgTable("adjuntos_datos", {
   idAdjunto: integer("id_adjunto")
     .primaryKey()
     .references(() => adjuntos.id, { onDelete: "cascade" }),
-  /** Contenido cifrado con AES-256-GCM (clave derivada de APP_SECRET). */
-  datos: bytea("datos").notNull(),
+  /** Contenido cifrado con AES-256-GCM (clave derivada de APP_SECRET). Vacío si el mismo archivo está guardado una sola vez en `contenidos_compartidos` (ver `contenidoHash`). */
+  datos: bytea("datos"),
+  /** SHA-256 del contenido sin cifrar: con `datos` vacío, indica dónde está el archivo (`contenidos_compartidos`). */
+  contenidoHash: varchar("contenido_hash", { length: 64 }),
   miniatura: bytea("miniatura"),
+});
+
+/**
+ * Archivos idénticos guardados una sola vez: cuando el mismo documento está en varios sitios (el pedido de un expediente y su copia en la biblioteca, o
+ * subido dos veces), cada ficha deja `datos` vacío y apunta aquí por el hash de su contenido. Un disparador borra el archivo cuando ya nada lo usa.
+ */
+export const contenidosCompartidos = pgTable("contenidos_compartidos", {
+  hash: varchar("hash", { length: 64 }).primaryKey(),
+  /** Contenido cifrado igual que en `adjuntos_datos`. */
+  datos: bytea("datos").notNull(),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -1077,8 +1090,10 @@ export const bibliotecaDatos = pgTable("biblioteca_datos", {
   idArchivo: integer("id_archivo")
     .primaryKey()
     .references(() => biblioteca.id, { onDelete: "cascade" }),
-  /** Contenido cifrado con AES-256-GCM (clave derivada de APP_SECRET). */
-  datos: bytea("datos").notNull(),
+  /** Contenido cifrado con AES-256-GCM (clave derivada de APP_SECRET). Vacío si está en `contenidos_compartidos` (ver `contenidoHash`). */
+  datos: bytea("datos"),
+  /** SHA-256 del contenido sin cifrar: con `datos` vacío, indica dónde está el archivo (`contenidos_compartidos`). */
+  contenidoHash: varchar("contenido_hash", { length: 64 }),
 });
 
 /**

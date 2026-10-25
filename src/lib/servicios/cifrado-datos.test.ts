@@ -26,7 +26,7 @@ describe("interruptor del cifrado: convertir lo ya guardado", () => {
     expect(r.ilegibles).toBe(0);
     expect(await estadoCifrado(db)).toMatchObject({ cifrados: 0, enClaro: 2 });
     const [fila] = await db.select().from(bibliotecaDatos).where(eq(bibliotecaDatos.idArchivo, archivo.id));
-    expect(Buffer.from(fila.datos).subarray(0, 4).toString()).toBe("GVP0");
+    expect(Buffer.from(fila.datos as Buffer).subarray(0, 4).toString()).toBe("GVP0");
     expect((await leerArchivo(db, archivo.id))?.datos.toString()).toBe("%PDF contenido secreto");
     const [usr] = await db.select().from(usuarios).where(eq(usuarios.idUsuario, u.idUsuario));
     expect(descifrar(usr.totpSecretoCifrado as string, "totp")).toBe("JBSWY3DPEHPK3PXP");

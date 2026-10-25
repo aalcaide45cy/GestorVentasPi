@@ -617,6 +617,13 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.28.0 (25/10/2026)
+
+- **Documentos repetidos guardados una sola vez** (sin tocar ni un byte ni reducir la calidad de ningún archivo). Cada pedido leído se guardaba dos veces (el adjunto del expediente y su copia en la biblioteca) y un mismo PDF subido dos veces ocupaba el doble. Tabla nueva `contenidos_compartidos` (migración 0056): las fichas con el mismo contenido dejan su `datos` vacío y apuntan al archivo común por su SHA-256 (`contenido_hash`); un disparador de la base de datos borra el archivo común cuando ya no lo usa nadie. Lo que se guarde a partir de ahora no se repite (`compartirSiRepetido`).
+- **Las rejillas no se tocan nunca** (ni en lo antiguo ni en lo nuevo): no tienen huella ni se comparten.
+- **Configuración › BBDD › Análisis y limpieza › «Documentos repetidos»:** «Ver cuántos hay» cuenta y calcula el espacio; «Quitar» hace antes una copia de seguridad completa (si no se puede, no se toca nada), deja cada archivo una sola vez y compacta las tablas. Ruta `/api/admin/documentos/repetidos` (solo administrador). Probado sobre una copia de tus datos: 1285 archivos, 552 copias repetidas quitadas, de 2154 MB a 542 MB y ningún archivo cambió de contenido.
+- Todo lo que lee o reescribe documentos conoce los archivos compartidos: descargas de la Papelera, purgas, cifrado general, recifrado con otra clave, descartar datos cifrados y «Borrar absolutamente todo».
+
 ## Versión 1.27.0 (25/10/2026)
 
 - **La memoria de la base de datos se adapta al equipo.** `lib/memoria-bd.ts` recomienda según la RAM y el tipo de equipo: Raspberry de 8 GB → 1 GB de memoria compartida; Mac de 16 GB → 4 GB; PC de 64 GB → 16 GB (un cuarto de la RAM, con tope de 16 GB), con su `effective_cache_size`, `work_mem` y `maintenance_work_mem`.

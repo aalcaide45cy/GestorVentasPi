@@ -140,6 +140,7 @@ interface Entrada {
 /** Qué guarda cada tabla y a qué grupo pertenece. Lo que no esté aquí sale con su nombre y en «Otros». */
 const TABLAS: Record<string, { grupo: string; descripcion: string }> = {
   adjuntos_datos: { grupo: "Documentos", descripcion: "Contenido (cifrado) de los documentos adjuntos: DNI, pedidos y fotos de clientes." },
+  contenidos_compartidos: { grupo: "Documentos", descripcion: "Documentos repetidos guardados una sola vez (el mismo pedido en un expediente y en la biblioteca, por ejemplo): las fichas apuntan aquí en vez de repetir el archivo." },
   adjuntos: { grupo: "Documentos", descripcion: "Ficha de cada documento adjunto (nombre, tipo, a qué cliente o expediente pertenece)." },
   lecturas_pedidos: { grupo: "Lectura de pedidos", descripcion: "Registro de los pedidos subidos para leer: el fichero de cada uno mientras se lee y el resultado de la lectura." },
   historial_cambios: { grupo: "Historial", descripcion: "Diario de cambios que permite deshacer y rehacer (se limpia solo a los 30 días)." },

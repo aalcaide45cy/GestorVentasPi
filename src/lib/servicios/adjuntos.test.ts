@@ -40,8 +40,8 @@ describe("adjuntos", () => {
     expect(miniatura!.datos.length).toBeLessThan(r!.datos.length);
     // En la base de datos no está en claro
     const [fila] = await db.select().from(adjuntosDatos).where(eq(adjuntosDatos.idAdjunto, a.id));
-    expect(fila.datos.equals(r!.datos)).toBe(false);
-    expect(detectarMime(fila.datos)).toBeNull();
+    expect((fila.datos as Buffer).equals(r!.datos)).toBe(false);
+    expect(detectarMime(fila.datos as Buffer)).toBeNull();
     expect((await listarAdjuntos(db, { idCliente: c.id })).map((x) => x.id)).toEqual([a.id]);
   });
 

@@ -23,6 +23,7 @@ const BYTEA = [
   { tabla: "adjuntos_datos", pk: "id_adjunto", col: "datos", nombre: "Documentos" },
   { tabla: "adjuntos_datos", pk: "id_adjunto", col: "miniatura", nombre: "Miniaturas" },
   { tabla: "biblioteca_datos", pk: "id_archivo", col: "datos", nombre: "Archivos de la biblioteca" },
+  { tabla: "contenidos_compartidos", pk: "hash", col: "datos", nombre: "Documentos repetidos (guardados una sola vez)" },
   { tabla: "incidencias_capturas", pk: "id", col: "datos", nombre: "Capturas de las incidencias" },
   { tabla: "lecturas_pedidos", pk: "id", col: "datos", nombre: "Documentos en cola de lectura" },
 ] as const;

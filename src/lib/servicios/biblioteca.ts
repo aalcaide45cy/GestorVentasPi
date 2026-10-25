@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { biblioteca, bibliotecaDatos, clientes, expedientes } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
+import { bytesCifrados, compartirSiRepetido } from "./contenidos";
 import { HttpError } from "@/lib/auth/sesion";
 import { adivinarCategoria, CATEGORIAS, ETIQUETA_CATEGORIA, nombreAutomatico, type CategoriaBiblioteca } from "@/lib/biblioteca-categorias";
 
@@ -66,7 +67,11 @@ export async function guardarArchivo(
       .insert(biblioteca)
       .values({ categoria: e.categoria ?? adivinarCategoria(nombre, mime), nombre, nombreOriginal: (e.nombreOriginal ?? nombre).trim().slice(0, 200), mime: mime.slice(0, 120), tamano: e.datos.length, huella, creadoPor: e.creadoPor })
       .returning();
-    await tx.insert(bibliotecaDatos).values({ idArchivo: fila.id, datos: cifrarBuffer(e.datos) });
+    // Las rejillas nunca se comparten: se dejan como siempre
+    const compartible = fila.categoria !== "rejilla";
+    await tx.insert(bibliotecaDatos).values({ idArchivo: fila.id, datos: cifrarBuffer(e.datos), contenidoHash: compartible ? huella : null });
+    // Si ya había exactamente el mismo archivo (el pedido del expediente, por ejemplo), se guarda una sola vez
+    if (compartible) await compartirSiRepetido(tx, huella);
     return { archivo: aDto(fila), repetido: false };
   });
 }
@@ -154,7 +159,7 @@ export async function leerArchivo(ej: Ejecutor, id: number): Promise<{ meta: Arc
   const [d] = await ej.select().from(bibliotecaDatos).where(eq(bibliotecaDatos.idArchivo, id));
   if (!d) return null;
   try {
-    return { meta: aDto(f), datos: descifrarBuffer(d.datos) };
+    return { meta: aDto(f), datos: descifrarBuffer(await bytesCifrados(ej, d)) };
   } catch (e) {
     // Solo es «otra instalación» si el cifrado no cuadra; si falta la clave de esta (APP_SECRET), se dice tal cual para no confundir
     if (e instanceof Error && e.message.includes("APP_SECRET")) throw new HttpError(500, `No se puede abrir «${f.nombre}»: ${e.message}`);
