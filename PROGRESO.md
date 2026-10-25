@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.26.1 (25/10/2026)
+
+- **Falso aviso de «memoria de intercambio» en el Mac corregido.** En macOS el swap queda usado después de un pico y no se libera aunque sobre memoria, así que el medidor lo marcaba en rojo con un 61 % de memoria libre. Ahora (`lib/swap.ts`, `swapPreocupa`) en macOS solo se marca si además queda menos de un 15 % de memoria disponible; en Linux (la Raspberry) sigue avisando a partir de 300 MB. El texto dice «tarjeta SD» solo en una Raspberry y «disco» en los demás equipos; la ayuda del medidor añade una nota en macOS. Afecta al medidor de «Memoria libre», al indicador de la barra superior, al aviso al registro de incidencias y a los hallazgos del informe de rendimiento.
+
 ## Versión 1.26.0 (24/10/2026)
 
 - **Los ajustes de pantalla de cada usuario se guardan en la base de datos**, no solo en el navegador: son los mismos en cualquier PC. Tabla nueva `preferencias_usuario` (id_usuario, clave, valor; migración 0055, solo añade y se borra en cascada con el usuario) y ruta `/api/preferencias` (GET y PUT, con Zod y lista de claves permitidas). Cubre las reglas de color y los esquemas, los ajustes de Expedientes, Dashboard y Clientes, las columnas de las tablas, los paneles plegados, mostrar anulados y deshabilitados y la foto del cliente (`lib/preferencias-sincronizadas.ts`).

@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { instantanea, probarBd, probarDisco, recursosRapidos } from "./rendimiento";
+import { instantanea, probarBd, probarDisco, recursosRapidos, swapPreocupa, textoConsecuenciaSwap } from "./rendimiento";
 import { consultasLentas, normalizarRuta, olvidarRendimiento, registrarConsulta, registrarPeticion, resumenPeticiones } from "./rendimiento-registro";
 
 let dir = "";
@@ -72,5 +72,22 @@ describe("diagnóstico", () => {
     expect(r.memoriaUsadaPct).toBeGreaterThan(0);
     expect(r.memoriaTotalMb).toBeGreaterThan(0);
     expect(["ok", "aviso", "alto"]).toContain(r.nivel);
+  });
+});
+
+describe("aviso de memoria de intercambio (swap)", () => {
+  it("en Linux avisa a partir de 300 MB, haya o no memoria libre", () => {
+    expect(swapPreocupa({ plataforma: "linux", swapUsadoMb: 299, memLibrePct: 5 })).toBe(false);
+    expect(swapPreocupa({ plataforma: "linux", swapUsadoMb: 300, memLibrePct: 70 })).toBe(true);
+  });
+  it("en macOS el swap usado tras un pico no es un problema mientras sobre memoria", () => {
+    expect(swapPreocupa({ plataforma: "darwin", swapUsadoMb: 4000, memLibrePct: 61 })).toBe(false);
+    expect(swapPreocupa({ plataforma: "darwin", swapUsadoMb: 4000, memLibrePct: 14 })).toBe(true);
+    expect(swapPreocupa({ plataforma: "darwin", swapUsadoMb: 100, memLibrePct: 5 })).toBe(false);
+  });
+  it("el texto habla de la tarjeta SD solo en una Raspberry", () => {
+    expect(textoConsecuenciaSwap("Raspberry")).toContain("tarjeta SD");
+    expect(textoConsecuenciaSwap("Apple")).not.toContain("tarjeta SD");
+    expect(textoConsecuenciaSwap("AMD")).not.toContain("tarjeta SD");
   });
 });

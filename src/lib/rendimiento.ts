@@ -9,6 +9,9 @@ import { db } from "@/db";
 import { carpetaCopias, enMantenimiento } from "@/lib/mantenimiento";
 import { identidadEquipo, type IdentidadEquipo } from "@/lib/equipo";
 import { memoriaMacOs } from "@/lib/memoria-macos";
+import { swapPreocupa, textoConsecuenciaSwap } from "@/lib/swap";
+
+export { swapPreocupa, textoConsecuenciaSwap };
 import { consultasLentas, resumenPeticiones } from "@/lib/rendimiento-registro";
 import { ajustesOcr } from "@/lib/servicios/ocr-ajustes";
 
@@ -193,7 +196,7 @@ function avisarSiHaceFalta(i: Interno, s: Muestra, lim: Limitacion | null): void
   if (s.tempC !== null && s.tempC >= 80) avisar("temp", `temperatura alta (${s.tempC} °C): el procesador reduce la velocidad`);
   if (lim && lim.ahora.length > 0) avisar("limite", `la Raspberry está limitando la velocidad: ${lim.ahora.join("; ")}`);
   if (s.memLibrePct <= 8) avisar("mem", `poca memoria libre (${s.memLibrePct} %)`);
-  if (s.swapMb >= 300) avisar("swap", `se está usando la memoria de intercambio en disco (${s.swapMb} MB): todo va mucho más lento`);
+  if (swapPreocupa({ plataforma: process.platform, swapUsadoMb: s.swapMb, memLibrePct: s.memLibrePct })) avisar("swap", `se está usando la memoria de intercambio en disco (${s.swapMb} MB): todo va mucho más lento`);
   if ((s.psiIo ?? 0) >= 25) avisar("psi-io", `el sistema pasa un ${s.psiIo} % del tiempo esperando al disco (la tarjeta SD puede ser el cuello de botella)`);
   if ((s.ioPct ?? 0) >= 90) avisar("io", `el disco está al ${s.ioPct} % de uso`);
   if (s.cpu >= 95) avisar("cpu", `CPU al ${s.cpu} %`);
@@ -342,7 +345,8 @@ export function recursosRapidos(): Recursos {
   if (lim && lim.ahora.length > 0) marcar("alto", `Limitando la velocidad: ${lim.ahora[0]}`);
   if (cpu >= 90) marcar("alto", `CPU al ${cpu} %`);
   else if (cpu >= 70) marcar("aviso", `CPU al ${cpu} %`);
-  if (usada >= 90 || m.swapUsadoMb >= 300) marcar("alto", m.swapUsadoMb >= 300 ? `Usando ${m.swapUsadoMb} MB de swap (disco como memoria)` : `Memoria al ${usada} %`);
+  const swapMal = swapPreocupa({ plataforma: process.platform, swapUsadoMb: m.swapUsadoMb, memLibrePct: 100 - usada });
+  if (usada >= 90 || swapMal) marcar("alto", swapMal ? `Usando ${m.swapUsadoMb} MB de swap (disco como memoria)` : `Memoria al ${usada} %`);
   else if (usada >= 80) marcar("aviso", `Memoria al ${usada} %`);
   if ((tempC ?? 0) >= 80) marcar("alto", `Temperatura ${tempC} °C`);
   else if ((tempC ?? 0) >= 70) marcar("aviso", `Temperatura ${tempC} °C`);
@@ -447,7 +451,7 @@ function analizar(s: Omit<Instantanea, "hallazgos">, hist: Muestra[]): Hallazgo[
   if (temp >= 80) h.push({ nivel: "alto", texto: `Temperatura muy alta (${temp} °C): el procesador baja su velocidad. Falta refrigeración (disipador o ventilador).` });
   else if (temp >= 70) h.push({ nivel: "medio", texto: `Temperatura alta (${temp} °C): cerca del punto en que el procesador empieza a frenarse (80 °C).` });
 
-  if (s.memoria.swapUsadoMb >= 300) h.push({ nivel: "alto", texto: `Se está usando la memoria de intercambio (${s.memoria.swapUsadoMb} MB): cuando la memoria se agota el sistema escribe en la tarjeta SD y todo se vuelve lentísimo. Baja los «Pedidos que se leen a la vez» a 1 o 2 y no leas lotes grandes mientras se usa la aplicación.` });
+  if (swapPreocupa({ plataforma: process.platform, swapUsadoMb: s.memoria.swapUsadoMb, memLibrePct: m.memLibrePct })) h.push({ nivel: "alto", texto: `Se está usando la memoria de intercambio (${s.memoria.swapUsadoMb} MB): ${textoConsecuenciaSwap(s.equipo.identidad.tipo)}. Baja los «Pedidos que se leen a la vez» a 1 o 2 y no leas lotes grandes mientras se usa la aplicación.` });
   else if (m.memLibrePct <= 10) h.push({ nivel: "alto", texto: `Queda muy poca memoria libre (${m.memLibrePct} %). Cualquier lectura de pedidos o copia grande puede dejar el sistema sin memoria.` });
   else if (m.memLibrePct <= 20) h.push({ nivel: "medio", texto: `Memoria libre baja (${m.memLibrePct} %).` });
   if (s.memoria.contenedor?.limiteMb && s.memoria.contenedor.usadoMb > s.memoria.contenedor.limiteMb * 0.9) h.push({ nivel: "alto", texto: `La aplicación usa ${s.memoria.contenedor.usadoMb} MB de los ${s.memoria.contenedor.limiteMb} MB que tiene permitidos: está a punto de quedarse sin memoria.` });
