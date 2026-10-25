@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.30.0 (25/10/2026)
+
+- **Configuración › Marcas y Modelos: columna «Expedientes».** Cada marca y cada modelo muestra cuántos expedientes lo usan (los vigentes y, aparte, los que están en la Papelera, que siguen apuntando a él y por eso cuentan al borrarlo) y un botón «📄 N» que abre la lista de esos expedientes (cliente con enlace, modelo, matrícula, tipo de pago, estado, vendedor y fecha de pedido). La columna se puede ordenar. Un 0 gris significa que se puede borrar sin más. Ruta `/api/admin/catalogos/usos` (solo administrador) y `lib/servicios/usos-catalogo.ts`.
+
 ## Versión 1.29.0 (25/10/2026)
 
 - **«Grabado a fuego», como lo querías de verdad.** Las marcas, los modelos (con sus colores) y las plantillas base de comisiones y de tarifas: (1) **«Borrar absolutamente todo» no los borra** (ni «Borrar todos los datos» las marcas y los modelos); (2) **vienen de serie en una instalación nueva** (otro Mac, otro PC, otra Raspberry); y (3) **se pueden editar, desactivar y borrar a mano** como cualquier otra cosa. Se quita lo de 1.22.0 que impedía borrarlos a mano (migración 0057 quita los disparadores; se restauran los botones de borrar de Marcas y Modelos, el borrado en la Papelera y los modos «sustituir» de las importaciones).

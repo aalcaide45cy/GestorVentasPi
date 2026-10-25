@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import type { MarcaDto, ModeloDto } from "@/lib/dto";
 import { EtiquetaMarca, PuntoMarca } from "@/components/etiquetas";
 import SelectorColor from "@/components/SelectorColor";
+import { CeldaUsos, useUsosCatalogo } from "./UsosCatalogo";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
 
 export type MarcaConModelos = MarcaDto & { modelos: ModeloDto[] };
@@ -17,6 +18,8 @@ interface Props {
 export default function PestanaMarcas({ marcas, setMarcas }: Props) {
   const { cargando, llamar, ejecutar, confirmar, notificar } = usePeticion();
   const orden = useOrden("id");
+  // Cuántos expedientes usa cada marca (se vuelve a pedir cuando cambia el catálogo)
+  const usos = useUsosCatalogo(marcas);
   const [nombre, setNombre] = useState("");
   const [accesoRapido, setAccesoRapido] = useState(false);
   const [sistemaComisiones, setSistemaComisiones] = useState(false);
@@ -46,6 +49,8 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
         return m.punto_color ?? "~";
       case "modelos":
         return m.modelos.length;
+      case "usos":
+        return usos?.marcas[m.id_marca]?.activos ?? 0;
       default:
         return m.id_marca;
     }
@@ -200,6 +205,7 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
               <Cabecera etiqueta="Acceso Rápido" campo="acceso_rapido" orden={orden} />
               <Cabecera etiqueta="Sist. Comisiones" campo="sistema_comisiones" orden={orden} />
               <Cabecera etiqueta="Modelos Asoc." campo="modelos" orden={orden} />
+              <Cabecera etiqueta="Expedientes" campo="usos" orden={orden} />
               <th>Acciones</th>
             </tr>
           </thead>
@@ -255,6 +261,9 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
                   </button>
                 </td>
                 <td>{m.modelos.length} modelo(s)</td>
+                <td>
+                  <CeldaUsos tipo="marca" id={m.id_marca} nombre={m.nombre} usos={usos?.marcas[m.id_marca]} />
+                </td>
                 <td>
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button

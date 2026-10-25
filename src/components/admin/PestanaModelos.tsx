@@ -7,6 +7,7 @@ import type { ModeloDto } from "@/lib/dto";
 import type { MarcaConModelos } from "./PestanaMarcas";
 import { guardarPreferencia } from "@/lib/preferencias";
 import { Plegable } from "./estructura";
+import { CeldaUsos, useUsosCatalogo } from "./UsosCatalogo";
 import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, useOrden, usePeticion } from "./utilidades";
 
 interface Props {
@@ -26,6 +27,8 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
   const router = useRouter();
   const { cargando, llamar, ejecutar, confirmar } = usePeticion();
   const orden = useOrden("orden_acceso_rapido");
+  // Cuántos expedientes usa cada modelo (se vuelve a pedir cuando cambia el catálogo)
+  const usos = useUsosCatalogo(marcas);
   const [marcaNueva, setMarcaNueva] = useState<number | "">("");
   const [nombre, setNombre] = useState("");
   const [accesoRapido, setAccesoRapido] = useState(false);
@@ -54,6 +57,9 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
         break;
       case "orden_acceso_rapido":
         r = (a.modelo.orden_acceso_rapido ?? 0) - (b.modelo.orden_acceso_rapido ?? 0);
+        break;
+      case "usos":
+        r = (usos?.modelos[a.modelo.id_modelo]?.activos ?? 0) - (usos?.modelos[b.modelo.id_modelo]?.activos ?? 0);
         break;
       default:
         r = porMarca || porNombre;
@@ -177,6 +183,7 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
             <Cabecera etiqueta="Nombre Modelo" campo="nombre" orden={orden} />
             <Cabecera etiqueta="Acceso Rápido" campo="acceso_rapido" orden={orden} />
             <Cabecera etiqueta="Orden Dashboard" campo="orden_acceso_rapido" orden={orden} />
+            <Cabecera etiqueta="Expedientes" campo="usos" orden={orden} />
             <th>Acciones</th>
           </tr>
         </thead>
@@ -225,6 +232,9 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
                   />
                 </td>
                 <td>
+                  <CeldaUsos tipo="modelo" id={m.id_modelo} nombre={`${f.nombreMarca} ${m.nombre_modelo}`} usos={usos?.modelos[m.id_modelo]} />
+                </td>
+                <td>
                   <div style={{ display: "flex", gap: "10px" }}>
                     <button
                       type="button"
@@ -247,7 +257,7 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
           })}
           {lista.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
+              <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
                 {vacio}
               </td>
             </tr>
