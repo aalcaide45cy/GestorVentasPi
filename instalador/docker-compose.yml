@@ -15,7 +15,7 @@ services:
     command: >
       postgres -c shared_buffers=${PG_SHARED_BUFFERS:-384MB}
                -c effective_cache_size=${PG_CACHE:-2GB}
-               -c work_mem=16MB -c maintenance_work_mem=128MB
+               -c work_mem=${PG_WORK_MEM:-16MB} -c maintenance_work_mem=${PG_MAINT:-128MB}
                -c max_connections=40 -c checkpoint_timeout=15min -c max_wal_size=1GB
                -c log_min_duration_statement=500
     volumes:

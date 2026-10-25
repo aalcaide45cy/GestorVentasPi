@@ -131,18 +131,47 @@ fijar_env() { # fijar_env CLAVE VALOR -> añade o sustituye en .env
   fi
 }
 
+# Memoria de la base de datos y de la aplicación según la RAM del equipo (mismos tramos que `recomendarMemoriaBd` en src/lib/memoria-bd.ts).
+# Deja el resultado en N_DB_MEM, N_APP_MEM, N_SB, N_CACHE, N_WORK y N_MAINT.
+niveles_memoria() {
+  local ram="$1"
+  if [ "$ram" -ge 30000 ]; then N_DB_MEM="24g"; N_APP_MEM="4g"; N_SB="16GB"; N_CACHE="32GB"; N_WORK="128MB"; N_MAINT="2GB"
+  elif [ "$ram" -ge 12000 ]; then N_DB_MEM="8g"; N_APP_MEM="2g"; N_SB="4GB"; N_CACHE="8GB"; N_WORK="64MB"; N_MAINT="1GB"
+  elif [ "$ram" -ge 6000 ]; then N_DB_MEM="2500m"; N_APP_MEM="1024m"; N_SB="1GB"; N_CACHE="4GB"; N_WORK="16MB"; N_MAINT="256MB"
+  elif [ "$ram" -ge 3000 ]; then N_DB_MEM="900m"; N_APP_MEM="700m"; N_SB="192MB"; N_CACHE="1GB"; N_WORK="8MB"; N_MAINT="128MB"
+  else N_DB_MEM="500m"; N_APP_MEM="450m"; N_SB="96MB"; N_CACHE="512MB"; N_WORK="4MB"; N_MAINT="64MB"
+  fi
+}
+
+# En una instalación que ya existe se conservan sus valores, salvo los que dejó una versión anterior del instalador (384 MB de memoria compartida
+# y 1500m de límite en una Raspberry de 8 GB): esos se suben a los de ahora. Lo que alguien haya cambiado a mano no se toca.
+mejorar_memoria_bd() {
+  [ -f "$DIR/.env" ] || return 0
+  local ram sb_actual lim_actual
+  ram="$(ram_mb)"
+  sb_actual="$(grep '^PG_SHARED_BUFFERS=' "$DIR/.env" | cut -d= -f2)"
+  lim_actual="$(grep '^DB_MEM_LIMIT=' "$DIR/.env" | cut -d= -f2)"
+  niveles_memoria "$ram"
+  if [ "$sb_actual" = "384MB" ] && [ "$lim_actual" = "1500m" ] && [ "$ram" -ge 6000 ]; then
+    fijar_env PG_SHARED_BUFFERS "$N_SB"; fijar_env PG_CACHE "$N_CACHE"; fijar_env DB_MEM_LIMIT "$N_DB_MEM"
+    fijar_env PG_WORK_MEM "$N_WORK"; fijar_env PG_MAINT "$N_MAINT"
+    verde "Memoria de la base de datos ajustada a este equipo (${ram} MB de RAM): $N_SB de memoria compartida."
+  else
+    grep -q '^PG_WORK_MEM=' "$DIR/.env" || fijar_env PG_WORK_MEM "16MB"
+    grep -q '^PG_MAINT=' "$DIR/.env" || fijar_env PG_MAINT "128MB"
+  fi
+}
+
 crear_env() {
   if [ -f "$DIR/.env" ]; then
     azul "Ya existe $DIR/.env: se conserva (no se sobrescribe)."
     return
   fi
   local ram; ram="$(ram_mb)"
-  local db_mem app_mem sb cache
-  if [ "$ram" -ge 12000 ]; then db_mem="4g"; app_mem="2g"; sb="1GB"; cache="6GB"
-  elif [ "$ram" -ge 6000 ]; then db_mem="1500m"; app_mem="1024m"; sb="384MB"; cache="2GB"
-  elif [ "$ram" -ge 3000 ]; then db_mem="900m"; app_mem="700m"; sb="192MB"; cache="1GB"
-  else db_mem="500m"; app_mem="450m"; sb="96MB"; cache="512MB"; aviso "Poca RAM (${ram} MB): la aplicación funcionará justa."
-  fi
+  local db_mem app_mem sb cache work maint
+  niveles_memoria "$ram"
+  db_mem="$N_DB_MEM"; app_mem="$N_APP_MEM"; sb="$N_SB"; cache="$N_CACHE"; work="$N_WORK"; maint="$N_MAINT"
+  [ "$ram" -lt 3000 ] && aviso "Poca RAM (${ram} MB): la aplicación funcionará justa."
   local pg_pass; pg_pass="$(aleatorio 36 40)"
   umask 077
   cat > "$DIR/.env" <<EOF
@@ -169,6 +198,8 @@ DB_MEM_LIMIT=$db_mem
 APP_MEM_LIMIT=$app_mem
 PG_SHARED_BUFFERS=$sb
 PG_CACHE=$cache
+PG_WORK_MEM=$work
+PG_MAINT=$maint
 COOKIE_SECURE=${GV_COOKIE_SECURE:-true}
 EOF
   chmod 600 "$DIR/.env"
@@ -384,6 +415,7 @@ cmd_instalar() {
     azul "Cargando imágenes incluidas en el instalador..."
     for f in "$DIR"/imagenes/*"$ARQ"*.tar; do [ -f "$f" ] && docker load -i "$f"; done
   fi
+  mejorar_memoria_bd
   # shellcheck disable=SC1091
   . "$DIR/.env"
   asegurar_imagen "$APP_IMAGE:$APP_VERSION"

@@ -6,6 +6,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import type { Instantanea, Muestra, PruebaBd, PruebaDisco } from "@/lib/rendimiento";
 import type { ConsultaLenta, ResumenRuta } from "@/lib/rendimiento-registro";
 import { swapPreocupa } from "@/lib/swap";
+import MemoriaBdPanel from "./MemoriaBdPanel";
 
 interface Respuesta {
   instantanea: Instantanea;
@@ -188,6 +189,8 @@ export default function PanelRendimiento() {
         <Medidor titulo="Espera de disco (PSI)" valor={m.psiIo === null ? "—" : `${m.psiIo} %`} texto={`espera de CPU ${m.psiCpu ?? "—"} % · de memoria ${m.psiMem ?? "—"} %`} pct={m.psiIo === null ? null : Math.min(100, m.psiIo * 2)} malo={(m.psiIo ?? 0) >= 25} ayuda="Porcentaje del tiempo en que los programas esperan al disco. Más del 10-25 % se nota como lentitud." historia={serie((x) => x.psiIo)} maxHistoria={50} />
         <Medidor titulo="Bloqueo del servidor" valor={`${m.lagMs} ms`} texto={`la aplicación ocupa ${s.proceso.rssMb} MB`} pct={Math.min(100, m.lagMs / 5)} malo={m.lagMs >= 300} ayuda="Lo máximo que el servidor ha estado sin atender peticiones en los últimos 30 segundos. Más de 300 ms se nota como pantallas que tardan." historia={serie((x) => x.lagMs)} maxHistoria={500} />
       </div>
+
+      <MemoriaBdPanel />
 
       <div className="glass-panel" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px", border: "1px solid var(--border-light)" }}>
         <div style={{ fontWeight: 700 }}>Lo que se está ejecutando</div>

@@ -14,9 +14,9 @@ services:
     # Se aplican al recrear el contenedor (docker compose up -d db). En la Raspberry se usan los del instalador, que son más prudentes.
     command: >
       postgres -c shared_buffers=${PG_SHARED_BUFFERS:-1GB}
-               -c effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-8GB}
-               -c work_mem=32MB
-               -c maintenance_work_mem=512MB
+               -c effective_cache_size=${PG_CACHE:-8GB}
+               -c work_mem=${PG_WORK_MEM:-32MB}
+               -c maintenance_work_mem=${PG_MAINT:-512MB}
                -c max_wal_size=2GB
                -c wal_compression=on
                -c random_page_cost=1.1
