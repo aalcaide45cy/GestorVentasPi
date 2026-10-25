@@ -469,6 +469,9 @@ function ModalGestionar({ ambito, alCerrar }: { ambito: Ambito; alCerrar: () => 
                     <button type="button" className="btn btn-secondary" style={botonChico} disabled={ocupado} onClick={() => void accion(async () => void (await llamar(`/api/comisiones/plantillas-plan/duplicar?id=${p.id}`, { method: "POST" })), "✅ Plantilla duplicada.")} title="Crea una copia de esta plantilla.">
                       📄 Duplicar
                     </button>
+                    <button type="button" className="btn btn-secondary" style={botonChico} disabled={ocupado} onClick={() => void accion(async () => void (await llamar(`/api/comisiones/plantillas-plan?id=${p.id}`, { method: "PATCH", cuerpo: { base: !p.base } })), p.base ? "Ya no es una plantilla base." : "Plantilla base: viene de serie y «Borrar absolutamente todo» no la borra.")} title={p.base ? "Quita la marca de base: «Borrar absolutamente todo» la borrará como las demás." : "Márcala como base: vendrá de serie en una instalación nueva y «Borrar absolutamente todo» no la borrará. Sigue pudiéndose editar y borrar a mano."}>
+                      {p.base ? "📌 Quitar base" : "📌 Marcar como base"}
+                    </button>
                     <button type="button" className="btn btn-secondary" style={{ ...botonChico, color: "var(--danger)" }} onClick={() => setABorrar(p)} title="Borra esta plantilla. Los planes donde la aplicaste no cambian.">
                       🗑️ Borrar
                     </button>

@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import type { MarcaDto, ModeloDto } from "@/lib/dto";
 import { EtiquetaMarca, PuntoMarca } from "@/components/etiquetas";
 import SelectorColor from "@/components/SelectorColor";
-import { Cabecera, comparar, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
+import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, estiloPanel, useOrden, usePeticion } from "./utilidades";
 
 export type MarcaConModelos = MarcaDto & { modelos: ModeloDto[] };
 
@@ -15,7 +15,7 @@ interface Props {
 
 /** Pestaña «Marcas». */
 export default function PestanaMarcas({ marcas, setMarcas }: Props) {
-  const { cargando, llamar, ejecutar } = usePeticion();
+  const { cargando, llamar, ejecutar, confirmar, notificar } = usePeticion();
   const orden = useOrden("id");
   const [nombre, setNombre] = useState("");
   const [accesoRapido, setAccesoRapido] = useState(false);
@@ -124,6 +124,27 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
       await llamar("/api/admin/catalogos", "DELETE", { tipo: "marca", id: m.id_marca, toggleActivo: true, activo: nuevo }, "Error al cambiar estado de la marca");
       setMarcas((prev) => prev.map((x) => (x.id_marca === m.id_marca ? { ...x, activo: nuevo } : x)));
     }, m.activo ? "Marca desactivada" : "Marca activada");
+
+  const eliminar = async (m: MarcaConModelos) => {
+    // Primero se mira si hay expedientes con esa marca: en ese caso no se borra y se dice cuáles son los modelos afectados
+    try {
+      const res = await fetch(`/api/admin/catalogos?usos_marca=${m.id_marca}`, { method: "PATCH" });
+      if (res.ok) {
+        const usos = ((await res.json()) as { data: { expedientes: number; modelos: { nombre: string; usos: number }[] } }).data;
+        if (usos.expedientes > 0) {
+          await notificar({ titulo: `No se puede eliminar «${m.nombre}» todavía`, texto: `Tiene ${usos.expedientes} expediente${usos.expedientes === 1 ? "" : "s"}.`, detalles: [...usos.modelos.map((x) => `${x.nombre}: ${x.usos} expediente${x.usos === 1 ? "" : "s"}`), "Elimina antes esos modelos (en la pestaña Modelos): al eliminar cada uno te pregunto a qué modelo pasan sus expedientes.", "Después podrás eliminar la marca."], tipo: "aviso" });
+          return;
+        }
+      }
+    } catch {
+      /* sin el dato, el servidor lo comprueba igualmente */
+    }
+    if (!(await confirmar({ texto: `¿Eliminar la marca «${m.nombre}»? Se eliminarán también todos sus modelos (no hay expedientes que los usen).`, peligro: true }))) return;
+    void ejecutar(async () => {
+      await llamar("/api/admin/catalogos", "DELETE", { tipo: "marca", id: m.id_marca }, "Error al eliminar la marca");
+      setMarcas((prev) => prev.filter((x) => x.id_marca !== m.id_marca));
+    }, "Marca eliminada con éxito");
+  };
 
   return (
     <div className="glass-panel" style={estiloPanel}>
@@ -250,9 +271,9 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
                     <button type="button" className="btn btn-secondary" onClick={() => void alternarActiva(m)} style={{ padding: "6px 10px", fontSize: "0.8rem", color: m.activo ? "var(--warning)" : "var(--success)" }}>
                       {m.activo ? "Desactivar" : "Activar"}
                     </button>
-                    <span title="Las marcas y los modelos están grabados a fuego: no se pueden borrar. Si no quieres usar esta marca, desactívala." aria-label="Grabada a fuego: no se puede borrar" style={{ padding: "6px 10px", fontSize: "0.9rem", color: "var(--text-muted)", cursor: "help" }}>
-                      🔒
-                    </span>
+                    <button type="button" className="btn btn-secondary" onClick={() => eliminar(m)} style={estiloBotonPeligro}>
+                      🗑️
+                    </button>
                   </div>
                 </td>
               </tr>

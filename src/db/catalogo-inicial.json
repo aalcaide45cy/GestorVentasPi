@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "marcas": [
+    {
+      "nombre": "Dacia",
+      "activo": true,
+      "accesoRapido": true,
+      "sistemaComisiones": true,
+      "color": null,
+      "punto": null,
+      "puntoColor": null,
+      "modelos": [
+        {
+          "nombre": "Sandero",
+          "accesoRapido": true,
+          "orden": 1
+        },
+        {
+          "nombre": "Sandero Stepway",
+          "accesoRapido": true,
+          "orden": 2
+        },
+        {
+          "nombre": "Jogger",
+          "accesoRapido": true,
+          "orden": 3
+        },
+        {
+          "nombre": "Duster",
+          "accesoRapido": true,
+          "orden": 4
+        },
+        {
+          "nombre": "Bigster",
+          "accesoRapido": true,
+          "orden": 5
+        },
+        {
+          "nombre": "Spring",
+          "accesoRapido": true,
+          "orden": 6
+        },
+        {
+          "nombre": "Striker",
+          "accesoRapido": true,
+          "orden": 7
+        }
+      ]
+    },
+    {
+      "nombre": "Renault",
+      "activo": true,
+      "accesoRapido": true,
+      "sistemaComisiones": true,
+      "color": null,
+      "punto": null,
+      "puntoColor": null,
+      "modelos": [
+        {
+          "nombre": "Clio",
+          "accesoRapido": true,
+          "orden": 1
+        },
+        {
+          "nombre": "Clio CL6",
+          "accesoRapido": true,
+          "orden": 2
+        },
+        {
+          "nombre": "Captur",
+          "accesoRapido": true,
+          "orden": 3
+        },
+        {
+          "nombre": "Symbioz",
+          "accesoRapido": true,
+          "orden": 4
+        },
+        {
+          "nombre": "Arkana",
+          "accesoRapido": true,
+          "orden": 6
+        },
+        {
+          "nombre": "Austral",
+          "accesoRapido": true,
+          "orden": 6
+        },
+        {
+          "nombre": "Espace",
+          "accesoRapido": true,
+          "orden": 8
+        },
+        {
+          "nombre": "Rafale",
+          "accesoRapido": true,
+          "orden": 8
+        },
+        {
+          "nombre": "R5",
+          "accesoRapido": true,
+          "orden": 9
+        },
+        {
+          "nombre": "R4",
+          "accesoRapido": true,
+          "orden": 10
+        },
+        {
+          "nombre": "Twingo",
+          "accesoRapido": true,
+          "orden": 11
+        },
+        {
+          "nombre": "Scenic",
+          "accesoRapido": true,
+          "orden": 12
+        },
+        {
+          "nombre": "Megane E-Tech",
+          "accesoRapido": true,
+          "orden": 20
+        }
+      ]
+    },
+    {
+      "nombre": "Hyundai",
+      "activo": true,
+      "accesoRapido": false,
+      "sistemaComisiones": false,
+      "color": null,
+      "punto": null,
+      "puntoColor": null,
+      "modelos": [
+        {
+          "nombre": "i30",
+          "accesoRapido": false,
+          "orden": 0
+        },
+        {
+          "nombre": "Kona EV",
+          "accesoRapido": false,
+          "orden": 0
+        },
+        {
+          "nombre": "Tucson",
+          "accesoRapido": false,
+          "orden": 0
+        }
+      ]
+    },
+    {
+      "nombre": "Peugeot",
+      "activo": true,
+      "accesoRapido": false,
+      "sistemaComisiones": false,
+      "color": null,
+      "punto": null,
+      "puntoColor": null,
+      "modelos": [
+        {
+          "nombre": "208",
+          "accesoRapido": false,
+          "orden": 0
+        },
+        {
+          "nombre": "3008",
+          "accesoRapido": false,
+          "orden": 0
+        },
+        {
+          "nombre": "5008",
+          "accesoRapido": false,
+          "orden": 0
+        }
+      ]
+    },
+    {
+      "nombre": "Toyota",
+      "activo": true,
+      "accesoRapido": false,
+      "sistemaComisiones": false,
+      "color": null,
+      "punto": null,
+      "puntoColor": null,
+      "modelos": [
+        {
+          "nombre": "Corolla",
+          "accesoRapido": false,
+          "orden": 0
+        },
+        {
+          "nombre": "RAV4 Hybrid",
+          "accesoRapido": false,
+          "orden": 0
+        },
+        {
+          "nombre": "Yaris Cross",
+          "accesoRapido": false,
+          "orden": 0
+        }
+      ]
+    }
+  ],
+  "plantillasTarifas": [],
+  "plantillasPlan": []
+}

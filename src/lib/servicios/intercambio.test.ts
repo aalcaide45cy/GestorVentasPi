@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { clientes, commissionPlans, emailsClientes, estadoVehiculo, expedientes, marcas, modelos, rejillas, tiendas, tipoDeVenta, usuarios } from "@/db/schema";
@@ -89,7 +89,7 @@ describe("exportar e importar por secciones", () => {
     await expect(importarSeccion(db, admin.idUsuario, { app: "GestorVentasPi", formato: "gv-seccion-1", seccion: "planes", datos: [] }, "sustituir", false)).rejects.toMatchObject({ status: 400 });
   });
 
-  it("catálogos: marcas y modelos se importan y se actualizan; «sustituir» no elimina nada (grabados a fuego)", async () => {
+  it("catálogos: marcas y modelos se importan, se actualizan y se pueden sustituir", async () => {
     const admin = await crearUsuarioPrueba("administrador");
     const base = (datos: unknown[]) => ({ app: "GestorVentasPi", formato: "gv-seccion-1", seccion: "marcas_modelos", datos });
     const a = await importarSeccion(db, admin.idUsuario, base([{ marca: "Alpine", modelos: [{ nombre: "A290" }, { nombre: "A110" }] }]), "anadir", true);
@@ -99,10 +99,9 @@ describe("exportar e importar por secciones", () => {
     const b = await importarSeccion(db, admin.idUsuario, base([{ marca: "alpine", sistemaComisiones: true, modelos: [{ nombre: "A290" }] }]), "actualizar", true);
     expect(b.actualizados).toBe(1);
     const s = await importarSeccion(db, admin.idUsuario, base([{ marca: "Alpine", modelos: [{ nombre: "A290" }] }]), "sustituir", true);
-    // Las marcas y los modelos están grabados a fuego: lo que no está en el archivo se conserva
-    expect(s.eliminados).toBe(0);
+    expect(s.eliminados).toBeGreaterThanOrEqual(1);
     const vivos = await db.select().from(modelos).where(and(eq(modelos.marcaId, m.idMarca), isNull(modelos.eliminadoEn)));
-    expect(vivos.map((x) => x.nombreModelo).sort()).toEqual(["A110", "A290"]);
+    expect(vivos.map((x) => x.nombreModelo)).toEqual(["A290"]);
   });
 
   it("expedientes: exige que existan modelo, tipo de venta y vendedor, y los importa y actualiza por bastidor", async () => {
@@ -185,8 +184,8 @@ describe("exportar e importar por secciones", () => {
     const archivo = JSON.parse(JSON.stringify(await exportarSeccion(db, "planes", { ids: [creado.plan.idPlan] })));
     // En esta instalación no existe ni la marca ni el modelo
     await db.delete(commissionPlans);
-    // Las marcas y los modelos están grabados a fuego: para preparar la prueba se vacían sin disparadores (TRUNCATE)
-    await db.execute(sql`truncate table modelos, marcas restart identity cascade`);
+    await db.delete(modelos);
+    await db.delete(marcas);
 
     const sin = await importarSeccion(db, admin.idUsuario, archivo, "anadir", false);
     expect(sin).toMatchObject({ nuevos: 0, totalErrores: 1 });

@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
@@ -74,26 +73,32 @@ describe("estados del vehículo", () => {
 });
 
 describe("marcas, modelos y tiendas", () => {
-  it("alta y edición de marca con modelos", async () => {
+  it("alta, edición y baja de marca con modelos", async () => {
     const marca = (await crearCatalogo(db, { tipo: "marca", nombre: "Nissan", acceso_rapido: true })) as { id_marca: number };
     const modelo = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Qashqai" })) as { id_modelo: number };
     await actualizarCatalogo(db, { tipo: "modelo", id: modelo.id_modelo, nombre_modelo: "Juke", acceso_rapido: true, orden_acceso_rapido: 3 });
     const cat = await leerCatalogos(db);
     expect(cat.modelos.find((m) => m.id_modelo === modelo.id_modelo)).toMatchObject({ nombre_modelo: "Juke", orden_acceso_rapido: 3 });
+
+    await eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca });
+    const despues = await leerCatalogos(db);
+    expect(despues.marcas.some((m) => m.id_marca === marca.id_marca)).toBe(false);
+    expect(despues.modelos.some((m) => m.id_modelo === modelo.id_modelo)).toBe(false); // se borran con la marca
   });
 
-  it("las marcas y los modelos están grabados a fuego: no se pueden eliminar, ni desde el servicio ni directamente en la base", async () => {
+  it("una marca con expedientes no se elimina: avisa cuántos y de qué modelos", async () => {
+    const admin = await crearUsuarioPrueba("administrador");
     const marca = (await crearCatalogo(db, { tipo: "marca", nombre: "Kia" })) as { id_marca: number };
     const modelo = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Ceed" })) as { id_modelo: number };
-    await expect(eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca })).rejects.toMatchObject({ status: 403, message: expect.stringContaining("grabados a fuego") });
-    await expect(eliminarCatalogo(db, { tipo: "modelo", id: modelo.id_modelo })).rejects.toMatchObject({ status: 403 });
-    // Aunque algo se saltara el servicio, la base lo impide (borrado de verdad y borrado lógico)
-    const { marcas, modelos } = await import("@/db/schema");
-    await expect(db.delete(modelos).where(eq(modelos.idModelo, modelo.id_modelo))).rejects.toThrow();
-    await expect(db.delete(marcas).where(eq(marcas.idMarca, marca.id_marca))).rejects.toThrow();
-    await expect(db.update(marcas).set({ eliminadoEn: new Date() }).where(eq(marcas.idMarca, marca.id_marca))).rejects.toThrow();
+    await crearExpediente(db, admin, esquemaCrearExpediente.parse({ expediente: { id_modelo: modelo.id_modelo } }));
+    expect(await usosDeMarca(db, marca.id_marca)).toEqual({ expedientes: 1, modelos: [{ id: modelo.id_modelo, nombre: "Ceed", usos: 1 }] });
+    await expect(eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca })).rejects.toMatchObject({ status: 409, message: expect.stringContaining("Ceed: 1") });
     expect((await leerCatalogos(db)).marcas.some((m) => m.id_marca === marca.id_marca)).toBe(true);
-    expect(await usosDeMarca(db, marca.id_marca)).toEqual({ expedientes: 0, modelos: [] });
+    // Eliminando antes el modelo (pasando sus expedientes a «sin modelo») ya se puede eliminar la marca, y el expediente sigue existiendo
+    await eliminarCatalogo(db, { tipo: "modelo", id: modelo.id_modelo, sin_modelo: true });
+    await eliminarCatalogo(db, { tipo: "marca", id: marca.id_marca });
+    expect((await leerCatalogos(db)).marcas.some((m) => m.id_marca === marca.id_marca)).toBe(false);
+    expect(await listarExpedientes(db)).toHaveLength(1);
   });
 
   it("desactivar una marca no la borra", async () => {
@@ -111,6 +116,46 @@ describe("marcas, modelos y tiendas", () => {
     expect((await listarExpedientes(db))[0].id_tienda).toBe(tienda.id_tienda);
     const vacia = await crearTienda(db, { nombre: "Vacía" });
     await eliminarTienda(db, vacia.id_tienda);
+  });
+});
+
+describe("eliminar un modelo con expedientes", () => {
+  async function preparar() {
+    const admin = await crearUsuarioPrueba("administrador");
+    const marca = (await crearCatalogo(db, { tipo: "marca", nombre: "Dacia" })) as { id_marca: number };
+    const sandero = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Sandero" })) as { id_modelo: number };
+    const stepway = (await crearCatalogo(db, { tipo: "modelo", marca_id: marca.id_marca, nombre_modelo: "Sandero Stepway" })) as { id_modelo: number };
+    const { expedientes } = await import("@/db/schema");
+    await db.insert(expedientes).values([{ idUsuario: admin.idUsuario, idModelo: stepway.id_modelo }, { idUsuario: admin.idUsuario, idModelo: stepway.id_modelo }]);
+    return { marca, sandero, stepway, expedientes };
+  }
+
+  it("exige elegir adónde pasan los expedientes", async () => {
+    const { stepway } = await preparar();
+    await expect(eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("los pasa a un modelo existente y borra el modelo", async () => {
+    const { sandero, stepway, expedientes } = await preparar();
+    const msg = await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, reasignar_a: sandero.id_modelo });
+    expect(msg).toMatch(/2 expedientes/);
+    const filas = await db.select().from(expedientes);
+    expect(filas.every((f) => f.idModelo === sandero.id_modelo)).toBe(true);
+    expect((await leerCatalogos(db)).modelos.some((m) => m.id_modelo === stepway.id_modelo)).toBe(false);
+  });
+
+  it("los pasa a un modelo nuevo", async () => {
+    const { marca, stepway, expedientes } = await preparar();
+    await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, crear_modelo: { marca_id: marca.id_marca, nombre: "Sandero 2" } });
+    const nuevo = (await leerCatalogos(db)).modelos.find((m) => m.nombre_modelo === "Sandero 2");
+    expect(nuevo).toBeDefined();
+    expect((await db.select().from(expedientes)).every((f) => f.idModelo === nuevo!.id_modelo)).toBe(true);
+  });
+
+  it("o los deja sin modelo", async () => {
+    const { stepway, expedientes } = await preparar();
+    await eliminarCatalogo(db, { tipo: "modelo", id: stepway.id_modelo, sin_modelo: true });
+    expect((await db.select().from(expedientes)).every((f) => f.idModelo === null)).toBe(true);
   });
 });
 

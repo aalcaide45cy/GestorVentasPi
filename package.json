@@ -1,6 +1,6 @@
 {
   "name": "gestor-ventas-pi",
-  "version": "1.28.0",
+  "version": "1.29.0",
   "private": true,
   "scripts": {
     "predev": "tsx src/db/migrar.ts",
@@ -15,6 +15,7 @@
     "crear-admin": "tsx scripts/crear-admin.ts",
     "reset-2fa": "tsx scripts/reset-2fa.ts",
     "recifrar-biblioteca": "tsx scripts/recifrar-biblioteca.ts",
+    "exportar-catalogo": "tsx scripts/exportar-catalogo-inicial.ts",
     "build:scripts": "esbuild src/db/migrar.ts scripts/crear-admin.ts scripts/reset-2fa.ts scripts/reset-password.ts scripts/medir-rendimiento.ts --bundle --platform=node --format=cjs --target=node22 --external:pg-native --external:@node-rs/* --outdir=dist --out-extension:.js=.cjs",
     "reset-password": "tsx scripts/reset-password.ts"
   },

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
 import { AMBITOS, type Ambito } from "@/lib/plantillas-plan/fragmentos";
-import { errorJson, leerIdQuery, leerJsonCrudo, manejar } from "@/lib/http";
-import { actualizarPlantillaPlan, borrarPlantillaPlan, crearPlantillaPlan, listarPlantillasPlan } from "@/lib/servicios/plantillas-plan";
+import { errorJson, leerIdQuery, leerJson, leerJsonCrudo, manejar } from "@/lib/http";
+import { actualizarPlantillaPlan, borrarPlantillaPlan, crearPlantillaPlan, listarPlantillasPlan, marcarPlantillaPlanBase } from "@/lib/servicios/plantillas-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -39,4 +40,15 @@ export const DELETE = manejar(async (req: Request) => {
   await borrarPlantillaPlan(db, id);
   await auditar({ idUsuario: u.idUsuario, accion: "plantilla_plan_borrada", entidad: "plantillas_plan", entidadId: String(id) });
   return NextResponse.json({ success: true });
+});
+
+/** `?id=N` con `{ base: true | false }`: marca o desmarca la plantilla como base (viene de serie y «Borrar absolutamente todo» la conserva). */
+export const PATCH = manejar(async (req: Request) => {
+  const u = await requireSession("administrador");
+  const id = leerIdQuery(req);
+  if (!id) return errorJson(400, "Falta la plantilla");
+  const { base } = await leerJson(req, z.object({ base: z.boolean() }));
+  const p = await marcarPlantillaPlanBase(db, id, base);
+  await auditar({ idUsuario: u.idUsuario, accion: "plantilla_plan_base", entidad: "plantillas_plan", entidadId: String(id), detalle: { base } });
+  return NextResponse.json({ success: true, data: p });
 });

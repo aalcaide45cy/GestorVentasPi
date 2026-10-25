@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { auditar } from "@/lib/auditoria";
 import { requireSession } from "@/lib/auth/sesion";
-import { errorJson, leerIdQuery, leerJsonCrudo, manejar } from "@/lib/http";
-import { actualizarPlantilla, borrarPlantilla, crearPlantilla, leerPlantilla, listarPlantillas } from "@/lib/servicios/plantillas-tarifas";
+import { errorJson, leerIdQuery, leerJson, leerJsonCrudo, manejar } from "@/lib/http";
+import { actualizarPlantilla, borrarPlantilla, crearPlantilla, leerPlantilla, listarPlantillas, marcarPlantillaBase } from "@/lib/servicios/plantillas-tarifas";
 
 export const dynamic = "force-dynamic";
 
@@ -38,4 +39,15 @@ export const DELETE = manejar(async (req: Request) => {
   await borrarPlantilla(db, id);
   await auditar({ idUsuario: u.idUsuario, accion: "plantilla_tarifas_borrada", entidad: "plantillas_tarifas_vn", entidadId: String(id) });
   return NextResponse.json({ success: true });
+});
+
+/** `?id=N` con `{ base: true | false }`: marca o desmarca la plantilla como base (viene de serie y «Borrar absolutamente todo» la conserva). */
+export const PATCH = manejar(async (req: Request) => {
+  const u = await requireSession("administrador");
+  const id = leerIdQuery(req);
+  if (!id) return errorJson(400, "Falta la plantilla");
+  const { base } = await leerJson(req, z.object({ base: z.boolean() }));
+  const p = await marcarPlantillaBase(db, id, base);
+  await auditar({ idUsuario: u.idUsuario, accion: "plantilla_tarifas_base", entidad: "plantillas_tarifas_vn", entidadId: String(id), detalle: { base } });
+  return NextResponse.json({ success: true, data: p });
 });

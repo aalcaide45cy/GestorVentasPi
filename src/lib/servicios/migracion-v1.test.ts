@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { clientes, commissionLiquidations, commissionPlanModelRates, commissionPlanVendedores, commissionPlans, commissionUsedRates, estadoVehiculo, expedientes, marcas, promocionesPuntos, tiendas } from "@/db/schema";
+import { clientes, commissionLiquidations, commissionPlanModelRates, commissionPlanVendedores, commissionPlans, commissionUsedRates, estadoVehiculo, expedientes, marcas, promocionesPuntos, tiendas, usuarios } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { compararConAntigua, leerLiquidacion } from "./comisiones-gestion";
 import { analizarCopiaV1, convertirCopiaV1, esquemaCopiaV1, transformarCopiaV1, type CopiaV1 } from "./migracion-v1";
@@ -156,15 +156,18 @@ describe("conversión", () => {
     expect(detalle?.lineas[1].conceptos.map((c) => c.importe)).toEqual([30000, 12000]);
   });
 
-  it("no se puede sustituir otra vez: las marcas y los modelos (grabados a fuego) no se reemplazan, y no se duplica nada", async () => {
+  it("es repetible: ejecutarla dos veces no duplica nada", async () => {
     const admin = await adminActual();
     const copia = copiaAntigua();
     const primera = await convertirCopiaV1(db, admin.idUsuario, { copia, confirmacion: "CONVERTIR" });
-    await expect(convertirCopiaV1(db, admin.idUsuario, { copia, confirmacion: "CONVERTIR" })).rejects.toMatchObject({ status: 409 });
-    expect(primera.expedientes).toBe(7);
+    const segunda = await convertirCopiaV1(db, admin.idUsuario, { copia, confirmacion: "CONVERTIR" });
+    expect(segunda.expedientes).toBe(primera.expedientes);
     expect(await db.select().from(expedientes)).toHaveLength(7);
     expect(await db.select().from(promocionesPuntos)).toHaveLength(1);
     expect(await db.select().from(commissionLiquidations)).toHaveLength(1);
+    // La cuenta bloqueada se reutiliza por nombre en la segunda pasada
+    const bloqueadas = (await db.select().from(usuarios)).filter((u) => u.bloqueado);
+    expect(bloqueadas.length).toBeLessThanOrEqual(2);
   });
 
   it("permite elegir qué se importa: sin clientes ni comisiones los expedientes quedan sin cliente ni promoción", async () => {

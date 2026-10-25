@@ -5,7 +5,7 @@ import { marcas, modelos, plantillasTarifasVn } from "@/db/schema";
 import { NOMBRE_PLANTILLA_GENERICA } from "@/lib/plantillas-tarifas/generica";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { exportarSeccion, importarSeccion } from "./intercambio";
-import { actualizarPlantilla, borrarPlantilla, crearCatalogoFaltante, crearPlantilla, duplicarPlantilla, leerPlantilla, listarPlantillas } from "./plantillas-tarifas";
+import { actualizarPlantilla, borrarPlantilla, crearCatalogoFaltante, crearPlantilla, duplicarPlantilla, leerPlantilla, listarPlantillas, marcarPlantillaBase } from "./plantillas-tarifas";
 
 beforeEach(reiniciarBd);
 
@@ -18,18 +18,32 @@ const datos = (marca = "Seat", modelo = "Ibiza", cumplida = 15050) => ({
 });
 
 describe("plantillas de tarifas VN", () => {
-  it("viene sembrada la genérica de Renault y Dacia (con decimales en céntimos), y no se puede tocar", async () => {
+  it("viene sembrada la genérica de Renault y Dacia (con decimales en céntimos), y se puede editar y borrar a mano", async () => {
     const lista = await listarPlantillas(db);
     const g = lista.find((p) => p.nombre === NOMBRE_PLANTILLA_GENERICA)!;
     expect(g).toMatchObject({ sistema: true, marcas: ["Dacia", "Renault"] });
     expect(g.modelos).toBe(20);
-    expect(lista[0].sistema).toBe(true); // las incluidas, primero
-    await expect(actualizarPlantilla(db, g.id, { nombre: "Otra", datos: datos() })).rejects.toMatchObject({ status: 403 });
-    await expect(borrarPlantilla(db, g.id)).rejects.toMatchObject({ status: 403 });
+    expect(lista[0].sistema).toBe(true); // las base, primero
     // La semilla es idempotente: sembrar de nuevo no duplica
     const { sembrar } = await import("@/db/semilla");
     await sembrar(db);
     expect((await db.select().from(plantillasTarifasVn)).length).toBe(1);
+    // Se edita a mano y sembrar no la pisa
+    await actualizarPlantilla(db, g.id, { nombre: "Otra", datos: datos() });
+    await sembrar(db);
+    expect((await listarPlantillas(db)).map((p) => p.nombre)).toEqual(["Otra"]);
+    // Se borra a mano y no vuelve
+    await borrarPlantilla(db, g.id);
+    await sembrar(db);
+    expect(await listarPlantillas(db)).toEqual([]);
+  });
+
+  it("una plantilla se puede marcar y desmarcar como base", async () => {
+    const p = await crearPlantilla(db, { nombre: "Mía", datos: datos() });
+    expect(p.sistema).toBe(false);
+    expect((await marcarPlantillaBase(db, p.id, true)).sistema).toBe(true);
+    expect((await marcarPlantillaBase(db, p.id, false)).sistema).toBe(false);
+    await expect(marcarPlantillaBase(db, 99999, true)).rejects.toMatchObject({ status: 404 });
   });
 
   it("crear, leer, renombrar, duplicar y borrar; nombres repetidos se rechazan sin distinguir mayúsculas", async () => {

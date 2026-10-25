@@ -533,10 +533,6 @@ export async function convertirCopiaV1(ej: Ejecutor, idAdmin: number, entrada: z
     return anadirCopiaV1(ej, idAdmin, entrada.copia, new Set(secciones));
   }
   const sel = new Set<SeccionV1>(secciones);
-  // Las marcas y los modelos (con sus colores) están grabados a fuego: no se pueden sustituir. Si ya hay, hay que usar «Añadir», que los une por nombre
-  if (sel.has("catalogos") && (await ej.select({ n: sql<number>`count(*)::int` }).from(marcas))[0].n > 0) {
-    throw new HttpError(409, "Las marcas y los modelos están grabados a fuego y no se pueden sustituir. Usa el modo «Añadir», que une los de la copia antigua con los que ya hay por su nombre.");
-  }
   return ej.transaction(async (tx) => {
     const actuales = (await tx.select({ id: usuarios.idUsuario, nombre: usuarios.nombre }).from(usuarios)).map((u) => ({ id: u.id, nombre: u.nombre }));
     const datos = transformarCopiaV1(entrada.copia, { actuales, idAdmin });

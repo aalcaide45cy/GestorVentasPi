@@ -50,7 +50,7 @@ const TABLAS_A_VACIAR = [
  * Lo que se conserva de `ajustes` (configuración del equipo, no datos): el interruptor del cifrado, los motores de lectura de documentos (OCR), la configuración de las
  * copias de seguridad y de Google Drive (con su conexión), el reenvío de reportes entre equipos, la clave de recuperación y la visibilidad de los botones CSV.
  */
-const PATRONES_AJUSTES_QUE_SE_CONSERVAN = ["cifrado\\_activo", "ocr\\_%", "lectura\\_manual", "backup\\_%", "drive\\_%", "incidencias\\_%", "clave\\_recuperacion\\_envuelta", "mostrar\\_botones\\_csv"];
+const PATRONES_AJUSTES_QUE_SE_CONSERVAN = ["cifrado\\_activo", "ocr\\_%", "lectura\\_manual", "backup\\_%", "drive\\_%", "incidencias\\_%", "clave\\_recuperacion\\_envuelta", "mostrar\\_botones\\_csv", "catalogo\\_inicial\\_%"];
 
 /** Tablas que se compactan al final (todas las de usuario) para devolver al disco hasta el último byte. */
 async function compactarTodo(ej: Ejecutor, ctx?: ContextoTarea): Promise<void> {

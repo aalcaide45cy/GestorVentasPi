@@ -94,7 +94,6 @@ export async function actualizarPlantilla(ej: Ejecutor, id: number, entrada: unk
   const e = esquemaPlantilla.parse(entrada);
   const [actual] = await ej.select().from(plantillasTarifasVn).where(eq(plantillasTarifasVn.id, id));
   if (!actual) throw new HttpError(404, "La plantilla ya no existe.");
-  if (actual.sistema) throw new HttpError(403, "La plantilla incluida con la aplicación no se puede modificar: duplícala y cambia la copia.");
   await comprobarNombreLibre(ej, e.nombre, id);
   const [f] = await ej.update(plantillasTarifasVn).set({ nombre: e.nombre, descripcion: e.descripcion?.trim() || null, datos: e.datos, actualizadaEn: new Date() }).where(eq(plantillasTarifasVn.id, id)).returning();
   return resumir(f);
@@ -103,11 +102,17 @@ export async function actualizarPlantilla(ej: Ejecutor, id: number, entrada: unk
 export async function borrarPlantilla(ej: Ejecutor, id: number): Promise<void> {
   const [actual] = await ej.select().from(plantillasTarifasVn).where(eq(plantillasTarifasVn.id, id));
   if (!actual) throw new HttpError(404, "La plantilla ya no existe.");
-  if (actual.sistema) throw new HttpError(403, "La plantilla incluida con la aplicación no se puede borrar.");
   await ej.transaction(async (tx) => {
     await archivarElementos(tx, "plantilla_tarifas", sql`t.id = ${id}`, { etiqueta: `Plantilla de tarifas «${actual.nombre}»`, detalle: "Eliminada" });
     await tx.delete(plantillasTarifasVn).where(eq(plantillasTarifasVn.id, id));
   });
+}
+
+/** Marca o desmarca una plantilla como «base»: las base vienen de serie en una instalación nueva y «Borrar absolutamente todo» no las borra. Se pueden editar y borrar a mano igual. */
+export async function marcarPlantillaBase(ej: Ejecutor, id: number, base: boolean): Promise<ResumenPlantilla> {
+  const [f] = await ej.update(plantillasTarifasVn).set({ sistema: base }).where(eq(plantillasTarifasVn.id, id)).returning();
+  if (!f) throw new HttpError(404, "La plantilla ya no existe.");
+  return resumir(f);
 }
 
 export async function duplicarPlantilla(ej: Ejecutor, id: number): Promise<ResumenPlantilla> {

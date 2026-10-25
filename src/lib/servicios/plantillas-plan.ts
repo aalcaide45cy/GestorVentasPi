@@ -24,6 +24,8 @@ export interface PlantillaPlanDto {
   ambito: Ambito;
   nombre: string;
   descripcion: string | null;
+  /** Plantilla base: viene de serie en una instalación nueva y «Borrar absolutamente todo» no la borra (se puede editar y borrar a mano). */
+  base: boolean;
   actualizadaEn: string;
   /** Elementos de cada parte que contiene. */
   contenido: { componente: Componente; elementos: number }[];
@@ -38,6 +40,7 @@ function aDto(f: typeof plantillasPlan.$inferSelect): PlantillaPlanDto {
     ambito: AMBITOS.includes(f.ambito as Ambito) ? (f.ambito as Ambito) : "global",
     nombre: f.nombre,
     descripcion: f.descripcion,
+    base: f.sistema,
     actualizadaEn: f.actualizadaEn.toISOString(),
     contenido: COMPONENTES.filter((c) => contarComponente(datos, c) > 0 || (c === "notas" && datos.notas !== undefined)).map((c) => ({ componente: c, elementos: contarComponente(datos, c) })),
     datos,
@@ -92,6 +95,13 @@ export async function borrarPlantillaPlan(ej: Ejecutor, id: number): Promise<voi
     await archivarElementos(tx, "plantilla_plan", sql`t.id = ${id}`, { etiqueta: `Plantilla de plan «${actual.nombre}»`, detalle: "Eliminada" });
     await tx.delete(plantillasPlan).where(eq(plantillasPlan.id, id));
   });
+}
+
+/** Marca o desmarca una plantilla como «base» (ver `PlantillaPlanDto.base`). */
+export async function marcarPlantillaPlanBase(ej: Ejecutor, id: number, base: boolean): Promise<PlantillaPlanDto> {
+  const [f] = await ej.update(plantillasPlan).set({ sistema: base }).where(eq(plantillasPlan.id, id)).returning();
+  if (!f) throw new HttpError(404, "La plantilla ya no existe.");
+  return aDto(f);
 }
 
 export async function duplicarPlantillaPlan(ej: Ejecutor, id: number): Promise<PlantillaPlanDto> {

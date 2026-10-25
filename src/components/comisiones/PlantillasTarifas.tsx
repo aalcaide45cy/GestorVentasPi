@@ -294,7 +294,7 @@ function ModalAplicar({ plan, setPlan, cat, alAmpliarCatalogo, alCerrar }: Props
                 <div key={p.id} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px 12px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ flex: 1, minWidth: "240px" }}>
                     <div style={{ fontWeight: 700 }}>
-                      {p.nombre} {p.sistema && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)", border: "1px solid var(--primary)", borderRadius: "999px", padding: "1px 8px" }}>Incluida</span>}
+                      {p.nombre} {p.sistema && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)", border: "1px solid var(--primary)", borderRadius: "999px", padding: "1px 8px" }}>📌 Base</span>}
                     </div>
                     {p.descripcion && <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{p.descripcion}</div>}
                     <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
@@ -593,7 +593,7 @@ function ModalGestionar({ alCerrar }: { alCerrar: () => void }) {
                 ) : (
                   <>
                     <div style={{ fontWeight: 700 }}>
-                      {p.nombre} {p.sistema && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)", border: "1px solid var(--primary)", borderRadius: "999px", padding: "1px 8px" }}>Incluida</span>}
+                      {p.nombre} {p.sistema && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)", border: "1px solid var(--primary)", borderRadius: "999px", padding: "1px 8px" }}>📌 Base</span>}
                     </div>
                     {p.descripcion && <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{p.descripcion}</div>}
                     <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
@@ -614,29 +614,28 @@ function ModalGestionar({ alCerrar }: { alCerrar: () => void }) {
                   </>
                 ) : (
                   <>
-                    {!p.sistema && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={botonChico}
-                        onClick={() => {
-                          setEditando(p);
-                          setNombre(p.nombre);
-                          setDescripcion(p.descripcion ?? "");
-                        }}
-                        title="Cambia el nombre o la descripción. Para cambiar las tarifas, aplícala a un plan, edítalas y vuelve a guardarla con «Sustituir»."
-                      >
-                        ✏️ Renombrar
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={botonChico}
+                      onClick={() => {
+                        setEditando(p);
+                        setNombre(p.nombre);
+                        setDescripcion(p.descripcion ?? "");
+                      }}
+                      title="Cambia el nombre o la descripción. Para cambiar las tarifas, aplícala a un plan, edítalas y vuelve a guardarla con «Sustituir»."
+                    >
+                      ✏️ Renombrar
+                    </button>
+                    <button type="button" className="btn btn-secondary" style={botonChico} disabled={ocupado} onClick={() => void accion(async () => void (await llamar(`/api/comisiones/plantillas?id=${p.id}`, { method: "PATCH", cuerpo: { base: !p.sistema } })), p.sistema ? "Ya no es una plantilla base." : "Plantilla base: viene de serie y «Borrar absolutamente todo» no la borra.")} title={p.sistema ? "Quita la marca de base: «Borrar absolutamente todo» la borrará como las demás." : "Márcala como base: vendrá de serie en una instalación nueva y «Borrar absolutamente todo» no la borrará. Sigue pudiéndose editar y borrar a mano."}>
+                      {p.sistema ? "📌 Quitar base" : "📌 Marcar como base"}
+                    </button>
                     <button type="button" className="btn btn-secondary" style={botonChico} disabled={ocupado} onClick={() => void accion(async () => void (await llamar(`/api/comisiones/plantillas/duplicar?id=${p.id}`, { method: "POST" })), "✅ Plantilla duplicada.")} title="Crea una copia editable de esta plantilla.">
                       📄 Duplicar
                     </button>
-                    {!p.sistema && (
-                      <button type="button" className="btn btn-secondary" style={{ ...botonChico, color: "var(--danger)" }} onClick={() => setABorrar(p)} title="Borra esta plantilla. Los planes que ya la usaron no cambian.">
-                        🗑️ Borrar
-                      </button>
-                    )}
+                    <button type="button" className="btn btn-secondary" style={{ ...botonChico, color: "var(--danger)" }} onClick={() => setABorrar(p)} title="Borra esta plantilla. Los planes que ya la usaron no cambian.">
+                      🗑️ Borrar
+                    </button>
                   </>
                 )}
               </div>
