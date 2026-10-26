@@ -7,7 +7,7 @@
  */
 
 const PREFIJOS = ["exp-", "clientes-", "tabla-", "plegable-", "panel-", "desglose-", "mostrar-anulados-", "mostrar-deshabilitados-", "foto-cliente-"];
-const EXACTAS = ["dash-orden-paneles", "dash-paneles-ocultos", "dash-n-recientes", "expedientes-etiqueta-copia", "pedidos-ventana-solo-si-falta-marca-modelo"];
+const EXACTAS = ["dash-orden-paneles", "dash-paneles-ocultos", "dash-n-recientes", "dash-colores-filas", "expedientes-etiqueta-copia", "pedidos-ventana-solo-si-falta-marca-modelo"];
 /** Dentro de los prefijos de arriba, lo que es estado de pantalla del momento. */
 const EXCLUIDAS = ["exp-resumen-", "exp-filtros-guardados", "exp-filtros-abiertos", "exp-seleccion-desde", "exp-borrado-desde"];
 

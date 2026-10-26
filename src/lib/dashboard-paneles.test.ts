@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moverPanel, ordenPanelesDashboard, panelesOcultosDashboard, recientesDashboard, type IdPanelDashboard } from "./dashboard-paneles";
+import { coloresFilasDashboard, moverPanel, ordenPanelesDashboard, panelesOcultosDashboard, recientesDashboard, type IdPanelDashboard } from "./dashboard-paneles";
 
 describe("paneles del dashboard", () => {
   it("el orden por defecto trae todos los paneles y un orden guardado se completa con los que falten", () => {
@@ -23,5 +23,10 @@ describe("paneles del dashboard", () => {
     expect(moverPanel(o, "rapida", "metricas")).toEqual(["validacion", "rapida", "metricas", "documentos", "recientes"]);
     expect(moverPanel(o, "validacion", "documentos")).toEqual(["metricas", "documentos", "validacion", "recientes", "rapida"]);
     expect(moverPanel(o, "metricas", "metricas")).toEqual(o);
+  });
+  it("los colores de fila del Dashboard están activados salvo que se desactiven", () => {
+    expect(coloresFilasDashboard(null)).toBe(true);
+    expect(coloresFilasDashboard("true")).toBe(true);
+    expect(coloresFilasDashboard("false")).toBe(false);
   });
 });

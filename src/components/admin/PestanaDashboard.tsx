@@ -1,7 +1,7 @@
 "use client";
 
 import { useToast } from "@/components/Toast";
-import { CLAVE_DASH_ORDEN, CLAVE_DASH_OCULTOS, CLAVE_DASH_RECIENTES, PANELES_DASHBOARD, RECIENTES_MAXIMO, RECIENTES_POR_DEFECTO, ordenPanelesDashboard, panelesOcultosDashboard, recientesDashboard, type IdPanelDashboard } from "@/lib/dashboard-paneles";
+import { CLAVE_DASH_COLORES, CLAVE_DASH_ORDEN, CLAVE_DASH_OCULTOS, CLAVE_DASH_RECIENTES, coloresFilasDashboard, PANELES_DASHBOARD, RECIENTES_MAXIMO, RECIENTES_POR_DEFECTO, ordenPanelesDashboard, panelesOcultosDashboard, recientesDashboard, type IdPanelDashboard } from "@/lib/dashboard-paneles";
 import { usePreferencia } from "@/lib/preferencias";
 import { estiloPanel } from "./utilidades";
 
@@ -11,6 +11,8 @@ export default function PestanaDashboard() {
   const [ocultosGuardado, guardarOcultos] = usePreferencia(CLAVE_DASH_OCULTOS);
   const [, guardarOrden] = usePreferencia(CLAVE_DASH_ORDEN);
   const [recientesGuardado, guardarRecientes] = usePreferencia(CLAVE_DASH_RECIENTES);
+  const [coloresGuardado, guardarColores] = usePreferencia(CLAVE_DASH_COLORES);
+  const colores = coloresFilasDashboard(coloresGuardado);
   const ocultos = panelesOcultosDashboard(ocultosGuardado);
   const recientes = recientesDashboard(recientesGuardado);
 
@@ -22,6 +24,7 @@ export default function PestanaDashboard() {
     guardarOcultos("[]");
     guardarOrden("");
     guardarRecientes(String(RECIENTES_POR_DEFECTO));
+    guardarColores("true");
     mostrar("Dashboard restaurado: todos los paneles, en su orden y con 5 expedientes recientes.");
   };
 
@@ -59,6 +62,19 @@ export default function PestanaDashboard() {
         <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.95rem" }}>
           Expedientes:
           <input type="number" className="form-input" min={1} max={RECIENTES_MAXIMO} step={1} style={{ width: "90px" }} value={recientes} onChange={(e) => elegirRecientes(Number(e.target.value))} />
+        </label>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0" }}>🎨 Colores de fila en «Últimos expedientes activos»</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: 1.5 }}>
+            Pinta las filas de esa tabla con las mismas reglas de color que la lista de Expedientes (se crean en Configuración › Expedientes › Colores de fila). Se guarda sola.
+          </p>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+          <input type="checkbox" checked={colores} onChange={(e) => guardarColores(e.target.checked ? "true" : "false")} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+          Ver los colores de fila en el Dashboard
         </label>
       </div>
 

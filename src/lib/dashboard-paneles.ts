@@ -15,6 +15,8 @@ export type IdPanelDashboard = (typeof PANELES_DASHBOARD)[number]["id"];
 export const CLAVE_DASH_ORDEN = "dash-orden-paneles";
 export const CLAVE_DASH_OCULTOS = "dash-paneles-ocultos";
 export const CLAVE_DASH_RECIENTES = "dash-n-recientes";
+/** Si «Últimos expedientes activos» pinta las filas con las reglas de color de Expedientes (Configuración › Expedientes › Colores de fila). Por defecto, sí. */
+export const CLAVE_DASH_COLORES = "dash-colores-filas";
 
 export const RECIENTES_POR_DEFECTO = 5;
 export const RECIENTES_MAXIMO = 50;
@@ -53,3 +55,6 @@ export function moverPanel(orden: IdPanelDashboard[], id: IdPanelDashboard, dest
   sin.splice(sin.indexOf(destino) + (orden.indexOf(id) < orden.indexOf(destino) ? 1 : 0), 0, id);
   return sin;
 }
+
+/** ¿Se pintan las filas de la tabla del Dashboard con las reglas de color? Sí, salvo que se haya desactivado. */
+export const coloresFilasDashboard = (guardado: string | null): boolean => guardado !== "false";

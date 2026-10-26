@@ -13,7 +13,9 @@ import { BadgeEstado, BadgeTipoVenta, CeldaCliente, CeldaFecha, FONDO_FECHA_A, F
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
 import { useEdicionFechas } from "./expedientes/useEdicionFechas";
 import { useLeerPedidos } from "./documentos/leerPedidos";
-import { CLAVE_DASH_RECIENTES, recientesDashboard } from "@/lib/dashboard-paneles";
+import { CLAVE_DASH_COLORES, CLAVE_DASH_RECIENTES, coloresFilasDashboard, recientesDashboard } from "@/lib/dashboard-paneles";
+import { fondoDeRegla, reglaQueAplica } from "@/lib/reglas-color";
+import { useReglasColor } from "@/lib/reglas-color-cliente";
 import { usePreferencia } from "@/lib/preferencias";
 
 interface Props {
@@ -35,6 +37,14 @@ export default function RecentExpedientesTable({
   const [completa, setLista] = useState<ExpedienteDto[]>(initialExpedientes);
   const [cuantosGuardado] = usePreferencia(CLAVE_DASH_RECIENTES);
   const lista = completa.slice(0, recientesDashboard(cuantosGuardado));
+  // Las mismas reglas de color que la lista de Expedientes, si no se han desactivado en Configuración › Dashboard
+  const [reglasColor] = useReglasColor();
+  const [coloresGuardado] = usePreferencia(CLAVE_DASH_COLORES);
+  const pintar = coloresFilasDashboard(coloresGuardado);
+  const hoyLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
   const [aBorrar, setABorrar] = useState<ExpedienteDto | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [asignandoId, setAsignandoId] = useState<number | null>(null);
@@ -114,7 +124,7 @@ export default function RecentExpedientesTable({
             {lista.map((exp) => (
               <tr
                 key={exp.id_expediente}
-                title="Arrastra aquí el pedido del cliente para rellenar este expediente"
+                title={pintar && reglaQueAplica(exp, reglasColor, hoyLocal) ? `Regla de color: ${reglaQueAplica(exp, reglasColor, hoyLocal)?.nombre}. Arrastra aquí el pedido del cliente para rellenar este expediente` : "Arrastra aquí el pedido del cliente para rellenar este expediente"}
                 onDragOver={(e) => {
                   if (!e.dataTransfer.types.includes("Files")) return;
                   e.preventDefault();
@@ -125,7 +135,7 @@ export default function RecentExpedientesTable({
                   e.preventDefault();
                   void soltarPedido(exp, Array.from(e.dataTransfer.files));
                 }}
-                style={{ outline: filaSobre === exp.id_expediente ? "2px dashed var(--primary)" : "none", outlineOffset: "-2px", opacity: leyendoId === exp.id_expediente ? 0.6 : 1 }}
+                style={{ outline: filaSobre === exp.id_expediente ? "2px dashed var(--primary)" : "none", outlineOffset: "-2px", opacity: leyendoId === exp.id_expediente ? 0.6 : 1, ...(pintar && reglaQueAplica(exp, reglasColor, hoyLocal) ? { background: fondoDeRegla(reglaQueAplica(exp, reglasColor, hoyLocal)!) } : {}) }}
               >
                 <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
                   <CeldaCliente exp={exp} alAsignar={setAsignandoId} />
