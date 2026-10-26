@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
-import { ErrorPagoRci, fechaCorta, subirPagoRci } from "@/lib/pagos-rci-cliente";
+import { ErrorPagoRci, fechaCorta, subirPagoRci, textoExpedientePago } from "@/lib/pagos-rci-cliente";
 
 /**
  * Cajita de la ficha del expediente para subir su pago de la financiera: se lee el PDF, se comprueba que el documento del adquiriente es
@@ -27,7 +27,7 @@ export default function CajaPagoRci({ idExpediente, alAplicado }: { idExpediente
       }
       if (p.estado === "aplicado" && p.fechaPago) {
         alAplicado(p.fechaPago);
-        mostrar(`Fecha RCI fijada: ${fechaCorta(p.fechaPago)} (fecha de pago de la financiera).`);
+        mostrar(`Fecha RCI fijada: ${fechaCorta(p.fechaPago)} (fecha de pago de la financiera) en el ${textoExpedientePago(p) ?? "expediente"}.`);
       } else {
         mostrar(p.motivo ?? "El pago se ha guardado pero no se ha podido aplicar.", "error");
       }

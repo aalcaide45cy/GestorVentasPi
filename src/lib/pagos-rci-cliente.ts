@@ -21,7 +21,13 @@ export async function subirPagoRci(f: File, opciones: { idExpediente?: number; f
   return json.data;
 }
 
+/** A qué expediente se ha asignado un pago, en una frase («expediente nº 12 de Ana Ruiz (1234ABC)»); `null` si aún no tiene. */
+export const textoExpedientePago = (p: { idExpediente: number | null; clienteExpediente: string | null; matricula: string | null }): string | null =>
+  p.idExpediente ? `expediente nº ${p.idExpediente}${p.clienteExpediente ? ` de ${p.clienteExpediente}` : ""}${p.matricula ? ` (${p.matricula})` : ""}` : null;
+
 export interface ResumenSubidaPagos {
+  /** Qué pago ha ido a qué expediente (los aplicados), para decirlo en el aviso. */
+  asignados: string[];
   aplicados: number;
   pendientes: number;
   ignorados: number;
@@ -31,7 +37,7 @@ export interface ResumenSubidaPagos {
 
 /** Sube muchos pagos (de dos en dos) y cuenta qué ha pasado con cada uno. `alProgreso` recibe los que van hechos. */
 export async function subirPagosRci(ficheros: File[], alProgreso: (hechos: number, total: number) => void): Promise<ResumenSubidaPagos> {
-  const r: ResumenSubidaPagos = { aplicados: 0, pendientes: 0, ignorados: 0, duplicados: 0, errores: [] };
+  const r: ResumenSubidaPagos = { asignados: [], aplicados: 0, pendientes: 0, ignorados: 0, duplicados: 0, errores: [] };
   let siguiente = 0;
   let hechos = 0;
   const trabajar = async () => {
@@ -39,7 +45,10 @@ export async function subirPagosRci(ficheros: File[], alProgreso: (hechos: numbe
       try {
         const p = await subirPagoRci(ficheros[i]);
         if (p.duplicado) r.duplicados++;
-        else if (p.estado === "aplicado") r.aplicados++;
+        else if (p.estado === "aplicado") {
+          r.aplicados++;
+          r.asignados.push(`${p.nombre ?? p.nombreArchivo} → ${textoExpedientePago(p) ?? "su expediente"}`);
+        }
         else if (p.estado === "ignorado") r.ignorados++;
         else r.pendientes++;
       } catch (e) {

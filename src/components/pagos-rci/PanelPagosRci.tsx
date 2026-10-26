@@ -5,7 +5,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import VisorPedido from "@/components/documentos/VisorPedido";
-import { euros, fechaCorta } from "@/lib/pagos-rci-cliente";
+import { euros, fechaCorta, textoExpedientePago } from "@/lib/pagos-rci-cliente";
 import type { CandidatoPago, EstadoPago, PagoRciDto } from "@/lib/servicios/pagos-rci";
 
 type Filtro = EstadoPago | "todos";
@@ -83,7 +83,8 @@ export default function PanelPagosRci({ alCerrar, alCambiar }: { alCerrar: () =>
     try {
       const { data } = await llamar<PagoRciDto>("/api/pagos-rci/accion", { method: "POST", cuerpo });
       setPagos((lista) => (lista ?? []).map((p) => (p.id === data.id ? data : p)));
-      if (aviso) mostrar(aviso);
+      const donde = textoExpedientePago(data);
+      if (aviso) mostrar(donde ? `${aviso} (${donde})` : aviso);
       alCambiar?.();
       return data;
     } catch (e) {

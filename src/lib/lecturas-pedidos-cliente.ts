@@ -1,3 +1,4 @@
+import { textoAsignaciones } from "./asignaciones-aviso";
 import { permitirDuplicadosAhora } from "@/lib/preferencias";
 import { abrirDeCola, anadirACola, fijarLectura, leerCola, quitarDeCola, type DniAsociado, type EleccionRapida } from "@/lib/pedidos-cola";
 import type { DatosPedido } from "@/lib/documentos/pedido";
@@ -87,6 +88,8 @@ let temporizador: ReturnType<typeof setInterval> | null = null;
 let consultando = false;
 let abrirElPrimero = false;
 let recogidosEnTanda = 0;
+/** A dónde irá cada pedido leído de la tanda (expediente existente o nuevo), para decirlo en el aviso final. */
+let asignadosEnTanda: string[] = [];
 
 const limpiar = (a: string | null | undefined): string => (a ? a.replace(/[\s.-]/g, "").toUpperCase() : "");
 
@@ -161,6 +164,9 @@ async function consultar(): Promise<boolean> {
       nuevosItems.push({ nombre: l.nombre, pedido, eleccion: yaExiste ? null : ((l.destino?.eleccion as EleccionRapida | null | undefined) ?? null), idExpediente: l.destino?.idExpediente ?? yaExiste, dni: l.destino?.dni ?? null, idLectura: l.id });
       recogidosEnTanda++;
       recogidos.push(l.id);
+      const destino = l.destino?.idExpediente ?? yaExiste;
+      const similar = pedido.similares.find((x) => x.idExpediente === destino);
+      asignadosEnTanda.push(`${d.cliente ?? d.dni ?? "Sin cliente"} → ${destino ? `completa el expediente nº ${destino}${similar?.cliente ? ` de ${similar.cliente}` : ""}` : "expediente nuevo"}`);
     }
     if (nuevosItems.length > 0) {
       const nuevos = anadirACola(nuevosItems);
@@ -180,10 +186,11 @@ async function consultar(): Promise<boolean> {
     else {
       fijarLectura(null);
       if (subidosEnTanda > 0 && !cancelada) {
-        avisar(`${recogidosEnTanda} pedido${recogidosEnTanda === 1 ? "" : "s"} leído${recogidosEnTanda === 1 ? "" : "s"}${recogidosEnTanda > 0 ? " (están en la cola de pedidos)" : ""}${r.descartados + repetidos.length > 0 ? `, ${r.descartados + repetidos.length} ignorados (${r.descartados + repetidos.length - r.repetidos - repetidos.length} no eran pedidos y ${r.repetidos + repetidos.length} estaban repetidos)` : ""}${r.errores > 0 ? ` y ${r.errores} con error (puedes reintentarlos desde la cola)` : ""}.`);
+        avisar(`${recogidosEnTanda} pedido${recogidosEnTanda === 1 ? "" : "s"} leído${recogidosEnTanda === 1 ? "" : "s"}${recogidosEnTanda > 0 ? " (están en la cola de pedidos)" : ""}${r.descartados + repetidos.length > 0 ? `, ${r.descartados + repetidos.length} ignorados (${r.descartados + repetidos.length - r.repetidos - repetidos.length} no eran pedidos y ${r.repetidos + repetidos.length} estaban repetidos)` : ""}${r.errores > 0 ? ` y ${r.errores} con error (puedes reintentarlos desde la cola)` : ""}.${textoAsignaciones(asignadosEnTanda)}`);
       }
       subidosEnTanda = 0;
       recogidosEnTanda = 0;
+      asignadosEnTanda = [];
     }
     emitir();
     return trabajando > 0 || subiendo > 0 || listos.length > recogidos.length + repetidos.length;

@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.31.1 (26/10/2026)
+
+- **Los avisos de lectura dicen a qué expediente va cada documento.** Pagos de RCI: al subirlos, el aviso nombra el expediente de cada pago aplicado («Asignado: Ana Ruiz → expediente nº 12 de Ana Ruiz (1234ABC)»; hasta 5 y «y N más»); dentro de un expediente, «Fecha RCI fijada… en el expediente nº N de …»; y las acciones sobre pagos pendientes (aplicar, enlazar) también lo nombran. Pedidos: el aviso final de la tanda dice si cada pedido completa un expediente que ya existe (con su número y cliente) o irá a un expediente nuevo. Texto común en `lib/asignaciones-aviso.ts`.
+
 ## Versión 1.31.0 (26/10/2026)
 
 - **Colores de fila también en el Dashboard.** La tabla «Últimos expedientes activos» se pinta con las mismas reglas de color que la lista de Expedientes (Configuración › Expedientes › Colores de fila). Se activa o desactiva en Configuración › Dashboard › «Ver los colores de fila en el Dashboard» (por defecto, activado; ajuste `dash-colores-filas`, que se guarda por usuario en la base de datos como los demás).

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
 import ZonaSoltar from "@/components/documentos/ZonaSoltar";
+import { textoAsignaciones } from "@/lib/asignaciones-aviso";
 import { subirPagosRci } from "@/lib/pagos-rci-cliente";
 import type { PagoRciDto } from "@/lib/servicios/pagos-rci";
 import PanelPagosRci from "./PanelPagosRci";
@@ -40,7 +41,7 @@ export default function ZonaPagosRci() {
     try {
       const r = await subirPagosRci(ficheros, (hechos, total) => setProgreso({ hechos, total }));
       const partes = [r.aplicados > 0 && `${r.aplicados} aplicado(s)`, r.pendientes > 0 && `${r.pendientes} pendiente(s) de decidir`, r.ignorados > 0 && `${r.ignorados} ignorado(s)`, r.duplicados > 0 && `${r.duplicados} repetido(s)`].filter(Boolean);
-      mostrar(partes.length > 0 ? `Pagos de RCI: ${partes.join(", ")}.` : "No se ha podido leer ningún pago.", r.errores.length > 0 && r.aplicados === 0 ? "error" : undefined);
+      mostrar(partes.length > 0 ? `Pagos de RCI: ${partes.join(", ")}.${textoAsignaciones(r.asignados, "Asignado")}` : "No se ha podido leer ningún pago.", r.errores.length > 0 && r.aplicados === 0 ? "error" : undefined);
       if (r.errores.length > 0) mostrar(`${r.errores.length} fichero(s) con error: ${r.errores[0]}`, "error");
       await contar();
       if (r.pendientes > 0 || r.ignorados > 0) setAbierto(true);
