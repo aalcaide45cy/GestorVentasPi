@@ -340,6 +340,9 @@ select, select option {
 /* Tabla que se desplaza con la página (sin barra vertical propia): solo tiene barra horizontal si las columnas no caben. Las cabeceras de los filtros se quedan arriba. */
 .tabla-pagina { max-height: none; overflow-x: auto; overflow-y: hidden; padding: 0 2px 2px 2px; }
 .tabla-pagina thead th { background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
+/* Leyenda de colores de las filas: solo el punto y el nombre; al pasar el ratón se estira y muestra cuándo se aplica la regla */
+.leyenda-regla-detalle { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; margin-left: 0; transition: max-width 0.4s ease, opacity 0.3s ease, margin-left 0.3s ease; }
+.leyenda-regla:hover .leyenda-regla-detalle, .leyenda-regla:focus .leyenda-regla-detalle { max-width: 900px; opacity: 1; margin-left: 6px; }
 .tabla-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
 
 /* Tablas */

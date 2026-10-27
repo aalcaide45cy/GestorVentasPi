@@ -1559,10 +1559,10 @@ export default function ExpedientesList({
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 10px", padding: "8px 4px 2px", fontSize: "0.78rem", color: "var(--text-secondary)" }} title="Qué significa el color de cada fila. Gana la primera regla, por orden, cuyas condiciones se cumplan. Se configura en Configuración › Expedientes › Colores de fila">
             <strong>🎨 Colores de las filas:</strong>
             {reglasColor.filter((r) => r.activa && r.condiciones.length > 0).map((r) => (
-              <span key={r.id} title={`${r.nombre || "Regla sin nombre"}: ${textoDeRegla(r)}`} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "2px 8px", borderRadius: "999px", border: `1px solid ${r.color}`, background: fondoDeRegla(r), color: "var(--text-primary)" }}>
-                <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: r.color, flex: "0 0 auto" }} />
-                <span>{r.nombre || "Regla sin nombre"}</span>
-                <span style={{ color: "var(--text-secondary)" }}>· {textoDeRegla(r)}</span>
+              <span key={r.id} className="leyenda-regla" tabIndex={0} title={`${r.nombre || "Regla sin nombre"}: ${textoDeRegla(r)}`} style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: "999px", border: `1px solid ${r.color}`, background: fondoDeRegla(r), color: "var(--text-primary)", cursor: "default" }}>
+                <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: r.color, flex: "0 0 auto", marginRight: "6px" }} />
+                <span style={{ whiteSpace: "nowrap" }}>{r.nombre || "Regla sin nombre"}</span>
+                <span className="leyenda-regla-detalle" style={{ color: "var(--text-secondary)" }}>· {textoDeRegla(r)}</span>
               </span>
             ))}
           </div>
