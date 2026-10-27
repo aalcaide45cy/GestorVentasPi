@@ -2,9 +2,10 @@
 
 import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { IconoCliente } from "../Enlaces";
+import ModalApunte from "./ModalApunte";
 import { useToast } from "../Toast";
 import { EtiquetaEstado, EtiquetaPago, type DatosVehiculo } from "../etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
@@ -112,17 +113,34 @@ interface CeldaClienteProps {
   alAsignar: (id: number) => void;
 }
 
-/** Etiquetas de los apuntes del expediente que se han marcado para mostrarse (SEGURO, VO…): salen junto al icono del cliente. */
-export function EtiquetasApuntes({ apuntes }: { apuntes: ExpedienteDto["apuntes"] }) {
-  const visibles = (apuntes ?? []).filter((a) => a.mostrar_etiqueta && a.etiqueta.trim() !== "");
+/**
+ * Etiquetas de los apuntes del expediente que se han marcado para mostrarse (SEGURO, VO…), a un lado u otro del icono del cliente según el apunte.
+ * Las que funcionan como semáforo se pueden pulsar: abren la ventana para cambiar su estado.
+ */
+export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apuntes: ExpedienteDto["apuntes"]; lado: "izquierda" | "derecha"; idExpediente: number; cliente: string }) {
+  const [abierto, setAbierto] = useState<number | null>(null);
+  const visibles = (apuntes ?? []).filter((a) => a.mostrar_etiqueta && a.etiqueta.trim() !== "" && a.lado === lado);
   if (visibles.length === 0) return null;
+  const estilo = (color: string): React.CSSProperties => ({ background: color, color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", textShadow: "0 0 2px rgba(0,0,0,0.35)", border: "none" });
   return (
     <>
-      {visibles.map((a) => (
-        <span key={a.id} title={`Apunte: ${a.titulo}`} style={{ background: a.color, color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", textShadow: "0 0 2px rgba(0,0,0,0.35)" }}>
-          {a.etiqueta}
-        </span>
-      ))}
+      {visibles.map((a) => {
+        const semaforo = a.estados !== null && a.estado_semaforo !== null;
+        const texto = semaforo ? (a.estados?.[a.estado_semaforo ?? 0]?.texto ?? "") : "";
+        return semaforo ? (
+          <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${texto}. Pulsa para cambiarlo`} style={{ ...estilo(a.color), cursor: "pointer" }}>
+            {a.etiqueta}
+          </button>
+        ) : (
+          <span key={a.id} title={`Apunte: ${a.titulo}`} style={estilo(a.color)}>
+            {a.etiqueta}
+          </span>
+        );
+      })}
+      {abierto !== null && (() => {
+        const a = visibles.find((x) => x.id === abierto);
+        return a ? <ModalApunte apunte={a} idExpediente={idExpediente} cliente={cliente} alCerrar={() => setAbierto(null)} /> : null;
+      })()}
     </>
   );
 }
@@ -136,8 +154,9 @@ export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
           <NombreConFoto fotoId={exp.cliente.foto_id}>{exp.cliente.nombre}</NombreConFoto>
         </TextoCopiable>
         <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", flexWrap: "wrap" }}>
+          <EtiquetasApuntes apuntes={exp.apuntes} lado="izquierda" idExpediente={exp.id_expediente} cliente={exp.cliente.nombre} />
           <IconoCliente id={exp.cliente.id} />
-          <EtiquetasApuntes apuntes={exp.apuntes} />
+          <EtiquetasApuntes apuntes={exp.apuntes} lado="derecha" idExpediente={exp.id_expediente} cliente={exp.cliente.nombre} />
         </span>
       </>
     );

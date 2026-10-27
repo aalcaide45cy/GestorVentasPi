@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { apuntesExpediente, apuntesPredefinidos, papeleraElementos } from "@/db/schema";
+import { apuntesPredefinidos, papeleraElementos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { actualizarApunte, actualizarPredefinido, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, listarApuntes, listarPredefinidos } from "./apuntes";
+import { actualizarApunte, actualizarPredefinido, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
 import { restaurar } from "./papelera";
@@ -17,21 +17,58 @@ async function escenario() {
   const exp = await crearExpediente(db, ana, esquemaCrearExpediente.parse({ cliente: { nombre: "Cliente", dni: "33333333P" }, expediente: {} }));
   return { admin, ana, otra, idExpediente: exp.id_expediente };
 }
+const predefinido = async (clave: string) => (await listarPredefinidos(db)).find((x) => x.clave === clave)!;
 
 describe("apuntes de los expedientes", () => {
-  it("vienen de serie Seguro (sin etiqueta en la lista) y VO de retoma (con etiqueta VO)", async () => {
-    const p = await listarPredefinidos(db);
-    expect(p.find((x) => x.clave === "seguro")).toMatchObject({ titulo: "Seguro", mostrar_etiqueta: false, rapido: true });
-    expect(p.find((x) => x.clave === "vo-retoma")).toMatchObject({ etiqueta: "VO", mostrar_etiqueta: true });
+  it("vienen de serie el Seguro (semáforo que llevan todos) y VO de retoma (con etiqueta VO)", async () => {
+    const seguro = await predefinido("seguro");
+    expect(seguro).toMatchObject({ semaforo: true, por_defecto: true, mostrar_etiqueta: true, lado: "derecha" });
+    expect(seguro.semaforo_estados.map((e) => e.color)).toEqual(["#ef4444", "#eab308", "#22c55e"]);
+    expect(await predefinido("vo-retoma")).toMatchObject({ etiqueta: "VO", mostrar_etiqueta: true, por_defecto: false });
+  });
+
+  it("todo expediente nuevo lleva el Seguro en rojo, y se puede pasar a amarillo y verde", async () => {
+    const { ana, idExpediente } = await escenario();
+    const [seguro] = await listarApuntes(db, idExpediente);
+    expect(seguro).toMatchObject({ titulo: "Seguro", etiqueta: "SEGURO", estado_semaforo: 0, color: "#ef4444", mostrar_etiqueta: true });
+    expect((await fijarEstadoSemaforo(db, ana, seguro.id, 1)).color).toBe("#eab308");
+    expect((await fijarEstadoSemaforo(db, ana, seguro.id, 2)).color).toBe("#22c55e");
+    await expect(fijarEstadoSemaforo(db, ana, seguro.id, 3)).rejects.toThrow(/no válido/);
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ estado_semaforo: 2, color: "#22c55e", lado: "derecha" });
+  });
+
+  it("al cambiar los colores o el significado desde Ajustes, todos los expedientes lo ven", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const [a] = await listarApuntes(db, idExpediente);
+    await fijarEstadoSemaforo(db, ana, a.id, 1);
+    const e = esquemaPredefinido.parse({ ...seguro, semaforo_estados: [{ color: "#111111", texto: "Sin pedir" }, { color: "#222222", texto: "Pedido" }, { color: "#333333", texto: "Hecho" }], lado: "izquierda" });
+    await actualizarPredefinido(db, admin, seguro.id, e);
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ color: "#222222", lado: "izquierda", estados: [{ texto: "Sin pedir" }, { texto: "Pedido" }, { texto: "Hecho" }] });
+    // Quitar el último estado: el expediente que lo tenía pasa al primero
+    await fijarEstadoSemaforo(db, ana, a.id, 2);
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...e, semaforo_estados: e.semaforo_estados.slice(0, 2) }));
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ estado_semaforo: 0, color: "#111111" });
+  });
+
+  it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {
+    const { admin, idExpediente } = await escenario();
+    const nuevo = await crearPredefinido(db, admin, esquemaPredefinido.parse({ titulo: "Garantía", etiqueta: "GAR", mostrar_etiqueta: true, por_defecto: true }));
+    expect((await listarApuntes(db, idExpediente)).map((a) => a.titulo).sort()).toEqual(["Garantía", "Seguro"]);
+    const otro = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Otro", dni: "44444444A" }, expediente: {} }));
+    expect((await listarApuntes(db, otro.id_expediente)).map((a) => a.titulo).sort()).toEqual(["Garantía", "Seguro"]);
+    expect(nuevo.por_defecto).toBe(true);
   });
 
   it("el botón rápido añade el apunte una sola vez por más que se pulse", async () => {
     const { ana, idExpediente } = await escenario();
-    const seguro = (await listarPredefinidos(db)).find((x) => x.clave === "seguro")!;
-    const resultados = await Promise.all(Array.from({ length: 10 }, () => anadirRapido(db, ana, idExpediente, seguro.id)));
+    const retoma = await predefinido("vo-retoma");
+    const resultados = await Promise.all(Array.from({ length: 10 }, () => anadirRapido(db, ana, idExpediente, retoma.id)));
     expect(resultados.filter((r) => r.creado)).toHaveLength(1);
-    expect(await listarApuntes(db, idExpediente)).toHaveLength(1);
-    expect((await anadirRapido(db, ana, idExpediente, seguro.id)).creado).toBe(false);
+    expect((await listarApuntes(db, idExpediente)).filter((a) => a.id_predefinido === retoma.id)).toHaveLength(1);
+    expect((await anadirRapido(db, ana, idExpediente, retoma.id)).creado).toBe(false);
+    // El Seguro ya lo lleva por defecto: tampoco se duplica
+    expect((await anadirRapido(db, ana, idExpediente, (await predefinido("seguro")).id)).creado).toBe(false);
   });
 
   it("las líneas escritas a mano sí pueden repetirse, y se editan", async () => {
@@ -39,16 +76,16 @@ describe("apuntes de los expedientes", () => {
     const e = esquemaApunte.parse({ titulo: "Llamar al cliente", descripcion: "El lunes", etiqueta: "LLAMAR", mostrar_etiqueta: true });
     const a1 = await crearApunte(db, ana, idExpediente, e);
     await crearApunte(db, ana, idExpediente, e);
-    expect(await listarApuntes(db, idExpediente)).toHaveLength(2);
+    expect((await listarApuntes(db, idExpediente)).filter((a) => a.titulo === "Llamar al cliente")).toHaveLength(2);
     expect((await actualizarApunte(db, ana, a1.id, { ...e, titulo: "Llamar", descripcion: "El martes" })).descripcion).toBe("El martes");
   });
 
-  it("la lista del expediente trae las etiquetas que se deben mostrar", async () => {
+  it("la retoma deja el apunte VO con la matrícula en la descripción", async () => {
     const { ana, idExpediente } = await escenario();
     expect(await anadirVoRetoma(db, ana, idExpediente, "Matrícula 1234ABC.")).toEqual({ creado: true });
-    const mapa = await apuntesPorExpediente(db);
-    expect(mapa.get(idExpediente)).toMatchObject([{ titulo: "VO de retoma", etiqueta: "VO", mostrar_etiqueta: true }]);
-    expect((await listarApuntes(db, idExpediente))[0].descripcion).toContain("1234ABC");
+    const vo = (await apuntesPorExpediente(db)).get(idExpediente)!.find((a) => a.titulo === "VO de retoma");
+    expect(vo).toMatchObject({ etiqueta: "VO", mostrar_etiqueta: true, estados: null });
+    expect((await listarApuntes(db, idExpediente)).find((a) => a.titulo === "VO de retoma")!.descripcion).toContain("1234ABC");
     expect(await anadirVoRetoma(db, ana, idExpediente, null)).toEqual({ creado: false });
   });
 
@@ -63,12 +100,11 @@ describe("apuntes de los expedientes", () => {
     const { ana, idExpediente } = await escenario();
     const a = await crearApunte(db, ana, idExpediente, esquemaApunte.parse({ titulo: "Seguro de prueba", etiqueta: "SEG", mostrar_etiqueta: true }));
     await eliminarApunte(db, ana, a.id);
-    expect(await listarApuntes(db, idExpediente)).toHaveLength(0);
+    expect((await listarApuntes(db, idExpediente)).some((x) => x.titulo === "Seguro de prueba")).toBe(false);
     const guardados = await db.select().from(papeleraElementos).where(eq(papeleraElementos.tipo, "apunte"));
     expect(guardados).toHaveLength(1);
-    const r = await restaurar(db, { accion: "restaurar", categoria: "elementos", ids: [String(guardados[0].id)] });
-    expect(r).toMatchObject({ restaurados: 1 });
-    expect(await listarApuntes(db, idExpediente)).toMatchObject([{ titulo: "Seguro de prueba", etiqueta: "SEG", mostrar_etiqueta: true }]);
+    expect(await restaurar(db, { accion: "restaurar", categoria: "elementos", ids: [String(guardados[0].id)] })).toMatchObject({ restaurados: 1 });
+    expect((await listarApuntes(db, idExpediente)).find((x) => x.titulo === "Seguro de prueba")).toMatchObject({ etiqueta: "SEG", mostrar_etiqueta: true });
   });
 
   it("los predefinidos solo los cambia el administrador; los de la aplicación no se borran y los nuevos sí", async () => {
@@ -77,10 +113,8 @@ describe("apuntes de los expedientes", () => {
     await expect(crearPredefinido(db, ana, e)).rejects.toThrow(/administrador/);
     const nuevo = await crearPredefinido(db, admin, e);
     expect((await actualizarPredefinido(db, admin, nuevo.id, { ...e, color: "#10b981" })).color).toBe("#10b981");
-    const seguro = (await listarPredefinidos(db)).find((x) => x.clave === "seguro")!;
-    await expect(eliminarPredefinido(db, admin, seguro.id)).rejects.toThrow(/no se puede borrar/);
+    await expect(eliminarPredefinido(db, admin, (await predefinido("seguro")).id)).rejects.toThrow(/no se puede borrar/);
     await eliminarPredefinido(db, admin, nuevo.id);
     expect(await db.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, nuevo.id))).toHaveLength(0);
-    expect(await db.select().from(apuntesExpediente)).toHaveLength(0);
   });
 });

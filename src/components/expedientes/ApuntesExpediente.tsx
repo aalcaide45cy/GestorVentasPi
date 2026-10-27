@@ -103,6 +103,11 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
       await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: b });
       mostrar("Apunte guardado.");
     });
+  const estado = (a: ApunteDto, i: number) =>
+    ejecutar(async () => {
+      await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: i } });
+      mostrar(`${a.titulo}: ${a.estados?.[i]?.texto ?? ""}`);
+    });
   const eliminar = (a: ApunteDto) =>
     ejecutar(async () => {
       await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "DELETE" });
@@ -138,6 +143,16 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
           const sucio = editados[a.id] !== undefined && JSON.stringify(editados[a.id]) !== JSON.stringify(deApunte(a));
           return (
             <div key={a.id} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              {a.estados && (
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }} title="Estado de este apunte (semáforo): los colores y su significado se cambian en Configuración › Expedientes › Apuntes">
+                  {a.estados.map((e, i) => (
+                    <button key={i} type="button" disabled={ocupado} onClick={() => void estado(a, i)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 10px", borderRadius: "999px", border: `2px solid ${a.estado_semaforo === i ? e.color : "var(--border-light)"}`, background: a.estado_semaforo === i ? `${e.color}22` : "transparent", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.8rem", fontWeight: a.estado_semaforo === i ? 700 : 500 }}>
+                      <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: e.color }} />
+                      {e.texto}
+                    </button>
+                  ))}
+                </div>
+              )}
               <Campos b={b} alCambiar={(c) => setEditados((x) => ({ ...x, [a.id]: { ...b, ...c } }))} />
               <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                 {sucio && (

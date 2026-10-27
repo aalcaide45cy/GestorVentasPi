@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerIdQuery, leerJson, manejar } from "@/lib/http";
-import { actualizarApunte, anadirRapido, anadirVoRetoma, crearApunte, eliminarApunte, esquemaApunte, listarApuntes } from "@/lib/servicios/apuntes";
+import { actualizarApunte, anadirRapido, anadirVoRetoma, crearApunte, eliminarApunte, esquemaApunte, fijarEstadoSemaforo, listarApuntes } from "@/lib/servicios/apuntes";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,9 @@ export const PUT = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
   const id = leerIdQuery(req);
   if (!id) throw new HttpError(400, "Falta el apunte");
-  const e = await leerJson(req, esquemaApunte);
+  // Dos usos: cambiar el estado de un semáforo (`{ accion: "estado", estado_semaforo }`) o editar el texto del apunte
+  const e = await leerJson(req, z.union([z.object({ accion: z.literal("estado"), estado_semaforo: z.number().int().min(0).max(9) }), esquemaApunte]));
+  if ("accion" in e) return NextResponse.json({ success: true, data: await fijarEstadoSemaforo(db, u, id, e.estado_semaforo) });
   return NextResponse.json({ success: true, data: await actualizarApunte(db, u, id, e) });
 });
 

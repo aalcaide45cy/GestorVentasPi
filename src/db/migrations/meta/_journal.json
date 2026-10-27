@@ -421,6 +421,13 @@
       "when": 1793111841560,
       "tag": "0059_apuntes_expediente",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793118831852,
+      "tag": "0060_apuntes_semaforo",
+      "breakpoints": true
     }
   ]
 }

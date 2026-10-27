@@ -44,7 +44,23 @@ export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatab
     await tx
       .insert(apuntesPredefinidos)
       .values([
-        { clave: "seguro", titulo: "Seguro", descripcion: "Hay que contratarle el seguro del coche.", etiqueta: "SEGURO", color: "#2563eb", mostrarEtiqueta: false, rapido: true, orden: 1 },
+        {
+          clave: "seguro",
+          titulo: "Seguro",
+          descripcion: "Estado del seguro del coche.",
+          etiqueta: "SEGURO",
+          color: "#2563eb",
+          mostrarEtiqueta: true,
+          rapido: true,
+          porDefecto: true,
+          semaforo: true,
+          semaforoEstados: [
+            { color: "#ef4444", texto: "Seguro aún no solicitado" },
+            { color: "#eab308", texto: "Solicitado, póliza aún no emitida" },
+            { color: "#22c55e", texto: "Póliza emitida" },
+          ],
+          orden: 1,
+        },
         { clave: "vo-retoma", titulo: "VO de retoma", descripcion: "El cliente deja un vehículo usado de retoma.", etiqueta: "VO", color: "#f59e0b", mostrarEtiqueta: true, rapido: true, orden: 2 },
       ])
       .onConflictDoNothing();

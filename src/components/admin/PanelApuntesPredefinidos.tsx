@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
-import type { PredefinidoDto } from "@/lib/servicios/apuntes";
+import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
+
+const ESTADOS_INICIALES: EstadoSemaforo[] = [
+  { color: "#ef4444", texto: "Aún no solicitado" },
+  { color: "#eab308", texto: "Solicitado, sin terminar" },
+  { color: "#22c55e", texto: "Terminado" },
+];
 
 interface Borrador {
   titulo: string;
@@ -12,10 +18,14 @@ interface Borrador {
   color: string;
   mostrar_etiqueta: boolean;
   rapido: boolean;
+  por_defecto: boolean;
+  semaforo: boolean;
+  semaforo_estados: EstadoSemaforo[];
+  lado: "izquierda" | "derecha";
 }
 
-const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true });
-const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido });
+const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha" });
+const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado });
 
 function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador>) => void }) {
   return (
@@ -33,7 +43,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
         <input type="color" value={b.color} onChange={(e) => alCambiar({ color: e.target.value })} style={{ width: "34px", height: "26px", padding: 0, border: "none", background: "none" }} />
         {b.etiqueta.trim() !== "" && <span style={{ background: b.color, color: "#fff", fontSize: "0.62rem", fontWeight: 800, padding: "1px 7px", borderRadius: "999px", textShadow: "0 0 2px rgba(0,0,0,0.35)" }}>{b.etiqueta}</span>}
       </label>
-      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Si está marcado, al añadir este apunte a un expediente su etiqueta sale junto al icono del cliente en la lista (se puede cambiar en cada expediente)">
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Si está marcado, al añadir este apunte a un expediente su etiqueta sale junto al icono del cliente en la lista (se puede cambiar en cada expediente). Al guardar, el título, la etiqueta, el color y esto mismo se aplican también a los apuntes que ya se crearon con este predefinido">
         <input type="checkbox" checked={b.mostrar_etiqueta} onChange={(e) => alCambiar({ mostrar_etiqueta: e.target.checked })} />
         Mostrar la etiqueta en la lista
       </label>
@@ -41,6 +51,42 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
         <input type="checkbox" checked={b.rapido} onChange={(e) => alCambiar({ rapido: e.target.checked })} />
         Botón rápido en el expediente
       </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Si está marcado, todos los expedientes llevan este apunte: los que ya hay y los que se creen a partir de ahora">
+        <input type="checkbox" checked={b.por_defecto} onChange={(e) => alCambiar({ por_defecto: e.target.checked })} />
+        Lo llevan todos los expedientes
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="De qué lado del icono del cliente sale la etiqueta en la lista de Expedientes">
+        Lado del icono del cliente
+        <select className="form-input" value={b.lado} onChange={(e) => alCambiar({ lado: e.target.value === "izquierda" ? "izquierda" : "derecha" })} style={{ width: "auto" }}>
+          <option value="izquierda">Izquierda</option>
+          <option value="derecha">Derecha</option>
+        </select>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Un semáforo tiene varios estados, cada uno con su color y su significado (por ejemplo rojo: aún no solicitado). Al pulsar la etiqueta en la lista se cambia el estado de ese expediente">
+        <input type="checkbox" checked={b.semaforo} onChange={(e) => alCambiar({ semaforo: e.target.checked })} />
+        Funciona como un semáforo
+      </label>
+      {b.semaforo && (
+        <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "6px", border: "1px dashed var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px" }}>
+          <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>Estados del semáforo (el primero es el que reciben los expedientes al principio)</span>
+          {b.semaforo_estados.map((e, i) => (
+            <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input type="color" value={e.color} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)) })} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none" }} />
+              <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)) })} placeholder="Qué significa este color" style={{ flex: 1 }} />
+              {b.semaforo_estados.length > 2 && (
+                <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: b.semaforo_estados.filter((_, j) => j !== i) })} style={{ padding: "2px 8px" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)">
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          {b.semaforo_estados.length < 5 && (
+            <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: [...b.semaforo_estados, { color: "#3b82f6", texto: "" }] })} style={{ alignSelf: "flex-start", padding: "3px 10px", fontSize: "0.78rem" }}>
+              + Añadir estado
+            </button>
+          )}
+        </div>
+      )}
       <label style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.78rem", color: "var(--text-secondary)", gridColumn: "1 / -1" }}>
         Descripción
         <textarea className="form-input" rows={2} maxLength={2000} value={b.descripcion} onChange={(e) => alCambiar({ descripcion: e.target.value })} placeholder="Texto que llevará el apunte al añadirlo…" style={{ resize: "vertical" }} />

@@ -1235,6 +1235,13 @@ export const apuntesPredefinidos = pgTable(
     mostrarEtiqueta: boolean("mostrar_etiqueta").notNull().default(false),
     /** Si tiene botón rápido en el expediente. */
     rapido: boolean("rapido").notNull().default(true),
+    /** Si se añade solo a todos los expedientes (los que ya hay y los nuevos). */
+    porDefecto: boolean("por_defecto").notNull().default(false),
+    /** Si funciona como un semáforo: cada expediente tiene un estado (0, 1 o 2) con su color y su significado en `semaforoEstados`. */
+    semaforo: boolean("semaforo").notNull().default(false),
+    semaforoEstados: jsonb("semaforo_estados").$type<{ color: string; texto: string }[]>().notNull().default(sql`'[]'::jsonb`),
+    /** A qué lado del icono del cliente sale la etiqueta en la lista: izquierda o derecha. */
+    lado: varchar("lado", { length: 10 }).notNull().default("derecha"),
     orden: integer("orden").notNull().default(0),
   },
   (t) => [uniqueIndex("apuntes_predefinidos_clave_uq").on(t.clave).where(sql`${t.clave} is not null`)],
@@ -1254,6 +1261,8 @@ export const apuntesExpediente = pgTable(
     etiqueta: varchar("etiqueta", { length: 24 }).notNull().default(""),
     color: varchar("color", { length: 7 }).notNull().default("#3b82f6"),
     mostrarEtiqueta: boolean("mostrar_etiqueta").notNull().default(false),
+    /** Solo en los de tipo semáforo: el estado (0 = rojo, 1 = amarillo, 2 = verde por defecto). */
+    estadoSemaforo: integer("estado_semaforo"),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

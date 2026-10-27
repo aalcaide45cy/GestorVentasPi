@@ -16,6 +16,14 @@ export const CLAVE_VO_RETOMA = "vo-retoma";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "El color debe ser tipo #3b82f6");
 
+export const ESTADOS_SEMAFORO_INICIALES = [
+  { color: "#ef4444", texto: "Aún no solicitado" },
+  { color: "#eab308", texto: "Solicitado, sin terminar" },
+  { color: "#22c55e", texto: "Terminado" },
+];
+
+export const esquemaEstadosSemaforo = z.array(z.object({ color, texto: z.string().trim().min(1, "Cada color necesita su significado").max(80) })).min(2, "Un semáforo necesita al menos 2 estados").max(5);
+
 export const esquemaPredefinido = z.object({
   titulo: z.string().trim().min(1, "Falta el título").max(80),
   descripcion: z.string().max(2000).default(""),
@@ -23,6 +31,12 @@ export const esquemaPredefinido = z.object({
   color: color.default("#3b82f6"),
   mostrar_etiqueta: z.boolean().default(false),
   rapido: z.boolean().default(true),
+  /** Se añade solo a todos los expedientes (los que ya hay y los nuevos). */
+  por_defecto: z.boolean().default(false),
+  /** Funciona como un semáforo: cada expediente tiene un estado con su color y su significado. */
+  semaforo: z.boolean().default(false),
+  semaforo_estados: esquemaEstadosSemaforo.default(ESTADOS_SEMAFORO_INICIALES),
+  lado: z.enum(["izquierda", "derecha"]).default("derecha"),
 });
 export type EntradaPredefinido = z.infer<typeof esquemaPredefinido>;
 
@@ -35,6 +49,11 @@ export const esquemaApunte = z.object({
 });
 export type EntradaApunte = z.infer<typeof esquemaApunte>;
 
+export interface EstadoSemaforo {
+  color: string;
+  texto: string;
+}
+
 export interface PredefinidoDto {
   id: number;
   clave: string | null;
@@ -44,6 +63,10 @@ export interface PredefinidoDto {
   color: string;
   mostrar_etiqueta: boolean;
   rapido: boolean;
+  por_defecto: boolean;
+  semaforo: boolean;
+  semaforo_estados: EstadoSemaforo[];
+  lado: "izquierda" | "derecha";
 }
 
 export interface ApunteDto {
@@ -55,20 +78,38 @@ export interface ApunteDto {
   etiqueta: string;
   color: string;
   mostrar_etiqueta: boolean;
+  /** Estado del semáforo (posición en `estados`), o `null` si no es un semáforo. */
+  estado_semaforo: number | null;
+  /** Los estados del semáforo del predefinido (color y significado), o `null`. */
+  estados: EstadoSemaforo[] | null;
   creado_en: string;
 }
 
 /** Lo que lleva cada expediente en la lista (sin la descripción, para no cargar de más). */
 export interface ApunteListaDto {
   id: number;
+  id_predefinido: number | null;
   titulo: string;
   etiqueta: string;
+  /** El color con el que se pinta (en un semáforo, el de su estado actual). */
   color: string;
   mostrar_etiqueta: boolean;
+  lado: "izquierda" | "derecha";
+  estado_semaforo: number | null;
+  estados: EstadoSemaforo[] | null;
 }
 
-const aPredefinido = (f: typeof apuntesPredefinidos.$inferSelect): PredefinidoDto => ({ id: f.id, clave: f.clave, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, rapido: f.rapido });
-const aApunte = (f: typeof apuntesExpediente.$inferSelect): ApunteDto => ({ id: f.id, id_expediente: f.idExpediente, id_predefinido: f.idPredefinido, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, creado_en: f.creadoEn.toISOString() });
+const aPredefinido = (f: typeof apuntesPredefinidos.$inferSelect): PredefinidoDto => ({ id: f.id, clave: f.clave, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, rapido: f.rapido, por_defecto: f.porDefecto, semaforo: f.semaforo, semaforo_estados: f.semaforoEstados, lado: f.lado === "izquierda" ? "izquierda" : "derecha" });
+
+/** El color con el que se pinta un apunte: en un semáforo, el de su estado actual (los colores se pueden cambiar desde Configuración); si no, el suyo. */
+const colorDe = (color: string, estado: number | null, estados: EstadoSemaforo[] | null): string => (estados && estado !== null ? (estados[estado]?.color ?? color) : color);
+
+type FilaConPredefinido = { a: typeof apuntesExpediente.$inferSelect; p: typeof apuntesPredefinidos.$inferSelect | null };
+const aApunte = ({ a, p }: FilaConPredefinido): ApunteDto => {
+  const estados = p?.semaforo ? p.semaforoEstados : null;
+  return { id: a.id, id_expediente: a.idExpediente, id_predefinido: a.idPredefinido, titulo: a.titulo, descripcion: a.descripcion, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados, creado_en: a.creadoEn.toISOString() };
+};
+const unirPredefinido = { a: apuntesExpediente, p: apuntesPredefinidos };
 
 /* ------------------------------ Predefinidos ------------------------------ */
 
@@ -80,17 +121,41 @@ function soloAdministrador(u: UsuarioActual): void {
   if (!esAdministrador(u.rol)) throw new HttpError(403, "Solo el administrador puede cambiar los apuntes predefinidos");
 }
 
+function camposPredefinido(e: EntradaPredefinido) {
+  return { titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta, rapido: e.rapido, porDefecto: e.por_defecto, semaforo: e.semaforo, semaforoEstados: e.semaforo ? e.semaforo_estados : [], lado: e.lado };
+}
+
+/** Añade el predefinido a todos los expedientes que aún no lo tienen (los nuevos lo reciben solos por un disparador de la base de datos). */
+async function aplicarPorDefectoATodos(ej: Ejecutor, idPredefinido: number): Promise<void> {
+  await ej.execute(sql`
+    insert into apuntes_expediente (id_expediente, id_predefinido, titulo, descripcion, etiqueta, color, mostrar_etiqueta, estado_semaforo)
+    select e.id_expediente, p.id, p.titulo, p.descripcion, p.etiqueta, case when p.semaforo then p.semaforo_estados->0->>'color' else p.color end, p.mostrar_etiqueta, case when p.semaforo then 0 else null end
+    from expedientes e cross join apuntes_predefinidos p
+    where p.id = ${idPredefinido} and e.eliminado_en is null
+    on conflict (id_expediente, id_predefinido) where id_predefinido is not null do nothing`);
+}
+
 export async function crearPredefinido(ej: Ejecutor, u: UsuarioActual, e: EntradaPredefinido): Promise<PredefinidoDto> {
   soloAdministrador(u);
   const [{ max }] = await ej.select({ max: sql<number>`coalesce(max(${apuntesPredefinidos.orden}), 0)::int` }).from(apuntesPredefinidos);
-  const [f] = await ej.insert(apuntesPredefinidos).values({ titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta, rapido: e.rapido, orden: max + 1 }).returning();
+  const [f] = await ej.insert(apuntesPredefinidos).values({ ...camposPredefinido(e), orden: max + 1 }).returning();
+  if (f.porDefecto) await aplicarPorDefectoATodos(ej, f.id);
   return aPredefinido(f);
 }
 
 export async function actualizarPredefinido(ej: Ejecutor, u: UsuarioActual, id: number, e: EntradaPredefinido): Promise<PredefinidoDto> {
   soloAdministrador(u);
-  const [f] = await ej.update(apuntesPredefinidos).set({ titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta, rapido: e.rapido }).where(eq(apuntesPredefinidos.id, id)).returning();
+  const [f] = await ej.update(apuntesPredefinidos).set(camposPredefinido(e)).where(eq(apuntesPredefinidos.id, id)).returning();
   if (!f) throw new HttpError(404, "Apunte predefinido no encontrado");
+  // Los apuntes ya creados con este predefinido toman su título, etiqueta, color y si se muestra (la descripción de cada uno se respeta)
+  await ej.update(apuntesExpediente).set({ titulo: f.titulo, etiqueta: f.etiqueta, color: f.color, mostrarEtiqueta: f.mostrarEtiqueta }).where(eq(apuntesExpediente.idPredefinido, f.id));
+  if (f.semaforo) {
+    // Un expediente que tenía un estado que ya no existe (o ninguno) pasa al primero; y se pone el color del estado en el que esté
+    await ej.update(apuntesExpediente).set({ estadoSemaforo: 0 }).where(and(eq(apuntesExpediente.idPredefinido, f.id), sql`(${apuntesExpediente.estadoSemaforo} is null or ${apuntesExpediente.estadoSemaforo} >= ${f.semaforoEstados.length})`));
+    for (let i = 0; i < f.semaforoEstados.length; i++) await ej.update(apuntesExpediente).set({ color: f.semaforoEstados[i].color }).where(and(eq(apuntesExpediente.idPredefinido, f.id), eq(apuntesExpediente.estadoSemaforo, i)));
+  }
+  // Si ahora es «por defecto», lo reciben también los expedientes que ya hay
+  if (f.porDefecto) await aplicarPorDefectoATodos(ej, f.id);
   return aPredefinido(f);
 }
 
@@ -113,13 +178,13 @@ async function comprobarAcceso(ej: Ejecutor, u: UsuarioActual, idExpediente: num
 }
 
 export async function listarApuntes(ej: Ejecutor, idExpediente: number): Promise<ApunteDto[]> {
-  return (await ej.select().from(apuntesExpediente).where(eq(apuntesExpediente.idExpediente, idExpediente)).orderBy(asc(apuntesExpediente.creadoEn), asc(apuntesExpediente.id))).map(aApunte);
+  return (await ej.select(unirPredefinido).from(apuntesExpediente).leftJoin(apuntesPredefinidos, eq(apuntesExpediente.idPredefinido, apuntesPredefinidos.id)).where(eq(apuntesExpediente.idExpediente, idExpediente)).orderBy(asc(apuntesExpediente.creadoEn), asc(apuntesExpediente.id))).map(aApunte);
 }
 
 export async function crearApunte(ej: Ejecutor, u: UsuarioActual, idExpediente: number, e: EntradaApunte): Promise<ApunteDto> {
   await comprobarAcceso(ej, u, idExpediente);
   const [f] = await ej.insert(apuntesExpediente).values({ idExpediente, titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta }).returning();
-  return aApunte(f);
+  return aApunte({ a: f, p: null });
 }
 
 /**
@@ -132,13 +197,13 @@ export async function anadirRapido(ej: Ejecutor, u: UsuarioActual | null, idExpe
   if (!p) throw new HttpError(404, "Apunte predefinido no encontrado");
   const texto = descripcion && descripcion.trim() !== "" ? `${p.descripcion}${p.descripcion ? " " : ""}${descripcion.trim()}`.slice(0, 2000) : p.descripcion;
   const r = await ej.execute(sql`
-    insert into apuntes_expediente (id_expediente, id_predefinido, titulo, descripcion, etiqueta, color, mostrar_etiqueta)
-    values (${idExpediente}, ${p.id}, ${p.titulo}, ${texto}, ${p.etiqueta}, ${p.color}, ${p.mostrarEtiqueta})
+    insert into apuntes_expediente (id_expediente, id_predefinido, titulo, descripcion, etiqueta, color, mostrar_etiqueta, estado_semaforo)
+    values (${idExpediente}, ${p.id}, ${p.titulo}, ${texto}, ${p.etiqueta}, ${p.semaforo ? (p.semaforoEstados[0]?.color ?? p.color) : p.color}, ${p.mostrarEtiqueta}, ${p.semaforo ? 0 : null})
     on conflict (id_expediente, id_predefinido) where id_predefinido is not null do nothing
     returning id`);
   const creado = ((r as unknown as { rows: unknown[] }).rows?.length ?? 0) > 0;
   const [f] = await ej.select().from(apuntesExpediente).where(and(eq(apuntesExpediente.idExpediente, idExpediente), eq(apuntesExpediente.idPredefinido, p.id)));
-  return { creado, apunte: aApunte(f) };
+  return { creado, apunte: aApunte({ a: f, p }) };
 }
 
 /** El apunte «VO de retoma» (si el predefinido sigue existiendo): lo usa la lectura de un pedido que lleva retoma. */
@@ -154,7 +219,20 @@ export async function actualizarApunte(ej: Ejecutor, u: UsuarioActual, id: numbe
   if (!a) throw new HttpError(404, "Apunte no encontrado");
   await comprobarAcceso(ej, u, a.idExpediente);
   const [f] = await ej.update(apuntesExpediente).set({ titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta }).where(eq(apuntesExpediente.id, id)).returning();
-  return aApunte(f);
+  const [p] = f.idPredefinido ? await ej.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, f.idPredefinido)) : [null];
+  return aApunte({ a: f, p });
+}
+
+/** Cambia el estado de un apunte que funciona como semáforo (0 = rojo… según los estados del predefinido). */
+export async function fijarEstadoSemaforo(ej: Ejecutor, u: UsuarioActual, id: number, estado: number): Promise<ApunteDto> {
+  const [a] = await ej.select().from(apuntesExpediente).where(eq(apuntesExpediente.id, id));
+  if (!a) throw new HttpError(404, "Apunte no encontrado");
+  await comprobarAcceso(ej, u, a.idExpediente);
+  const [p] = a.idPredefinido ? await ej.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, a.idPredefinido)) : [null];
+  if (!p?.semaforo) throw new HttpError(400, "Este apunte no es un semáforo");
+  if (!Number.isInteger(estado) || estado < 0 || estado >= p.semaforoEstados.length) throw new HttpError(400, "Estado no válido");
+  const [f] = await ej.update(apuntesExpediente).set({ estadoSemaforo: estado, color: p.semaforoEstados[estado].color }).where(eq(apuntesExpediente.id, id)).returning();
+  return aApunte({ a: f, p });
 }
 
 /** Elimina un apunte: antes se guarda en la Papelera (se puede restaurar mientras exista el expediente). */
@@ -171,15 +249,17 @@ export async function eliminarApunte(ej: Ejecutor, u: UsuarioActual, id: number)
 /** Los apuntes de todos los expedientes (o de los dados), agrupados por expediente. */
 export async function apuntesPorExpediente(ej: Ejecutor, ids?: number[]): Promise<Map<number, ApunteListaDto[]>> {
   const filas = await ej
-    .select({ idExpediente: apuntesExpediente.idExpediente, id: apuntesExpediente.id, titulo: apuntesExpediente.titulo, etiqueta: apuntesExpediente.etiqueta, color: apuntesExpediente.color, mostrar: apuntesExpediente.mostrarEtiqueta })
+    .select(unirPredefinido)
     .from(apuntesExpediente)
+    .leftJoin(apuntesPredefinidos, eq(apuntesExpediente.idPredefinido, apuntesPredefinidos.id))
     .where(ids && ids.length > 0 ? inArray(apuntesExpediente.idExpediente, ids) : undefined)
     .orderBy(asc(apuntesExpediente.creadoEn), asc(apuntesExpediente.id));
   const mapa = new Map<number, ApunteListaDto[]>();
-  for (const f of filas) {
-    const l = mapa.get(f.idExpediente) ?? [];
-    l.push({ id: f.id, titulo: f.titulo, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrar });
-    mapa.set(f.idExpediente, l);
+  for (const { a, p } of filas) {
+    const estados = p?.semaforo ? p.semaforoEstados : null;
+    const l = mapa.get(a.idExpediente) ?? [];
+    l.push({ id: a.id, id_predefinido: a.idPredefinido, titulo: a.titulo, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, lado: p?.lado === "izquierda" ? "izquierda" : "derecha", estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados });
+    mapa.set(a.idExpediente, l);
   }
   return mapa;
 }
