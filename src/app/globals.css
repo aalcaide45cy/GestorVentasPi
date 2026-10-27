@@ -396,8 +396,9 @@ select, select option {
   font-size: 0.95rem;
   transition: var(--transition);
 }
+/* Al pasar el ratón la fila se aclara/oscurece un poco, pero con transparencia: así no tapa el color de la fila (reglas de color, zebra) en unas celdas y lo deja en otras */
 .table-premium tr:hover td {
-  background: var(--bg-surface-tint);
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
   color: var(--text-primary);
 }
 .table-premium tr:last-child td {

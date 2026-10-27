@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.31.12 (27/10/2026)
+
+- **El color de la fila ya no se «corta» al pasar el ratón.** Con el ratón encima, las celdas sin color propio se pintaban con un fondo opaco que tapaba el de la regla de color, y las que tienen su fondo propio lo dejaban ver: la fila parecía coloreada solo a medias. Ahora el fondo del ratón es translúcido (`.table-premium tr:hover td`), así que el color de la regla se ve entero.
+
 ## Versión 1.31.11 (27/10/2026)
 
 - **Todo viaja con el usuario.** Se suman al perfil (base de datos) el tema de colores y el tamaño de la página (se guardan como `perfil-tema` y `perfil-zoom`; al entrar en otro equipo el sincronizador los aplica, y si el tamaño cambia recarga la página una vez), los candados de selección y eliminación, y el modo «permitir duplicados». Solo quedan en el navegador el borrador de una lectura a medias y la lista de expedientes visibles en ese momento.
