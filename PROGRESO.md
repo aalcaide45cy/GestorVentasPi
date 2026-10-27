@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.31.4 (27/10/2026)
+
+- **Expedientes: «Nuevo expediente» y «Ajustes» dentro de la barra fija.** Salen de la cabecera de la página y pasan a la barra de herramientas fija, a la derecha de «Eliminación»: un botón «➕» (Nuevo expediente; solo quien puede crearlos) y el piñón «⚙️» solo con el icono (Ajustes de Expedientes; solo administrador). `BotonAjustes` admite `soloIcono`.
+- **Botones de la barra más cortos.** «🔎 Duplicados», «⚙️ Columnas», «⇕ Plegar / Desplegar», «🔒 Selección» y «🔒 Eliminación» (activos: «🔓 Selección activa», «🔓 Eliminación activa»). Las explicaciones largas siguen en el texto flotante de cada botón.
+
 ## Versión 1.31.3 (27/10/2026)
 
 - **El desglose de comisiones ya no pierde la marca, el modelo ni el tipo de pago.** El panel «Mis comisiones» sacaba los datos de cada coche de la lista de Expedientes **ya filtrada** (rango de fechas, anulados, deshabilitados…), pero el cálculo cuenta coches que esa lista puede no tener; en esos casos salía el texto suelto del motor («Dacia Sandero») con guiones en marca y tipo de pago. Ahora `ResumenMensual` recibe además el catálogo completo (`catalogo`) y `PanelComisiones` busca ahí (`ComisionesYCartera.tsx`).

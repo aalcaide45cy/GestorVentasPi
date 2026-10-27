@@ -6,6 +6,8 @@ import { llamarComoTarea } from "@/lib/tareas-cliente";
 import { aspectoVehiculo } from "@/lib/aspecto";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import Link from "next/link";
+import BotonAjustes from "@/components/BotonAjustes";
+import { puedeCrearExpedientes } from "@/lib/auth/permisos";
 import { usePathname, useRouter } from "next/navigation";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import { eventoDeArchivos } from "@/lib/biblioteca-cliente";
@@ -863,23 +865,23 @@ export default function ExpedientesList({
             🗂️ Importar y exportar
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => setVerDuplicados(true)} style={{ padding: "5px 12px", fontSize: "0.82rem" }} title="Busca expedientes duplicados: mismo bastidor, misma matrícula, o mismo cliente y modelo. Solo lee, no cambia nada">
-            🔎 Detectar duplicados
+            🔎 Duplicados
           </button>
         </GrupoAcciones>
 
         <GrupoAcciones titulo="Vista">
           <button type="button" className="btn" onClick={() => setSelectorColumnas(true)} style={botonHerramienta(selectorColumnas, "var(--primary)", "white")} title="Ordena las columnas de la tabla (arrastrando), muéstralas u ocúltalas, vuelve a lo predeterminado o guarda tus propias vistas">
-            ⚙️ Columnas y vistas
+            ⚙️ Columnas
           </button>
           <button type="button" className="btn" onClick={alternarPaneles} style={botonHerramienta(false, "", "")} title={hayPanelAbierto ? "Pliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera" : "Despliega de golpe los filtros, el resumen estadístico, las comisiones y la cartera"}>
-            {hayPanelAbierto ? "⇕ Plegar paneles" : "⇕ Desplegar paneles"}
+            {hayPanelAbierto ? "⇕ Plegar" : "⇕ Desplegar"}
           </button>
           {selectorColumnas && (
             <PanelColumnas columnas={COLUMNAS} actual={{ orden, visibles }} predeterminada={{ orden: ORDEN_POR_DEFECTO, visibles: POR_DEFECTO }} vistasIncluidas={VISTAS_INCLUIDAS} alCambiar={cambiarConfigColumnas} alCerrar={() => setSelectorColumnas(false)} />
           )}
         </GrupoAcciones>
 
-        <GrupoAcciones titulo="Edición masiva (con candado)" ayuda="Para cambiar o borrar varios expedientes a la vez hay que desbloquear antes: se vuelven a bloquear solos pasado el tiempo configurado">
+        <GrupoAcciones titulo="Edición masiva" ayuda="Para cambiar o borrar varios expedientes a la vez hay que desbloquear antes: se vuelven a bloquear solos pasado el tiempo configurado">
           <button
             type="button"
             className="btn"
@@ -890,7 +892,7 @@ export default function ExpedientesList({
             style={botonHerramienta(seleccionActiva, "var(--warning)", "black")}
             title={seleccionActiva ? "Bloquear Selección Masiva. Se queda activa hasta que la desactives" + (modoSeleccion.restante !== null ? "; si no, se desactiva sola cuando acabe la cuenta atrás (se configura en Configuración de expedientes)." : ".") : "Desbloquear Selección Masiva. Se queda activa hasta que la desactives o hasta que pase el tiempo configurado."}
           >
-            {seleccionActiva ? "🔓 Selección Activa" : "🔒 Selección Inactiva"}
+            {seleccionActiva ? "🔓 Selección activa" : "🔒 Selección"}
             {modoSeleccion.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoSeleccion.restante)}</span>}
           </button>
           <button
@@ -900,10 +902,21 @@ export default function ExpedientesList({
             style={botonHerramienta(borradoActivo, "var(--danger)", "white")}
             title={borradoActivo ? "Bloquear Eliminación. Se queda activa hasta que la desactives" + (modoBorrado.restante !== null ? "; si no, se desactiva sola cuando acabe la cuenta atrás (se configura en Configuración de expedientes)." : ".") : "Desbloquear Eliminación. Se queda activa hasta que la desactives o hasta que pase el tiempo configurado."}
           >
-            {borradoActivo ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
+            {borradoActivo ? "🔓 Eliminación activa" : "🔒 Eliminación"}
             {modoBorrado.restante !== null && <span style={{ marginLeft: "6px", fontVariantNumeric: "tabular-nums" }}>⏱ {formatoCuentaAtras(modoBorrado.restante)}</span>}
           </button>
         </GrupoAcciones>
+
+        {(puedeCrearExpedientes(userRole) || esAdministrador) && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            {puedeCrearExpedientes(userRole) && (
+              <Link href="/dashboard/expedientes/nuevo" className="btn btn-primary" style={{ padding: "5px 12px", fontSize: "0.95rem", fontWeight: 800, lineHeight: 1, textDecoration: "none" }} title="Nuevo expediente" aria-label="Nuevo expediente">
+                ➕
+              </Link>
+            )}
+            {esAdministrador && <BotonAjustes soloIcono pestana="expedientes" titulo="Ajustes de Expedientes" ayuda="Ajustes de Expedientes (Configuración › Expedientes): expedientes por página, qué se ve al abrir, colores de fila, selección y eliminación, foto del cliente" />}
+          </div>
+        )}
 
         {seleccionActiva && seleccionados.length > 0 && (
           <GrupoAcciones titulo={`${seleccionados.length} seleccionado${seleccionados.length === 1 ? "" : "s"}`} destacado>
