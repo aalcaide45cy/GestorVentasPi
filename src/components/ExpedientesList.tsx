@@ -859,7 +859,7 @@ export default function ExpedientesList({
       {/* Cabecera fija: herramientas y filtros se quedan arriba al bajar por la lista (el buscador global es el del encabezado de la aplicación) */}
       <div style={{ position: "sticky", top: 0, zIndex: 40, background: "var(--bg-app)", paddingBottom: "6px", display: "flex", flexDirection: "column", gap: "10px" }}>
       {/* BARRA DE ACCIONES: lo que se hace con la lista, en cuatro grupos */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 16px", background: "rgba(255, 255, 255, 0.03)", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 16px", background: "rgba(255, 255, 255, 0.03)", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
         <GrupoAcciones titulo="Datos">
           <button type="button" className="btn btn-primary" onClick={() => setMenuDatos(true)} style={{ padding: "5px 12px", fontSize: "0.82rem" }} title="Importar expedientes (Excel o CSV), contrastar un listado, exportar (CSV o JSON), copias internas y copia de seguridad: todo en una sola ventana, con la explicación de cada opción">
             🗂️ Importar y exportar
@@ -908,7 +908,7 @@ export default function ExpedientesList({
         </GrupoAcciones>
 
         {(puedeCrearExpedientes(userRole) || esAdministrador) && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
             {puedeCrearExpedientes(userRole) && (
               <Link href="/dashboard/expedientes/nuevo" className="btn btn-primary" style={{ padding: "5px 12px", fontSize: "0.95rem", fontWeight: 800, lineHeight: 1, textDecoration: "none" }} title="Nuevo expediente" aria-label="Nuevo expediente">
                 ➕
