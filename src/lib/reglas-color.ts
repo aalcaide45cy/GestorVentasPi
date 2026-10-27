@@ -15,6 +15,8 @@ export const CAMPOS_REGLA = [
   { id: "modelo", etiqueta: "Modelo", tipo: "texto" },
   { id: "vendedor", etiqueta: "Vendedor", tipo: "texto" },
   { id: "cliente", etiqueta: "Cliente", tipo: "texto" },
+  { id: "matricula", etiqueta: "Matrícula", tipo: "texto" },
+  { id: "bastidor", etiqueta: "Bastidor", tipo: "texto" },
   { id: "comisionado", etiqueta: "Comisionado", tipo: "texto" },
   { id: "fecha_expediente", etiqueta: "Fecha de pedido", tipo: "fecha" },
   { id: "fecha_afectacion", etiqueta: "Fecha de afectación", tipo: "fecha" },
@@ -152,6 +154,10 @@ function valorDeTexto(e: ExpedienteDto, campo: CampoRegla): string {
       return e.usuario?.nombre ?? "";
     case "cliente":
       return e.cliente?.nombre ?? "";
+    case "matricula":
+      return e.matricula ?? "";
+    case "bastidor":
+      return e.vin ?? "";
     case "comisionado":
       return e.comisionado?.estado === "pagado" ? "Comisionado" : e.comisionado?.estado === "reclamado" ? "Reclamado" : "Pendiente";
     default:

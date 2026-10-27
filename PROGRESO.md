@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.31.8 (27/10/2026)
+
+- **Reglas de color: Matrícula y Bastidor.** Dos campos nuevos para las condiciones («Matrícula está vacía / no está vacía», «Bastidor está vacío / no está vacío», o «es / contiene…») para pintar los coches que aún no tienen matrícula o bastidor. Se añaden en Configuración › Expedientes › Colores de fila (`lib/reglas-color.ts`).
+
 ## Versión 1.31.7 (27/10/2026)
 
 - **La leyenda de colores de las filas es más corta.** Cada regla muestra solo el punto de color y su nombre; al pasar el ratón (o pulsar) la etiqueta se estira con una animación y enseña cuándo se aplica. Clases `.leyenda-regla` y `.leyenda-regla-detalle` en `globals.css`.

@@ -7,6 +7,14 @@ const regla = (o: Partial<ReglaColor>): ReglaColor => ({ ...reglaNueva(), ...o }
 const HOY = "2026-10-24";
 
 describe("reglas de color de las filas", () => {
+  it("con matrícula o sin ella, con bastidor o sin él", () => {
+    const sinMatricula = [regla({ condiciones: [{ campo: "matricula", operador: "vacio", valor: "" }] })];
+    const conBastidor = [regla({ condiciones: [{ campo: "bastidor", operador: "no_vacio", valor: "" }] })];
+    expect(reglaQueAplica(exp({ matricula: null }), sinMatricula, HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ matricula: "1234ABC" }), sinMatricula, HOY)).toBeNull();
+    expect(reglaQueAplica(exp({ vin: "VF1ABC" }), conBastidor, HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ vin: null }), conBastidor, HOY)).toBeNull();
+  });
   it("pedidos de hoy y de los últimos N días (la regla de antes)", () => {
     const r = [reglaPedidosRecientes(3, "#3b82f6", "media")];
     expect(reglaQueAplica(exp({ fecha_expediente: "2026-10-24" }), r, HOY)).not.toBeNull();
