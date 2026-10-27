@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.33.1 (27/10/2026)
+
+- **Estado «apagado» en el semáforo.** Cada estado de un semáforo puede marcarse como «Tenue»: la etiqueta se ve en un color apagado (gris y con poca opacidad). El Seguro estrena un cuarto estado, **«No lleva seguro»** (gris, tenue), además del rojo, el amarillo y el verde (migración 0061; en Configuración › Expedientes › Apuntes, y en la ventana de la etiqueta, la casilla «Tenue» de cada estado).
+
 ## Versión 1.33.0 (27/10/2026)
 
 - **El Seguro es un semáforo que llevan todos los expedientes** (migración 0060). Rojo = seguro aún no solicitado, amarillo = solicitado pero póliza aún no emitida, verde = póliza emitida (colores y significados editables). Los expedientes que ya había reciben su apunte «Seguro» en rojo, y un **disparador de la base de datos** (`apuntes_por_defecto`) lo añade a todo expediente nuevo, venga de donde venga (a mano, importado, duplicado o creado desde un pedido). La etiqueta «SEGURO» sale junto al icono del cliente con el color de su estado.

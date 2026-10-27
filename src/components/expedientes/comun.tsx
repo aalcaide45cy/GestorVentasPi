@@ -127,8 +127,9 @@ export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apu
       {visibles.map((a) => {
         const semaforo = a.estados !== null && a.estado_semaforo !== null;
         const texto = semaforo ? (a.estados?.[a.estado_semaforo ?? 0]?.texto ?? "") : "";
+        const apagado = semaforo && a.estados?.[a.estado_semaforo ?? 0]?.apagado === true;
         return semaforo ? (
-          <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${texto}. Pulsa para cambiarlo`} style={{ ...estilo(a.color), cursor: "pointer" }}>
+          <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${texto}. Pulsa para cambiarlo`} style={{ ...estilo(a.color), cursor: "pointer", ...(apagado ? { opacity: 0.45, textShadow: "none" } : {}) }}>
             {a.etiqueta}
           </button>
         ) : (

@@ -23,7 +23,8 @@ describe("apuntes de los expedientes", () => {
   it("vienen de serie el Seguro (semáforo que llevan todos) y VO de retoma (con etiqueta VO)", async () => {
     const seguro = await predefinido("seguro");
     expect(seguro).toMatchObject({ semaforo: true, por_defecto: true, mostrar_etiqueta: true, lado: "derecha" });
-    expect(seguro.semaforo_estados.map((e) => e.color)).toEqual(["#ef4444", "#eab308", "#22c55e"]);
+    expect(seguro.semaforo_estados.map((e) => e.color)).toEqual(["#ef4444", "#eab308", "#22c55e", "#9ca3af"]);
+    expect(seguro.semaforo_estados[3]).toMatchObject({ texto: "No lleva seguro", apagado: true });
     expect(await predefinido("vo-retoma")).toMatchObject({ etiqueta: "VO", mostrar_etiqueta: true, por_defecto: false });
   });
 
@@ -33,7 +34,9 @@ describe("apuntes de los expedientes", () => {
     expect(seguro).toMatchObject({ titulo: "Seguro", etiqueta: "SEGURO", estado_semaforo: 0, color: "#ef4444", mostrar_etiqueta: true });
     expect((await fijarEstadoSemaforo(db, ana, seguro.id, 1)).color).toBe("#eab308");
     expect((await fijarEstadoSemaforo(db, ana, seguro.id, 2)).color).toBe("#22c55e");
-    await expect(fijarEstadoSemaforo(db, ana, seguro.id, 3)).rejects.toThrow(/no válido/);
+    expect(await fijarEstadoSemaforo(db, ana, seguro.id, 3)).toMatchObject({ color: "#9ca3af", estados: expect.arrayContaining([expect.objectContaining({ apagado: true })]) });
+    await expect(fijarEstadoSemaforo(db, ana, seguro.id, 4)).rejects.toThrow(/no válido/);
+    await fijarEstadoSemaforo(db, ana, seguro.id, 2);
     expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ estado_semaforo: 2, color: "#22c55e", lado: "derecha" });
   });
 

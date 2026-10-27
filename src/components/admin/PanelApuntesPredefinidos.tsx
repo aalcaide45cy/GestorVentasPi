@@ -73,6 +73,10 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
             <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <input type="color" value={e.color} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)) })} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none" }} />
               <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)) })} placeholder="Qué significa este color" style={{ flex: 1 }} />
+              <label title="Si está marcado, la etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                <input type="checkbox" checked={e.apagado === true} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)) })} />
+                Tenue
+              </label>
               {b.semaforo_estados.length > 2 && (
                 <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: b.semaforo_estados.filter((_, j) => j !== i) })} style={{ padding: "2px 8px" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)">
                   ✕
