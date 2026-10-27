@@ -5,6 +5,8 @@ import { adjuntos, clientes, emailsClientes, estadoVehiculo, expedientes, import
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { claveNif, nifParecido, normalizarMatricula } from "@/lib/identificadores";
+import { facturacionPorEstadoCobrado } from "@/lib/facturacion-cobrado";
+import { hoyIso } from "./comun";
 import { conRecalculo } from "./liquidaciones";
 import { reintentarPagosPendientes } from "./pagos-rci";
 
@@ -482,6 +484,9 @@ export async function previsualizarCompletado(
     proponer("fecha_entrega", exp.fechaEntrega, f.fEntrega);
     // En un usado la facturación es la «Fra. prevista» del listado (cuenta para comisionar); en un nuevo, la fecha de factura
     proponer("fecha_facturacion", exp.fechaFacturacion, f.fFactura, "Cambia el mes en que cuenta el coche para las comisiones");
+    // Un nuevo que el listado deja en Matriculación, Post-venta o Archivado ya está cobrado: cuenta desde su facturación (la matriculación si ya la tiene; si no, hoy)
+    const facturacionCobrado = facturacionPorEstadoCobrado({ esUsado: esVo, estadoListado: f.estado, facturacionActual: exp.fechaFacturacion, facturacionListado: f.fFactura, matriculacion: fechaMatriculacion ?? exp.fechaMatriculacion, hoy: hoyIso() });
+    if (facturacionCobrado) proponer("fecha_facturacion", exp.fechaFacturacion, facturacionCobrado, "El listado lo deja cobrado (Matriculación o posterior): cuenta para las comisiones desde esta fecha de facturación");
     // El documento solo se corrige si de verdad es otro: «03217951K» y «3217951K» son el mismo
     // El estado del listado queda guardado para poder filtrar y revisar a mano (anulados, archivados…)
     const estadoListado = f.estado.trim().slice(0, 40);
