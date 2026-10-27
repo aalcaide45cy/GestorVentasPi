@@ -337,6 +337,9 @@ select, select option {
 :where(tbody) > tr:nth-child(even) { background-color: var(--fila-par); }
 
 .tabla-scroll { max-height: var(--alto-tabla, calc(68 * var(--uvh))); overflow: auto; padding: 0 2px 2px 2px; }
+/* Tabla que se desplaza con la página (sin barra vertical propia): solo tiene barra horizontal si las columnas no caben. Las cabeceras de los filtros se quedan arriba. */
+.tabla-pagina { max-height: none; overflow-x: auto; overflow-y: hidden; padding: 0 2px 2px 2px; }
+.tabla-pagina thead th { background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
 .tabla-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
 
 /* Tablas */

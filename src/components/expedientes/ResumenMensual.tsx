@@ -37,6 +37,8 @@ const columnasListaResumen: ColumnaTabla<ExpedienteDto>[] = columnasExpediente<E
 
 interface Props {
   expedientes: ExpedienteDto[];
+  /** Todos los expedientes cargados (sin los filtros de la lista): el desglose de comisiones los usa para mostrar marca, modelo y tipo de pago de cualquier coche que cuente. */
+  catalogo?: ExpedienteDto[];
   anios: number[];
   /** Vendedor elegido en el filtro de la lista (nombre); vacío = todos. Las cifras y las comisiones son las suyas. */
   vendedor: string;
@@ -85,7 +87,7 @@ function mesGuardado(guardado: string | null, hoy: Date): { anio: number; mes: n
  * «Detalle y Resumen Estadístico»: recuentos del mes elegido.
  * Puntos, tramo y comisión estimada salen del motor de comisiones (el mismo que la liquidación).
  */
-export default function ResumenMensual({ expedientes: todos, anios, vendedor, esAdministrador, sinCartera }: Props) {
+export default function ResumenMensual({ expedientes: todos, catalogo, anios, vendedor, esAdministrador, sinCartera }: Props) {
   const hoy = new Date();
   // El mes elegido se recuerda en este navegador: al volver de otra pantalla sigue el último que se puso
   const [guardado, guardarMes] = usePreferencia("exp-resumen-mes");
@@ -360,7 +362,7 @@ export default function ResumenMensual({ expedientes: todos, anios, vendedor, es
         </div>
       )}
     </div>
-    <PanelComisiones anio={anio} mes={mes} expedientes={expedientes} usuario={vendedor && idVendedor ? idVendedor : undefined} />
+    <PanelComisiones anio={anio} mes={mes} expedientes={expedientes} catalogo={catalogo} usuario={vendedor && idVendedor ? idVendedor : undefined} />
     {!sinCartera && <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />}
     </>
   );

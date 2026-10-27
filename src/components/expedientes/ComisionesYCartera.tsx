@@ -499,6 +499,8 @@ interface ComisionesProps {
   anio: number;
   mes: number;
   expedientes: ExpedienteDto[];
+  /** Todos los expedientes cargados, sin filtrar: de ahí salen los datos de cada coche del desglose (el cálculo cuenta coches que la lista filtrada puede no tener). */
+  catalogo?: ExpedienteDto[];
   /** Vendedor del que se calculan (solo administrador); sin él, el usuario actual. */
   usuario?: number;
 }
@@ -507,11 +509,11 @@ interface ComisionesProps {
  * «Mis comisiones»: lo que llevas generado en el mes elegido (se actualiza al poner fechas de matriculación) y, siempre a
  * la vista, el mes anterior al real, que es el que se cobra en la nómina de este mes. Las cifras salen del motor de comisiones.
  */
-export function PanelComisiones({ anio, mes, expedientes, usuario }: ComisionesProps) {
+export function PanelComisiones({ anio, mes, expedientes, catalogo, usuario }: ComisionesProps) {
   const hoy = new Date();
   const previoReal = desplazar(hoy.getFullYear(), hoy.getMonth() + 1, -1);
   const firma = useMemo(() => firmaExpedientes(expedientes), [expedientes]);
-  const porId = useMemo(() => new Map(expedientes.map((e) => [e.id_expediente, e])), [expedientes]);
+  const porId = useMemo(() => new Map((catalogo ?? expedientes).map((e) => [e.id_expediente, e])), [catalogo, expedientes]);
   const q = `${usuario ? `&usuario=${usuario}` : ""}&v=${firma}`;
   const { datos: elegido } = useCarga<ResultadoMes | null | undefined>(`/api/comisiones/mes?mes=${aIso(anio, mes)}${q}`, undefined);
   const { datos: anterior } = useCarga<ResultadoMes | null | undefined>(`/api/comisiones/mes?mes=${aIso(previoReal.anio, previoReal.mes)}${q}`, undefined);

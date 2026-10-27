@@ -1319,7 +1319,7 @@ export default function ExpedientesList({
           alIrAPagina={(p) => setPagina(Math.max(1, Math.min(p, totalPaginas)))}
         />
 
-        <div className="table-container tabla-scroll" style={{ ["--alto-tabla" as string]: "min(calc(68 * var(--uvh)), 760px)" }}>
+        <div className="table-container tabla-pagina">
           <table className="table-premium table-compact tabla-fija" style={{ width: (seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + ANCHO_COLUMNA[c.clave], 0) + ANCHO_ACCIONES, minWidth: "100%" }}>
             <colgroup>
               {seleccionActiva && <col style={{ width: ANCHO_SELECCION }} />}
@@ -1556,7 +1556,7 @@ export default function ExpedientesList({
         />
       </div>
 
-      <ResumenMensual expedientes={expedientes.filter((e) => (mostrarAnulados || !esAnulado(e.estado_intranet)) && (mostrarDeshabilitados || !e.deshabilitado) && (!rangoActivo || fechasDeFiltro(e).some((f) => enRango(f, rangoOk))))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
+      <ResumenMensual catalogo={expedientes} expedientes={expedientes.filter((e) => (mostrarAnulados || !esAnulado(e.estado_intranet)) && (mostrarDeshabilitados || !e.deshabilitado) && (!rangoActivo || fechasDeFiltro(e).some((f) => enRango(f, rangoOk))))} anios={opciones.anios.map(Number)} vendedor={fVendedor} esAdministrador={esAdministrador} />
 
       {modales}
 
