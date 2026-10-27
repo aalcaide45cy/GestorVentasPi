@@ -21,7 +21,7 @@ describe("preferencias de cada usuario", () => {
 
   it("ignora las claves que no se sincronizan y no guarda nada si solo hay de esas", async () => {
     const ana = await crearUsuarioPrueba("vendedor", "Ana");
-    expect(await guardarPreferencias(db, ana.idUsuario, { "config-pestana": "dashboard", "subpestana-x": "y" })).toBe(0);
+    expect(await guardarPreferencias(db, ana.idUsuario, { "visible_expediente_ids": "[1,2]", "completar-datos-borrador": "{}" })).toBe(0);
     expect(await leerPreferencias(db, ana.idUsuario)).toEqual({});
   });
 
@@ -41,7 +41,7 @@ describe("preferencias de cada usuario", () => {
 
 describe("qué preferencias se sincronizan", () => {
   it("las de ajustes sí y las del momento o del equipo no", () => {
-    for (const c of ["exp-reglas-color", "exp-esquemas-color", "config-pestana", "subpestana-config-expedientes", "herramientas-pestana", "dash-docs-pestana", "exp-resumen-mes", "sidebar-collapsed", "cotejo-mes", "paleta-colores", "exp-filtros-guardados", "exp-filtros-abiertos", "exp-visible-columns", "dash-orden-paneles", "dash-paneles-ocultos", "dash-n-recientes", "dash-colores-filas", "clientes-orden", "tabla-desglose-comisiones", "plegable-dash-recientes", "mostrar-anulados-expedientes", "foto-cliente-retraso-segundos"]) expect(esPreferenciaSincronizada(c), c).toBe(true);
-    for (const c of ["exp-seleccion-desde", "exp-borrado-desde", "visible_expediente_ids", "expedientes-permitir-duplicados", "theme", "colorTheme", "completar-datos-borrador", ""]) expect(esPreferenciaSincronizada(c), c).toBe(false);
+    for (const c of ["exp-reglas-color", "exp-esquemas-color", "config-pestana", "perfil-tema", "perfil-zoom", "exp-seleccion-desde", "exp-borrado-desde", "expedientes-permitir-duplicados", "subpestana-config-expedientes", "herramientas-pestana", "dash-docs-pestana", "exp-resumen-mes", "sidebar-collapsed", "cotejo-mes", "paleta-colores", "exp-filtros-guardados", "exp-filtros-abiertos", "exp-visible-columns", "dash-orden-paneles", "dash-paneles-ocultos", "dash-n-recientes", "dash-colores-filas", "clientes-orden", "tabla-desglose-comisiones", "plegable-dash-recientes", "mostrar-anulados-expedientes", "foto-cliente-retraso-segundos"]) expect(esPreferenciaSincronizada(c), c).toBe(true);
+    for (const c of ["visible_expediente_ids", "theme", "colorTheme", "completar-datos-borrador", ""]) expect(esPreferenciaSincronizada(c), c).toBe(false);
   });
 });

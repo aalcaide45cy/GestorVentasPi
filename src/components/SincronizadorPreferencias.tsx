@@ -3,6 +3,13 @@
 import { useEffect } from "react";
 import { esPreferenciaSincronizada } from "@/lib/preferencias-sincronizadas";
 import { activarSincronizacion, guardarPreferencia } from "@/lib/preferencias";
+import { COOKIE_TEMA } from "@/lib/temas";
+import { COOKIE_ZOOM, ZOOM_NORMAL, zoomValido } from "@/lib/zoom";
+
+const leerCookie = (nombre: string): string => {
+  const c = document.cookie.split("; ").find((x) => x.startsWith(`${nombre}=`));
+  return c ? decodeURIComponent(c.slice(nombre.length + 1)) : "";
+};
 
 const MARCADOR_USUARIO = "gv-prefs-usuario";
 
@@ -46,6 +53,16 @@ export default function SincronizadorPreferencias({ idUsuario }: { idUsuario: nu
         }
         localStorage.setItem(MARCADOR_USUARIO, String(idUsuario));
         activarSincronizacion();
+        // El tema y el tamaño de la página viajan con la persona: si su perfil tiene otros que este navegador, se aplican; si no tiene ninguno, se guardan los de aquí
+        const temaCookie = leerCookie(COOKIE_TEMA);
+        if (servidor["perfil-tema"] && servidor["perfil-tema"] !== temaCookie) window.__gvTema?.(servidor["perfil-tema"]);
+        else if (!servidor["perfil-tema"] && temaCookie) guardarPreferencia("perfil-tema", temaCookie);
+        const zoomCookie = zoomValido(leerCookie(COOKIE_ZOOM) || ZOOM_NORMAL);
+        const zoomPerfil = servidor["perfil-zoom"] ? zoomValido(servidor["perfil-zoom"]) : null;
+        if (zoomPerfil !== null && zoomPerfil !== zoomCookie) {
+          document.cookie = `${COOKIE_ZOOM}=${zoomPerfil}; path=/; max-age=31536000; samesite=lax`;
+          window.location.reload();
+        } else if (zoomPerfil === null && leerCookie(COOKIE_ZOOM)) guardarPreferencia("perfil-zoom", String(zoomCookie));
       } catch {
         /* sin servidor o sin almacenamiento: se siguen usando las preferencias de este navegador */
       }

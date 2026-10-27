@@ -127,10 +127,17 @@ describe("completar datos desde un listado", () => {
     await aplicarCompletado(db, admin, { archivo: "a.xlsx", cambios: [{ id_expediente: exp.idExpediente, campos: [{ campo: "estado_intranet", valor: "Archivado" }] }] });
     expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].estadoIntranet).toBe("Archivado");
     // Con el mismo estado ya no se propone
-    expect((await previsualizarCompletado(db, admin, [fila({ bastidor: "UU1DJF00477657076", estado: "archivado" })])).filas[0].propuestas).toHaveLength(0);
+    expect((await previsualizarCompletado(db, admin, [fila({ bastidor: "UU1DJF00477657076", estado: "archivado" })])).filas[0].propuestas.filter((p) => p.campo === "estado_intranet")).toHaveLength(0);
     const [bloque] = await db.select().from(importacionesBloques);
     await deshacerBloque(db, admin, bloque.id);
     expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].estadoIntranet).toBeNull();
+  });
+
+  it("un nuevo que el listado deja cobrado (Matriculación, Post-venta, Archivado) sin fecha de facturación la recibe propuesta; en Comercial o Distribución, no", async () => {
+    const { admin } = await escenario();
+    const propuesta = (estado: string) => previsualizarCompletado(db, admin, [fila({ bastidor: "UU1DJF00477657076", estado })]).then((r) => r.filas[0].propuestas.find((p) => p.campo === "fecha_facturacion"));
+    for (const estado of ["Matriculación", "Post-venta", "Archivado"]) expect(await propuesta(estado), estado).toMatchObject({ tipo: "rellenar", nuevo: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    for (const estado of ["Comercial", "Distribución"]) expect(await propuesta(estado), estado).toBeUndefined();
   });
 
   it("rechaza una fecha escrita mal en lugar de guardarla", async () => {

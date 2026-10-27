@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { guardarPreferencia } from "@/lib/preferencias";
 import { COOKIE_TEMA, VARIABLES_TEMA, variablesTema } from "@/lib/temas";
 
 declare global {
@@ -28,6 +29,8 @@ export default function AplicadorTema() {
         /* sin almacenamiento local */
       }
       document.cookie = `${COOKIE_TEMA}=${encodeURIComponent(id)}; path=/; max-age=31536000; samesite=lax`;
+      // El tema elegido viaja con la persona a cualquier equipo (se guarda también en su perfil)
+      guardarPreferencia("perfil-tema", id);
     };
     window.__gvTema = aplicar;
     if (!document.cookie.split("; ").some((c) => c.startsWith(`${COOKIE_TEMA}=`))) {

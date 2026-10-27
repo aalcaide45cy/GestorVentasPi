@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { guardarPreferencia } from "@/lib/preferencias";
 import { COOKIE_ZOOM, ZOOM_MAX, ZOOM_MIN, ZOOM_NORMAL, factorZoom, moverZoom, zoomValido } from "@/lib/zoom";
 
 const boton = { width: "34px", height: "34px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", background: "var(--bg-btn-secondary)", color: "var(--text-primary)", cursor: "pointer", fontSize: "1.05rem", fontWeight: 700, padding: 0 } as const;
@@ -16,6 +17,7 @@ export default function ControlZoom({ inicial }: { inicial: number }) {
     document.documentElement.style.zoom = String(factorZoom(n));
     document.documentElement.style.setProperty("--z", String(factorZoom(n)));
     document.cookie = `${COOKIE_ZOOM}=${n}; path=/; max-age=31536000; samesite=lax`;
+    guardarPreferencia("perfil-zoom", String(n));
   };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "space-between" }} title="Tamaño de la página en este navegador (de 60 % a 200 %, de 1 en 1): pensado para adaptarla a cada pantalla">
