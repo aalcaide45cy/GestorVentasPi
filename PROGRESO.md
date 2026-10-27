@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.31.9 (27/10/2026)
+
+- **Los filtros de Expedientes también viajan con el usuario.** Las reglas de color, las columnas, los tamaños de página, las vistas y demás ajustes ya se guardaban en la base de datos por usuario (1.26.0); faltaban **los filtros que dejas puestos** (`exp-filtros-guardados`) y **si el panel de filtros está abierto** (`exp-filtros-abiertos`), que se quedaban solo en el navegador. Ahora se sincronizan, así que al entrar desde otro equipo ves lo mismo. Siguen solo en el equipo: la pestaña abierta, el mes que se mira en el resumen, los candados de selección y eliminación, el zoom y el tema. Si usas dos equipos a la vez, manda el último que guarda.
+
 ## Versión 1.31.8 (27/10/2026)
 
 - **Reglas de color: Matrícula y Bastidor.** Dos campos nuevos para las condiciones («Matrícula está vacía / no está vacía», «Bastidor está vacío / no está vacío», o «es / contiene…») para pintar los coches que aún no tienen matrícula o bastidor. Se añaden en Configuración › Expedientes › Colores de fila (`lib/reglas-color.ts`).
