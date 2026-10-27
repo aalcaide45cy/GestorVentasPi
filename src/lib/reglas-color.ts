@@ -213,3 +213,13 @@ export function reglaQueAplica(e: ExpedienteDto, reglas: ReglaColor[], hoy: stri
   }
   return null;
 }
+
+/** Frase que explica cuándo se aplica una regla (para la leyenda bajo la tabla): «Estado intranet es Matriculación y Fecha de pedido es de hoy o de hace como máximo (días) 3». */
+export function textoDeRegla(r: ReglaColor): string {
+  const partes = r.condiciones.map((c) => {
+    const campo = CAMPOS_REGLA.find((x) => x.id === c.campo)?.etiqueta ?? c.campo;
+    const op = OPERADORES.find((o) => o.id === c.operador);
+    return `${campo} ${op?.etiqueta ?? c.operador}${op?.conValor ? ` «${c.valor}»` : ""}`;
+  });
+  return partes.join(r.combinar === "todas" ? " y " : " o ");
+}
