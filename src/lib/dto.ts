@@ -117,6 +117,8 @@ export interface ExpedienteDto {
   /** La copia lleva la etiqueta visible «COPIA». */
   copia_etiqueta?: boolean;
   comisionado?: { estado: "pagado" | "reclamado"; mes: string } | null;
+  /** Solo en el listado: los apuntes del expediente (título y etiqueta; la descripción se pide al abrirlo). */
+  apuntes?: { id: number; titulo: string; etiqueta: string; color: string; mostrar_etiqueta: boolean }[];
   comision_coche_cobrada: boolean;
   comision_usado_cobrada: boolean;
   comision_financiacion_cobrada: boolean;

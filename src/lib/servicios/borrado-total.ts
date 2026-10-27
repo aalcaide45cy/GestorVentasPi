@@ -37,7 +37,7 @@ export interface ResultadoBorradoTotal {
 
 /** Tablas que se vacían del todo (con las que dependen de ellas). `tiendas` va aparte porque el usuario conservado la referencia. */
 const TABLAS_A_VACIAR = [
-  "adjuntos", "adjuntos_datos", "alias_modelos", "auditoria", "biblioteca", "biblioteca_datos", "clientes", "emails_clientes", "telefonos_clientes",
+  "adjuntos", "adjuntos_datos", "alias_modelos", "apuntes_expediente", "auditoria", "biblioteca", "biblioteca_datos", "clientes", "emails_clientes", "telefonos_clientes",
   "commission_bonus_rules", "commission_brand_intervention_rates", "commission_finance_rates", "commission_liquidation_line_items", "commission_liquidation_lines",
   "commission_liquidation_versions", "commission_liquidations", "commission_model_points", "commission_plan_model_rates", "commission_plan_pending",
   "commission_plan_vendedores", "commission_plans", "contenidos_compartidos", "commission_preference_rules", "commission_rules", "commission_used_rates", "commission_vo_patterns",

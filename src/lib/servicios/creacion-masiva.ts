@@ -1,3 +1,4 @@
+import { anadirVoRetoma } from "./apuntes";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import type { UsuarioActual } from "@/lib/auth/sesion";
@@ -38,6 +39,8 @@ export const esquemaItemCreacion = z.object({
     idTipoDeVenta: z.number().int().positive().nullish(),
     tipoPedido: z.enum(["nuevo", "usado"]).nullish(),
     avisos: z.array(z.string().max(600)).max(40),
+    /** Vehículo de retoma que lleva el pedido (matrícula y texto): deja en el expediente el apunte «VO de retoma». */
+    retoma: z.object({ matricula: texto, texto }).nullish(),
   }),
   /** Marca, modelo y forma de pago elegidos al soltar el pedido sobre un botón de acceso rápido. */
   eleccion: z.object({ idModelo: z.number().int().positive().nullable(), idTipoVenta: z.number().int().positive(), estadoNombre: z.string().max(60).nullish() }).nullish(),
@@ -115,6 +118,7 @@ async function crearUno(ej: Ejecutor, usuario: UsuarioActual, item: ItemCreacion
       fecha_entrega: d.fechaEntrega ?? undefined,
     },
   });
+  if (d.retoma) await anadirVoRetoma(ej, usuario, creado.id_expediente, [d.retoma.matricula ? `Matrícula ${d.retoma.matricula}.` : "", d.retoma.texto ?? ""].filter(Boolean).join(" ") || null).catch(() => null);
   if (idClienteExistente) await actualizarExpedientes(ej, usuario, { modo: "uno", id_expediente: creado.id_expediente, id_cliente: idClienteExistente, expediente: {} }).catch(() => undefined);
   const idCliente = idClienteExistente ?? creado.id_cliente ?? null;
   // Los documentos del pedido (y el DNI soltado con él) pasan al expediente y a su cliente; de 20 en 20 es lo que admite el vínculo

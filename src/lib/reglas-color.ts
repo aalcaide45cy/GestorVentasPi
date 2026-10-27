@@ -15,6 +15,7 @@ export const CAMPOS_REGLA = [
   { id: "modelo", etiqueta: "Modelo", tipo: "texto" },
   { id: "vendedor", etiqueta: "Vendedor", tipo: "texto" },
   { id: "cliente", etiqueta: "Cliente", tipo: "texto" },
+  { id: "apunte", etiqueta: "Apunte", tipo: "texto" },
   { id: "matricula", etiqueta: "Matrícula", tipo: "texto" },
   { id: "bastidor", etiqueta: "Bastidor", tipo: "texto" },
   { id: "comisionado", etiqueta: "Comisionado", tipo: "texto" },
@@ -184,8 +185,28 @@ function cumple(e: ExpedienteDto, c: Condicion, hoy: string): boolean {
         return false;
     }
   }
-  const v = sinAcentos(valorDeTexto(e, c.campo));
   const q = sinAcentos(c.valor);
+  // Un expediente puede tener varios apuntes: «es» y «contiene» se cumplen si alguno coincide; «no es» y «no contiene», si ninguno
+  if (c.campo === "apunte") {
+    const titulos = (e.apuntes ?? []).map((a) => sinAcentos(a.titulo));
+    switch (c.operador) {
+      case "es":
+        return titulos.includes(q);
+      case "no_es":
+        return !titulos.includes(q);
+      case "contiene":
+        return q !== "" && titulos.some((t) => t.includes(q));
+      case "no_contiene":
+        return q === "" || !titulos.some((t) => t.includes(q));
+      case "vacio":
+        return titulos.length === 0;
+      case "no_vacio":
+        return titulos.length > 0;
+      default:
+        return false;
+    }
+  }
+  const v = sinAcentos(valorDeTexto(e, c.campo));
   switch (c.operador) {
     case "es":
       return v === q;

@@ -414,6 +414,13 @@
       "when": 1792952417813,
       "tag": "0058_permiso_pg_stat_reset",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793111841560,
+      "tag": "0059_apuntes_expediente",
+      "breakpoints": true
     }
   ]
 }

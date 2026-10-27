@@ -39,6 +39,8 @@ export interface FiltrosActuales {
   tienda: string;
   /** Estado de la intranet del fabricante («__sin__» = sin estado). */
   intranet: string;
+  /** Apunte del expediente («__sin__» = sin apuntes). */
+  apunte: string;
   /** Rango «Desde / Hasta» (AAAA-MM-DD) sobre el campo de fecha elegido. */
   desde: string;
   hasta: string;
@@ -90,6 +92,7 @@ export function aplicarPredefinidos(p: FiltrosPredefinidos, nombreUsuario: strin
     tipoFecha: p.tipoFecha,
     tienda: "",
     intranet: "",
+    apunte: "",
     desde: "",
     hasta: "",
     ...ORDEN_INICIAL,
@@ -113,6 +116,7 @@ export function leerFiltrosGuardados(texto: string | null): FiltrosActuales | nu
     tipoFecha: tipoFechaValido(o.tipoFecha),
     tienda: s(o.tienda),
     intranet: s(o.intranet),
+    apunte: s(o.apunte),
     desde: /^\d{4}-\d{2}-\d{2}$/.test(s(o.desde)) ? s(o.desde) : "",
     hasta: /^\d{4}-\d{2}-\d{2}$/.test(s(o.hasta)) ? s(o.hasta) : "",
     ordenCampo: s(o.ordenCampo) || ORDEN_INICIAL.ordenCampo,

@@ -10,7 +10,7 @@ import type { Ejecutor } from "@/db";
  * `jsonb_populate_record`, así que vale para cualquier tipo de columna sin conversiones a mano.
  */
 
-export const TIPOS_ELEMENTO = ["rejilla", "plantilla_plan", "plantilla_tarifas", "paleta", "pendiente_cobro", "validacion", "plan", "usuario", "copia", "copia_seccion", "incidencia"] as const;
+export const TIPOS_ELEMENTO = ["rejilla", "plantilla_plan", "plantilla_tarifas", "paleta", "pendiente_cobro", "validacion", "plan", "usuario", "copia", "copia_seccion", "incidencia", "apunte"] as const;
 export type TipoElemento = (typeof TIPOS_ELEMENTO)[number];
 
 export const TEXTO_TIPO: Record<TipoElemento, { pestana: string; singular: string }> = {
@@ -25,6 +25,7 @@ export const TEXTO_TIPO: Record<TipoElemento, { pestana: string; singular: strin
   copia: { pestana: "Copias de seguridad", singular: "Copia de seguridad" },
   copia_seccion: { pestana: "Copias internas", singular: "Copia interna de una sección" },
   incidencia: { pestana: "Incidencias", singular: "Incidencia" },
+  apunte: { pestana: "Apuntes de expedientes", singular: "Apunte de un expediente" },
 };
 
 /** Una tabla que cuelga de otra por la columna `fk` (y, a su vez, puede tener las suyas). */
@@ -72,6 +73,7 @@ export const HIJAS_USUARIO_CON_TODO: Hija[] = [
 const FORMAS: Record<TipoElemento, Forma> = {
   copia: { tabla: "copias_seguridad" },
   copia_seccion: { tabla: "copias_seccion" },
+  apunte: { tabla: "apuntes_expediente" },
   incidencia: { tabla: "incidencias", hijas: [{ tabla: "incidencias_capturas", fk: "id_incidencia" }] },
   usuario: { tabla: "usuarios", pk: "id_usuario", hijas: HIJAS_USUARIO },
   rejilla: { tabla: "rejillas", hijas: [{ tabla: "rejilla_filas", fk: "id_rejilla" }] },

@@ -1,5 +1,6 @@
 "use client";
 
+import ApuntesExpediente from "./expedientes/ApuntesExpediente";
 import CajaPagoRci from "@/components/pagos-rci/CajaPagoRci";
 import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
 import ComisionadoExpediente from "@/components/expedientes/ComisionadoExpediente";
@@ -867,6 +868,7 @@ function FormularioEditarExpediente({
               <label className="form-label">Comentarios del expediente</label>
               <textarea className="form-input" rows={3} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre este expediente…" style={{ resize: "vertical", minHeight: "80px" }} />
             </div>
+            <ApuntesExpediente idExpediente={expediente.id_expediente} />
           </div>
 
           {/* FECHAS */}

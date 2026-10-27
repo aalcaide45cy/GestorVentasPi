@@ -2,7 +2,7 @@ import { count, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { DESCRIPCION_PLANTILLA_GENERICA, NOMBRE_PLANTILLA_GENERICA, PLANTILLA_GENERICA } from "@/lib/plantillas-tarifas/generica";
 import catalogoInicialJson from "./catalogo-inicial.json";
-import { ajustes, estadoVehiculo, marcas, modelos, plantillasPlan, plantillasTarifasVn, tipoDeVenta } from "./schema";
+import { ajustes, estadoVehiculo, marcas, modelos, plantillasPlan, plantillasTarifasVn, tipoDeVenta, apuntesPredefinidos } from "./schema";
 
 /** Ajustes que recuerdan que ya se trajo de serie la plantilla genérica de tarifas y las plantillas base (para no volver a traerlas si se borran a mano). */
 export const AJUSTE_GENERICA = "catalogo_inicial_generica";
@@ -39,6 +39,15 @@ export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatab
         .onConflictDoUpdate({ target: plantillasTarifasVn.nombre, set: { descripcion: DESCRIPCION_PLANTILLA_GENERICA, datos: PLANTILLA_GENERICA, actualizadaEn: new Date() }, setWhere: eq(plantillasTarifasVn.sistema, true) });
       await tx.insert(ajustes).values({ clave: AJUSTE_GENERICA, valor: "true" });
     }
+
+    // Apuntes predefinidos que usa la propia aplicación (no se pueden borrar, solo editar): se vuelven a poner si faltan
+    await tx
+      .insert(apuntesPredefinidos)
+      .values([
+        { clave: "seguro", titulo: "Seguro", descripcion: "Hay que contratarle el seguro del coche.", etiqueta: "SEGURO", color: "#2563eb", mostrarEtiqueta: false, rapido: true, orden: 1 },
+        { clave: "vo-retoma", titulo: "VO de retoma", descripcion: "El cliente deja un vehículo usado de retoma.", etiqueta: "VO", color: "#f59e0b", mostrarEtiqueta: true, rapido: true, orden: 2 },
+      ])
+      .onConflictDoNothing();
 
     const [{ n: nEstados }] = await tx.select({ n: count() }).from(estadoVehiculo);
     if (nEstados === 0) {

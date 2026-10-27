@@ -1214,3 +1214,50 @@ export const preferenciasUsuario = pgTable(
   },
   (t) => [primaryKey({ columns: [t.idUsuario, t.clave] })],
 );
+
+/* ------------------------------------------------------------------ */
+/* Apuntes de los expedientes (SEGURO, VO de retoma…)                  */
+/* ------------------------------------------------------------------ */
+
+/** Apuntes predefinidos: cada uno con su título, descripción, texto de la etiqueta y si sale en la lista. Los que tienen botón rápido se añaden con un clic (solo uno por expediente). */
+export const apuntesPredefinidos = pgTable(
+  "apuntes_predefinidos",
+  {
+    id: serial("id").primaryKey(),
+    /** Clave fija de los que la aplicación usa por su cuenta (p. ej. `vo-retoma`, que se añade al leer un pedido con retoma). */
+    clave: varchar("clave", { length: 40 }),
+    titulo: varchar("titulo", { length: 80 }).notNull(),
+    descripcion: text("descripcion").notNull().default(""),
+    /** Texto de la etiqueta que sale junto al icono del cliente en la lista de Expedientes. */
+    etiqueta: varchar("etiqueta", { length: 24 }).notNull().default(""),
+    color: varchar("color", { length: 7 }).notNull().default("#3b82f6"),
+    /** Si el apunte creado con este predefinido sale por defecto como etiqueta en la lista. */
+    mostrarEtiqueta: boolean("mostrar_etiqueta").notNull().default(false),
+    /** Si tiene botón rápido en el expediente. */
+    rapido: boolean("rapido").notNull().default(true),
+    orden: integer("orden").notNull().default(0),
+  },
+  (t) => [uniqueIndex("apuntes_predefinidos_clave_uq").on(t.clave).where(sql`${t.clave} is not null`)],
+);
+
+export const apuntesExpediente = pgTable(
+  "apuntes_expediente",
+  {
+    id: serial("id").primaryKey(),
+    idExpediente: integer("id_expediente")
+      .notNull()
+      .references(() => expedientes.idExpediente, { onDelete: "cascade" }),
+    /** De qué predefinido viene (si viene de uno): solo puede haber uno por expediente. */
+    idPredefinido: integer("id_predefinido").references(() => apuntesPredefinidos.id, { onDelete: "set null" }),
+    titulo: varchar("titulo", { length: 80 }).notNull(),
+    descripcion: text("descripcion").notNull().default(""),
+    etiqueta: varchar("etiqueta", { length: 24 }).notNull().default(""),
+    color: varchar("color", { length: 7 }).notNull().default("#3b82f6"),
+    mostrarEtiqueta: boolean("mostrar_etiqueta").notNull().default(false),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("apuntes_expediente_exp_idx").on(t.idExpediente),
+    uniqueIndex("apuntes_expediente_predefinido_uq").on(t.idExpediente, t.idPredefinido).where(sql`${t.idPredefinido} is not null`),
+  ],
+);

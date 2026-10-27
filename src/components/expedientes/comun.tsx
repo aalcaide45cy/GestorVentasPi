@@ -112,6 +112,21 @@ interface CeldaClienteProps {
   alAsignar: (id: number) => void;
 }
 
+/** Etiquetas de los apuntes del expediente que se han marcado para mostrarse (SEGURO, VO…): salen junto al icono del cliente. */
+export function EtiquetasApuntes({ apuntes }: { apuntes: ExpedienteDto["apuntes"] }) {
+  const visibles = (apuntes ?? []).filter((a) => a.mostrar_etiqueta && a.etiqueta.trim() !== "");
+  if (visibles.length === 0) return null;
+  return (
+    <>
+      {visibles.map((a) => (
+        <span key={a.id} title={`Apunte: ${a.titulo}`} style={{ background: a.color, color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", textShadow: "0 0 2px rgba(0,0,0,0.35)" }}>
+          {a.etiqueta}
+        </span>
+      ))}
+    </>
+  );
+}
+
 /** Nombre del cliente (solo nombre, sin DNI) o «Sin Cliente» con botón para asignar. */
 export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
   if (exp.cliente?.nombre) {
@@ -120,7 +135,10 @@ export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
         <TextoCopiable texto={exp.cliente.nombre}>
           <NombreConFoto fotoId={exp.cliente.foto_id}>{exp.cliente.nombre}</NombreConFoto>
         </TextoCopiable>
-        <IconoCliente id={exp.cliente.id} />
+        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", flexWrap: "wrap" }}>
+          <IconoCliente id={exp.cliente.id} />
+          <EtiquetasApuntes apuntes={exp.apuntes} />
+        </span>
       </>
     );
   }

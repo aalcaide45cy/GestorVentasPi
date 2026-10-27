@@ -10,6 +10,7 @@ import {
 import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
 import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
 import GestorReglasColor, { type SugerenciasReglas } from "./GestorReglasColor";
+import PanelApuntesPredefinidos from "./PanelApuntesPredefinidos";
 import { SubPestanas } from "./estructura";
 import { estiloPanel } from "./utilidades";
 
@@ -111,6 +112,7 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
         pestanas={[
           { clave: "lista", etiqueta: "📄 Lista", ayuda: "Cuántos expedientes se ven por página, qué se ve al abrir la lista y si se recuerda el filtro" },
           { clave: "reglas", etiqueta: "🎨 Colores de fila", ayuda: "Reglas para pintar de un color las filas de la lista de expedientes según su estado, sus fechas, su marca…, con esquemas guardados y exportación" },
+          { clave: "apuntes", etiqueta: "📝 Apuntes", ayuda: "Apuntes predefinidos de los expedientes (Seguro, VO de retoma…): título, descripción, etiqueta que sale junto al icono del cliente y botón rápido" },
           { clave: "modos", etiqueta: "🔓 Selección y eliminación", ayuda: "Cuánto tiempo se quedan activos los modos de selección y de eliminación de la lista" },
           { clave: "foto", etiqueta: "🖼️ Foto del cliente", ayuda: "Cuántos segundos hay que esperar con el ratón encima del cliente para ver su foto" },
         ]}
@@ -118,6 +120,7 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
         {(pestana) => (
           <>
             {pestana === "reglas" && <GestorReglasColor sugerencias={sugerencias} />}
+            {pestana === "apuntes" && <PanelApuntesPredefinidos />}
             {pestana === "lista" && (
               <>
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", borderLeft: "3px solid var(--primary)" }}>

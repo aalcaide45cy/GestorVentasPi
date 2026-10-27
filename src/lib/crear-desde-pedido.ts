@@ -54,6 +54,7 @@ export async function crearPedidos(items: ItemCola[], vendedorId: number, alProg
         idTipoDeVenta: i.pedido.datos.idTipoDeVenta,
         tipoPedido: i.pedido.datos.tipoPedido,
         avisos: i.pedido.datos.avisos,
+        retoma: i.pedido.datos.retoma ? { matricula: i.pedido.datos.retoma.matricula, texto: i.pedido.datos.retoma.texto } : null,
       },
       eleccion: i.eleccion ? { idModelo: i.eleccion.idModelo, idTipoVenta: i.eleccion.tipo.id_tipo_de_venta, estadoNombre: i.eleccion.estadoNombre ?? null } : null,
       idExpediente: i.idExpediente,

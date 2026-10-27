@@ -255,6 +255,7 @@ export default function ExpedientesList({
   const [fTipo, setFTipo] = useState("");
   const [fEstado, setFEstado] = useState("");
   const [fIntranet, setFIntranet] = useState("");
+  const [fApunte, setFApunte] = useState("");
   const [fVendedor, setFVendedor] = useState(currentUserName ?? "");
   const [fMes, setFMes] = useState("");
   const [fAnio, setFAnio] = useState("");
@@ -293,6 +294,7 @@ export default function ExpedientesList({
     setFTipoFecha(f.tipoFecha);
     setFTienda(f.tienda);
     setFIntranet(f.intranet);
+    setFApunte(f.apunte);
     setRango({ desde: f.desde, hasta: f.hasta });
     setOrdenCampo(f.ordenCampo);
     setOrdenAsc(f.ordenAsc);
@@ -318,13 +320,14 @@ export default function ExpedientesList({
       tipoFecha: fTipoFecha,
       tienda: fTienda,
       intranet: fIntranet,
+      apunte: fApunte,
       desde: rango.desde,
       hasta: rango.hasta,
       ordenCampo,
       ordenAsc,
     };
     guardarPreferencia(CLAVE_FILTROS_GUARDADOS, JSON.stringify(actuales));
-  }, [filtrosListos, recordarEnEstaPantalla, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda, fIntranet, rango, ordenCampo, ordenAsc]);
+  }, [filtrosListos, recordarEnEstaPantalla, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda, fIntranet, fApunte, rango, ordenCampo, ordenAsc]);
 
   const [importandoExcel, setImportandoExcel] = useState(false);
   const [completando, setCompletando] = useState(false);
@@ -350,6 +353,7 @@ export default function ExpedientesList({
       tipos: unicos(expedientes.map((e) => e.tipoDeVenta?.nombre_tipo_venta)),
       estados: unicos(expedientes.map((e) => e.estadoVehiculo?.nombre_estado_vehiculo)),
       estadosIntranet: unicos(expedientes.map((e) => e.estado_intranet)),
+      apuntes: unicos(expedientes.flatMap((e) => (e.apuntes ?? []).map((a) => a.titulo))),
       anios: Array.from(
         new Set(
           expedientes.flatMap((e) =>
@@ -429,13 +433,14 @@ export default function ExpedientesList({
       }
       if (fTipo && !e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase().includes(fTipo.toLowerCase())) return false;
       if (fEstado && !e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(fEstado.toLowerCase())) return false;
+      if (fApunte && (fApunte === "__sin__" ? (e.apuntes ?? []).length > 0 : !(e.apuntes ?? []).some((a) => a.titulo.toLowerCase() === fApunte.toLowerCase()))) return false;
       if (fIntranet && (fIntranet === "__sin__" ? !!e.estado_intranet : (e.estado_intranet ?? "").toLowerCase() !== fIntranet.toLowerCase())) return false;
       if (fVendedor && (e.usuario?.nombre?.toLowerCase().trim() ?? "") !== fVendedor.toLowerCase().trim()) return false;
       if ((rangoActivo || fMes || fAnio) && !cumpleFechas(e)) return false;
       if (fTienda && e.id_tienda !== Number(fTienda)) return false;
       return true;
     });
-  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, mostrarDeshabilitados, fMarca, fModelo, fTipo, fEstado, fIntranet, fVendedor, fTienda, rangoActivo, fMes, fAnio, cumpleFechas]);
+  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, mostrarDeshabilitados, fMarca, fModelo, fTipo, fEstado, fIntranet, fApunte, fVendedor, fTienda, rangoActivo, fMes, fAnio, cumpleFechas]);
 
   const ordenados = useMemo(() => {
     const valor = (e: ExpedienteDto): string => {
@@ -511,6 +516,7 @@ export default function ExpedientesList({
     setFTipo("");
     setFEstado("");
     setFIntranet("");
+    setFApunte("");
     setFVendedor(currentUserName ?? ""); // al limpiar se vuelve a ver solo lo del usuario que ha iniciado sesión
     setFMes("");
     setFAnio("");
@@ -790,6 +796,7 @@ export default function ExpedientesList({
   if (!fVendedor) filtrosActivos.push("Todos los comerciales");
   if (fTipo) filtrosActivos.push(`Tipo de venta: ${fTipo}`);
   if (fEstado) filtrosActivos.push(`Estado: ${fEstado}`);
+  if (fApunte) filtrosActivos.push(`Apunte: ${fApunte === "__sin__" ? "sin apuntes" : fApunte}`);
   if (fIntranet) filtrosActivos.push(`Estado intranet: ${fIntranet === "__sin__" ? "sin estado" : fIntranet}`);
   if (ocultarEntregados) filtrosActivos.push("Entregados ocultos");
 
@@ -1271,6 +1278,17 @@ export default function ExpedientesList({
                       <option value="">Todos</option>
                       <option value="__sin__">Sin estado importado</option>
                       {opciones.estadosIntranet.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </CampoFiltro>
+                  <CampoFiltro etiqueta="Apunte" ayuda="Expedientes que llevan un apunte concreto (Seguro, VO de retoma…) o ninguno">
+                    <select className="form-input" value={fApunte} onChange={(e) => { setFApunte(e.target.value); setPagina(1); }} style={estiloSelectFiltro}>
+                      <option value="">Todos</option>
+                      <option value="__sin__">Sin apuntes</option>
+                      {opciones.apuntes.map((s) => (
                         <option key={s} value={s}>
                           {s}
                         </option>

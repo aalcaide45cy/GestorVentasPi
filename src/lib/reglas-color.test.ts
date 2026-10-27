@@ -7,6 +7,18 @@ const regla = (o: Partial<ReglaColor>): ReglaColor => ({ ...reglaNueva(), ...o }
 const HOY = "2026-10-24";
 
 describe("reglas de color de las filas", () => {
+  it("por apuntes: tiene o no un apunte (un expediente puede llevar varios)", () => {
+    const ap = (...titulos: string[]) => titulos.map((titulo, id) => ({ id, titulo, etiqueta: "", color: "#000000", mostrar_etiqueta: false }));
+    const conSeguro = [regla({ condiciones: [{ campo: "apunte", operador: "es", valor: "seguro" }] })];
+    const sinSeguro = [regla({ condiciones: [{ campo: "apunte", operador: "no_es", valor: "Seguro" }] })];
+    const sinApuntes = [regla({ condiciones: [{ campo: "apunte", operador: "vacio", valor: "" }] })];
+    expect(reglaQueAplica(exp({ apuntes: ap("VO de retoma", "Seguro") }), conSeguro, HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ apuntes: ap("VO de retoma") }), conSeguro, HOY)).toBeNull();
+    expect(reglaQueAplica(exp({ apuntes: ap("VO de retoma") }), sinSeguro, HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ apuntes: ap("Seguro") }), sinSeguro, HOY)).toBeNull();
+    expect(reglaQueAplica(exp({}), sinApuntes, HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ apuntes: ap("x") }), sinApuntes, HOY)).toBeNull();
+  });
   it("con matrícula o sin ella, con bastidor o sin él", () => {
     const sinMatricula = [regla({ condiciones: [{ campo: "matricula", operador: "vacio", valor: "" }] })];
     const conBastidor = [regla({ condiciones: [{ campo: "bastidor", operador: "no_vacio", valor: "" }] })];

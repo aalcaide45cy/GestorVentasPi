@@ -271,6 +271,11 @@ export default function PedidoRapidoModal({ item, marcas, tiposVenta, vendedorId
         },
       });
       if (idCliente) await llamar("/api/expedientes", { method: "PUT", cuerpo: { id_expediente: creado.id_expediente, id_cliente: idCliente, expediente: {} } }).catch(() => undefined);
+      // Un pedido con vehículo de retoma deja en el expediente el apunte «VO de retoma» (con su matrícula y texto)
+      if (d.retoma) {
+        const detalle = [d.retoma.matricula ? `Matrícula ${d.retoma.matricula}.` : "", d.retoma.texto ?? ""].filter(Boolean).join(" ");
+        await llamar("/api/expedientes/apuntes", { method: "POST", cuerpo: { accion: "vo_retoma", id_expediente: creado.id_expediente, detalle: detalle || null } }).catch(() => undefined);
+      }
       // Si el modelo no se había reconocido y el usuario lo ha elegido, la app lo aprende para la próxima vez
       if (!eleccion && !usaNuevo && d.idModelo === null && d.modeloTexto && idModeloFinal) {
         await llamar("/api/documentos/aprender-modelo", { method: "POST", cuerpo: { texto: d.modeloTexto, id_modelo: idModeloFinal } }).catch(() => undefined);

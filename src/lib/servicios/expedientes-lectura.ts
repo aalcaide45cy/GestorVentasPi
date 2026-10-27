@@ -3,6 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { clientes, expedientes, rejillas, tipoDeVenta, validacionesComision } from "@/db/schema";
 import type { ExpedienteDto } from "@/lib/dto";
+import { apuntesPorExpediente } from "./apuntes";
 import { aDto, leerFila, relacionesExpediente } from "./expedientes";
 import { comprobarRejilla } from "./rejillas";
 
@@ -49,7 +50,8 @@ export async function listarExpedientes(ej: Ejecutor, opciones: { limite?: numbe
       if (f.idExpediente !== null && (f.validacion === "pagado" || f.validacion === "reclamado")) registrar(f.idExpediente, f.validacion, h.mes);
     }
   }
-  return filas.map((f) => ({ ...aDto(f), comisionado: porExpediente.get(f.idExpediente) ?? null }));
+  const apuntes = await apuntesPorExpediente(ej);
+  return filas.map((f) => ({ ...aDto(f), comisionado: porExpediente.get(f.idExpediente) ?? null, apuntes: apuntes.get(f.idExpediente) ?? [] }));
 }
 
 /** Expedientes de un cliente (para el modal «Expedientes de …»). */
