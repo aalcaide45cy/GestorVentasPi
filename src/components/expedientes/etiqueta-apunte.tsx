@@ -27,7 +27,11 @@ export interface AspectoEstado {
   modo?: "color" | "icono" | "icono_fondo";
   icono?: string;
   apagado?: boolean;
+  efecto?: "ninguno" | "parpadeo" | "pulso" | "destello" | "latido" | "brillo";
 }
+
+/** La clase de CSS del efecto animado del estado (vacía si no tiene). */
+export const claseEfecto = (e?: AspectoEstado): string => (e?.efecto && e.efecto !== "ninguno" ? `gv-ef-${e.efecto}` : "");
 
 /** El modo con el que se pinta de verdad: sin icono escrito, un estado «con icono» se queda en el fondo de color. */
 const modoReal = (e?: AspectoEstado): "color" | "icono" | "icono_fondo" => ((e?.modo === "icono" || e?.modo === "icono_fondo") && (e.icono ?? "").trim() !== "" ? e.modo : "color");
@@ -39,20 +43,21 @@ const modoReal = (e?: AspectoEstado): "color" | "icono" | "icono_fondo" => ((e?.
  * - **solo icono**: únicamente el icono, sin cápsula ni texto (el significado sale al pasar el ratón).
  * `apagado` la deja tenue.
  */
-export function aspectoEtiqueta(etiqueta: string, color: string, estilo: EstiloEtiqueta, colorearEmoticonos: boolean, estado?: AspectoEstado): { estilo: CSSProperties; contenido: ReactNode } {
+export function aspectoEtiqueta(etiqueta: string, color: string, estilo: EstiloEtiqueta, colorearEmoticonos: boolean, estado?: AspectoEstado): { estilo: CSSProperties; contenido: ReactNode; clase: string } {
+  const clase = claseEfecto(estado);
   const tenue: CSSProperties = estado?.apagado ? { opacity: 0.45, ...(estilo === "texto" || modoReal(estado) === "icono" ? {} : { textShadow: "none" }) } : {};
   const modo = modoReal(estado);
   const icono = (estado?.icono ?? "").trim();
-  if (modo === "icono") return { estilo: { background: "transparent", border: "none", padding: "0 2px", fontSize: "0.95rem", lineHeight: 1.2, whiteSpace: "nowrap", ...tenue }, contenido: icono };
-  const base = { ...estiloEtiqueta(color, estilo), ...tenue };
-  if (modo === "icono_fondo") return { estilo: base, contenido: <>{icono} {rotuloEtiqueta(etiqueta, color, estilo, colorearEmoticonos)}</> };
-  return { estilo: base, contenido: rotuloEtiqueta(etiqueta, color, estilo, colorearEmoticonos) };
+  if (modo === "icono") return { estilo: { background: "transparent", border: "none", padding: "0 2px", fontSize: "0.95rem", lineHeight: 1.2, whiteSpace: "nowrap", ["--gv-color" as string]: color, ...tenue }, contenido: icono, clase };
+  const base = { ...estiloEtiqueta(color, estilo), ["--gv-color" as string]: color, ...tenue } as CSSProperties;
+  if (modo === "icono_fondo") return { estilo: base, contenido: <>{icono} {rotuloEtiqueta(etiqueta, color, estilo, colorearEmoticonos)}</>, clase };
+  return { estilo: base, contenido: rotuloEtiqueta(etiqueta, color, estilo, colorearEmoticonos), clase };
 }
 
 /** La etiqueta tal y como saldrá en la lista de Expedientes (vista previa). */
 export function EtiquetaApunte({ etiqueta, color, estilo, colorearEmoticonos, estado }: { etiqueta: string; color: string; estilo: EstiloEtiqueta; colorearEmoticonos: boolean; estado?: AspectoEstado }) {
   const a = aspectoEtiqueta(etiqueta.trim() === "" ? "(sin texto)" : etiqueta, color, estilo, colorearEmoticonos, estado);
-  return <span style={{ ...a.estilo, display: "inline-block" }}>{a.contenido}</span>;
+  return <span className={a.clase} style={{ ...a.estilo, display: "inline-block" }}>{a.contenido}</span>;
 }
 
 /** El distintivo de un estado en un botón o una lista: un círculo de su color, su icono, o el icono sobre su color. */

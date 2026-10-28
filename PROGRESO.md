@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.36.0 (28/10/2026)
+
+- **Efectos animados en los estados del semáforo.** Cada estado puede llevar un efecto: **parpadeo**, **pulso**, **destello**, **latido** o **brillo** (clases `gv-ef-*` en `globals.css`, con `--gv-color` para el destello), combinable con cualquier forma de mostrarlo (fondo de color, icono, icono con fondo, con o sin emoticonos en el texto, tenue). Se elige en Configuración › Expedientes › 🚦 Semáforo («Efecto», con vista previa animada) y en la ventana de la etiqueta. Se desactivan si el sistema pide reducir el movimiento.
+- **Hasta 8 estados** por semáforo (antes 5), para poder añadir, por ejemplo, un estado «Urgente» parpadeante.
+
 ## Versión 1.35.1 (28/10/2026)
 
 - **Tres formas de mostrar cada estado del semáforo:** «Solo el fondo de color» (la cápsula de siempre), «Solo el icono» (el emoticono sin cápsula ni texto; el significado sale al pasar el ratón) e «Icono con fondo de color» (la cápsula con el icono delante del texto). Sustituye al «Un color / Un icono» de la 1.35.0 (el valor `modo` del estado pasa a `color`, `icono` o `icono_fondo`). Se elige en Configuración › Expedientes › 🚦 Semáforo y en la ventana de la etiqueta; las vistas previas y la edición en masa lo reflejan.

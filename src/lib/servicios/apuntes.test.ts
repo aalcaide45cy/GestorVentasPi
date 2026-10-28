@@ -108,6 +108,19 @@ describe("apuntes de los expedientes", () => {
     expect(() => esquemaPredefinido.parse({ ...seguro, semaforo_estados: [{ color: "#ffffff", texto: "x", modo: "otro" }, { color: "#000000", texto: "y" }] })).toThrow();
   });
 
+  it("un estado puede llevar un efecto animado y el semáforo admite hasta 8 estados", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const estados = [...seguro.semaforo_estados, { color: "#ff0000", texto: "Urgente: sin seguro", efecto: "parpadeo" as const }];
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, semaforo_estados: estados }));
+    const [a] = await listarApuntes(db, idExpediente);
+    await fijarEstadoSemaforo(db, ana, a.id, 4);
+    expect((await apuntesPorExpediente(db)).get(idExpediente)![0]).toMatchObject({ estado_semaforo: 4, color: "#ff0000", estados: expect.arrayContaining([expect.objectContaining({ efecto: "parpadeo" })]) });
+    const nueve = Array.from({ length: 9 }, (_, i) => ({ color: "#123456", texto: `Estado ${i}` }));
+    expect(() => esquemaPredefinido.parse({ ...seguro, semaforo_estados: nueve })).toThrow();
+    expect(() => esquemaPredefinido.parse({ ...seguro, semaforo_estados: [{ color: "#123456", texto: "a", efecto: "girar" }, { color: "#654321", texto: "b" }] })).toThrow();
+  });
+
   it("los colores del semáforo se pueden restablecer a rojo, amarillo, verde y gris", async () => {
     const { admin, ana, idExpediente } = await escenario();
     const seguro = await predefinido("seguro");

@@ -164,6 +164,17 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
                     <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => cambiar({ texto: ev.target.value })} placeholder="Qué significa este estado" style={{ flex: "1 1 220px", minWidth: 0 }} />
                   </div>
                   <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "0.85rem" }} title="Efecto animado de la etiqueta en este estado: llama la atención (por ejemplo un parpadeo rojo para «sin seguro»)">
+                      Efecto
+                      <select className="form-input" value={e.efecto ?? "ninguno"} onChange={(ev) => cambiar({ efecto: ev.target.value as EstadoSemaforo["efecto"] })} style={{ width: "auto" }}>
+                        <option value="ninguno">Sin efecto</option>
+                        <option value="parpadeo">Parpadeo</option>
+                        <option value="pulso">Pulso</option>
+                        <option value="destello">Destello</option>
+                        <option value="latido">Latido</option>
+                        <option value="brillo">Brillo</option>
+                      </select>
+                    </label>
                     <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "0.85rem", whiteSpace: "nowrap", cursor: "pointer" }}>
                       <input type="checkbox" checked={e.apagado === true} onChange={(ev) => cambiar({ apagado: ev.target.checked })} style={tick} />
                       Tenue
@@ -182,7 +193,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
             })}
           </div>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-            {estados.length < 5 && (
+            {estados.length < 8 && (
               <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: [...estados, { color: "#3b82f6", texto: "" }] })} style={{ padding: "4px 12px", fontSize: "0.8rem" }}>
                 + Añadir estado
               </button>

@@ -25,7 +25,7 @@ export const ESTADOS_SEMAFORO_INICIALES = [
   { color: "#22c55e", texto: "Terminado" },
 ];
 
-export const esquemaEstadosSemaforo = z.array(z.object({ color, texto: z.string().trim().min(1, "Cada color necesita su significado").max(80), apagado: z.boolean().optional(), icono: z.string().trim().max(8).optional(), modo: z.enum(["color", "icono", "icono_fondo"]).optional() })).min(2, "Un semáforo necesita al menos 2 estados").max(5);
+export const esquemaEstadosSemaforo = z.array(z.object({ color, texto: z.string().trim().min(1, "Cada color necesita su significado").max(80), apagado: z.boolean().optional(), icono: z.string().trim().max(8).optional(), modo: z.enum(["color", "icono", "icono_fondo"]).optional(), efecto: z.enum(["ninguno", "parpadeo", "pulso", "destello", "latido", "brillo"]).optional() })).min(2, "Un semáforo necesita al menos 2 estados").max(8);
 
 export const esquemaPredefinido = z.object({
   titulo: z.string().trim().min(1, "Falta el título").max(80),
@@ -67,6 +67,8 @@ export interface EstadoSemaforo {
   modo?: "color" | "icono" | "icono_fondo";
   /** El icono del estado (por ejemplo ✅), cuando se muestra con icono. */
   icono?: string;
+  /** Efecto animado de la etiqueta en este estado (parpadeo, pulso, destello, latido o brillo). */
+  efecto?: "ninguno" | "parpadeo" | "pulso" | "destello" | "latido" | "brillo";
 }
 
 export interface PredefinidoDto {

@@ -109,6 +109,14 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
                   <input type="color" value={e.color} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)))} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none", flex: "0 0 auto" }} />
                 )}
                 <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)))} style={{ flex: 1, minWidth: 0 }} aria-label={`Significado del estado ${i + 1}`} />
+                <select className="form-input" value={e.efecto ?? "ninguno"} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, efecto: ev.target.value as EstadoSemaforo["efecto"] } : x)))} aria-label={`Efecto del estado ${i + 1}`} title="Efecto animado de la etiqueta en este estado" style={{ width: "auto" }}>
+                  <option value="ninguno">Sin efecto</option>
+                  <option value="parpadeo">Parpadeo</option>
+                  <option value="pulso">Pulso</option>
+                  <option value="destello">Destello</option>
+                  <option value="latido">Latido</option>
+                  <option value="brillo">Brillo</option>
+                </select>
                 <EtiquetaApunte etiqueta={apunte.etiqueta} color={e.color} estilo={apunte.estilo} colorearEmoticonos={apunte.colorear_emoticonos} estado={e} />
                 <label title="Si está marcado, la etiqueta se ve tenue (como apagada)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                   <input type="checkbox" checked={e.apagado === true} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)))} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
