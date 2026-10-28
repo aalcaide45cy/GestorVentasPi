@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerIdQuery, leerJson, manejar } from "@/lib/http";
 import { z } from "zod";
-import { actualizarPredefinido, aplicarATodos, crearPredefinido, eliminarPredefinido, esquemaPredefinido, listarPredefinidos } from "@/lib/servicios/apuntes";
+import { actualizarPredefinido, aplicarATodos, mostrarEnTodos, crearPredefinido, eliminarPredefinido, esquemaPredefinido, listarPredefinidos } from "@/lib/servicios/apuntes";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,11 @@ export const POST = manejar(async (req: Request) => {
   const u = await requireSession("administrador");
   // `?id=N&aplicar=1`: pone el predefinido en todos los expedientes, en el estado dado (solo semáforos)
   const q = new URL(req.url).searchParams;
+  if (q.get("mostrar") === "1" || q.get("mostrar") === "0") {
+    const id = leerIdQuery(req);
+    if (!id) throw new HttpError(400, "Falta el apunte predefinido");
+    return NextResponse.json({ success: true, data: { cambiados: await mostrarEnTodos(db, u, id, q.get("mostrar") === "1") } });
+  }
   if (q.get("aplicar") === "1") {
     const id = leerIdQuery(req);
     if (!id) throw new HttpError(400, "Falta el apunte predefinido");

@@ -847,7 +847,7 @@ export default function PanelApuntesPredefinidos() {
                       >
                         {p.semaforo_estados.map((e, i) => (
                           <option key={i} value={i}>
-                            Poner a todos: {e.texto || `estado ${i + 1}`}
+                            Para los que no lo tengan: {e.texto || `estado ${i + 1}`}
                           </option>
                         ))}
                       </select>
@@ -865,7 +865,7 @@ export default function PanelApuntesPredefinidos() {
                             ))
                           : null;
                         const texto = p.semaforo
-                          ? `Esto pondrá «${p.titulo}» en el estado «${p.semaforo_estados[estado ?? 0]?.texto ?? ""}» en TODOS los expedientes: se lo añade a los que no lo tengan y cambia el estado a los que sí (su comentario se conserva). ¿Seguro?`
+                          ? `Esto pondrá «${p.titulo}» en el estado «${p.semaforo_estados[estado ?? 0]?.texto ?? ""}» en TODOS los expedientes: se lo añade solo a los que no lo tengan; los que ya lo tienen NO se tocan. ¿Seguro?`
                           : `Esto añadirá «${p.titulo}» a TODOS los expedientes que no lo tengan. ¿Seguro?`;
                         if (window.confirm(texto))
                           void ejecutar(async () => {
@@ -881,10 +881,25 @@ export default function PanelApuntesPredefinidos() {
                           }, "Hecho.");
                       }}
                       style={{ padding: "5px 14px", fontSize: "0.8rem" }}
-                      title="Lo pone ahora en todos los expedientes que ya existen (los nuevos lo reciben solos si marcas «Lo llevan todos los expedientes»)"
+                      title="Lo añade ahora a los expedientes que no lo tengan, sin tocar los que ya lo tienen (los nuevos lo reciben solos si marcas «Lo llevan todos los expedientes»)"
                     >
                       ⚡ Aplicar ahora a todos los expedientes
                     </button>
+                {[true, false].map((m) => (
+                  <button
+                    key={String(m)}
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={ocupado}
+                    onClick={() => {
+                      if (window.confirm(`Esto ${m ? "mostrará" : "ocultará"} la etiqueta «${p.titulo}» en la lista de TODOS los expedientes. ¿Seguro?`)) void ejecutar(async () => { const { data } = await llamar<{ cambiados: number }>(`/api/admin/apuntes-predefinidos?id=${p.id}&mostrar=${m ? 1 : 0}`, { method: "POST", cuerpo: {} }); mostrar(`${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} actualizado${data.cambiados === 1 ? "" : "s"}.`); }, "Hecho.");
+                    }}
+                    style={{ padding: "5px 14px", fontSize: "0.8rem" }}
+                    title={m ? "Muestra la etiqueta en la lista de todos los expedientes" : "Oculta la etiqueta en la lista de todos los expedientes"}
+                  >
+                    {m ? "👁 Mostrar en la lista de todos" : "🚫 Ocultar en la lista de todos"}
+                  </button>
+                ))}
                   </span>
                 )}
               </div>

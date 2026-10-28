@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.38.3 (28/10/2026)
+
+- «⚡ Aplicar ahora a todos» ya **no sobrescribe**: solo añade el predefinido (en el estado elegido) a los expedientes que no lo tengan.
+- Nuevos botones **«👁 Mostrar en la lista de todos» / «🚫 Ocultar en la lista de todos»** por predefinido (`POST /api/admin/apuntes-predefinidos?id=N&mostrar=1|0`, `mostrarEnTodos`; solo administrador).
+
 ## Versión 1.38.2 (28/10/2026)
 
 - **Predefinidos contraíbles** (Ajustes → Semáforo): cada uno se despliega/contrae pulsando su cabecera (por defecto contraídos). El botón «⚡ Aplicar ahora a todos los expedientes» (y el selector «Poner a todos») pasa a estar justo bajo la cabecera, siempre visible.

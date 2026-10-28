@@ -312,8 +312,7 @@ export async function aplicarATodos(ej: Ejecutor, u: UsuarioActual, idPredefinid
       select e.id_expediente, ${p.id}, ${p.titulo}, ${p.descripcion}, ${p.etiqueta}, ${p.semaforoEstados[n].color}, ${p.mostrarEtiqueta}, ${n}
       from expedientes e where e.eliminado_en is null
       on conflict (id_expediente, id_predefinido) where id_predefinido is not null
-      do update set estado_semaforo = excluded.estado_semaforo, color = excluded.color
-      where apuntes_expediente.estado_semaforo is distinct from excluded.estado_semaforo
+      do nothing
       returning id`);
     return (r as unknown as { rows: unknown[] }).rows.length;
   }
@@ -324,6 +323,15 @@ export async function aplicarATodos(ej: Ejecutor, u: UsuarioActual, idPredefinid
     on conflict (id_expediente, id_predefinido) where id_predefinido is not null do nothing
     returning id`);
   return (r as unknown as { rows: unknown[] }).rows.length;
+}
+
+/** Muestra u oculta en la lista de expedientes la etiqueta de este predefinido, en todos los expedientes a la vez. */
+export async function mostrarEnTodos(ej: Ejecutor, u: UsuarioActual, idPredefinido: number, mostrar: boolean): Promise<number> {
+  soloAdministrador(u);
+  const [p] = await ej.update(apuntesPredefinidos).set({ mostrarEtiqueta: mostrar }).where(eq(apuntesPredefinidos.id, idPredefinido)).returning({ id: apuntesPredefinidos.id });
+  if (!p) throw new HttpError(404, "Apunte predefinido no encontrado");
+  const r = await ej.update(apuntesExpediente).set({ mostrarEtiqueta: mostrar }).where(eq(apuntesExpediente.idPredefinido, idPredefinido)).returning({ id: apuntesExpediente.id });
+  return r.length;
 }
 
 /** Cambia el estado de un apunte que funciona como semáforo (0 = rojo… según los estados del predefinido). */

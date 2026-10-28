@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { apuntesPredefinidos, papeleraElementos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, aplicarATodos, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
+import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, aplicarATodos, mostrarEnTodos, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
 import { restaurar } from "./papelera";
@@ -156,9 +156,15 @@ describe("apuntes de los expedientes", () => {
     // Aplicar ahora: a todos al estado 0, con su comentario conservado; solo el administrador
     await fijarEstadoSemaforo(db, ana, g.id, 1, "Esperando la póliza");
     await expect(aplicarATodos(db, ana, nuevo.id, 0)).rejects.toThrow(/administrador/);
-    expect(await aplicarATodos(db, admin, nuevo.id, 0)).toBe(2);
-    expect((await listarApuntes(db, idExpediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ estado_semaforo: 0, color: "#ef4444", comentario: "Esperando la póliza" });
+    // Los que ya tienen estado no se tocan
     expect(await aplicarATodos(db, admin, nuevo.id, 0)).toBe(0);
+    expect((await listarApuntes(db, idExpediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ estado_semaforo: 1, comentario: "Esperando la póliza" });
+    // Mostrar / ocultar la etiqueta en la lista de todos
+    await expect(mostrarEnTodos(db, ana, nuevo.id, false)).rejects.toThrow(/administrador/);
+    expect(await mostrarEnTodos(db, admin, nuevo.id, false)).toBe(2);
+    expect((await listarApuntes(db, otro.id_expediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ mostrar_etiqueta: false });
+    expect(await mostrarEnTodos(db, admin, nuevo.id, true)).toBe(2);
+    expect((await listarApuntes(db, idExpediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ mostrar_etiqueta: true });
     await expect(aplicarATodos(db, admin, nuevo.id, 7)).rejects.toThrow(/no válido/);
   });
 
