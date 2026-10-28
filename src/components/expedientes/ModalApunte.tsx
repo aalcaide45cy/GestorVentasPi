@@ -26,11 +26,11 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
   const [ocupado, setOcupado] = useState(false);
   const cambiado = JSON.stringify(estados) !== JSON.stringify(apunte.estados ?? []);
 
-  const guardar = async () => {
+  const guardar = async (estadoElegido: number = elegido) => {
     setOcupado(true);
     try {
-      await llamar(`/api/expedientes/apuntes?id=${apunte.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: elegido, comentario } });
-      mostrar(`${cliente ? `${cliente} · ` : ""}${apunte.titulo}: ${estados[elegido]?.texto ?? ""}${comentario.trim() ? " (con comentario)" : ""}`);
+      await llamar(`/api/expedientes/apuntes?id=${apunte.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: estadoElegido, comentario } });
+      mostrar(`${cliente ? `${cliente} · ` : ""}${apunte.titulo}: ${estados[estadoElegido]?.texto ?? ""}${comentario.trim() ? " (con comentario)" : ""}`);
       alCerrar();
     } catch (e) {
       mostrar(textoError(e), "error");
@@ -68,7 +68,7 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
             <h3 style={{ margin: 0, fontSize: "1.1rem" }}>
               {apunte.titulo} · <span style={{ fontWeight: 500 }}>{cliente}</span>
             </h3>
-            <p style={{ margin: "4px 0 0", fontSize: "0.82rem", color: "var(--text-secondary)" }}>Elige en qué estado está este expediente y, si quieres, deja un comentario.</p>
+            <p style={{ margin: "4px 0 0", fontSize: "0.82rem", color: "var(--text-secondary)" }}>Elige en qué estado está este expediente y, si quieres, deja un comentario. Con doble clic en un estado se elige y se guarda solo.</p>
           </div>
           <button type="button" className="btn btn-secondary" onClick={alCerrar} aria-label="Cerrar" style={{ padding: "2px 10px" }}>
             ✕
@@ -82,6 +82,8 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
               type="button"
               disabled={ocupado}
               onClick={() => setElegido(i)}
+              onDoubleClick={() => void guardar(i)}
+              title="Doble clic: elige este estado y guarda"
               style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: `2px solid ${i === elegido ? e.color : "var(--border-light)"}`, background: i === elegido ? `${e.color}22` : "var(--bg-card)", color: "var(--text-primary)", textAlign: "left", cursor: "pointer", fontSize: "0.92rem", fontWeight: i === elegido ? 700 : 500 }}
             >
               <MarcaEstado estado={e} />

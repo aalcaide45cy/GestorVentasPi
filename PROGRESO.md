@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.40.3 (28/10/2026)
+
+- En la ventana de la etiqueta del semáforo, **doble clic en un estado** lo elige y lo guarda al momento (con el comentario que haya escrito).
+
 ## Versión 1.40.2 (28/10/2026)
 
 - **Deshacer / rehacer ahora incluye los semáforos y apuntes**: `apuntes_expediente` y `apuntes_predefinidos` llevan el disparador del historial (migración 0068, `when` 1793205231859). Antes un cambio de estado no se podía deshacer (ni «Deshacer» ni Ctrl+Z). Al deshacer/rehacer, el disparador de apuntes «por defecto» se salta (`app.restauracion_completa`) para no crearlos antes de que el historial los devuelva. La etiqueta de la acción es «Cambiar apuntes y semáforos de expedientes».
