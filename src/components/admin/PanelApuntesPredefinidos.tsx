@@ -137,36 +137,50 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
       {b.semaforo && (
         <fieldset style={estiloSeccion}>
           <legend style={estiloLegend}>4 · Estados del semáforo</legend>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             {estados.map((e, i) => {
               const cambiar = (c: Partial<EstadoSemaforo>) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, ...c } : x)) });
               const modo = e.modo ?? "color";
               const quiereIcono = modo === "icono" || modo === "icono_fondo";
               const quiereColor = modo !== "icono";
               return (
-                <div key={i} style={{ display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-                    <strong style={{ fontSize: "0.82rem", minWidth: "70px" }}>Estado {i + 1}</strong>
-                    <label style={{ ...estiloCampo, flexDirection: "row", alignItems: "center", gap: "8px" }} title="Cada estado se puede mostrar solo con el fondo de su color, solo con un icono (un emoticono, sin fondo) o con el icono sobre el fondo de color">
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: "16px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "16px 18px", background: "rgba(255, 255, 255, 0.015)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                    <strong style={{ fontSize: "0.9rem" }}>Estado {i + 1}{i === Math.min(b.estado_inicial, estados.length - 1) ? " · el de inicio" : ""}</strong>
+                    {estados.length > 2 && (
+                      <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: estados.filter((_, j) => j !== i), estado_inicial: Math.max(0, Math.min(b.estado_inicial, estados.length - 2)) })} style={{ padding: "3px 12px", fontSize: "0.8rem" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)">
+                        ✕ Quitar
+                      </button>
+                    )}
+                  </div>
+                  <label style={estiloCampo}>
+                    Qué significa
+                    <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => cambiar({ texto: ev.target.value })} placeholder="Ej. Seguro aún no solicitado" />
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "16px 20px", alignItems: "end" }}>
+                    <label style={estiloCampo} title="Solo el fondo de su color, solo un icono (un emoticono, sin fondo) o el icono sobre el fondo de color">
                       Se muestra con
-                      <select className="form-input" value={modo} onChange={(ev) => cambiar({ modo: ev.target.value === "icono" ? "icono" : ev.target.value === "icono_fondo" ? "icono_fondo" : "color" })} style={{ width: "auto" }}>
+                      <select className="form-input" value={modo} onChange={(ev) => cambiar({ modo: ev.target.value === "icono" ? "icono" : ev.target.value === "icono_fondo" ? "icono_fondo" : "color" })}>
                         <option value="color">Solo el fondo de color</option>
                         <option value="icono">Solo el icono</option>
                         <option value="icono_fondo">Icono con fondo de color</option>
                       </select>
                     </label>
-                    {quiereIcono && (
-                      <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} title="El icono de este estado (un emoticono)" style={{ width: "76px", textAlign: "center", fontSize: "1.1rem" }} />
-                    )}
                     {quiereColor && (
-                      <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} style={{ width: "48px", height: "34px", padding: 0, border: "none", background: "none" }} />
+                      <label style={estiloCampo}>
+                        Color
+                        <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} style={{ width: "100%", height: "38px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "none", cursor: "pointer" }} />
+                      </label>
                     )}
-                    <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => cambiar({ texto: ev.target.value })} placeholder="Qué significa este estado" style={{ flex: "1 1 220px", minWidth: 0 }} />
-                  </div>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "0.85rem" }} title="Efecto animado de la etiqueta en este estado: llama la atención (por ejemplo un parpadeo rojo para «sin seguro»)">
+                    {quiereIcono && (
+                      <label style={estiloCampo}>
+                        Icono <span style={pista}>(un emoticono)</span>
+                        <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} style={{ textAlign: "center", fontSize: "1.15rem" }} />
+                      </label>
+                    )}
+                    <label style={estiloCampo} title="Efecto animado de la etiqueta en este estado: llama la atención (por ejemplo un parpadeo rojo para «sin seguro»)">
                       Efecto
-                      <select className="form-input" value={e.efecto ?? "ninguno"} onChange={(ev) => cambiar({ efecto: ev.target.value as EstadoSemaforo["efecto"] })} style={{ width: "auto" }}>
+                      <select className="form-input" value={e.efecto ?? "ninguno"} onChange={(ev) => cambiar({ efecto: ev.target.value as EstadoSemaforo["efecto"] })}>
                         <option value="ninguno">Sin efecto</option>
                         <option value="parpadeo">Parpadeo</option>
                         <option value="pulso">Pulso</option>
@@ -175,18 +189,15 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
                         <option value="brillo">Brillo</option>
                       </select>
                     </label>
-                    <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "0.85rem", whiteSpace: "nowrap", cursor: "pointer" }}>
+                  </div>
+                  <div style={{ display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap", paddingTop: "4px", borderTop: "1px dashed var(--border-light)" }}>
+                    <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "0.88rem", whiteSpace: "nowrap", cursor: "pointer", paddingTop: "10px" }}>
                       <input type="checkbox" checked={e.apagado === true} onChange={(ev) => cambiar({ apagado: ev.target.checked })} style={tick} />
                       Tenue
                     </label>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "0.76rem", color: "var(--text-secondary)" }}>
-                      Vista previa {vista(e.color, e)}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "10px", fontSize: "0.8rem", color: "var(--text-secondary)", paddingTop: "10px" }}>
+                      👁 Vista previa {vista(e.color, e)}
                     </span>
-                    {estados.length > 2 && (
-                      <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: estados.filter((_, j) => j !== i), estado_inicial: Math.max(0, Math.min(b.estado_inicial, estados.length - 2)) })} style={{ padding: "2px 10px", marginLeft: "auto" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)">
-                        ✕ Quitar
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -268,10 +279,14 @@ export default function PanelApuntesPredefinidos() {
         const b = editados[p.id] ?? deP(p);
         const sucio = editados[p.id] !== undefined && JSON.stringify(editados[p.id]) !== JSON.stringify(deP(p));
         return (
-          <div key={p.id} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div key={p.id} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)", padding: "20px", display: "flex", flexDirection: "column", gap: "18px", background: "rgba(255, 255, 255, 0.02)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", paddingBottom: "12px", borderBottom: "1px solid var(--border-light)" }}>
+              <strong style={{ fontSize: "1.02rem" }}>{p.semaforo ? "🚦" : "📝"} {p.titulo}</strong>
+              <span style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>{p.semaforo ? `Semáforo de ${p.semaforo_estados.length} estados` : "Apunte sencillo"}</span>
+              {p.clave && <span style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginLeft: "auto" }} title="Lo usa la propia aplicación: se puede editar pero no borrar">🔒 De la aplicación</span>}
+            </div>
             <Editor b={b} alCambiar={(c) => setEditados((x) => ({ ...x, [p.id]: { ...b, ...c } }))} />
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
-              {p.clave && <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginRight: "auto" }} title="Lo usa la propia aplicación: se puede editar pero no borrar">🔒 De la aplicación</span>}
               {sucio && (
                 <button type="button" className="btn btn-primary" disabled={ocupado || b.titulo.trim() === ""} onClick={() => void ejecutar(async () => void (await llamar(`/api/admin/apuntes-predefinidos?id=${p.id}`, { method: "PUT", cuerpo: b })), "Guardado.")} style={{ padding: "5px 14px", fontSize: "0.8rem" }}>
                   Guardar cambios

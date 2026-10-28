@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.36.1 (28/10/2026)
+
+- **Pantalla del semáforo mejor estructurada y alineada.** Cada predefinido es una tarjeta con su cabecera (nombre, tipo y «🔒 De la aplicación»); cada estado del semáforo es una subtarjeta con «Qué significa» arriba, una fila de campos alineados con la misma anchura (Se muestra con, Color, Icono y Efecto, cada uno con su rótulo encima) y, debajo, «Tenue» y la vista previa. El estado de inicio se marca en su cabecera. Más espacio entre bloques.
+
 ## Versión 1.36.0 (28/10/2026)
 
 - **Efectos animados en los estados del semáforo.** Cada estado puede llevar un efecto: **parpadeo**, **pulso**, **destello**, **latido** o **brillo** (clases `gv-ef-*` en `globals.css`, con `--gv-color` para el destello), combinable con cualquier forma de mostrarlo (fondo de color, icono, icono con fondo, con o sin emoticonos en el texto, tenue). Se elige en Configuración › Expedientes › 🚦 Semáforo («Efecto», con vista previa animada) y en la ventana de la etiqueta. Se desactivan si el sistema pide reducir el movimiento.
