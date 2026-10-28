@@ -24,7 +24,7 @@ export default function AyudaSemaforo({ abierta = false, completa = true }: { ab
             <ul style={{ margin: 0, paddingLeft: "18px" }}>
               <li><strong>Texto de la etiqueta</strong>: lo que se lee en la lista. Puedes poner <strong>emoticonos</strong> (por ejemplo «🚗 SEGURO»); son opcionales.</li>
               <li><strong>Estilo</strong>: cápsula con relleno de color, o texto en color. Con «texto en color» puedes decidir si los emoticonos también se pintan del color del estado o conservan los suyos.</li>
-              <li><strong>Estados</strong>: de 2 a 5, cada uno con su color y su significado. «Tenue» hace que la etiqueta se vea apagada (útil para «no lleva seguro»). «Restablecer los colores» vuelve al rojo, amarillo, verde y gris.</li>
+              <li><strong>Estados</strong>: de 2 a 5, cada uno con su significado y una forma de verse: <strong>solo el fondo de color</strong>, <strong>solo el icono</strong> (un emoticono, sin fondo) o el <strong>icono con fondo de color</strong>. «Tenue» hace que la etiqueta se vea apagada (útil para «no lleva seguro»). «Restablecer los colores» vuelve al rojo, amarillo, verde y gris.</li>
               <li><strong>Estado en el que empiezan</strong> los expedientes y <strong>Lo llevan todos los expedientes</strong>: así cada expediente nuevo lo trae solo.</li>
               <li><strong>Lado del icono del cliente</strong>: a la izquierda o a la derecha.</li>
             </ul>

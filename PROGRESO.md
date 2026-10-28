@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.35.1 (28/10/2026)
+
+- **Tres formas de mostrar cada estado del semáforo:** «Solo el fondo de color» (la cápsula de siempre), «Solo el icono» (el emoticono sin cápsula ni texto; el significado sale al pasar el ratón) e «Icono con fondo de color» (la cápsula con el icono delante del texto). Sustituye al «Un color / Un icono» de la 1.35.0 (el valor `modo` del estado pasa a `color`, `icono` o `icono_fondo`). Se elige en Configuración › Expedientes › 🚦 Semáforo y en la ventana de la etiqueta; las vistas previas y la edición en masa lo reflejan.
+
 ## Versión 1.35.0 (28/10/2026)
 
 - **Cada estado del semáforo se define con un color o con un icono.** En Configuración › Expedientes › 🚦 Semáforo, cada estado tiene «Se muestra con: Un color / Un icono»: con color, se pinta como hasta ahora (relleno o texto en color); con **icono**, la etiqueta es una cápsula neutra con el icono delante del texto (por ejemplo «✅ SEGURO»). Se puede mezclar: un estado con color y otro con icono. Vale en la lista, las vistas previas, la ventana de la etiqueta (también se cambia ahí), el apartado Apuntes del expediente y la edición en masa. El modo y el icono se guardan dentro de `semaforo_estados` (campos `modo` e `icono`). El botón «Restablecer los colores» solo toca los colores.

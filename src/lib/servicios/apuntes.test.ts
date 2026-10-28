@@ -97,12 +97,13 @@ describe("apuntes de los expedientes", () => {
   it("cada estado se define con un color o con un icono, a elegir", async () => {
     const { admin, ana, idExpediente } = await escenario();
     const seguro = await predefinido("seguro");
-    const estados = seguro.semaforo_estados.map((e, i) => (i === 2 ? { ...e, modo: "icono" as const, icono: "✅" } : e));
+    const estados = seguro.semaforo_estados.map((e, i) => (i === 2 ? { ...e, modo: "icono" as const, icono: "✅" } : i === 1 ? { ...e, modo: "icono_fondo" as const, icono: "⏳" } : e));
     await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, semaforo_estados: estados }));
     const [a] = await listarApuntes(db, idExpediente);
     await fijarEstadoSemaforo(db, ana, a.id, 2);
     const e = (await apuntesPorExpediente(db)).get(idExpediente)![0];
     expect(e.estados![2]).toMatchObject({ modo: "icono", icono: "✅" });
+    expect(e.estados![1]).toMatchObject({ modo: "icono_fondo", icono: "⏳", color: "#eab308" });
     expect(e.estados![0].modo).toBeUndefined();
     expect(() => esquemaPredefinido.parse({ ...seguro, semaforo_estados: [{ color: "#ffffff", texto: "x", modo: "otro" }, { color: "#000000", texto: "y" }] })).toThrow();
   });

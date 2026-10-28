@@ -140,21 +140,25 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {estados.map((e, i) => {
               const cambiar = (c: Partial<EstadoSemaforo>) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, ...c } : x)) });
-              const conIcono = e.modo === "icono";
+              const modo = e.modo ?? "color";
+              const quiereIcono = modo === "icono" || modo === "icono_fondo";
+              const quiereColor = modo !== "icono";
               return (
                 <div key={i} style={{ display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
                   <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                     <strong style={{ fontSize: "0.82rem", minWidth: "70px" }}>Estado {i + 1}</strong>
-                    <label style={{ ...estiloCampo, flexDirection: "row", alignItems: "center", gap: "8px" }} title="Cada estado se puede mostrar con un color o con un icono (un emoticono) en vez del color">
+                    <label style={{ ...estiloCampo, flexDirection: "row", alignItems: "center", gap: "8px" }} title="Cada estado se puede mostrar solo con el fondo de su color, solo con un icono (un emoticono, sin fondo) o con el icono sobre el fondo de color">
                       Se muestra con
-                      <select className="form-input" value={conIcono ? "icono" : "color"} onChange={(ev) => cambiar({ modo: ev.target.value === "icono" ? "icono" : "color" })} style={{ width: "auto" }}>
-                        <option value="color">Un color</option>
-                        <option value="icono">Un icono</option>
+                      <select className="form-input" value={modo} onChange={(ev) => cambiar({ modo: ev.target.value === "icono" ? "icono" : ev.target.value === "icono_fondo" ? "icono_fondo" : "color" })} style={{ width: "auto" }}>
+                        <option value="color">Solo el fondo de color</option>
+                        <option value="icono">Solo el icono</option>
+                        <option value="icono_fondo">Icono con fondo de color</option>
                       </select>
                     </label>
-                    {conIcono ? (
+                    {quiereIcono && (
                       <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} title="El icono de este estado (un emoticono)" style={{ width: "76px", textAlign: "center", fontSize: "1.1rem" }} />
-                    ) : (
+                    )}
+                    {quiereColor && (
                       <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} style={{ width: "48px", height: "34px", padding: 0, border: "none", background: "none" }} />
                     )}
                     <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => cambiar({ texto: ev.target.value })} placeholder="Qué significa este estado" style={{ flex: "1 1 220px", minWidth: 0 }} />
