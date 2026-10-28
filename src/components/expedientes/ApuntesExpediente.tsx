@@ -5,6 +5,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import type { ApunteDto, PredefinidoDto } from "@/lib/servicios/apuntes";
 import AyudaEmoticonos from "./AyudaEmoticonos";
+import { MarcaEstado } from "./etiqueta-apunte";
 
 interface Borrador {
   titulo: string;
@@ -149,7 +150,7 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }} title="Estado de este apunte (semáforo): los colores y su significado se cambian en Configuración › Expedientes › Apuntes">
                   {a.estados.map((e, i) => (
                     <button key={i} type="button" disabled={ocupado} onClick={() => void estado(a, i)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 10px", borderRadius: "999px", border: `2px solid ${a.estado_semaforo === i ? e.color : "var(--border-light)"}`, background: a.estado_semaforo === i ? `${e.color}22` : "transparent", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.8rem", fontWeight: a.estado_semaforo === i ? 700 : 500 }}>
-                      <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: e.color }} />
+                      <MarcaEstado estado={e} tam={13} />
                       {e.texto}
                     </button>
                   ))}

@@ -6,7 +6,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import type { ExpedienteDto } from "@/lib/dto";
 import AyudaSemaforo from "./AyudaSemaforo";
-import { EtiquetaApunte } from "./etiqueta-apunte";
+import { EtiquetaApunte, MarcaEstado } from "./etiqueta-apunte";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
 
 const COLORES_SEMAFORO = ["#ef4444", "#eab308", "#22c55e", "#9ca3af"];
@@ -82,7 +82,7 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
               onClick={() => void elegir(i)}
               style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: `2px solid ${i === actual ? e.color : "var(--border-light)"}`, background: i === actual ? `${e.color}22` : "transparent", color: "var(--text-primary)", textAlign: "left", cursor: "pointer", fontSize: "0.92rem", fontWeight: i === actual ? 700 : 500 }}
             >
-              <span style={{ width: "16px", height: "16px", borderRadius: "50%", background: e.color, flex: "0 0 auto", opacity: e.apagado ? 0.45 : 1 }} />
+              <MarcaEstado estado={e} />
               {e.texto}
               {i === actual && <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--text-secondary)" }}>actual</span>}
             </button>
@@ -97,9 +97,17 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {estados.map((e, i) => (
               <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <input type="color" value={e.color} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)))} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none", flex: "0 0 auto" }} />
-                <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)))} style={{ flex: 1 }} aria-label={`Significado del estado ${i + 1}`} />
-                <EtiquetaApunte etiqueta={apunte.etiqueta} color={e.color} estilo={apunte.estilo} colorearEmoticonos={apunte.colorear_emoticonos} apagado={e.apagado} />
+                <select className="form-input" value={e.modo === "icono" ? "icono" : "color"} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, modo: ev.target.value === "icono" ? "icono" : "color" } : x)))} aria-label={`Cómo se muestra el estado ${i + 1}`} style={{ width: "auto" }}>
+                  <option value="color">Color</option>
+                  <option value="icono">Icono</option>
+                </select>
+                {e.modo === "icono" ? (
+                  <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, icono: ev.target.value } : x)))} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} style={{ width: "62px", textAlign: "center" }} />
+                ) : (
+                  <input type="color" value={e.color} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)))} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none", flex: "0 0 auto" }} />
+                )}
+                <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)))} style={{ flex: 1, minWidth: 0 }} aria-label={`Significado del estado ${i + 1}`} />
+                <EtiquetaApunte etiqueta={apunte.etiqueta} color={e.color} estilo={apunte.estilo} colorearEmoticonos={apunte.colorear_emoticonos} estado={e} />
                 <label title="Si está marcado, la etiqueta se ve tenue (como apagada)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                   <input type="checkbox" checked={e.apagado === true} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)))} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
                   Tenue

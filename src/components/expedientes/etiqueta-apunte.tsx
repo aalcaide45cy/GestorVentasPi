@@ -22,11 +22,41 @@ export function rotuloEtiqueta(etiqueta: string, color: string, estilo: EstiloEt
   return etiqueta.split(EMOTICONOS).map((t, i) => (EMOTICONOS_PRUEBA.test(t) ? <span key={i} style={{ color: "transparent", textShadow: `0 0 0 ${color}` }}>{t}</span> : t));
 }
 
-/** La etiqueta tal y como saldrá en la lista de Expedientes (vista previa). `apagado` la deja tenue. */
-export function EtiquetaApunte({ etiqueta, color, estilo, colorearEmoticonos, apagado }: { etiqueta: string; color: string; estilo: EstiloEtiqueta; colorearEmoticonos: boolean; apagado?: boolean }) {
-  return (
-    <span style={{ ...estiloEtiqueta(color, estilo), display: "inline-block", ...(apagado ? { opacity: 0.45, ...(estilo === "texto" ? {} : { textShadow: "none" }) } : {}) }}>
-      {rotuloEtiqueta(etiqueta.trim() === "" ? "(sin texto)" : etiqueta, color, estilo, colorearEmoticonos)}
-    </span>
+/** El estado de un semáforo que afecta a cómo se pinta la etiqueta: si va con icono en vez de color, y si va tenue. */
+export interface AspectoEstado {
+  modo?: "color" | "icono";
+  icono?: string;
+  apagado?: boolean;
+}
+
+const usaIcono = (e?: AspectoEstado): boolean => e?.modo === "icono" && (e.icono ?? "").trim() !== "";
+
+/**
+ * Cómo se pinta la etiqueta en un estado: con el color del estado (relleno o texto en color) o, si el estado va con **icono**, con una cápsula neutra que lleva
+ * el icono delante del texto. `apagado` la deja tenue.
+ */
+export function aspectoEtiqueta(etiqueta: string, color: string, estilo: EstiloEtiqueta, colorearEmoticonos: boolean, estado?: AspectoEstado): { estilo: CSSProperties; contenido: ReactNode } {
+  const tenue: CSSProperties = estado?.apagado ? { opacity: 0.45, ...(estilo === "texto" || usaIcono(estado) ? {} : { textShadow: "none" }) } : {};
+  if (usaIcono(estado)) {
+    return {
+      estilo: { background: "var(--bg-surface-tint)", color: "var(--text-primary)", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", border: "1px solid var(--border-light)", ...tenue },
+      contenido: `${estado?.icono?.trim()} ${etiqueta}`.trim(),
+    };
+  }
+  return { estilo: { ...estiloEtiqueta(color, estilo), ...tenue }, contenido: rotuloEtiqueta(etiqueta, color, estilo, colorearEmoticonos) };
+}
+
+/** La etiqueta tal y como saldrá en la lista de Expedientes (vista previa). */
+export function EtiquetaApunte({ etiqueta, color, estilo, colorearEmoticonos, estado }: { etiqueta: string; color: string; estilo: EstiloEtiqueta; colorearEmoticonos: boolean; estado?: AspectoEstado }) {
+  const a = aspectoEtiqueta(etiqueta.trim() === "" ? "(sin texto)" : etiqueta, color, estilo, colorearEmoticonos, estado);
+  return <span style={{ ...a.estilo, display: "inline-block" }}>{a.contenido}</span>;
+}
+
+/** El distintivo de un estado en un botón o una lista: un círculo de su color o su icono. */
+export function MarcaEstado({ estado, tam = 16 }: { estado: { color: string; modo?: "color" | "icono"; icono?: string; apagado?: boolean }; tam?: number }) {
+  return usaIcono(estado) ? (
+    <span style={{ fontSize: `${tam}px`, lineHeight: 1, flex: "0 0 auto", opacity: estado.apagado ? 0.45 : 1 }}>{estado.icono}</span>
+  ) : (
+    <span style={{ width: `${tam}px`, height: `${tam}px`, borderRadius: "50%", background: estado.color, flex: "0 0 auto", opacity: estado.apagado ? 0.45 : 1 }} />
   );
 }

@@ -6,7 +6,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { IconoCliente } from "../Enlaces";
 import ModalApunte from "./ModalApunte";
-import { estiloEtiqueta, rotuloEtiqueta } from "./etiqueta-apunte";
+import { aspectoEtiqueta } from "./etiqueta-apunte";
 import { useToast } from "../Toast";
 import { EtiquetaEstado, EtiquetaPago, type DatosVehiculo } from "../etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
@@ -126,15 +126,15 @@ export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apu
     <>
       {visibles.map((a) => {
         const semaforo = a.estados !== null && a.estado_semaforo !== null;
-        const texto = semaforo ? (a.estados?.[a.estado_semaforo ?? 0]?.texto ?? "") : "";
-        const apagado = semaforo && a.estados?.[a.estado_semaforo ?? 0]?.apagado === true;
+        const estado = semaforo ? a.estados?.[a.estado_semaforo ?? 0] : undefined;
+        const aspecto = aspectoEtiqueta(a.etiqueta, a.color, a.estilo, a.colorear_emoticonos, estado);
         return semaforo ? (
-          <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${texto}. Pulsa para cambiarlo`} style={{ ...estiloEtiqueta(a.color, a.estilo), cursor: "pointer", ...(apagado ? { opacity: 0.45, ...(a.estilo === "texto" ? {} : { textShadow: "none" }) } : {}) }}>
-            {rotuloEtiqueta(a.etiqueta, a.color, a.estilo, a.colorear_emoticonos)}
+          <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${estado?.texto ?? ""}. Pulsa para cambiarlo`} style={{ ...aspecto.estilo, cursor: "pointer" }}>
+            {aspecto.contenido}
           </button>
         ) : (
-          <span key={a.id} title={`Apunte: ${a.titulo}`} style={estiloEtiqueta(a.color, a.estilo)}>
-            {rotuloEtiqueta(a.etiqueta, a.color, a.estilo, a.colorear_emoticonos)}
+          <span key={a.id} title={`Apunte: ${a.titulo}`} style={aspecto.estilo}>
+            {aspecto.contenido}
           </span>
         );
       })}

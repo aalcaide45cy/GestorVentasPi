@@ -25,7 +25,7 @@ export const ESTADOS_SEMAFORO_INICIALES = [
   { color: "#22c55e", texto: "Terminado" },
 ];
 
-export const esquemaEstadosSemaforo = z.array(z.object({ color, texto: z.string().trim().min(1, "Cada color necesita su significado").max(80), apagado: z.boolean().optional(), icono: z.string().trim().max(8).optional() })).min(2, "Un semáforo necesita al menos 2 estados").max(5);
+export const esquemaEstadosSemaforo = z.array(z.object({ color, texto: z.string().trim().min(1, "Cada color necesita su significado").max(80), apagado: z.boolean().optional(), icono: z.string().trim().max(8).optional(), modo: z.enum(["color", "icono"]).optional() })).min(2, "Un semáforo necesita al menos 2 estados").max(5);
 
 export const esquemaPredefinido = z.object({
   titulo: z.string().trim().min(1, "Falta el título").max(80),
@@ -63,7 +63,9 @@ export interface EstadoSemaforo {
   texto: string;
   /** Estado «apagado»: la etiqueta se ve tenue y en gris (por ejemplo, «no lleva seguro»). */
   apagado?: boolean;
-  /** Emoticono (o texto corto) que sale delante de la etiqueta cuando el apunte está en este estado (por ejemplo 🔴). */
+  /** Cómo se muestra este estado: con su color (por defecto) o con un icono (un emoticono) en vez del color. */
+  modo?: "color" | "icono";
+  /** El icono del estado, cuando se muestra con icono (por ejemplo ✅). */
   icono?: string;
 }
 

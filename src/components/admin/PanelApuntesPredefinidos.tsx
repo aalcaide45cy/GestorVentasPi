@@ -61,7 +61,7 @@ function Casilla({ marcada, alCambiar, titulo, ayuda, desactivada }: { marcada: 
 function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador>) => void }) {
   const estados = b.semaforo_estados;
   const colorear = b.estilo_etiqueta === "texto" && b.colorear_emoticonos;
-  const vista = (color: string, apagado?: boolean) => <EtiquetaApunte etiqueta={b.etiqueta} color={color} estilo={b.estilo_etiqueta} colorearEmoticonos={colorear} apagado={apagado} />;
+  const vista = (color: string, estado?: EstadoSemaforo) => <EtiquetaApunte etiqueta={b.etiqueta} color={color} estilo={b.estilo_etiqueta} colorearEmoticonos={colorear} estado={estado} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <fieldset style={estiloSeccion}>
@@ -116,7 +116,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
           {b.semaforo
             ? estados.map((e, i) => (
                 <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.72rem", color: "var(--text-secondary)" }} title={e.texto}>
-                  {vista(e.color, e.apagado)}
+                  {vista(e.color, e)}
                   <span>{e.texto || "(sin texto)"}</span>
                 </span>
               ))
@@ -138,24 +138,44 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
         <fieldset style={estiloSeccion}>
           <legend style={estiloLegend}>4 · Estados del semáforo</legend>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {estados.map((e, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "auto minmax(160px, 1fr) auto auto auto", gap: "10px 12px", alignItems: "center" }}>
-                <input type="color" value={e.color} onChange={(ev) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)) })} aria-label={`Color del estado ${i + 1}`} style={{ width: "44px", height: "32px", padding: 0, border: "none", background: "none" }} />
-                <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)) })} placeholder="Qué significa este color" />
-                <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "0.85rem", whiteSpace: "nowrap", cursor: "pointer" }}>
-                  <input type="checkbox" checked={e.apagado === true} onChange={(ev) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)) })} style={tick} />
-                  Tenue
-                </label>
-                {vista(e.color, e.apagado)}
-                {estados.length > 2 ? (
-                  <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: estados.filter((_, j) => j !== i), estado_inicial: Math.max(0, Math.min(b.estado_inicial, estados.length - 2)) })} style={{ padding: "2px 9px" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)">
-                    ✕
-                  </button>
-                ) : (
-                  <span />
-                )}
-              </div>
-            ))}
+            {estados.map((e, i) => {
+              const cambiar = (c: Partial<EstadoSemaforo>) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, ...c } : x)) });
+              const conIcono = e.modo === "icono";
+              return (
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: "10px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: "0.82rem", minWidth: "70px" }}>Estado {i + 1}</strong>
+                    <label style={{ ...estiloCampo, flexDirection: "row", alignItems: "center", gap: "8px" }} title="Cada estado se puede mostrar con un color o con un icono (un emoticono) en vez del color">
+                      Se muestra con
+                      <select className="form-input" value={conIcono ? "icono" : "color"} onChange={(ev) => cambiar({ modo: ev.target.value === "icono" ? "icono" : "color" })} style={{ width: "auto" }}>
+                        <option value="color">Un color</option>
+                        <option value="icono">Un icono</option>
+                      </select>
+                    </label>
+                    {conIcono ? (
+                      <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} title="El icono de este estado (un emoticono)" style={{ width: "76px", textAlign: "center", fontSize: "1.1rem" }} />
+                    ) : (
+                      <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} style={{ width: "48px", height: "34px", padding: 0, border: "none", background: "none" }} />
+                    )}
+                    <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => cambiar({ texto: ev.target.value })} placeholder="Qué significa este estado" style={{ flex: "1 1 220px", minWidth: 0 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
+                    <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "0.85rem", whiteSpace: "nowrap", cursor: "pointer" }}>
+                      <input type="checkbox" checked={e.apagado === true} onChange={(ev) => cambiar({ apagado: ev.target.checked })} style={tick} />
+                      Tenue
+                    </label>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "0.76rem", color: "var(--text-secondary)" }}>
+                      Vista previa {vista(e.color, e)}
+                    </span>
+                    {estados.length > 2 && (
+                      <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: estados.filter((_, j) => j !== i), estado_inicial: Math.max(0, Math.min(b.estado_inicial, estados.length - 2)) })} style={{ padding: "2px 10px", marginLeft: "auto" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)">
+                        ✕ Quitar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
             {estados.length < 5 && (
