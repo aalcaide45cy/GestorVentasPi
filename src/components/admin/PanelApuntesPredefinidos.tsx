@@ -660,8 +660,6 @@ export default function PanelApuntesPredefinidos() {
   const [lista, setLista] = useState<PredefinidoDto[] | null>(null);
   const [editados, setEditados] = useState<Record<number, Borrador>>({});
   const [nuevo, setNuevo] = useState<Borrador | null>(null);
-  // Estado elegido para «Aplicar ahora a todos los expedientes», por predefinido
-  const [paraTodos, setParaTodos] = useState<Record<number, number>>({});
   const [ocupado, setOcupado] = useState(false);
   // Predefinidos desplegados (por defecto todos contraídos)
   const [abiertos, setAbiertos] = useState<Set<number>>(new Set());
@@ -825,81 +823,42 @@ export default function PanelApuntesPredefinidos() {
                       flexWrap: "wrap",
                     }}
                   >
-                    {p.semaforo && (
-                      <select
-                        className="form-input"
-                        value={
-                          paraTodos[p.id] ??
-                          Math.min(
-                            p.estado_inicial,
-                            p.semaforo_estados.length - 1,
+                    {[true, false].map((m) => (
+                      <button
+                        key={String(m)}
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={ocupado}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Esto ${m ? "mostrará" : "ocultará"} la etiqueta «${p.titulo}» en la lista de TODOS los expedientes. ¿Seguro?`,
+                            )
                           )
+                            void ejecutar(async () => {
+                              const { data } = await llamar<{
+                                cambiados: number;
+                              }>(
+                                `/api/admin/apuntes-predefinidos?id=${p.id}&mostrar=${m ? 1 : 0}`,
+                                { method: "POST", cuerpo: {} },
+                              );
+                              mostrar(
+                                `${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} actualizado${data.cambiados === 1 ? "" : "s"}.`,
+                              );
+                            }, "Hecho.");
+                        }}
+                        style={{ padding: "5px 14px", fontSize: "0.8rem" }}
+                        title={
+                          m
+                            ? "Muestra la etiqueta en la lista de todos los expedientes"
+                            : "Oculta la etiqueta en la lista de todos los expedientes"
                         }
-                        onChange={(e) =>
-                          setParaTodos((x) => ({
-                            ...x,
-                            [p.id]: Number(e.target.value),
-                          }))
-                        }
-                        aria-label={`Estado que se pondrá a todos los expedientes para ${p.titulo}`}
-                        title="El estado que se pondrá a todos los expedientes"
-                        style={{ width: "auto", maxWidth: "260px" }}
                       >
-                        {p.semaforo_estados.map((e, i) => (
-                          <option key={i} value={i}>
-                            Para los que no lo tengan: {e.texto || `estado ${i + 1}`}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={ocupado}
-                      onClick={() => {
-                        const estado = p.semaforo
-                          ? (paraTodos[p.id] ??
-                            Math.min(
-                              p.estado_inicial,
-                              p.semaforo_estados.length - 1,
-                            ))
-                          : null;
-                        const texto = p.semaforo
-                          ? `Esto pondrá «${p.titulo}» en el estado «${p.semaforo_estados[estado ?? 0]?.texto ?? ""}» en TODOS los expedientes: se lo añade solo a los que no lo tengan; los que ya lo tienen NO se tocan. ¿Seguro?`
-                          : `Esto añadirá «${p.titulo}» a TODOS los expedientes que no lo tengan. ¿Seguro?`;
-                        if (window.confirm(texto))
-                          void ejecutar(async () => {
-                            const { data } = await llamar<{
-                              cambiados: number;
-                            }>(
-                              `/api/admin/apuntes-predefinidos?id=${p.id}&aplicar=1`,
-                              { method: "POST", cuerpo: { estado } },
-                            );
-                            mostrar(
-                              `${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} actualizado${data.cambiados === 1 ? "" : "s"}.`,
-                            );
-                          }, "Hecho.");
-                      }}
-                      style={{ padding: "5px 14px", fontSize: "0.8rem" }}
-                      title="Lo añade ahora a los expedientes que no lo tengan, sin tocar los que ya lo tienen (los nuevos lo reciben solos si marcas «Lo llevan todos los expedientes»)"
-                    >
-                      ⚡ Aplicar ahora a todos los expedientes
-                    </button>
-                {[true, false].map((m) => (
-                  <button
-                    key={String(m)}
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={ocupado}
-                    onClick={() => {
-                      if (window.confirm(`Esto ${m ? "mostrará" : "ocultará"} la etiqueta «${p.titulo}» en la lista de TODOS los expedientes. ¿Seguro?`)) void ejecutar(async () => { const { data } = await llamar<{ cambiados: number }>(`/api/admin/apuntes-predefinidos?id=${p.id}&mostrar=${m ? 1 : 0}`, { method: "POST", cuerpo: {} }); mostrar(`${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} actualizado${data.cambiados === 1 ? "" : "s"}.`); }, "Hecho.");
-                    }}
-                    style={{ padding: "5px 14px", fontSize: "0.8rem" }}
-                    title={m ? "Muestra la etiqueta en la lista de todos los expedientes" : "Oculta la etiqueta en la lista de todos los expedientes"}
-                  >
-                    {m ? "👁 Mostrar en la lista de todos" : "🚫 Ocultar en la lista de todos"}
-                  </button>
-                ))}
+                        {m
+                          ? "👁 Mostrar en la lista de todos"
+                          : "🚫 Ocultar en la lista de todos"}
+                      </button>
+                    ))}
                   </span>
                 )}
               </div>

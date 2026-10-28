@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { leerIdQuery, leerJson, manejar } from "@/lib/http";
 import { z } from "zod";
-import { actualizarPredefinido, aplicarATodos, mostrarEnTodos, crearPredefinido, eliminarPredefinido, esquemaPredefinido, listarPredefinidos } from "@/lib/servicios/apuntes";
+import { actualizarPredefinido, mostrarEnTodos, crearPredefinido, eliminarPredefinido, esquemaPredefinido, listarPredefinidos } from "@/lib/servicios/apuntes";
 
 export const dynamic = "force-dynamic";
 
@@ -15,18 +15,12 @@ export const GET = manejar(async () => {
 
 export const POST = manejar(async (req: Request) => {
   const u = await requireSession("administrador");
-  // `?id=N&aplicar=1`: pone el predefinido en todos los expedientes, en el estado dado (solo semáforos)
+  // `?id=N&mostrar=1|0`: muestra u oculta su etiqueta en la lista de todos los expedientes
   const q = new URL(req.url).searchParams;
   if (q.get("mostrar") === "1" || q.get("mostrar") === "0") {
     const id = leerIdQuery(req);
     if (!id) throw new HttpError(400, "Falta el apunte predefinido");
     return NextResponse.json({ success: true, data: { cambiados: await mostrarEnTodos(db, u, id, q.get("mostrar") === "1") } });
-  }
-  if (q.get("aplicar") === "1") {
-    const id = leerIdQuery(req);
-    if (!id) throw new HttpError(400, "Falta el apunte predefinido");
-    const { estado } = await leerJson(req, z.object({ estado: z.number().int().min(0).max(9).nullable().default(null) }));
-    return NextResponse.json({ success: true, data: { cambiados: await aplicarATodos(db, u, id, estado) } });
   }
   return NextResponse.json({ success: true, data: await crearPredefinido(db, u, await leerJson(req, esquemaPredefinido)) }, { status: 201 });
 });
