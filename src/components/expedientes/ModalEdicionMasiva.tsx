@@ -53,12 +53,12 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
   const [fEntrega, setFEntrega] = useState("");
   // Semáforos (como el del Seguro): el estado que se pondrá a todos los seleccionados, por predefinido (vacío = no modificar)
   const [semaforos, setSemaforos] = useState<PredefinidoDto[]>([]);
-  const [estadosSemaforo, setEstadosSemaforo] = useState<Record<number, number | "">>({});
+  const [estadosSemaforo, setEstadosSemaforo] = useState<Record<number, number | "anadir" | "quitar" | "">>({});
   const [guardandoSemaforo, setGuardandoSemaforo] = useState(false);
 
   useEffect(() => {
     llamar<PredefinidoDto[]>("/api/admin/apuntes-predefinidos")
-      .then((r) => setSemaforos(r.data.filter((p) => p.semaforo)))
+      .then((r) => setSemaforos(r.data))
       .catch(() => undefined);
   }, []);
 
@@ -87,7 +87,7 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
     if (fFactura) cambios.fecha_facturacion = fFactura;
     if (fMat) cambios.fecha_matriculacion = fMat;
     if (fEntrega) cambios.fecha_entrega = fEntrega;
-    const semaforosElegidos = Object.entries(estadosSemaforo).filter(([, v]) => v !== "") as [string, number][];
+    const semaforosElegidos = Object.entries(estadosSemaforo).filter(([, v]) => v !== "") as [string, number | "anadir" | "quitar"][];
     if (Object.keys(cambios).length === 0 && semaforosElegidos.length === 0) {
       alAvisar("Por favor, rellene al menos un campo para modificar.");
       return;
@@ -95,7 +95,10 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
     if (semaforosElegidos.length > 0) {
       setGuardandoSemaforo(true);
       try {
-        for (const [id, estado] of semaforosElegidos) await llamar("/api/expedientes/apuntes", { method: "POST", cuerpo: { accion: "estado_masivo", ids: idsSeleccionados, id_predefinido: Number(id), estado_semaforo: estado } });
+        for (const [id, valor] of semaforosElegidos) {
+          const cuerpo = typeof valor === "number" ? { accion: "estado_masivo", ids: idsSeleccionados, id_predefinido: Number(id), estado_semaforo: valor } : { accion: "apunte_masivo", ids: idsSeleccionados, id_predefinido: Number(id), operacion: valor };
+          await llamar("/api/expedientes/apuntes", { method: "POST", cuerpo });
+        }
       } catch (e) {
         alAvisar(textoError(e));
         setGuardandoSemaforo(false);
@@ -226,15 +229,30 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
             <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
               {semaforos.map((s) =>
                 grupo(
-                  `🚦 ${s.titulo} (semáforo)`,
+                  s.semaforo ? `🚦 ${s.titulo} (semáforo)` : `📝 ${s.titulo}`,
                   "240px",
-                  <select className="form-select" value={estadosSemaforo[s.id] ?? ""} onChange={(e) => setEstadosSemaforo((x) => ({ ...x, [s.id]: e.target.value === "" ? "" : Number(e.target.value) }))}>
+                  <select
+                    className="form-select"
+                    value={estadosSemaforo[s.id] ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setEstadosSemaforo((x) => ({ ...x, [s.id]: v === "" ? "" : v === "anadir" || v === "quitar" ? v : Number(v) }));
+                    }}
+                  >
                     <option value="">(No modificar)</option>
-                    {s.semaforo_estados.map((e, i) => (
-                      <option key={i} value={i}>
-                        {e.texto}
-                      </option>
-                    ))}
+                    {s.semaforo ? (
+                      s.semaforo_estados.map((e, i) => (
+                        <option key={i} value={i}>
+                          {e.icono ? `${e.icono} ` : ""}
+                          {e.texto}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="anadir">Añadir a todos los que no lo tengan</option>
+                        <option value="quitar">Quitar de todos (va a la Papelera)</option>
+                      </>
+                    )}
                   </select>,
                 ),
               )}

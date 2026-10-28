@@ -255,6 +255,32 @@ export async function fijarEstadoMasivo(ej: Ejecutor, u: UsuarioActual, ids: num
   return (r as unknown as { rows: unknown[] }).rows.length;
 }
 
+/**
+ * Edición en masa de un apunte predefinido que no es un semáforo: lo añade a los expedientes que no lo tienen o lo quita de los que lo tienen (los quitados se guardan
+ * en la Papelera). El administrador puede con cualquiera; el vendedor, solo con los suyos. Devuelve cuántos expedientes se han cambiado.
+ */
+export async function anadirOQuitarMasivo(ej: Ejecutor, u: UsuarioActual, ids: number[], idPredefinido: number, operacion: "anadir" | "quitar"): Promise<number> {
+  if (ids.length === 0) return 0;
+  const [p] = await ej.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, idPredefinido));
+  if (!p) throw new HttpError(404, "Apunte predefinido no encontrado");
+  const lista = sql.join(ids.map((i) => sql`${i}`), sql`, `);
+  const propios = esAdministrador(u.rol) ? sql`` : sql`and e.id_usuario = ${u.idUsuario}`;
+  if (operacion === "anadir") {
+    const estado = p.semaforo ? Math.min(p.estadoInicial, Math.max(p.semaforoEstados.length - 1, 0)) : null;
+    const r = await ej.execute(sql`
+      insert into apuntes_expediente (id_expediente, id_predefinido, titulo, descripcion, etiqueta, color, mostrar_etiqueta, estado_semaforo)
+      select e.id_expediente, ${p.id}, ${p.titulo}, ${p.descripcion}, ${p.etiqueta}, ${p.semaforo ? (p.semaforoEstados[estado ?? 0]?.color ?? p.color) : p.color}, ${p.mostrarEtiqueta}, ${estado}
+      from expedientes e where e.id_expediente in (${lista}) and e.eliminado_en is null ${propios}
+      on conflict (id_expediente, id_predefinido) where id_predefinido is not null do nothing
+      returning id`);
+    return (r as unknown as { rows: unknown[] }).rows.length;
+  }
+  const donde = sql`t.id_predefinido = ${p.id} and t.id_expediente in (select e.id_expediente from expedientes e where e.id_expediente in (${lista}) ${propios})`;
+  const n = await archivarElementos(ej, "apunte", donde, { etiqueta: `Apunte «${p.titulo}» quitado en masa`, detalle: p.descripcion || null }, u.idUsuario);
+  await ej.execute(sql`delete from apuntes_expediente t where ${donde}`);
+  return n;
+}
+
 /** Cambia el estado de un apunte que funciona como semáforo (0 = rojo… según los estados del predefinido). */
 export async function fijarEstadoSemaforo(ej: Ejecutor, u: UsuarioActual, id: number, estado: number): Promise<ApunteDto> {
   const [a] = await ej.select().from(apuntesExpediente).where(eq(apuntesExpediente.id, id));
