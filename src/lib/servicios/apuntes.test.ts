@@ -4,8 +4,9 @@ import { db } from "@/db";
 import { apuntesPredefinidos, papeleraElementos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, mostrarEnTodos, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
-import { esquemaCrearExpediente } from "./expedientes";
-import { crearExpediente } from "./expedientes-escritura";
+import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
+import { actualizarExpedientes, crearExpediente } from "./expedientes-escritura";
+import { revisarReglasDe } from "./reglas-semaforo";
 import { restaurar } from "./papelera";
 
 beforeEach(reiniciarBd);
@@ -160,6 +161,30 @@ describe("apuntes de los expedientes", () => {
     expect((await listarApuntes(db, otro.id_expediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ mostrar_etiqueta: false });
     expect(await mostrarEnTodos(db, admin, nuevo.id, true)).toBe(2);
     expect((await listarApuntes(db, idExpediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ mostrar_etiqueta: true });
+  });
+
+  it("las reglas del semáforo lo cambian solas al guardar un expediente", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const regla = { id: "r1", nombre: "Facturado", activa: true, estado: 2, desde: [], combinar: "todas" as const, condiciones: [{ campo: "fecha_facturacion" as const, operador: "tiene", valor: "" }] };
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, reglas_estado: [regla] }));
+    // Sin guardar el expediente no pasa nada
+    expect((await listarApuntes(db, idExpediente))[0]).toMatchObject({ estado_semaforo: 0 });
+    await actualizarExpedientes(db, ana, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: idExpediente, expediente: { fecha_facturacion: "2026-10-01" } }));
+    expect((await listarApuntes(db, idExpediente))[0]).toMatchObject({ estado_semaforo: 2, color: "#22c55e" });
+    // «Solo si ahora está en»: con desde [1] un expediente en rojo no cambia
+    const otro = await crearExpediente(db, ana, esquemaCrearExpediente.parse({ cliente: { nombre: "Otro", dni: "55555555B" }, expediente: {} }));
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, reglas_estado: [{ ...regla, desde: [1] }] }));
+    await actualizarExpedientes(db, ana, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: otro.id_expediente, expediente: { fecha_facturacion: "2026-10-02" } }));
+    expect((await listarApuntes(db, otro.id_expediente))[0]).toMatchObject({ estado_semaforo: 0 });
+    // Revisión de todos: se puede contar sin cambiar y luego aplicar (solo administrador)
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, reglas_estado: [{ ...regla, estado: 1 }] }));
+    await expect(revisarReglasDe(db, ana, seguro.id, true)).rejects.toThrow(/administrador/);
+    expect(await revisarReglasDe(db, admin, seguro.id, true)).toBe(2);
+    expect((await listarApuntes(db, otro.id_expediente))[0]).toMatchObject({ estado_semaforo: 0 });
+    expect(await revisarReglasDe(db, admin, seguro.id, false)).toBe(2);
+    expect((await listarApuntes(db, otro.id_expediente))[0]).toMatchObject({ estado_semaforo: 1, color: "#eab308" });
+    expect(await revisarReglasDe(db, admin, seguro.id, false)).toBe(0);
   });
 
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {

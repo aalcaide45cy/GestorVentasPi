@@ -35,7 +35,7 @@ const estiloBotonChico = { padding: "3px 10px", fontSize: "0.8rem" } as const;
 const estiloSelect = { width: "auto", padding: "5px 8px", fontSize: "0.88rem" } as const;
 
 /** Un grupo de condiciones: cómo se combinan (todas, alguna o ninguna) y la lista de condiciones. */
-function GrupoEditor({ idBase, grupo, sugerencias, titulo, alCambiar, alQuitar }: { idBase: string; grupo: GrupoCondiciones; sugerencias: SugerenciasReglas; titulo: string; alCambiar: (g: GrupoCondiciones) => void; alQuitar?: () => void }) {
+export function GrupoEditor({ idBase, grupo, sugerencias, titulo, alCambiar, alQuitar }: { idBase: string; grupo: GrupoCondiciones; sugerencias: SugerenciasReglas; titulo: string; alCambiar: (g: GrupoCondiciones) => void; alQuitar?: () => void }) {
   const cambiarCondicion = (i: number, c: Condicion) => alCambiar({ ...grupo, condiciones: grupo.condiciones.map((x, j) => (j === i ? c : x)) });
   const lista = (campo: CampoRegla): string[] =>
     campo === "tipo_venta" ? sugerencias.tiposVenta : campo === "estado" ? sugerencias.estados : campo === "marca" ? sugerencias.marcas : campo === "clase" ? ["VN", "VO"] : campo === "comisionado" ? ["Comisionado", "Reclamado", "Pendiente"] : campo === "estado_intranet" ? ESTADOS_INTRANET_HABITUALES : [];

@@ -256,7 +256,7 @@ function cumpleGrupo(e: ExpedienteDto, g: GrupoCondiciones, hoy: string): boolea
 export const gruposDeRegla = (r: Pick<ReglaColor, "combinar" | "condiciones" | "grupos">): GrupoCondiciones[] => [{ combinar: r.combinar, condiciones: r.condiciones }, ...(r.grupos ?? [])];
 
 /** Si un expediente cumple una regla: sus grupos de condiciones, unidos con «y» (todos) u «o» (alguno). Una regla sin ninguna condición no se aplica. */
-export function cumpleRegla(e: ExpedienteDto, r: ReglaColor, hoy: string): boolean {
+export function cumpleRegla(e: ExpedienteDto, r: Pick<ReglaColor, "combinar" | "condiciones" | "grupos" | "unir">, hoy: string): boolean {
   const resultados = gruposDeRegla(r).map((g) => cumpleGrupo(e, g, hoy)).filter((x): x is boolean => x !== null);
   if (resultados.length === 0) return false;
   return (r.unir ?? "y") === "o" ? resultados.some(Boolean) : resultados.every(Boolean);

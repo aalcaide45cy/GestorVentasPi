@@ -18,6 +18,7 @@ import { hoyIso } from "./comun";
 import { MAX_COPIAS_TOTAL, UMBRAL_COPIA_PREVIA, type EntradaActualizarExpediente, type EntradaCrearExpediente, type EntradaDuplicarExpedientes } from "./expedientes";
 import { facturacionPorDefectoVo } from "@/lib/facturacion-vo";
 import { obtenerExpediente } from "./expedientes-lectura";
+import { aplicarReglasSemaforo } from "./reglas-semaforo";
 import { conRecalculo, type ResumenRecalculo } from "./liquidaciones";
 
 /** Cambios producidos por el recálculo en meses ya revisados o cerrados (para avisar al usuario). */
@@ -114,6 +115,7 @@ export async function crearExpediente(
         fechaCobrado: e.fecha_cobrado ?? null,
       })
       .returning({ id: expedientes.idExpediente });
+    await aplicarReglasSemaforo(tx, [nuevo.id]);
     return { valor: nuevo.id, idsDespues: [nuevo.id] };
   });
   const creado = await obtenerExpediente(ej, id);
@@ -255,6 +257,7 @@ export async function actualizarExpedientes(
         .where(and(inArray(expedientes.idExpediente, entrada.ids), isNull(expedientes.eliminadoEn)))
         .returning({ id: expedientes.idExpediente });
       await aplicarFacturaciones(tx, facturaciones);
+      await aplicarReglasSemaforo(tx, entrada.ids);
       return { valor: filas.length, idsDespues: entrada.ids };
     });
     return { actualizados: valor, impactos: impactos(recalculos), avisos };
@@ -321,6 +324,7 @@ export async function actualizarExpedientes(
       .where(and(eq(expedientes.idExpediente, entrada.id_expediente), isNull(expedientes.eliminadoEn)))
       .returning({ id: expedientes.idExpediente });
     await aplicarFacturaciones(tx, facturaciones);
+    await aplicarReglasSemaforo(tx, [entrada.id_expediente]);
     return { valor: filas.length, idsDespues: [entrada.id_expediente] };
   });
   if (valor === 0) throw new HttpError(404, "Expediente no encontrado");

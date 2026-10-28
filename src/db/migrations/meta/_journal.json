@@ -470,6 +470,13 @@
       "when": 1793205231857,
       "tag": "0066_comentario_estado",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1793205231858,
+      "tag": "0067_reglas_estado_semaforo",
+      "breakpoints": true
     }
   ]
 }

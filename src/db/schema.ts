@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
+import type { ReglaEstado } from "../lib/reglas-semaforo";import {
   bigint,
   bigserial,
   boolean,
@@ -1246,6 +1246,8 @@ export const apuntesPredefinidos = pgTable(
     colorearEmoticonos: boolean("colorear_emoticonos").notNull().default(true),
     /** Estado en el que empiezan los expedientes (posición en `semaforoEstados`). */
     estadoInicial: integer("estado_inicial").notNull().default(0),
+    /** Reglas que cambian solas el estado del semáforo cuando el expediente cumple unas condiciones (ver `reglas-semaforo.ts`). */
+    reglasEstado: jsonb("reglas_estado").$type<ReglaEstado[]>().notNull().default(sql`'[]'::jsonb`),
     /** A qué lado del icono del cliente sale la etiqueta en la lista: izquierda o derecha. */
     lado: varchar("lado", { length: 10 }).notNull().default("derecha"),
     orden: integer("orden").notNull().default(0),

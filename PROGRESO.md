@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.39.0 (28/10/2026)
+
+- **Reglas automáticas del semáforo** (Ajustes › Semáforo › sección «5 · Reglas automáticas», solo en los que son semáforo): cada regla tiene las mismas condiciones que las reglas de color (grupos con todas/alguna/ninguna, unidos con Y/O), el estado al que pasa y, opcionalmente, «solo si ahora está en» ciertos estados. Gana la primera activa que se cumple (se pueden subir/bajar).
+- Se revisan **al crear o guardar un expediente** (individual y en lote), no a escondidas sobre todos. El botón «🔎 Revisar ahora con las reglas» cuenta primero cuántos cambiarían y pregunta antes de aplicar (solo administrador).
+- Datos: columna `apuntes_predefinidos.reglas_estado` (migración 0067, `when` 1793205231858); lógica pura en `src/lib/reglas-semaforo.ts`, servidor en `src/lib/servicios/reglas-semaforo.ts`; ruta `POST /api/admin/apuntes-predefinidos?id=N&reglas=contar|aplicar`. La condición «Comisionado» no es fiable en estas reglas (no se calcula al guardar).
+
 ## Versión 1.38.4 (28/10/2026)
 
 - Se **quita** el selector «Poner a todos» y el botón «⚡ Aplicar ahora a todos los expedientes» (y su ruta `?aplicar=1` y `aplicarATodos`), por peligroso. Quedan «Mostrar / Ocultar en la lista de todos» y la opción «Lo llevan todos los expedientes» al guardar.

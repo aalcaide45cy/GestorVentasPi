@@ -120,7 +120,7 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
         {(pestana) => (
           <>
             {pestana === "reglas" && <GestorReglasColor sugerencias={sugerencias} />}
-            {pestana === "apuntes" && <PanelApuntesPredefinidos />}
+            {pestana === "apuntes" && <PanelApuntesPredefinidos sugerencias={sugerencias} />}
             {pestana === "lista" && (
               <>
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", borderLeft: "3px solid var(--primary)" }}>

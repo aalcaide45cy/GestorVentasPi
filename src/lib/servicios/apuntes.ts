@@ -5,6 +5,7 @@ import { apuntesExpediente, apuntesPredefinidos, expedientes } from "@/db/schema
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { archivarElementos } from "./papelera-elementos";
+import { esquemaReglasEstado, type ReglaEstado } from "@/lib/reglas-semaforo";
 
 /**
  * Apuntes de un expediente (SEGURO, VO de retoma…): líneas con título, descripción y, si se quiere, una etiqueta que sale junto al icono del cliente en la lista
@@ -46,6 +47,8 @@ export const esquemaPredefinido = z.object({
   colorear_emoticonos: z.boolean().default(true),
   /** Estado en el que empiezan los expedientes (posición en los estados del semáforo). */
   estado_inicial: z.number().int().min(0).max(4).default(0),
+  /** Reglas que cambian solas el estado cuando el expediente cumple unas condiciones. */
+  reglas_estado: esquemaReglasEstado.default([]),
 });
 export type EntradaPredefinido = z.infer<typeof esquemaPredefinido>;
 
@@ -87,6 +90,7 @@ export interface PredefinidoDto {
   estilo_etiqueta: "relleno" | "texto";
   colorear_emoticonos: boolean;
   estado_inicial: number;
+  reglas_estado: ReglaEstado[];
 }
 
 export interface ApunteDto {
@@ -125,7 +129,7 @@ export interface ApunteListaDto {
   comentario: string;
 }
 
-const aPredefinido = (f: typeof apuntesPredefinidos.$inferSelect): PredefinidoDto => ({ id: f.id, clave: f.clave, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, rapido: f.rapido, por_defecto: f.porDefecto, semaforo: f.semaforo, semaforo_estados: f.semaforoEstados, lado: f.lado === "izquierda" ? "izquierda" : "derecha", estilo_etiqueta: f.estiloEtiqueta === "texto" ? "texto" : "relleno", colorear_emoticonos: f.colorearEmoticonos, estado_inicial: Math.min(f.estadoInicial, Math.max(f.semaforoEstados.length - 1, 0)) });
+const aPredefinido = (f: typeof apuntesPredefinidos.$inferSelect): PredefinidoDto => ({ id: f.id, clave: f.clave, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, rapido: f.rapido, por_defecto: f.porDefecto, semaforo: f.semaforo, semaforo_estados: f.semaforoEstados, lado: f.lado === "izquierda" ? "izquierda" : "derecha", estilo_etiqueta: f.estiloEtiqueta === "texto" ? "texto" : "relleno", colorear_emoticonos: f.colorearEmoticonos, estado_inicial: Math.min(f.estadoInicial, Math.max(f.semaforoEstados.length - 1, 0)), reglas_estado: f.reglasEstado });
 
 /** El color con el que se pinta un apunte: en un semáforo, el de su estado actual (los colores se pueden cambiar desde Configuración); si no, el suyo. */
 const colorDe = (color: string, estado: number | null, estados: EstadoSemaforo[] | null): string => (estados && estado !== null ? (estados[estado]?.color ?? color) : color);
@@ -148,7 +152,7 @@ function soloAdministrador(u: UsuarioActual): void {
 }
 
 function camposPredefinido(e: EntradaPredefinido) {
-  return { titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta, rapido: e.rapido, porDefecto: e.por_defecto, semaforo: e.semaforo, semaforoEstados: e.semaforo ? e.semaforo_estados : [], lado: e.lado, estiloEtiqueta: e.estilo_etiqueta, colorearEmoticonos: e.colorear_emoticonos, estadoInicial: e.semaforo ? Math.min(e.estado_inicial, e.semaforo_estados.length - 1) : 0 };
+  return { titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta, rapido: e.rapido, porDefecto: e.por_defecto, semaforo: e.semaforo, semaforoEstados: e.semaforo ? e.semaforo_estados : [], lado: e.lado, estiloEtiqueta: e.estilo_etiqueta, colorearEmoticonos: e.colorear_emoticonos, estadoInicial: e.semaforo ? Math.min(e.estado_inicial, e.semaforo_estados.length - 1) : 0, reglasEstado: e.semaforo ? e.reglas_estado : [] };
 }
 
 /** Añade el predefinido a todos los expedientes que aún no lo tienen (los nuevos lo reciben solos por un disparador de la base de datos). */

@@ -7,6 +7,9 @@ import AyudaSemaforo from "@/components/expedientes/AyudaSemaforo";
 import AyudaEmoticonos from "@/components/expedientes/AyudaEmoticonos";
 import { EtiquetaApunte } from "@/components/expedientes/etiqueta-apunte";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
+import type { ReglaEstado } from "@/lib/reglas-semaforo";
+import ReglasEstadoSemaforo from "./ReglasEstadoSemaforo";
+import type { SugerenciasReglas } from "./GestorReglasColor";
 
 /** Rojo, amarillo, verde y gris: los colores de un semáforo (copia de `COLORES_SEMAFORO`, que vive en el servidor). */
 const COLORES_SEMAFORO = ["#ef4444", "#eab308", "#22c55e", "#9ca3af"];
@@ -31,6 +34,7 @@ interface Borrador {
   estilo_etiqueta: "relleno" | "texto";
   colorear_emoticonos: boolean;
   estado_inicial: number;
+  reglas_estado: ReglaEstado[];
 }
 
 const vacio = (): Borrador => ({
@@ -47,6 +51,7 @@ const vacio = (): Borrador => ({
   estilo_etiqueta: "relleno",
   colorear_emoticonos: true,
   estado_inicial: 0,
+  reglas_estado: [],
 });
 const deP = (p: PredefinidoDto): Borrador => ({
   titulo: p.titulo,
@@ -63,6 +68,7 @@ const deP = (p: PredefinidoDto): Borrador => ({
   estilo_etiqueta: p.estilo_etiqueta,
   colorear_emoticonos: p.colorear_emoticonos,
   estado_inicial: p.estado_inicial,
+  reglas_estado: p.reglas_estado,
 });
 
 const estiloSeccion = {
@@ -150,9 +156,11 @@ function Casilla({
 function Editor({
   b,
   alCambiar,
+  sugerencias,
 }: {
   b: Borrador;
   alCambiar: (c: Partial<Borrador>) => void;
+  sugerencias: SugerenciasReglas;
 }) {
   const estados = b.semaforo_estados;
   const colorear = b.estilo_etiqueta === "texto" && b.colorear_emoticonos;
@@ -650,12 +658,27 @@ function Editor({
           </label>
         </fieldset>
       )}
+      {b.semaforo && (
+        <fieldset style={estiloSeccion}>
+          <legend style={estiloLegend}>5 · Reglas automáticas</legend>
+          <ReglasEstadoSemaforo
+            reglas={b.reglas_estado}
+            estados={b.semaforo_estados}
+            sugerencias={sugerencias}
+            alCambiar={(r) => alCambiar({ reglas_estado: r })}
+          />
+        </fieldset>
+      )}
     </div>
   );
 }
 
 /** Configuración › Expedientes › Apuntes: los apuntes predefinidos (título, descripción, etiqueta, color y botón rápido). Se guardan en la base de datos. */
-export default function PanelApuntesPredefinidos() {
+export default function PanelApuntesPredefinidos({
+  sugerencias,
+}: {
+  sugerencias: SugerenciasReglas;
+}) {
   const { mostrar } = useToast();
   const [lista, setLista] = useState<PredefinidoDto[] | null>(null);
   const [editados, setEditados] = useState<Record<number, Borrador>>({});
@@ -691,7 +714,7 @@ export default function PanelApuntesPredefinidos() {
     setOcupado(true);
     try {
       await f();
-      mostrar(mensaje);
+      if (mensaje) mostrar(mensaje);
       await cargar();
     } catch (e) {
       mostrar(textoError(e), "error");
@@ -859,12 +882,53 @@ export default function PanelApuntesPredefinidos() {
                           : "🚫 Ocultar en la lista de todos"}
                       </button>
                     ))}
+                    {p.semaforo && p.reglas_estado.some((r) => r.activa) && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={ocupado}
+                        onClick={() =>
+                          void ejecutar(async () => {
+                            const { data } = await llamar<{
+                              cambiados: number;
+                            }>(
+                              `/api/admin/apuntes-predefinidos?id=${p.id}&reglas=contar`,
+                              { method: "POST", cuerpo: {} },
+                            );
+                            if (data.cambiados === 0) {
+                              mostrar(
+                                "Ningún expediente cambiaría con las reglas actuales.",
+                              );
+                              return;
+                            }
+                            if (
+                              !window.confirm(
+                                `Con las reglas de «${p.titulo}», ${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} cambiaría${data.cambiados === 1 ? "" : "n"} de estado. ¿Aplicarlo ahora?`,
+                              )
+                            )
+                              return;
+                            const r = await llamar<{ cambiados: number }>(
+                              `/api/admin/apuntes-predefinidos?id=${p.id}&reglas=aplicar`,
+                              { method: "POST", cuerpo: {} },
+                            );
+                            mostrar(
+                              `${r.data.cambiados} expediente${r.data.cambiados === 1 ? "" : "s"} actualizado${r.data.cambiados === 1 ? "" : "s"}.`,
+                            );
+                          }, "")
+                        }
+                        style={{ padding: "5px 14px", fontSize: "0.8rem" }}
+                        title="Mira cuántos expedientes cambiarían con las reglas y te pregunta antes de aplicarlo"
+                      >
+                        🔎 Revisar ahora con las reglas
+                      </button>
+                    )}
                   </span>
                 )}
               </div>
             )}
             {abierto && (
               <Editor
+                sugerencias={sugerencias}
                 b={b}
                 alCambiar={(c) =>
                   setEditados((x) => ({ ...x, [p.id]: { ...b, ...c } }))
@@ -943,7 +1007,11 @@ export default function PanelApuntesPredefinidos() {
             gap: "10px",
           }}
         >
-          <Editor b={nuevo} alCambiar={(c) => setNuevo({ ...nuevo, ...c })} />
+          <Editor
+            sugerencias={sugerencias}
+            b={nuevo}
+            alCambiar={(c) => setNuevo({ ...nuevo, ...c })}
+          />
           <div
             style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}
           >
