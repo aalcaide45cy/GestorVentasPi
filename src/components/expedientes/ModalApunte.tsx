@@ -6,6 +6,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import type { ExpedienteDto } from "@/lib/dto";
 import AyudaSemaforo from "./AyudaSemaforo";
+import { EtiquetaApunte } from "./etiqueta-apunte";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
 
 const COLORES_SEMAFORO = ["#ef4444", "#eab308", "#22c55e", "#9ca3af"];
@@ -98,6 +99,7 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
               <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 <input type="color" value={e.color} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)))} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none", flex: "0 0 auto" }} />
                 <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)))} style={{ flex: 1 }} aria-label={`Significado del estado ${i + 1}`} />
+                <EtiquetaApunte etiqueta={apunte.etiqueta} color={e.color} estilo={apunte.estilo} colorearEmoticonos={apunte.colorear_emoticonos} apagado={e.apagado} />
                 <label title="Si está marcado, la etiqueta se ve tenue (como apagada)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                   <input type="checkbox" checked={e.apagado === true} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)))} />
                   Tenue
