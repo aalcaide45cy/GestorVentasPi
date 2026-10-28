@@ -42,8 +42,8 @@ export const PUT = manejar(async (req: Request) => {
   const id = leerIdQuery(req);
   if (!id) throw new HttpError(400, "Falta el apunte");
   // Dos usos: cambiar el estado de un semáforo (`{ accion: "estado", estado_semaforo }`) o editar el texto del apunte
-  const e = await leerJson(req, z.union([z.object({ accion: z.literal("estado"), estado_semaforo: z.number().int().min(0).max(9) }), esquemaApunte]));
-  if ("accion" in e) return NextResponse.json({ success: true, data: await fijarEstadoSemaforo(db, u, id, e.estado_semaforo) });
+  const e = await leerJson(req, z.union([z.object({ accion: z.literal("estado"), estado_semaforo: z.number().int().min(0).max(9), comentario: z.string().max(1000).optional() }), esquemaApunte]));
+  if ("accion" in e) return NextResponse.json({ success: true, data: await fijarEstadoSemaforo(db, u, id, e.estado_semaforo, e.comentario) });
   return NextResponse.json({ success: true, data: await actualizarApunte(db, u, id, e) });
 });
 

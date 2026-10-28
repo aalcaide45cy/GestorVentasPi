@@ -129,7 +129,7 @@ export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apu
         const estado = semaforo ? a.estados?.[a.estado_semaforo ?? 0] : undefined;
         const aspecto = aspectoEtiqueta(a.etiqueta, a.color, a.estilo, a.colorear_emoticonos, estado);
         return semaforo ? (
-          <button key={a.id} type="button" className={aspecto.clase} onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${estado?.texto ?? ""}. Pulsa para cambiarlo`} style={{ ...aspecto.estilo, cursor: "pointer" }}>
+          <button key={a.id} type="button" className={aspecto.clase} onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${estado?.texto ?? ""}${a.comentario ? `\n📝 ${a.comentario}` : ""}\n(Pulsa para cambiarlo)`} style={{ ...aspecto.estilo, cursor: "pointer" }}>
             {aspecto.contenido}
           </button>
         ) : (

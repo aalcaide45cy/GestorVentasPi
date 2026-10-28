@@ -463,6 +463,13 @@
       "when": 1793205231856,
       "tag": "0065_semaforo_colorear_emoticonos",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1793205231857,
+      "tag": "0066_comentario_estado",
+      "breakpoints": true
     }
   ]
 }

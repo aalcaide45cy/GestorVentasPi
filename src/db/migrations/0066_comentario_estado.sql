@@ -1,0 +1,1 @@
+ALTER TABLE "apuntes_expediente" ADD COLUMN "comentario" text DEFAULT '' NOT NULL;

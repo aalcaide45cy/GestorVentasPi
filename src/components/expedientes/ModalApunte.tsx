@@ -20,16 +20,17 @@ type ApunteLista = NonNullable<ExpedienteDto["apuntes"]>[number];
 export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: ApunteLista; idExpediente: number; cliente: string; alCerrar: () => void }) {
   const { mostrar } = useToast();
   const [estados, setEstados] = useState<EstadoSemaforo[]>(apunte.estados ?? []);
-  const [actual, setActual] = useState<number>(apunte.estado_semaforo ?? 0);
+  const estadoGuardado = apunte.estado_semaforo ?? 0;
+  const [elegido, setElegido] = useState<number>(estadoGuardado);
+  const [comentario, setComentario] = useState(apunte.comentario ?? "");
   const [ocupado, setOcupado] = useState(false);
   const cambiado = JSON.stringify(estados) !== JSON.stringify(apunte.estados ?? []);
 
-  const elegir = async (i: number) => {
+  const guardar = async () => {
     setOcupado(true);
     try {
-      await llamar(`/api/expedientes/apuntes?id=${apunte.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: i } });
-      setActual(i);
-      mostrar(`${apunte.titulo}: ${estados[i]?.texto ?? ""}`);
+      await llamar(`/api/expedientes/apuntes?id=${apunte.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: elegido, comentario } });
+      mostrar(`${apunte.titulo}: ${estados[elegido]?.texto ?? ""}${comentario.trim() ? " (con comentario)" : ""}`);
       alCerrar();
     } catch (e) {
       mostrar(textoError(e), "error");
@@ -37,6 +38,7 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
       setOcupado(false);
     }
   };
+  const sinCambios = elegido === estadoGuardado && comentario.trim() === (apunte.comentario ?? "").trim();
 
   const guardarColores = async () => {
     if (apunte.id_predefinido === null) return;
@@ -60,13 +62,13 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
 
   const contenido = (
     <div role="dialog" aria-modal="true" onClick={alCerrar} style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-      <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ width: "min(100%, 520px)", maxHeight: "90vh", overflowY: "auto", padding: "22px", display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(100%, 520px)", maxHeight: "90vh", overflowY: "auto", padding: "22px", display: "flex", flexDirection: "column", gap: "14px", background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)", boxShadow: "0 18px 50px rgba(0, 0, 0, 0.45)", opacity: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
           <div>
             <h3 style={{ margin: 0, fontSize: "1.1rem" }}>
               {apunte.titulo} · <span style={{ fontWeight: 500 }}>{cliente}</span>
             </h3>
-            <p style={{ margin: "4px 0 0", fontSize: "0.82rem", color: "var(--text-secondary)" }}>Elige en qué estado está este expediente.</p>
+            <p style={{ margin: "4px 0 0", fontSize: "0.82rem", color: "var(--text-secondary)" }}>Elige en qué estado está este expediente y, si quieres, deja un comentario.</p>
           </div>
           <button type="button" className="btn btn-secondary" onClick={alCerrar} aria-label="Cerrar" style={{ padding: "2px 10px" }}>
             ✕
@@ -79,14 +81,27 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
               key={i}
               type="button"
               disabled={ocupado}
-              onClick={() => void elegir(i)}
-              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: `2px solid ${i === actual ? e.color : "var(--border-light)"}`, background: i === actual ? `${e.color}22` : "transparent", color: "var(--text-primary)", textAlign: "left", cursor: "pointer", fontSize: "0.92rem", fontWeight: i === actual ? 700 : 500 }}
+              onClick={() => setElegido(i)}
+              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: `2px solid ${i === elegido ? e.color : "var(--border-light)"}`, background: i === elegido ? `${e.color}22` : "var(--bg-card)", color: "var(--text-primary)", textAlign: "left", cursor: "pointer", fontSize: "0.92rem", fontWeight: i === elegido ? 700 : 500 }}
             >
               <MarcaEstado estado={e} />
               {e.texto}
-              {i === actual && <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--text-secondary)" }}>actual</span>}
+              {i === estadoGuardado && <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--text-secondary)" }}>actual</span>}
             </button>
           ))}
+        </div>
+
+        <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+          Comentario del estado <span style={{ fontWeight: 400 }}>(opcional; saldrá al pasar el ratón por la etiqueta)</span>
+          <textarea className="form-input" rows={2} maxLength={1000} value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Ej. Incidencia: falta el DNI del cliente" style={{ resize: "vertical" }} />
+        </label>
+        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+          <button type="button" className="btn btn-secondary" onClick={alCerrar} disabled={ocupado} style={{ padding: "6px 16px" }}>
+            Cancelar
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => void guardar()} disabled={ocupado || sinCambios} style={{ padding: "6px 18px" }} title={sinCambios ? "No has cambiado nada" : "Guarda el estado y el comentario"}>
+            Guardar
+          </button>
         </div>
 
         <AyudaSemaforo completa={false} />

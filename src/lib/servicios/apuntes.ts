@@ -102,6 +102,8 @@ export interface ApunteDto {
   estado_semaforo: number | null;
   /** Los estados del semáforo del predefinido (color y significado), o `null`. */
   estados: EstadoSemaforo[] | null;
+  /** Comentario del estado de este expediente (por ejemplo, el motivo de una incidencia). */
+  comentario: string;
   creado_en: string;
 }
 
@@ -119,6 +121,8 @@ export interface ApunteListaDto {
   colorear_emoticonos: boolean;
   estado_semaforo: number | null;
   estados: EstadoSemaforo[] | null;
+  /** Comentario del estado (por ejemplo, el motivo de una incidencia). */
+  comentario: string;
 }
 
 const aPredefinido = (f: typeof apuntesPredefinidos.$inferSelect): PredefinidoDto => ({ id: f.id, clave: f.clave, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, rapido: f.rapido, por_defecto: f.porDefecto, semaforo: f.semaforo, semaforo_estados: f.semaforoEstados, lado: f.lado === "izquierda" ? "izquierda" : "derecha", estilo_etiqueta: f.estiloEtiqueta === "texto" ? "texto" : "relleno", colorear_emoticonos: f.colorearEmoticonos, estado_inicial: Math.min(f.estadoInicial, Math.max(f.semaforoEstados.length - 1, 0)) });
@@ -129,7 +133,7 @@ const colorDe = (color: string, estado: number | null, estados: EstadoSemaforo[]
 type FilaConPredefinido = { a: typeof apuntesExpediente.$inferSelect; p: typeof apuntesPredefinidos.$inferSelect | null };
 const aApunte = ({ a, p }: FilaConPredefinido): ApunteDto => {
   const estados = p?.semaforo ? p.semaforoEstados : null;
-  return { id: a.id, id_expediente: a.idExpediente, id_predefinido: a.idPredefinido, titulo: a.titulo, descripcion: a.descripcion, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados, creado_en: a.creadoEn.toISOString() };
+  return { id: a.id, id_expediente: a.idExpediente, id_predefinido: a.idPredefinido, titulo: a.titulo, descripcion: a.descripcion, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados, comentario: a.comentario, creado_en: a.creadoEn.toISOString() };
 };
 const unirPredefinido = { a: apuntesExpediente, p: apuntesPredefinidos };
 
@@ -293,14 +297,14 @@ export async function anadirOQuitarMasivo(ej: Ejecutor, u: UsuarioActual, ids: n
 }
 
 /** Cambia el estado de un apunte que funciona como semáforo (0 = rojo… según los estados del predefinido). */
-export async function fijarEstadoSemaforo(ej: Ejecutor, u: UsuarioActual, id: number, estado: number): Promise<ApunteDto> {
+export async function fijarEstadoSemaforo(ej: Ejecutor, u: UsuarioActual, id: number, estado: number, comentario?: string): Promise<ApunteDto> {
   const [a] = await ej.select().from(apuntesExpediente).where(eq(apuntesExpediente.id, id));
   if (!a) throw new HttpError(404, "Apunte no encontrado");
   await comprobarAcceso(ej, u, a.idExpediente);
   const [p] = a.idPredefinido ? await ej.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, a.idPredefinido)) : [null];
   if (!p?.semaforo) throw new HttpError(400, "Este apunte no es un semáforo");
   if (!Number.isInteger(estado) || estado < 0 || estado >= p.semaforoEstados.length) throw new HttpError(400, "Estado no válido");
-  const [f] = await ej.update(apuntesExpediente).set({ estadoSemaforo: estado, color: p.semaforoEstados[estado].color }).where(eq(apuntesExpediente.id, id)).returning();
+  const [f] = await ej.update(apuntesExpediente).set({ estadoSemaforo: estado, color: p.semaforoEstados[estado].color, ...(comentario !== undefined ? { comentario: comentario.trim().slice(0, 1000) } : {}) }).where(eq(apuntesExpediente.id, id)).returning();
   return aApunte({ a: f, p });
 }
 
@@ -327,7 +331,7 @@ export async function apuntesPorExpediente(ej: Ejecutor, ids?: number[]): Promis
   for (const { a, p } of filas) {
     const estados = p?.semaforo ? p.semaforoEstados : null;
     const l = mapa.get(a.idExpediente) ?? [];
-    l.push({ id: a.id, id_predefinido: a.idPredefinido, titulo: a.titulo, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, lado: p?.lado === "izquierda" ? "izquierda" : "derecha", estilo: p?.estiloEtiqueta === "texto" ? "texto" : "relleno", colorear_emoticonos: p?.colorearEmoticonos ?? true, estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados });
+    l.push({ id: a.id, id_predefinido: a.idPredefinido, titulo: a.titulo, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, lado: p?.lado === "izquierda" ? "izquierda" : "derecha", estilo: p?.estiloEtiqueta === "texto" ? "texto" : "relleno", colorear_emoticonos: p?.colorearEmoticonos ?? true, estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados, comentario: a.comentario });
     mapa.set(a.idExpediente, l);
   }
   return mapa;

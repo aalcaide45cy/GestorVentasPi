@@ -121,6 +121,19 @@ describe("apuntes de los expedientes", () => {
     expect(() => esquemaPredefinido.parse({ ...seguro, semaforo_estados: [{ color: "#123456", texto: "a", efecto: "girar" }, { color: "#654321", texto: "b" }] })).toThrow();
   });
 
+  it("cada expediente puede llevar un comentario del estado (por ejemplo, el motivo de una incidencia)", async () => {
+    const { ana, otra, idExpediente } = await escenario();
+    const [a] = await listarApuntes(db, idExpediente);
+    expect(a.comentario).toBe("");
+    const r = await fijarEstadoSemaforo(db, ana, a.id, 1, "  Falta el DNI del cliente  ");
+    expect(r).toMatchObject({ estado_semaforo: 1, comentario: "Falta el DNI del cliente" });
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ comentario: "Falta el DNI del cliente" });
+    // Cambiar el estado sin mandar comentario no lo borra; mandarlo vacío sí
+    expect((await fijarEstadoSemaforo(db, ana, a.id, 2)).comentario).toBe("Falta el DNI del cliente");
+    expect((await fijarEstadoSemaforo(db, ana, a.id, 2, "")).comentario).toBe("");
+    await expect(fijarEstadoSemaforo(db, otra, a.id, 0, "no es mío")).rejects.toThrow(/vendedor del expediente/);
+  });
+
   it("los colores del semáforo se pueden restablecer a rojo, amarillo, verde y gris", async () => {
     const { admin, ana, idExpediente } = await escenario();
     const seguro = await predefinido("seguro");

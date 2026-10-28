@@ -60,6 +60,8 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
   const [predefinidos, setPredefinidos] = useState<PredefinidoDto[]>([]);
   const [editados, setEditados] = useState<Record<number, Borrador>>({});
   const [nuevo, setNuevo] = useState<Borrador | null>(null);
+  // Comentario del estado de los apuntes que son un semáforo (se guarda en la base de datos)
+  const [comentarios, setComentarios] = useState<Record<number, string>>({});
   const [ocupado, setOcupado] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -108,8 +110,13 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
     });
   const estado = (a: ApunteDto, i: number) =>
     ejecutar(async () => {
-      await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: i } });
+      await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: i, comentario: comentarios[a.id] ?? a.comentario } });
       mostrar(`${a.titulo}: ${a.estados?.[i]?.texto ?? ""}`);
+    });
+  const guardarComentario = (a: ApunteDto) =>
+    ejecutar(async () => {
+      await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: a.estado_semaforo ?? 0, comentario: comentarios[a.id] ?? a.comentario } });
+      mostrar("Comentario guardado.");
     });
   const eliminar = (a: ApunteDto) =>
     ejecutar(async () => {
@@ -155,6 +162,19 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
                     </button>
                   ))}
                 </div>
+              )}
+              {a.estados && (
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                  Comentario del estado <span style={{ fontWeight: 400 }}>(sale al pasar el ratón por la etiqueta)</span>
+                  <span style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                    <textarea className="form-input" rows={2} maxLength={1000} value={comentarios[a.id] ?? a.comentario} onChange={(e) => setComentarios((x) => ({ ...x, [a.id]: e.target.value }))} placeholder="Ej. Incidencia: falta el DNI del cliente" style={{ flex: 1, resize: "vertical" }} />
+                    {comentarios[a.id] !== undefined && comentarios[a.id].trim() !== a.comentario.trim() && (
+                      <button type="button" className="btn btn-primary" disabled={ocupado} onClick={() => void guardarComentario(a)} style={{ padding: "4px 12px", fontSize: "0.78rem" }}>
+                        Guardar
+                      </button>
+                    )}
+                  </span>
+                </label>
               )}
               <Campos b={b} alCambiar={(c) => setEditados((x) => ({ ...x, [a.id]: { ...b, ...c } }))} />
               <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>

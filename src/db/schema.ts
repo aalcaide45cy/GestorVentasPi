@@ -1269,6 +1269,8 @@ export const apuntesExpediente = pgTable(
     mostrarEtiqueta: boolean("mostrar_etiqueta").notNull().default(false),
     /** Solo en los de tipo semáforo: el estado (0 = rojo, 1 = amarillo, 2 = verde por defecto). */
     estadoSemaforo: integer("estado_semaforo"),
+    /** Comentario del estado de este expediente (por ejemplo, el motivo de una incidencia): sale al pasar el ratón por la etiqueta. */
+    comentario: text("comentario").notNull().default(""),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
