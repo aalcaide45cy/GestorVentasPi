@@ -60,6 +60,7 @@ export async function sembrar<S extends Record<string, unknown>>(db: NodePgDatab
             { color: "#22c55e", texto: "Póliza emitida" },
             { color: "#9ca3af", texto: "No lleva seguro", apagado: true },
           ],
+          estadoInicial: 0,
           orden: 1,
         },
         { clave: "vo-retoma", titulo: "VO de retoma", descripcion: "El cliente deja un vehículo usado de retoma.", etiqueta: "VO", color: "#f59e0b", mostrarEtiqueta: true, rapido: true, orden: 2 },

@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.34.0 (28/10/2026)
+
+- **Estado inicial del semáforo configurable.** En Configuración › Expedientes › **🚦 Semáforo** (antes «Apuntes»), cada semáforo elige en qué estado empiezan los expedientes («Estado en el que empiezan los expedientes»); lo usan el disparador de la base de datos para los expedientes nuevos, los botones rápidos y el «Lo llevan todos los expedientes» (migración 0062, columna `estado_inicial`).
+- **Edición en masa del semáforo.** «Editar Expedientes en Masa» tiene una lista por cada semáforo (🚦 Seguro…) con «(No modificar)» y sus estados: pone el mismo estado a todos los seleccionados y, si alguno no tenía ese apunte, se lo añade (`POST /api/expedientes/apuntes` con `accion: "estado_masivo"`; el vendedor solo cambia los suyos).
+- **Ojo con las migraciones:** la 0061 se registró con una marca de tiempo del futuro (28/10/2026 + 1 día), por lo que cualquier migración generada con `db:generate` hasta el 29/10/2026 a las 11:13 saldría con una marca anterior y **drizzle la saltaría** en las bases que ya tienen la 0061. La 0062 lleva una marca ajustada (1793205231853); las siguientes deben llevar una marca mayor mientras no pase esa hora.
+
 ## Versión 1.33.1 (27/10/2026)
 
 - **Estado «apagado» en el semáforo.** Cada estado de un semáforo puede marcarse como «Tenue»: la etiqueta se ve en un color apagado (gris y con poca opacidad). El Seguro estrena un cuarto estado, **«No lleva seguro»** (gris, tenue), además del rojo, el amarillo y el verde (migración 0061; en Configuración › Expedientes › Apuntes, y en la ventana de la etiqueta, la casilla «Tenue» de cada estado).

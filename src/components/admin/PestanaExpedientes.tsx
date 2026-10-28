@@ -112,7 +112,7 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
         pestanas={[
           { clave: "lista", etiqueta: "📄 Lista", ayuda: "Cuántos expedientes se ven por página, qué se ve al abrir la lista y si se recuerda el filtro" },
           { clave: "reglas", etiqueta: "🎨 Colores de fila", ayuda: "Reglas para pintar de un color las filas de la lista de expedientes según su estado, sus fechas, su marca…, con esquemas guardados y exportación" },
-          { clave: "apuntes", etiqueta: "📝 Apuntes", ayuda: "Apuntes predefinidos de los expedientes (Seguro, VO de retoma…): título, descripción, etiqueta que sale junto al icono del cliente y botón rápido" },
+          { clave: "apuntes", etiqueta: "🚦 Semáforo", ayuda: "El semáforo del Seguro y los demás apuntes predefinidos de los expedientes (VO de retoma…): estados con su color y significado, estado inicial, etiqueta junto al icono del cliente y botón rápido" },
           { clave: "modos", etiqueta: "🔓 Selección y eliminación", ayuda: "Cuánto tiempo se quedan activos los modos de selección y de eliminación de la lista" },
           { clave: "foto", etiqueta: "🖼️ Foto del cliente", ayuda: "Cuántos segundos hay que esperar con el ratón encima del cliente para ver su foto" },
         ]}

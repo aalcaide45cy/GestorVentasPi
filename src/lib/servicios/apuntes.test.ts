@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { apuntesPredefinidos, papeleraElementos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { actualizarApunte, actualizarPredefinido, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
+import { actualizarApunte, actualizarPredefinido, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
 import { restaurar } from "./papelera";
@@ -52,6 +52,32 @@ describe("apuntes de los expedientes", () => {
     await fijarEstadoSemaforo(db, ana, a.id, 2);
     await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...e, semaforo_estados: e.semaforo_estados.slice(0, 2) }));
     expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ estado_semaforo: 0, color: "#111111" });
+  });
+
+  it("el estado en el que empiezan los expedientes se configura en Ajustes", async () => {
+    const { admin, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, estado_inicial: 3 }));
+    // Los nuevos empiezan en ese estado (aquí, el gris apagado); los que ya había se quedan como estaban
+    const otro = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Otro", dni: "44444444A" }, expediente: {} }));
+    expect((await listarApuntes(db, otro.id_expediente))[0]).toMatchObject({ estado_semaforo: 3, color: "#9ca3af" });
+    expect((await listarApuntes(db, idExpediente))[0]).toMatchObject({ estado_semaforo: 0 });
+    // Un estado inicial que ya no existe se queda en el último
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, semaforo_estados: seguro.semaforo_estados.slice(0, 3), estado_inicial: 3 }));
+    expect((await listarPredefinidos(db)).find((p) => p.clave === "seguro")!.estado_inicial).toBe(2);
+  });
+
+  it("edición en masa: el mismo estado de un semáforo para varios expedientes, cada vendedor solo con los suyos", async () => {
+    const { admin, ana, otra, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const deOtra = await crearExpediente(db, otra, esquemaCrearExpediente.parse({ cliente: { nombre: "De otra", dni: "55555555B" }, expediente: {} }));
+    expect(await fijarEstadoMasivo(db, ana, [idExpediente, deOtra.id_expediente], seguro.id, 2)).toBe(1);
+    expect((await listarApuntes(db, idExpediente))[0]).toMatchObject({ estado_semaforo: 2, color: "#22c55e" });
+    expect((await listarApuntes(db, deOtra.id_expediente))[0]).toMatchObject({ estado_semaforo: 0 });
+    expect(await fijarEstadoMasivo(db, admin, [idExpediente, deOtra.id_expediente], seguro.id, 1)).toBe(2);
+    expect((await listarApuntes(db, deOtra.id_expediente))[0]).toMatchObject({ estado_semaforo: 1 });
+    await expect(fijarEstadoMasivo(db, admin, [idExpediente], seguro.id, 9)).rejects.toThrow(/no válido/);
+    await expect(fijarEstadoMasivo(db, admin, [idExpediente], (await predefinido("vo-retoma")).id, 0)).rejects.toThrow(/no es un semáforo/);
   });
 
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {

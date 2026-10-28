@@ -435,6 +435,13 @@
       "when": 1793205231852,
       "tag": "0061_seguro_desactivado",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793205231853,
+      "tag": "0062_semaforo_estado_inicial",
+      "breakpoints": true
     }
   ]
 }

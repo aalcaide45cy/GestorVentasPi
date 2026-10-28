@@ -3,6 +3,8 @@
 import FechaRapida from "@/components/FechaRapida";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
+import { llamar, textoError } from "@/components/comisiones/api";
+import type { PredefinidoDto } from "@/lib/servicios/apuntes";
 
 interface Catalogos {
   marcas: { id: number; nombre: string }[];
@@ -25,6 +27,8 @@ export interface CambiosMasivos {
 
 interface Props {
   seleccionados: number;
+  /** Los expedientes seleccionados (para cambiar a la vez su semáforo). */
+  idsSeleccionados: number[];
   esAdministrador: boolean;
   ocupado: boolean;
   alGuardar: (cambios: CambiosMasivos) => void;
@@ -35,7 +39,7 @@ interface Props {
 const numeroOVacio = (valor: string): number | "" => (valor ? Number(valor) : "");
 
 /** «Editar Expedientes en Masa»: solo se modifican los campos rellenados. */
-export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocupado, alGuardar, alCancelar, alAvisar }: Props) {
+export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, esAdministrador, ocupado, alGuardar, alCancelar, alAvisar }: Props) {
   const [catalogos, setCatalogos] = useState<Catalogos | null>(null);
   const [marca, setMarca] = useState<number | "">("");
   const [modelo, setModelo] = useState<number | "">("");
@@ -47,6 +51,16 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
   const [fFactura, setFFactura] = useState("");
   const [fMat, setFMat] = useState("");
   const [fEntrega, setFEntrega] = useState("");
+  // Semáforos (como el del Seguro): el estado que se pondrá a todos los seleccionados, por predefinido (vacío = no modificar)
+  const [semaforos, setSemaforos] = useState<PredefinidoDto[]>([]);
+  const [estadosSemaforo, setEstadosSemaforo] = useState<Record<number, number | "">>({});
+  const [guardandoSemaforo, setGuardandoSemaforo] = useState(false);
+
+  useEffect(() => {
+    llamar<PredefinidoDto[]>("/api/admin/apuntes-predefinidos")
+      .then((r) => setSemaforos(r.data.filter((p) => p.semaforo)))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -62,7 +76,7 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const guardar = () => {
+  const guardar = async () => {
     const cambios: CambiosMasivos = {};
     if (modelo !== "") cambios.id_modelo = modelo;
     if (tipoVenta !== "") cambios.id_tipo_de_venta = tipoVenta;
@@ -73,11 +87,24 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
     if (fFactura) cambios.fecha_facturacion = fFactura;
     if (fMat) cambios.fecha_matriculacion = fMat;
     if (fEntrega) cambios.fecha_entrega = fEntrega;
-    if (Object.keys(cambios).length === 0) {
+    const semaforosElegidos = Object.entries(estadosSemaforo).filter(([, v]) => v !== "") as [string, number][];
+    if (Object.keys(cambios).length === 0 && semaforosElegidos.length === 0) {
       alAvisar("Por favor, rellene al menos un campo para modificar.");
       return;
     }
-    alGuardar(cambios);
+    if (semaforosElegidos.length > 0) {
+      setGuardandoSemaforo(true);
+      try {
+        for (const [id, estado] of semaforosElegidos) await llamar("/api/expedientes/apuntes", { method: "POST", cuerpo: { accion: "estado_masivo", ids: idsSeleccionados, id_predefinido: Number(id), estado_semaforo: estado } });
+      } catch (e) {
+        alAvisar(textoError(e));
+        setGuardandoSemaforo(false);
+        return;
+      }
+      setGuardandoSemaforo(false);
+    }
+    if (Object.keys(cambios).length > 0) alGuardar(cambios);
+    else alCancelar();
   };
 
   const grupo = (etiqueta: string, ancho: string, control: React.ReactNode) => (
@@ -112,11 +139,11 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
             <button
               type="button"
               className="btn"
-              onClick={guardar}
-              disabled={ocupado}
+              onClick={() => void guardar()}
+              disabled={ocupado || guardandoSemaforo}
               style={{ backgroundColor: "#2e7d32", color: "white", border: "none", borderRadius: "var(--radius-sm)", padding: "8px 16px", cursor: "pointer", fontWeight: 600 }}
             >
-              {ocupado ? "Guardando..." : "Guardar Cambios"}
+              {ocupado || guardandoSemaforo ? "Guardando..." : "Guardar Cambios"}
             </button>
           </>
         ) : undefined
@@ -195,6 +222,24 @@ export default function ModalEdicionMasiva({ seleccionados, esAdministrador, ocu
             {grupo("Fecha Facturación", "0", fecha(fFactura, setFFactura))}
             {grupo("Fecha Entrega", "0", fecha(fEntrega, setFEntrega))}
           </div>
+          {semaforos.length > 0 && (
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+              {semaforos.map((s) =>
+                grupo(
+                  `🚦 ${s.titulo} (semáforo)`,
+                  "240px",
+                  <select className="form-select" value={estadosSemaforo[s.id] ?? ""} onChange={(e) => setEstadosSemaforo((x) => ({ ...x, [s.id]: e.target.value === "" ? "" : Number(e.target.value) }))}>
+                    <option value="">(No modificar)</option>
+                    {s.semaforo_estados.map((e, i) => (
+                      <option key={i} value={i}>
+                        {e.texto}
+                      </option>
+                    ))}
+                  </select>,
+                ),
+              )}
+            </div>
+          )}
         </>
       )}
     </Modal>

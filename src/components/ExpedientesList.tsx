@@ -1709,6 +1709,7 @@ export default function ExpedientesList({
       {edicionMasiva && (
         <ModalEdicionMasiva
           seleccionados={seleccionados.length}
+          idsSeleccionados={seleccionados}
           esAdministrador={esAdministrador}
           ocupado={cargando}
           alGuardar={(c) => void guardarEdicionMasiva(c)}

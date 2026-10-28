@@ -22,10 +22,11 @@ interface Borrador {
   semaforo: boolean;
   semaforo_estados: EstadoSemaforo[];
   lado: "izquierda" | "derecha";
+  estado_inicial: number;
 }
 
-const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha" });
-const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado });
+const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha", estado_inicial: 0 });
+const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado, estado_inicial: p.estado_inicial });
 
 function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador>) => void }) {
   return (
@@ -84,6 +85,16 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
               )}
             </div>
           ))}
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="El estado con el que empieza cada expediente (los nuevos, y los que ya hay si marcas «Lo llevan todos los expedientes» y aún no lo tenían)">
+            Estado en el que empiezan los expedientes
+            <select className="form-input" value={Math.min(b.estado_inicial, b.semaforo_estados.length - 1)} onChange={(e) => alCambiar({ estado_inicial: Number(e.target.value) })} style={{ width: "auto", maxWidth: "100%" }}>
+              {b.semaforo_estados.map((e, i) => (
+                <option key={i} value={i}>
+                  {i + 1}. {e.texto || "(sin texto)"}
+                </option>
+              ))}
+            </select>
+          </label>
           {b.semaforo_estados.length < 5 && (
             <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: [...b.semaforo_estados, { color: "#3b82f6", texto: "" }] })} style={{ alignSelf: "flex-start", padding: "3px 10px", fontSize: "0.78rem" }}>
               + Añadir estado
@@ -136,7 +147,7 @@ export default function PanelApuntesPredefinidos() {
   return (
     <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>
       <div>
-        <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0" }}>📝 Apuntes predefinidos de los expedientes</h4>
+        <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0" }}>🚦 Semáforo y apuntes predefinidos de los expedientes</h4>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: 1.5 }}>
           Cada expediente puede llevar apuntes (por ejemplo «hay que contratar el seguro» o «deja un VO de retoma»). Aquí defines los que tienen botón rápido: el título, la descripción, el texto y el color de la etiqueta que sale junto al icono del cliente en la lista, y si sale por defecto. «VO de retoma» lo añade solo la lectura de un pedido con retoma.
         </p>
