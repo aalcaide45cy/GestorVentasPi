@@ -35,17 +35,19 @@ interface Borrador {
 const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha", estilo_etiqueta: "relleno", colorear_emoticonos: true, estado_inicial: 0 });
 const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado, estilo_etiqueta: p.estilo_etiqueta, colorear_emoticonos: p.colorear_emoticonos, estado_inicial: p.estado_inicial });
 
-const estiloSeccion = { margin: 0, padding: "14px 16px 16px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", display: "flex", flexDirection: "column", gap: "14px", minWidth: 0 } as const;
+const estiloSeccion = { margin: 0, padding: "18px 20px 20px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", display: "flex", flexDirection: "column", gap: "18px", minWidth: 0 } as const;
 const estiloLegend = { padding: "0 8px", fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary)" } as const;
 const estiloCampo = { display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.78rem", color: "var(--text-secondary)", minWidth: 0 } as const;
+/** Casillas de marcar más grandes y con el color de la aplicación, para que se vean y se pulsen bien. */
+const tick = { width: "20px", height: "20px", flex: "0 0 auto", accentColor: "var(--primary)", cursor: "pointer" } as const;
 const estiloCasilla = { display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "0.85rem", lineHeight: 1.35 } as const;
-const rejilla = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: "14px 20px", alignItems: "start" } as const;
+const rejilla = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: "18px 28px", alignItems: "start" } as const;
 const pista = { fontSize: "0.74rem", color: "var(--text-muted)", fontWeight: 400 } as const;
 
 function Casilla({ marcada, alCambiar, titulo, ayuda, desactivada }: { marcada: boolean; alCambiar: (v: boolean) => void; titulo: string; ayuda: string; desactivada?: boolean }) {
   return (
     <label style={{ ...estiloCasilla, opacity: desactivada ? 0.5 : 1 }}>
-      <input type="checkbox" checked={marcada} disabled={desactivada} onChange={(e) => alCambiar(e.target.checked)} style={{ marginTop: "3px" }} />
+      <input type="checkbox" checked={marcada} disabled={desactivada} onChange={(e) => alCambiar(e.target.checked)} style={{ ...tick, marginTop: "1px" }} />
       <span>
         <strong style={{ fontWeight: 600 }}>{titulo}</strong>
         <br />
@@ -138,8 +140,8 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
               <div key={i} style={{ display: "grid", gridTemplateColumns: "auto minmax(160px, 1fr) auto auto auto", gap: "10px 12px", alignItems: "center" }}>
                 <input type="color" value={e.color} onChange={(ev) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)) })} aria-label={`Color del estado ${i + 1}`} style={{ width: "44px", height: "32px", padding: 0, border: "none", background: "none" }} />
                 <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)) })} placeholder="Qué significa este color" />
-                <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-                  <input type="checkbox" checked={e.apagado === true} onChange={(ev) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)) })} />
+                <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "0.85rem", whiteSpace: "nowrap", cursor: "pointer" }}>
+                  <input type="checkbox" checked={e.apagado === true} onChange={(ev) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)) })} style={tick} />
                   Tenue
                 </label>
                 {vista(e.color, e.apagado)}

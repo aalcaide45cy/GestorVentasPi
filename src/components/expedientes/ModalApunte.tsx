@@ -101,7 +101,7 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
                 <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)))} style={{ flex: 1 }} aria-label={`Significado del estado ${i + 1}`} />
                 <EtiquetaApunte etiqueta={apunte.etiqueta} color={e.color} estilo={apunte.estilo} colorearEmoticonos={apunte.colorear_emoticonos} apagado={e.apagado} />
                 <label title="Si está marcado, la etiqueta se ve tenue (como apagada)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
-                  <input type="checkbox" checked={e.apagado === true} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)))} />
+                  <input type="checkbox" checked={e.apagado === true} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)))} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
                   Tenue
                 </label>
               </div>

@@ -34,7 +34,7 @@ function Campos({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
         <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. SEGURO" />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8rem" }} title="Si está marcado, el texto de la etiqueta sale junto al icono del cliente en la lista de Expedientes">
-        <input type="checkbox" checked={b.mostrar_etiqueta} onChange={(e) => alCambiar({ mostrar_etiqueta: e.target.checked })} />
+        <input type="checkbox" checked={b.mostrar_etiqueta} onChange={(e) => alCambiar({ mostrar_etiqueta: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
         Mostrar en la lista
         <input type="color" value={b.color} onChange={(e) => alCambiar({ color: e.target.value })} aria-label="Color de la etiqueta" style={{ width: "30px", height: "24px", padding: 0, border: "none", background: "none" }} />
         <Muestra b={b} />

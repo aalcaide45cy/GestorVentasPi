@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.34.6 (28/10/2026)
+
+- **Casillas más grandes y más aire en el formulario del semáforo.** Las casillas de marcar del semáforo (en Configuración, en la ventana de la etiqueta y en los apuntes del expediente) pasan a 18-20 px con el color de la aplicación, y los bloques del formulario tienen más espacio entre campos.
+
 ## Versión 1.34.5 (28/10/2026)
 
 - **Formulario del semáforo más claro, con vista previa.** En Configuración › Expedientes › 🚦 Semáforo cada predefinido se ordena en bloques con más aire: 1 · Qué es, 2 · Cómo se ve la etiqueta en la lista, 3 · Cuándo se añade y 4 · Estados del semáforo. Hay una **vista previa** de la etiqueta tal y como saldrá en la lista, **en cada estado** del semáforo (con su color, el estilo elegido y el emoticono pintado o no), y otra al lado de cada estado y en la ventana de la etiqueta. El aspecto de la etiqueta pasa a un módulo compartido (`etiqueta-apunte.tsx`) que usan la lista y las vistas previas.
