@@ -80,6 +80,17 @@ describe("apuntes de los expedientes", () => {
     await expect(fijarEstadoMasivo(db, admin, [idExpediente], (await predefinido("vo-retoma")).id, 0)).rejects.toThrow(/no es un semáforo/);
   });
 
+  it("la etiqueta admite emoticonos, cada estado puede llevar el suyo y se elige el estilo de la etiqueta", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const estados = [{ ...seguro.semaforo_estados[0], icono: "🔴" }, { ...seguro.semaforo_estados[1], icono: "🟡" }, { ...seguro.semaforo_estados[2], icono: "🟢" }, seguro.semaforo_estados[3]];
+    const p = await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, etiqueta: "🚗 SEGURO", estilo_etiqueta: "texto", semaforo_estados: estados }));
+    expect(p).toMatchObject({ etiqueta: "🚗 SEGURO", estilo_etiqueta: "texto" });
+    const [a] = await listarApuntes(db, idExpediente);
+    await fijarEstadoSemaforo(db, ana, a.id, 1);
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ etiqueta: "🚗 SEGURO", estilo: "texto", estado_semaforo: 1, estados: expect.arrayContaining([expect.objectContaining({ icono: "🟡" })]) });
+  });
+
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {
     const { admin, idExpediente } = await escenario();
     const nuevo = await crearPredefinido(db, admin, esquemaPredefinido.parse({ titulo: "Garantía", etiqueta: "GAR", mostrar_etiqueta: true, por_defecto: true }));

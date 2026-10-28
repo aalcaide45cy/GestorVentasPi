@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.34.1 (28/10/2026)
+
+- **Emoticonos en la etiqueta y color de semáforo en el texto.** El texto de la etiqueta admite emoticonos (🚗 SEGURO); además, **cada estado del semáforo puede llevar su propio emoticono** que sale delante de la etiqueta (🔴 🟡 🟢 ⚪…), y cada predefinido elige el **estilo**: cápsula con relleno de color, o texto y borde en el color del estado (migración 0063, columna `estilo_etiqueta`; el emoticono de cada estado va dentro de `semaforo_estados`). Se configura en Configuración › Expedientes › 🚦 Semáforo y los emoticonos también en la ventana de la etiqueta.
+- La 0063 lleva la marca `when` 1793205231854, por encima de la de la 0061 (que estaba en el futuro); ver la nota de la 1.34.0.
+
 ## Versión 1.34.0 (28/10/2026)
 
 - **Estado inicial del semáforo configurable.** En Configuración › Expedientes › **🚦 Semáforo** (antes «Apuntes»), cada semáforo elige en qué estado empiezan los expedientes («Estado en el que empiezan los expedientes»); lo usan el disparador de la base de datos para los expedientes nuevos, los botones rápidos y el «Lo llevan todos los expedientes» (migración 0062, columna `estado_inicial`).

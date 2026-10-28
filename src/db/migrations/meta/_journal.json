@@ -442,6 +442,13 @@
       "when": 1793205231853,
       "tag": "0062_semaforo_estado_inicial",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1793205231854,
+      "tag": "0063_semaforo_estilo_etiqueta",
+      "breakpoints": true
     }
   ]
 }

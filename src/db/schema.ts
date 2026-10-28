@@ -1239,7 +1239,9 @@ export const apuntesPredefinidos = pgTable(
     porDefecto: boolean("por_defecto").notNull().default(false),
     /** Si funciona como un semáforo: cada expediente tiene un estado (0, 1 o 2) con su color y su significado en `semaforoEstados`. */
     semaforo: boolean("semaforo").notNull().default(false),
-    semaforoEstados: jsonb("semaforo_estados").$type<{ color: string; texto: string; apagado?: boolean }[]>().notNull().default(sql`'[]'::jsonb`),
+    semaforoEstados: jsonb("semaforo_estados").$type<{ color: string; texto: string; apagado?: boolean; icono?: string }[]>().notNull().default(sql`'[]'::jsonb`),
+    /** Cómo se pinta la etiqueta: con el color de fondo (`relleno`) o con el texto y el borde en color (`texto`). */
+    estiloEtiqueta: varchar("estilo_etiqueta", { length: 10 }).notNull().default("relleno"),
     /** Estado en el que empiezan los expedientes (posición en `semaforoEstados`). */
     estadoInicial: integer("estado_inicial").notNull().default(0),
     /** A qué lado del icono del cliente sale la etiqueta en la lista: izquierda o derecha. */

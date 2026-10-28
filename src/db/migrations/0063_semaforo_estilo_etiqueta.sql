@@ -1,0 +1,1 @@
+ALTER TABLE "apuntes_predefinidos" ADD COLUMN "estilo_etiqueta" varchar(10) DEFAULT 'relleno' NOT NULL;

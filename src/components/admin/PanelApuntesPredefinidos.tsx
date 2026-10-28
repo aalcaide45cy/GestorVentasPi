@@ -22,11 +22,12 @@ interface Borrador {
   semaforo: boolean;
   semaforo_estados: EstadoSemaforo[];
   lado: "izquierda" | "derecha";
+  estilo_etiqueta: "relleno" | "texto";
   estado_inicial: number;
 }
 
-const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha", estado_inicial: 0 });
-const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado, estado_inicial: p.estado_inicial });
+const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha", estilo_etiqueta: "relleno", estado_inicial: 0 });
+const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado, estilo_etiqueta: p.estilo_etiqueta, estado_inicial: p.estado_inicial });
 
 function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador>) => void }) {
   return (
@@ -37,7 +38,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
       </label>
       <label style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
         Texto de la etiqueta
-        <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. SEGURO" />
+        <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. 🚗 SEGURO (admite emoticonos)" />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Color de la etiqueta en la lista de Expedientes">
         Color
@@ -63,6 +64,13 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
           <option value="derecha">Derecha</option>
         </select>
       </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Con relleno: la etiqueta es una cápsula del color del estado. Con texto en color: el texto y el borde llevan el color y el fondo es casi transparente">
+        Estilo de la etiqueta
+        <select className="form-input" value={b.estilo_etiqueta} onChange={(e) => alCambiar({ estilo_etiqueta: e.target.value === "texto" ? "texto" : "relleno" })} style={{ width: "auto" }}>
+          <option value="relleno">Con relleno de color</option>
+          <option value="texto">Texto en color</option>
+        </select>
+      </label>
       <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Un semáforo tiene varios estados, cada uno con su color y su significado (por ejemplo rojo: aún no solicitado). Al pulsar la etiqueta en la lista se cambia el estado de ese expediente">
         <input type="checkbox" checked={b.semaforo} onChange={(e) => alCambiar({ semaforo: e.target.checked })} />
         Funciona como un semáforo
@@ -74,6 +82,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
             <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <input type="color" value={e.color} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)) })} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none" }} />
               <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)) })} placeholder="Qué significa este color" style={{ flex: 1 }} />
+              <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, icono: ev.target.value } : x)) })} placeholder="🙂" aria-label={`Emoticono del estado ${i + 1}`} title="Emoticono que sale delante de la etiqueta cuando el apunte está en este estado (por ejemplo 🔴 🟡 🟢)" style={{ width: "58px", textAlign: "center" }} />
               <label title="Si está marcado, la etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                 <input type="checkbox" checked={e.apagado === true} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)) })} />
                 Tenue
