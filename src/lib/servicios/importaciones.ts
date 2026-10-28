@@ -19,6 +19,7 @@ import {
 import type { UsuarioActual } from "@/lib/auth/sesion";
 import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
 import { aDto, relacionesExpediente } from "./expedientes";
+import { aplicarReglasSemaforo } from "./reglas-semaforo";
 import { elegirModeloExistente } from "@/lib/documentos/modelos";
 import { escaparLike, hoyIso } from "./comun";
 import { TareaCancelada } from "./tareas";
@@ -285,6 +286,7 @@ export async function importarExpedientesCsv(
               vin: vin || null,
             })
             .returning({ id: expedientes.idExpediente });
+          await aplicarReglasSemaforo(sp, [nuevo.id]);
           return nuevo.id;
         });
         importados++;
@@ -542,7 +544,10 @@ export async function procesarActualizacionesExcel(
       if (Object.keys(cambiosCliente).length > 0) await tx.update(clientes).set(cambiosCliente).where(eq(clientes.id, idCliente));
       if (correoNuevo) await tx.insert(emailsClientes).values({ idCliente, email: correo, tipoEmail: "Principal" });
       if (telefonoNuevo) await tx.insert(telefonosClientes).values({ idCliente, telefono, tipoTelefono: "Principal" });
-      if (Object.keys(cambiosExp).length > 0) await tx.update(expedientes).set(cambiosExp).where(eq(expedientes.idExpediente, idExpediente));
+      if (Object.keys(cambiosExp).length > 0) {
+        await tx.update(expedientes).set(cambiosExp).where(eq(expedientes.idExpediente, idExpediente));
+        await aplicarReglasSemaforo(tx, [idExpediente]);
+      }
 
       modificados++;
       procesados++;

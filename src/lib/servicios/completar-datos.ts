@@ -8,6 +8,7 @@ import { claveNif, nifParecido, normalizarMatricula } from "@/lib/identificadore
 import { facturacionPorEstadoCobrado } from "@/lib/facturacion-cobrado";
 import { hoyIso } from "./comun";
 import { conRecalculo } from "./liquidaciones";
+import { aplicarReglasSemaforo } from "./reglas-semaforo";
 import { reintentarPagosPendientes } from "./pagos-rci";
 
 /**
@@ -666,6 +667,7 @@ export async function aplicarCompletado(ej: Ejecutor, usuario: UsuarioActual, en
       await tx.insert(importacionesRegistros).values({ bloqueId: bloque.id, idExpediente: exp.idExpediente, tipoAccion: "modificado", clienteNombre: exp.cliente?.nombre ?? "Desconocido", matricula: exp.matricula ?? "", bastidor: exp.vin ?? "", cambios: JSON.stringify({ Deshabilitado: { old: "No", new: "Sí" } }) });
     }
     await tx.update(importacionesBloques).set({ creados: 0, modificados: expCambiados, omitidos: omitidos.length }).where(eq(importacionesBloques.id, bloque.id));
+    await aplicarReglasSemaforo(tx, ids);
     return { valor: { expedientesCambiados: expCambiados, camposCambiados: campos, omitidos }, idsDespues: ids };
   });
   // Los expedientes ya tienen bastidor, matrícula o documento nuevos: los pagos de la financiera que esperaban pueden engancharse ahora

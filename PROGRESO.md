@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.40.1 (28/10/2026)
+
+- Las **reglas automáticas del semáforo** también se revisan al cargar un Excel/CSV de expedientes, al actualizar desde un Excel y al «Completar datos desde un listado». Los pagos RCI (aplicar y deshacer) ya pasaban por el guardado de expediente y la revisión ya actuaba.
+
 ## Versión 1.40.0 (28/10/2026)
 
 - **Orden de los estados del semáforo**: flechas ◀ ▶ en cada estado (Ajustes › Semáforo › 4). Al guardar, cada expediente conserva su estado (campo `orden_estados`, que también cubre quitar estados: el que se quita pasa al primero); el estado inicial y las reglas automáticas se reordenan con ellos.
