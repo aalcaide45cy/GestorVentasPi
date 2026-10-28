@@ -128,7 +128,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
       <fieldset style={estiloSeccion}>
         <legend style={estiloLegend}>3 · Cuándo se añade</legend>
         <div style={rejilla}>
-          <Casilla marcada={b.por_defecto} alCambiar={(v) => alCambiar({ por_defecto: v })} titulo="Lo llevan todos los expedientes" ayuda="Se añade solo a los nuevos y también a los que ya existen." />
+          <Casilla marcada={b.por_defecto} alCambiar={(v) => alCambiar({ por_defecto: v })} titulo="Lo llevan todos los expedientes" ayuda="Se añade solo a los nuevos y, al guardar, también a todos los que ya existen, en el estado de inicio que elijas abajo." />
           <Casilla marcada={b.rapido} alCambiar={(v) => alCambiar({ rapido: v })} titulo="Botón rápido en el expediente" ayuda="Un botón «＋ título» que lo añade con un clic (solo uno por expediente)." />
           <Casilla marcada={b.semaforo} alCambiar={(v) => alCambiar({ semaforo: v })} titulo="Funciona como un semáforo" ayuda="Tiene varios estados, cada uno con su color y su significado; se cambia pulsando la etiqueta." />
         </div>
@@ -217,6 +217,8 @@ export default function PanelApuntesPredefinidos() {
   const [lista, setLista] = useState<PredefinidoDto[] | null>(null);
   const [editados, setEditados] = useState<Record<number, Borrador>>({});
   const [nuevo, setNuevo] = useState<Borrador | null>(null);
+  // Estado elegido para «Aplicar ahora a todos los expedientes», por predefinido
+  const [paraTodos, setParaTodos] = useState<Record<number, number>>({});
   const [ocupado, setOcupado] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -269,6 +271,33 @@ export default function PanelApuntesPredefinidos() {
             </div>
             <Editor b={b} alCambiar={(c) => setEditados((x) => ({ ...x, [p.id]: { ...b, ...c } }))} />
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
+              {!sucio && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginRight: "auto" }}>
+                  {p.semaforo && (
+                    <select className="form-input" value={paraTodos[p.id] ?? Math.min(p.estado_inicial, p.semaforo_estados.length - 1)} onChange={(e) => setParaTodos((x) => ({ ...x, [p.id]: Number(e.target.value) }))} aria-label={`Estado que se pondrá a todos los expedientes para ${p.titulo}`} title="El estado que se pondrá a todos los expedientes" style={{ width: "auto", maxWidth: "260px" }}>
+                      {p.semaforo_estados.map((e, i) => (
+                        <option key={i} value={i}>
+                          Poner a todos: {e.texto || `estado ${i + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={ocupado}
+                    onClick={() => {
+                      const estado = p.semaforo ? (paraTodos[p.id] ?? Math.min(p.estado_inicial, p.semaforo_estados.length - 1)) : null;
+                      const texto = p.semaforo ? `Esto pondrá «${p.titulo}» en el estado «${p.semaforo_estados[estado ?? 0]?.texto ?? ""}» en TODOS los expedientes: se lo añade a los que no lo tengan y cambia el estado a los que sí (su comentario se conserva). ¿Seguro?` : `Esto añadirá «${p.titulo}» a TODOS los expedientes que no lo tengan. ¿Seguro?`;
+                      if (window.confirm(texto)) void ejecutar(async () => { const { data } = await llamar<{ cambiados: number }>(`/api/admin/apuntes-predefinidos?id=${p.id}&aplicar=1`, { method: "POST", cuerpo: { estado } }); mostrar(`${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} actualizado${data.cambiados === 1 ? "" : "s"}.`); }, "Hecho.");
+                    }}
+                    style={{ padding: "5px 14px", fontSize: "0.8rem" }}
+                    title="Lo pone ahora en todos los expedientes que ya existen (los nuevos lo reciben solos si marcas «Lo llevan todos los expedientes»)"
+                  >
+                    ⚡ Aplicar ahora a todos los expedientes
+                  </button>
+                </span>
+              )}
               {sucio && (
                 <button type="button" className="btn btn-primary" disabled={ocupado || b.titulo.trim() === ""} onClick={() => void ejecutar(async () => void (await llamar(`/api/admin/apuntes-predefinidos?id=${p.id}`, { method: "PUT", cuerpo: b })), "Guardado.")} style={{ padding: "5px 14px", fontSize: "0.8rem" }}>
                   Guardar cambios

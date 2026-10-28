@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { apuntesPredefinidos, papeleraElementos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
+import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, aplicarATodos, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
 import { restaurar } from "./papelera";
@@ -144,6 +144,22 @@ describe("apuntes de los expedientes", () => {
     const [a] = await listarApuntes(db, idExpediente);
     expect(a.color).toBe("#ef4444");
     expect((await fijarEstadoSemaforo(db, ana, a.id, 2)).color).toBe("#22c55e");
+  });
+
+  it("un predefinido nuevo «por defecto» llega a todos los expedientes en el estado elegido, y «aplicar ahora» lo vuelve a poner a todos", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const nuevo = await crearPredefinido(db, admin, esquemaPredefinido.parse({ titulo: "Garantía", etiqueta: "GAR", mostrar_etiqueta: true, por_defecto: true, semaforo: true, estado_inicial: 2, semaforo_estados: [{ color: "#ef4444", texto: "No" }, { color: "#eab308", texto: "En trámite" }, { color: "#22c55e", texto: "Hecha" }] }));
+    const g = (await listarApuntes(db, idExpediente)).find((a) => a.id_predefinido === nuevo.id)!;
+    expect(g).toMatchObject({ estado_semaforo: 2, color: "#22c55e" });
+    const otro = await crearExpediente(db, admin, esquemaCrearExpediente.parse({ cliente: { nombre: "Otro", dni: "44444444A" }, expediente: {} }));
+    expect((await listarApuntes(db, otro.id_expediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ estado_semaforo: 2 });
+    // Aplicar ahora: a todos al estado 0, con su comentario conservado; solo el administrador
+    await fijarEstadoSemaforo(db, ana, g.id, 1, "Esperando la póliza");
+    await expect(aplicarATodos(db, ana, nuevo.id, 0)).rejects.toThrow(/administrador/);
+    expect(await aplicarATodos(db, admin, nuevo.id, 0)).toBe(2);
+    expect((await listarApuntes(db, idExpediente)).find((a) => a.id_predefinido === nuevo.id)).toMatchObject({ estado_semaforo: 0, color: "#ef4444", comentario: "Esperando la póliza" });
+    expect(await aplicarATodos(db, admin, nuevo.id, 0)).toBe(0);
+    await expect(aplicarATodos(db, admin, nuevo.id, 7)).rejects.toThrow(/no válido/);
   });
 
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {

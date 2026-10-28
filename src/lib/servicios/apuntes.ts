@@ -296,6 +296,36 @@ export async function anadirOQuitarMasivo(ej: Ejecutor, u: UsuarioActual, ids: n
   return n;
 }
 
+/**
+ * Pone un predefinido en TODOS los expedientes (los no eliminados): al que no lo tenga se lo añade y, si es un semáforo, a todos les pone el estado dado (a los que ya lo tenían
+ * les cambia el estado y conserva su comentario). Solo el administrador. Devuelve cuántos expedientes han cambiado.
+ */
+export async function aplicarATodos(ej: Ejecutor, u: UsuarioActual, idPredefinido: number, estado: number | null): Promise<number> {
+  soloAdministrador(u);
+  const [p] = await ej.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, idPredefinido));
+  if (!p) throw new HttpError(404, "Apunte predefinido no encontrado");
+  if (p.semaforo) {
+    const n = estado ?? Math.min(p.estadoInicial, Math.max(p.semaforoEstados.length - 1, 0));
+    if (!Number.isInteger(n) || n < 0 || n >= p.semaforoEstados.length) throw new HttpError(400, "Estado no válido");
+    const r = await ej.execute(sql`
+      insert into apuntes_expediente (id_expediente, id_predefinido, titulo, descripcion, etiqueta, color, mostrar_etiqueta, estado_semaforo)
+      select e.id_expediente, ${p.id}, ${p.titulo}, ${p.descripcion}, ${p.etiqueta}, ${p.semaforoEstados[n].color}, ${p.mostrarEtiqueta}, ${n}
+      from expedientes e where e.eliminado_en is null
+      on conflict (id_expediente, id_predefinido) where id_predefinido is not null
+      do update set estado_semaforo = excluded.estado_semaforo, color = excluded.color
+      where apuntes_expediente.estado_semaforo is distinct from excluded.estado_semaforo
+      returning id`);
+    return (r as unknown as { rows: unknown[] }).rows.length;
+  }
+  const r = await ej.execute(sql`
+    insert into apuntes_expediente (id_expediente, id_predefinido, titulo, descripcion, etiqueta, color, mostrar_etiqueta, estado_semaforo)
+    select e.id_expediente, ${p.id}, ${p.titulo}, ${p.descripcion}, ${p.etiqueta}, ${p.color}, ${p.mostrarEtiqueta}, null
+    from expedientes e where e.eliminado_en is null
+    on conflict (id_expediente, id_predefinido) where id_predefinido is not null do nothing
+    returning id`);
+  return (r as unknown as { rows: unknown[] }).rows.length;
+}
+
 /** Cambia el estado de un apunte que funciona como semáforo (0 = rojo… según los estados del predefinido). */
 export async function fijarEstadoSemaforo(ej: Ejecutor, u: UsuarioActual, id: number, estado: number, comentario?: string): Promise<ApunteDto> {
   const [a] = await ej.select().from(apuntesExpediente).where(eq(apuntesExpediente.id, id));
