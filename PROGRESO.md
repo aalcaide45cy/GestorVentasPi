@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.36.3 (28/10/2026)
+
+- **Estados del semáforo en tarjetas compactas.** En Configuración › Expedientes › 🚦 Semáforo, los estados dejan de ocupar cada uno todo el ancho: son tarjetas pequeñas en cuadrícula (varias por fila) con el significado, la forma de mostrarse (con su color o icono), el efecto, «Tenue» y la vista previa. El número del estado va en un círculo (resaltado el de inicio) y los rótulos pasan a ayudas emergentes.
+
 ## Versión 1.36.2 (28/10/2026)
 
 - **Campos del semáforo a la misma altura y sin estirarse de más.** Los rótulos de los campos pasan a una sola línea (las notas pasan a ser marcadores y ayudas emergentes), de modo que el texto de la etiqueta, el estilo y el lado quedan alineados; el formulario tiene un ancho máximo de 1180 px para que no se estire en pantallas anchas, y los selectores de color tienen un tamaño fijo.

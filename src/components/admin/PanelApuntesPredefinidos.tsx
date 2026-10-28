@@ -137,68 +137,50 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
       {b.semaforo && (
         <fieldset style={estiloSeccion}>
           <legend style={estiloLegend}>4 · Estados del semáforo</legend>
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: "12px" }}>
             {estados.map((e, i) => {
               const cambiar = (c: Partial<EstadoSemaforo>) => alCambiar({ semaforo_estados: estados.map((x, j) => (j === i ? { ...x, ...c } : x)) });
               const modo = e.modo ?? "color";
               const quiereIcono = modo === "icono" || modo === "icono_fondo";
               const quiereColor = modo !== "icono";
+              const inicial = i === Math.min(b.estado_inicial, estados.length - 1);
               return (
-                <div key={i} style={{ display: "flex", flexDirection: "column", gap: "16px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "16px 18px", background: "rgba(255, 255, 255, 0.015)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                    <strong style={{ fontSize: "0.9rem" }}>Estado {i + 1}{i === Math.min(b.estado_inicial, estados.length - 1) ? " · el de inicio" : ""}</strong>
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: "8px", border: `1px solid ${inicial ? "var(--primary)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)", padding: "10px 12px", background: "rgba(255, 255, 255, 0.015)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span title={inicial ? "El estado con el que empiezan los expedientes" : `Estado ${i + 1}`} style={{ flex: "0 0 auto", minWidth: "22px", height: "22px", borderRadius: "50%", background: inicial ? "var(--primary)" : "var(--border-light)", color: inicial ? "#fff" : "var(--text-secondary)", fontSize: "0.72rem", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      {i + 1}
+                    </span>
+                    <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => cambiar({ texto: ev.target.value })} placeholder="Qué significa" aria-label={`Qué significa el estado ${i + 1}`} style={{ flex: 1, minWidth: 0 }} />
                     {estados.length > 2 && (
-                      <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: estados.filter((_, j) => j !== i), estado_inicial: Math.max(0, Math.min(b.estado_inicial, estados.length - 2)) })} style={{ padding: "3px 12px", fontSize: "0.8rem" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)">
-                        ✕ Quitar
+                      <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: estados.filter((_, j) => j !== i), estado_inicial: Math.max(0, Math.min(b.estado_inicial, estados.length - 2)) })} style={{ padding: "2px 8px", flex: "0 0 auto" }} title="Quitar este estado (los expedientes que lo tenían pasan al primero)" aria-label={`Quitar el estado ${i + 1}`}>
+                        ✕
                       </button>
                     )}
                   </div>
-                  <label style={estiloCampo}>
-                    Qué significa
-                    <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => cambiar({ texto: ev.target.value })} placeholder="Ej. Seguro aún no solicitado" />
-                  </label>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "16px 20px", alignItems: "end" }}>
-                    <label style={estiloCampo} title="Solo el fondo de su color, solo un icono (un emoticono, sin fondo) o el icono sobre el fondo de color">
-                      Se muestra con
-                      <select className="form-input" value={modo} onChange={(ev) => cambiar({ modo: ev.target.value === "icono" ? "icono" : ev.target.value === "icono_fondo" ? "icono_fondo" : "color" })}>
-                        <option value="color">Solo el fondo de color</option>
-                        <option value="icono">Solo el icono</option>
-                        <option value="icono_fondo">Icono con fondo de color</option>
-                      </select>
-                    </label>
-                    {quiereColor && (
-                      <label style={estiloCampo}>
-                        Color
-                        <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} style={{ width: "100%", maxWidth: "120px", height: "38px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "none", cursor: "pointer" }} />
-                      </label>
-                    )}
-                    {quiereIcono && (
-                      <label style={estiloCampo}>
-                        Icono
-                        <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} title="Un emoticono" style={{ textAlign: "center", fontSize: "1.15rem" }} />
-                      </label>
-                    )}
-                    <label style={estiloCampo} title="Efecto animado de la etiqueta en este estado: llama la atención (por ejemplo un parpadeo rojo para «sin seguro»)">
-                      Efecto
-                      <select className="form-input" value={e.efecto ?? "ninguno"} onChange={(ev) => cambiar({ efecto: ev.target.value as EstadoSemaforo["efecto"] })}>
-                        <option value="ninguno">Sin efecto</option>
-                        <option value="parpadeo">Parpadeo</option>
-                        <option value="pulso">Pulso</option>
-                        <option value="destello">Destello</option>
-                        <option value="latido">Latido</option>
-                        <option value="brillo">Brillo</option>
-                      </select>
-                    </label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <select className="form-input" value={modo} onChange={(ev) => cambiar({ modo: ev.target.value === "icono" ? "icono" : ev.target.value === "icono_fondo" ? "icono_fondo" : "color" })} aria-label={`Cómo se muestra el estado ${i + 1}`} title="Cómo se muestra: solo el fondo de color, solo un icono (sin fondo) o el icono sobre el fondo de color" style={{ flex: 1, minWidth: 0 }}>
+                      <option value="color">Fondo de color</option>
+                      <option value="icono">Solo icono</option>
+                      <option value="icono_fondo">Icono y fondo</option>
+                    </select>
+                    {quiereIcono && <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} title="El icono (un emoticono)" style={{ width: "58px", flex: "0 0 auto", textAlign: "center", fontSize: "1.1rem", padding: "6px 4px" }} />}
+                    {quiereColor && <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} title="El color del estado" style={{ width: "44px", height: "36px", flex: "0 0 auto", padding: 0, border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "none", cursor: "pointer" }} />}
                   </div>
-                  <div style={{ display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap", paddingTop: "4px", borderTop: "1px dashed var(--border-light)" }}>
-                    <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "0.88rem", whiteSpace: "nowrap", cursor: "pointer", paddingTop: "10px" }}>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <select className="form-input" value={e.efecto ?? "ninguno"} onChange={(ev) => cambiar({ efecto: ev.target.value as EstadoSemaforo["efecto"] })} aria-label={`Efecto del estado ${i + 1}`} title="Efecto animado: llama la atención (por ejemplo, un parpadeo rojo para «sin seguro»)" style={{ flex: 1, minWidth: 0 }}>
+                      <option value="ninguno">Sin efecto</option>
+                      <option value="parpadeo">Parpadeo</option>
+                      <option value="pulso">Pulso</option>
+                      <option value="destello">Destello</option>
+                      <option value="latido">Latido</option>
+                      <option value="brillo">Brillo</option>
+                    </select>
+                    <label title="La etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", whiteSpace: "nowrap", cursor: "pointer", flex: "0 0 auto" }}>
                       <input type="checkbox" checked={e.apagado === true} onChange={(ev) => cambiar({ apagado: ev.target.checked })} style={tick} />
                       Tenue
                     </label>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "10px", fontSize: "0.8rem", color: "var(--text-secondary)", paddingTop: "10px" }}>
-                      👁 Vista previa {vista(e.color, e)}
-                    </span>
                   </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "30px", background: "var(--bg-surface-tint)", borderRadius: "var(--radius-sm)", padding: "4px 8px" }}>{vista(e.color, e)}</div>
                 </div>
               );
             })}
