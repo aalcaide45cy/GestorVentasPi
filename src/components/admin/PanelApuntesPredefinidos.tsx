@@ -63,7 +63,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
   const colorear = b.estilo_etiqueta === "texto" && b.colorear_emoticonos;
   const vista = (color: string, estado?: EstadoSemaforo) => <EtiquetaApunte etiqueta={b.etiqueta} color={color} estilo={b.estilo_etiqueta} colorearEmoticonos={colorear} estado={estado} />;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxWidth: "1180px" }}>
       <fieldset style={estiloSeccion}>
         <legend style={estiloLegend}>1 · Qué es</legend>
         <div style={rejilla}>
@@ -72,8 +72,8 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
             <input className="form-input" maxLength={80} value={b.titulo} onChange={(e) => alCambiar({ titulo: e.target.value })} placeholder="Ej. Seguro" />
           </label>
           <label style={estiloCampo}>
-            Descripción <span style={pista}>(el texto con el que se crea el apunte)</span>
-            <textarea className="form-input" rows={2} maxLength={2000} value={b.descripcion} onChange={(e) => alCambiar({ descripcion: e.target.value })} placeholder="Texto que llevará el apunte al añadirlo…" style={{ resize: "vertical" }} />
+            Descripción
+            <textarea className="form-input" rows={2} maxLength={2000} value={b.descripcion} onChange={(e) => alCambiar({ descripcion: e.target.value })} placeholder="El texto con el que se crea el apunte…" title="El texto con el que se crea el apunte al añadirlo a un expediente" style={{ resize: "vertical" }} />
           </label>
         </div>
       </fieldset>
@@ -82,8 +82,8 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
         <legend style={estiloLegend}>2 · Cómo se ve la etiqueta en la lista de Expedientes</legend>
         <div style={rejilla}>
           <label style={estiloCampo}>
-            Texto de la etiqueta <span style={pista}>(admite emoticonos, son opcionales)</span>
-            <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. 🚗 SEGURO" />
+            Texto de la etiqueta
+            <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. 🚗 SEGURO (los emoticonos son opcionales)" title="El texto que sale en la lista. Admite emoticonos, pero son opcionales" />
             <AyudaEmoticonos alInsertar={(emo) => alCambiar({ etiqueta: `${b.etiqueta}${b.etiqueta && !b.etiqueta.endsWith(" ") ? " " : ""}${emo}`.slice(0, 24) })} />
           </label>
           <label style={estiloCampo}>
@@ -169,13 +169,13 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
                     {quiereColor && (
                       <label style={estiloCampo}>
                         Color
-                        <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} style={{ width: "100%", height: "38px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "none", cursor: "pointer" }} />
+                        <input type="color" value={e.color} onChange={(ev) => cambiar({ color: ev.target.value })} aria-label={`Color del estado ${i + 1}`} style={{ width: "100%", maxWidth: "120px", height: "38px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "none", cursor: "pointer" }} />
                       </label>
                     )}
                     {quiereIcono && (
                       <label style={estiloCampo}>
-                        Icono <span style={pista}>(un emoticono)</span>
-                        <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} style={{ textAlign: "center", fontSize: "1.15rem" }} />
+                        Icono
+                        <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => cambiar({ icono: ev.target.value })} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} title="Un emoticono" style={{ textAlign: "center", fontSize: "1.15rem" }} />
                       </label>
                     )}
                     <label style={estiloCampo} title="Efecto animado de la etiqueta en este estado: llama la atención (por ejemplo un parpadeo rojo para «sin seguro»)">
