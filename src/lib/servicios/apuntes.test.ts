@@ -187,6 +187,19 @@ describe("apuntes de los expedientes", () => {
     expect(await revisarReglasDe(db, admin, seguro.id, false)).toBe(0);
   });
 
+  it("al reordenar los estados cada expediente conserva el suyo, y un estado puede llevar solo su propio texto", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const [a] = await listarApuntes(db, idExpediente);
+    await fijarEstadoSemaforo(db, ana, a.id, 2);
+    // El verde (3.º) pasa a ser el 1.º y el rojo (1.º) el 2.º; el amarillo se queda en 3.º
+    const [rojo, amarillo, verde, ...resto] = seguro.semaforo_estados;
+    const estados = [{ ...verde, modo: "texto" as const, icono: "¿Lleva?" }, rojo, amarillo, ...resto];
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, semaforo_estados: estados, orden_estados: [2, 0, 1, 3] }));
+    expect((await listarApuntes(db, idExpediente))[0]).toMatchObject({ estado_semaforo: 0, color: "#22c55e" });
+    expect((await listarApuntes(db, idExpediente))[0].estados?.[0]).toMatchObject({ modo: "texto", icono: "¿Lleva?" });
+  });
+
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {
     const { admin, idExpediente } = await escenario();
     const nuevo = await crearPredefinido(db, admin, esquemaPredefinido.parse({ titulo: "Garantía", etiqueta: "GAR", mostrar_etiqueta: true, por_defecto: true }));

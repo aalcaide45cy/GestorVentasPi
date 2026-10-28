@@ -112,13 +112,14 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {estados.map((e, i) => (
               <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <select className="form-input" value={e.modo ?? "color"} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, modo: ev.target.value === "icono" ? "icono" : ev.target.value === "icono_fondo" ? "icono_fondo" : "color" } : x)))} aria-label={`Cómo se muestra el estado ${i + 1}`} style={{ width: "auto" }}>
+                <select className="form-input" value={e.modo ?? "color"} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, modo: ev.target.value === "icono" ? "icono" : ev.target.value === "icono_fondo" ? "icono_fondo" : ev.target.value === "texto" ? "texto" : "color" } : x)))} aria-label={`Cómo se muestra el estado ${i + 1}`} style={{ width: "auto" }}>
                   <option value="color">Fondo</option>
                   <option value="icono">Icono</option>
                   <option value="icono_fondo">Icono + fondo</option>
+                  <option value="texto">Solo mi texto</option>
                 </select>
-                {(e.modo === "icono" || e.modo === "icono_fondo") && (
-                  <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, icono: ev.target.value } : x)))} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} style={{ width: "62px", textAlign: "center" }} />
+                {(e.modo === "icono" || e.modo === "icono_fondo" || e.modo === "texto") && (
+                  <input className="form-input" maxLength={e.modo === "texto" ? 24 : 8} value={e.icono ?? ""} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, icono: ev.target.value } : x)))} placeholder="✅" aria-label={`Icono del estado ${i + 1}`} style={{ width: e.modo === "texto" ? "130px" : "62px", textAlign: "center" }} />
                 )}
                 {e.modo !== "icono" && (
                   <input type="color" value={e.color} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)))} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none", flex: "0 0 auto" }} />

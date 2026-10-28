@@ -26,7 +26,7 @@ export const ESTADOS_SEMAFORO_INICIALES = [
   { color: "#22c55e", texto: "Terminado" },
 ];
 
-export const esquemaEstadosSemaforo = z.array(z.object({ color, texto: z.string().trim().min(1, "Cada color necesita su significado").max(80), apagado: z.boolean().optional(), icono: z.string().trim().max(8).optional(), modo: z.enum(["color", "icono", "icono_fondo"]).optional(), efecto: z.enum(["ninguno", "parpadeo", "pulso", "destello", "latido", "brillo"]).optional() })).min(2, "Un semáforo necesita al menos 2 estados").max(8);
+export const esquemaEstadosSemaforo = z.array(z.object({ color, texto: z.string().trim().min(1, "Cada color necesita su significado").max(80), apagado: z.boolean().optional(), icono: z.string().trim().max(30).optional(), modo: z.enum(["color", "icono", "icono_fondo", "texto"]).optional(), efecto: z.enum(["ninguno", "parpadeo", "pulso", "destello", "latido", "brillo"]).optional() })).min(2, "Un semáforo necesita al menos 2 estados").max(8);
 
 export const esquemaPredefinido = z.object({
   titulo: z.string().trim().min(1, "Falta el título").max(80),
@@ -49,6 +49,8 @@ export const esquemaPredefinido = z.object({
   estado_inicial: z.number().int().min(0).max(4).default(0),
   /** Reglas que cambian solas el estado cuando el expediente cumple unas condiciones. */
   reglas_estado: esquemaReglasEstado.default([]),
+  /** Al reordenar o quitar estados: para cada estado nuevo, la posición que tenía antes (`null` si es nuevo). Sirve para que los expedientes conserven su estado. */
+  orden_estados: z.array(z.number().int().min(0).max(7).nullable()).max(8).optional(),
 });
 export type EntradaPredefinido = z.infer<typeof esquemaPredefinido>;
 
@@ -67,7 +69,7 @@ export interface EstadoSemaforo {
   /** Estado «apagado»: la etiqueta se ve tenue y en gris (por ejemplo, «no lleva seguro»). */
   apagado?: boolean;
   /** Cómo se muestra este estado: solo con el fondo de su color (por defecto), solo con un icono (sin fondo) o con el icono sobre el fondo de color. */
-  modo?: "color" | "icono" | "icono_fondo";
+  modo?: "color" | "icono" | "icono_fondo" | "texto";
   /** El icono del estado (por ejemplo ✅), cuando se muestra con icono. */
   icono?: string;
   /** Efecto animado de la etiqueta en este estado (parpadeo, pulso, destello, latido o brillo). */
@@ -177,6 +179,15 @@ export async function actualizarPredefinido(ej: Ejecutor, u: UsuarioActual, id: 
   soloAdministrador(u);
   const [f] = await ej.update(apuntesPredefinidos).set(camposPredefinido(e)).where(eq(apuntesPredefinidos.id, id)).returning();
   if (!f) throw new HttpError(404, "Apunte predefinido no encontrado");
+  // Si se han reordenado o quitado estados, cada expediente conserva el suyo (el que quitaron pasa al primero)
+  if (f.semaforo && e.orden_estados && e.orden_estados.length === f.semaforoEstados.length) {
+    const nuevoDe = new Map<number, number>();
+    e.orden_estados.forEach((antes, i) => { if (antes !== null && !nuevoDe.has(antes)) nuevoDe.set(antes, i); });
+    if (e.orden_estados.some((antes, i) => antes !== i)) {
+      const casos = sql.join([...nuevoDe].map(([antes, ahora]) => sql`when ${antes} then ${ahora}`), sql` `);
+      await ej.update(apuntesExpediente).set({ estadoSemaforo: sql`case ${apuntesExpediente.estadoSemaforo} ${casos} else 0 end` }).where(and(eq(apuntesExpediente.idPredefinido, f.id), sql`${apuntesExpediente.estadoSemaforo} is not null`));
+    }
+  }
   // Los apuntes ya creados con este predefinido toman su título, etiqueta, color y si se muestra (la descripción de cada uno se respeta)
   await ej.update(apuntesExpediente).set({ titulo: f.titulo, etiqueta: f.etiqueta, color: f.color, mostrarEtiqueta: f.mostrarEtiqueta }).where(eq(apuntesExpediente.idPredefinido, f.id));
   if (f.semaforo) {

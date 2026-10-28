@@ -35,6 +35,8 @@ interface Borrador {
   colorear_emoticonos: boolean;
   estado_inicial: number;
   reglas_estado: ReglaEstado[];
+  /** De dónde viene cada estado (su posición al abrir el predefinido; `null` si es nuevo). Para que los expedientes conserven su estado al reordenar. */
+  orden_estados: (number | null)[];
 }
 
 const vacio = (): Borrador => ({
@@ -52,6 +54,7 @@ const vacio = (): Borrador => ({
   colorear_emoticonos: true,
   estado_inicial: 0,
   reglas_estado: [],
+  orden_estados: ESTADOS_INICIALES.map((_, i) => i),
 });
 const deP = (p: PredefinidoDto): Borrador => ({
   titulo: p.titulo,
@@ -69,6 +72,10 @@ const deP = (p: PredefinidoDto): Borrador => ({
   colorear_emoticonos: p.colorear_emoticonos,
   estado_inicial: p.estado_inicial,
   reglas_estado: p.reglas_estado,
+  orden_estados: (p.semaforo_estados.length > 0
+    ? p.semaforo_estados
+    : ESTADOS_INICIALES
+  ).map((_, i) => i),
 });
 
 const estiloSeccion = {
@@ -387,7 +394,8 @@ function Editor({
                   ),
                 });
               const modo = e.modo ?? "color";
-              const quiereIcono = modo === "icono" || modo === "icono_fondo";
+              const quiereIcono =
+                modo === "icono" || modo === "icono_fondo" || modo === "texto";
               const quiereColor = modo !== "icono";
               const inicial =
                 i === Math.min(b.estado_inicial, estados.length - 1);
@@ -444,12 +452,51 @@ function Editor({
                       aria-label={`Qué significa el estado ${i + 1}`}
                       style={{ flex: 1, minWidth: 0 }}
                     />
+                    {[-1, 1].map((d) =>
+                      i + d >= 0 && i + d < estados.length ? (
+                        <button
+                          key={d}
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            const cambio = (n: number) =>
+                              n === i ? i + d : n === i + d ? i : n;
+                            const permutar = <T,>(l: T[]) =>
+                              l.map((_, j) => l[cambio(j)]);
+                            alCambiar({
+                              semaforo_estados: permutar(estados),
+                              orden_estados: permutar(b.orden_estados),
+                              estado_inicial: cambio(b.estado_inicial),
+                              reglas_estado: b.reglas_estado.map((r) => ({
+                                ...r,
+                                estado: cambio(r.estado),
+                                desde: r.desde
+                                  .map(cambio)
+                                  .sort((x, y) => x - y),
+                              })),
+                            });
+                          }}
+                          style={{ padding: "2px 6px", flex: "0 0 auto" }}
+                          title={
+                            d < 0
+                              ? "Mover antes (a la izquierda)"
+                              : "Mover después (a la derecha)"
+                          }
+                          aria-label={`${d < 0 ? "Subir" : "Bajar"} el estado ${i + 1}`}
+                        >
+                          {d < 0 ? "◀" : "▶"}
+                        </button>
+                      ) : null,
+                    )}
                     {estados.length > 2 && (
                       <button
                         type="button"
                         className="btn btn-secondary"
                         onClick={() =>
                           alCambiar({
+                            orden_estados: b.orden_estados.filter(
+                              (_, j) => j !== i,
+                            ),
                             semaforo_estados: estados.filter((_, j) => j !== i),
                             estado_inicial: Math.max(
                               0,
@@ -482,7 +529,9 @@ function Editor({
                               ? "icono"
                               : ev.target.value === "icono_fondo"
                                 ? "icono_fondo"
-                                : "color",
+                                : ev.target.value === "texto"
+                                  ? "texto"
+                                  : "color",
                         })
                       }
                       aria-label={`Cómo se muestra el estado ${i + 1}`}
@@ -492,18 +541,23 @@ function Editor({
                       <option value="color">Fondo de color</option>
                       <option value="icono">Solo icono</option>
                       <option value="icono_fondo">Icono y fondo</option>
+                      <option value="texto">Solo mi texto</option>
                     </select>
                     {quiereIcono && (
                       <input
                         className="form-input"
-                        maxLength={8}
+                        maxLength={modo === "texto" ? 24 : 8}
                         value={e.icono ?? ""}
                         onChange={(ev) => cambiar({ icono: ev.target.value })}
-                        placeholder="✅"
+                        placeholder={modo === "texto" ? "Mi texto" : "✅"}
                         aria-label={`Icono del estado ${i + 1}`}
-                        title="El icono (un emoticono)"
+                        title={
+                          modo === "texto"
+                            ? "El texto que sale en la etiqueta en este estado (en lugar del título de la etiqueta)"
+                            : "El icono (un emoticono)"
+                        }
                         style={{
-                          width: "58px",
+                          width: modo === "texto" ? "110px" : "58px",
                           flex: "0 0 auto",
                           textAlign: "center",
                           fontSize: "1.1rem",
@@ -611,6 +665,7 @@ function Editor({
                 className="btn btn-secondary"
                 onClick={() =>
                   alCambiar({
+                    orden_estados: [...b.orden_estados, null],
                     semaforo_estados: [
                       ...estados,
                       { color: "#3b82f6", texto: "" },

@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.40.0 (28/10/2026)
+
+- **Orden de los estados del semáforo**: flechas ◀ ▶ en cada estado (Ajustes › Semáforo › 4). Al guardar, cada expediente conserva su estado (campo `orden_estados`, que también cubre quitar estados: el que se quita pasa al primero); el estado inicial y las reglas automáticas se reordenan con ellos.
+- **Modo «Solo mi texto»** por estado: la etiqueta muestra únicamente el texto escrito para ese estado, sin el título de la etiqueta (usa el campo `icono`, ahora hasta 30 caracteres; en la ventana de la etiqueta hasta 24).
+
 ## Versión 1.39.1 (28/10/2026)
 
 - La tabla de comisiones de la pestaña Expedientes (y las de los detalles de Bruto/Puntos y de la tasa) ya no tienen scroll propio: salen completas, sin cortar la última fila (`alto="none"` en `TablaDatos`).

@@ -24,7 +24,7 @@ export function rotuloEtiqueta(etiqueta: string, color: string, estilo: EstiloEt
 
 /** El estado de un semáforo que afecta a cómo se pinta la etiqueta: solo fondo de color, solo icono, o icono con fondo; y si va tenue. */
 export interface AspectoEstado {
-  modo?: "color" | "icono" | "icono_fondo";
+  modo?: "color" | "icono" | "icono_fondo" | "texto";
   icono?: string;
   apagado?: boolean;
   efecto?: "ninguno" | "parpadeo" | "pulso" | "destello" | "latido" | "brillo";
@@ -34,13 +34,14 @@ export interface AspectoEstado {
 export const claseEfecto = (e?: AspectoEstado): string => (e?.efecto && e.efecto !== "ninguno" ? `gv-ef-${e.efecto}` : "");
 
 /** El modo con el que se pinta de verdad: sin icono escrito, un estado «con icono» se queda en el fondo de color. */
-const modoReal = (e?: AspectoEstado): "color" | "icono" | "icono_fondo" => ((e?.modo === "icono" || e?.modo === "icono_fondo") && (e.icono ?? "").trim() !== "" ? e.modo : "color");
+const modoReal = (e?: AspectoEstado): "color" | "icono" | "icono_fondo" | "texto" => ((e?.modo === "icono" || e?.modo === "icono_fondo" || e?.modo === "texto") && (e.icono ?? "").trim() !== "" ? e.modo : "color");
 
 /**
  * Cómo se pinta la etiqueta en un estado:
  * - **fondo de color** (por defecto): cápsula con el texto, con relleno o con el texto en color (según el estilo del apunte);
  * - **icono con fondo**: la misma cápsula con el icono delante del texto;
- * - **solo icono**: únicamente el icono, sin cápsula ni texto (el significado sale al pasar el ratón).
+ * - **solo icono**: únicamente el icono, sin cápsula ni texto (el significado sale al pasar el ratón);
+ * - **solo mi texto**: la cápsula con un texto propio de este estado, en lugar del de la etiqueta.
  * `apagado` la deja tenue.
  */
 export function aspectoEtiqueta(etiqueta: string, color: string, estilo: EstiloEtiqueta, colorearEmoticonos: boolean, estado?: AspectoEstado): { estilo: CSSProperties; contenido: ReactNode; clase: string } {
@@ -50,6 +51,8 @@ export function aspectoEtiqueta(etiqueta: string, color: string, estilo: EstiloE
   const icono = (estado?.icono ?? "").trim();
   if (modo === "icono") return { estilo: { background: "transparent", border: "none", padding: "0 2px", fontSize: "0.95rem", lineHeight: 1.2, whiteSpace: "nowrap", ["--gv-color" as string]: color, ...tenue }, contenido: icono, clase };
   const base = { ...estiloEtiqueta(color, estilo), ["--gv-color" as string]: color, ...tenue } as CSSProperties;
+  // «Solo mi texto»: la cápsula lleva únicamente el texto escrito para este estado (sin el título de la etiqueta)
+  if (modo === "texto") return { estilo: base, contenido: rotuloEtiqueta(icono, color, estilo, colorearEmoticonos), clase };
   if (modo === "icono_fondo") return { estilo: base, contenido: <>{icono} {rotuloEtiqueta(etiqueta, color, estilo, colorearEmoticonos)}</>, clase };
   return { estilo: base, contenido: rotuloEtiqueta(etiqueta, color, estilo, colorearEmoticonos), clase };
 }
@@ -61,7 +64,7 @@ export function EtiquetaApunte({ etiqueta, color, estilo, colorearEmoticonos, es
 }
 
 /** El distintivo de un estado en un botón o una lista: un círculo de su color, su icono, o el icono sobre su color. */
-export function MarcaEstado({ estado, tam = 16 }: { estado: { color: string; modo?: "color" | "icono" | "icono_fondo"; icono?: string; apagado?: boolean }; tam?: number }) {
+export function MarcaEstado({ estado, tam = 16 }: { estado: { color: string; modo?: "color" | "icono" | "icono_fondo" | "texto"; icono?: string; apagado?: boolean }; tam?: number }) {
   const modo = modoReal(estado);
   const opacidad = estado.apagado ? 0.45 : 1;
   if (modo === "icono") return <span style={{ fontSize: `${tam}px`, lineHeight: 1, flex: "0 0 auto", opacity: opacidad }}>{estado.icono}</span>;
