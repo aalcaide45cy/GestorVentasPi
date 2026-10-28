@@ -13,9 +13,11 @@ import {
   operadoresDe,
   reglaNueva,
   reglaPedidosRecientes,
+  textoDeRegla,
   tipoDeCampo,
   type CampoRegla,
   type Condicion,
+  type GrupoCondiciones,
   type ReglaColor,
 } from "@/lib/reglas-color";
 import { useEsquemasColor, useReglasColor } from "@/lib/reglas-color-cliente";
@@ -32,32 +34,30 @@ const estiloCaja = { padding: "20px", display: "flex", flexDirection: "column", 
 const estiloBotonChico = { padding: "3px 10px", fontSize: "0.8rem" } as const;
 const estiloSelect = { width: "auto", padding: "5px 8px", fontSize: "0.88rem" } as const;
 
-const resumenCondicion = (c: Condicion): string => {
-  const campo = CAMPOS_REGLA.find((x) => x.id === c.campo)?.etiqueta ?? c.campo;
-  const op = operadoresDe(c.campo).find((o) => o.id === c.operador);
-  return `${campo} ${op?.etiqueta ?? c.operador}${op?.conValor ? ` «${c.valor}»` : ""}`;
-};
-
-function Editor({ regla, sugerencias, alCambiar }: { regla: ReglaColor; sugerencias: SugerenciasReglas; alCambiar: (r: ReglaColor) => void }) {
-  const cambiarCondicion = (i: number, c: Condicion) => alCambiar({ ...regla, condiciones: regla.condiciones.map((x, j) => (j === i ? c : x)) });
+/** Un grupo de condiciones: cómo se combinan (todas, alguna o ninguna) y la lista de condiciones. */
+function GrupoEditor({ idBase, grupo, sugerencias, titulo, alCambiar, alQuitar }: { idBase: string; grupo: GrupoCondiciones; sugerencias: SugerenciasReglas; titulo: string; alCambiar: (g: GrupoCondiciones) => void; alQuitar?: () => void }) {
+  const cambiarCondicion = (i: number, c: Condicion) => alCambiar({ ...grupo, condiciones: grupo.condiciones.map((x, j) => (j === i ? c : x)) });
   const lista = (campo: CampoRegla): string[] =>
     campo === "tipo_venta" ? sugerencias.tiposVenta : campo === "estado" ? sugerencias.estados : campo === "marca" ? sugerencias.marcas : campo === "clase" ? ["VN", "VO"] : campo === "comisionado" ? ["Comisionado", "Reclamado", "Pendiente"] : campo === "estado_intranet" ? ESTADOS_INTRANET_HABITUALES : [];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)" }}>
-      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
-        Nombre:
-        <input className="form-input" value={regla.nombre} maxLength={80} onChange={(e) => alCambiar({ ...regla, nombre: e.target.value })} style={{ flex: 1, maxWidth: "380px" }} />
-      </label>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        <span style={{ fontSize: "0.9rem" }}>Cuando se cumpla</span>
-        <select className="form-input" value={regla.combinar} onChange={(e) => alCambiar({ ...regla, combinar: e.target.value === "alguna" ? "alguna" : "todas" })} style={estiloSelect}>
-          <option value="todas">todas estas condiciones</option>
-          <option value="alguna">alguna de estas condiciones</option>
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+        <strong style={{ fontSize: "0.88rem" }}>{titulo}</strong>
+        <span style={{ fontSize: "0.88rem" }}>Se cumple</span>
+        <select className="form-input" value={grupo.combinar} onChange={(e) => alCambiar({ ...grupo, combinar: e.target.value === "alguna" ? "alguna" : e.target.value === "ninguna" ? "ninguna" : "todas" })} style={estiloSelect}>
+          <option value="todas">si se cumplen todas estas condiciones</option>
+          <option value="alguna">si se cumple alguna de estas condiciones</option>
+          <option value="ninguna">si no se cumple ninguna de estas condiciones</option>
         </select>
-        {regla.condiciones.map((c, i) => {
+        {alQuitar && (
+          <button type="button" className="btn btn-secondary" style={{ ...estiloBotonChico, marginLeft: "auto" }} onClick={alQuitar} title="Quita este grupo de condiciones">
+            ✖ Quitar el grupo
+          </button>
+        )}
+      </div>
+        {grupo.condiciones.map((c, i) => {
           const sug = lista(c.campo);
-          const idLista = `sug-${regla.id}-${i}`;
+          const idLista = `sug-${idBase}-${i}`;
           return (
             <div key={i} style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
               <select
@@ -103,18 +103,56 @@ function Editor({ regla, sugerencias, alCambiar }: { regla: ReglaColor; sugerenc
                   )}
                 </>
               )}
-              <button type="button" className="btn btn-secondary" style={estiloBotonChico} onClick={() => alCambiar({ ...regla, condiciones: regla.condiciones.filter((_, j) => j !== i) })} title="Quita esta condición" aria-label="Quitar condición">
+              <button type="button" className="btn btn-secondary" style={estiloBotonChico} onClick={() => alCambiar({ ...grupo, condiciones: grupo.condiciones.filter((_, j) => j !== i) })} title="Quita esta condición" aria-label="Quitar condición">
                 ✖
               </button>
             </div>
           );
         })}
         <div>
-          <button type="button" className="btn btn-secondary" style={estiloBotonChico} onClick={() => alCambiar({ ...regla, condiciones: [...regla.condiciones, { campo: "estado_intranet", operador: "es", valor: "" }] })}>
+          <button type="button" className="btn btn-secondary" style={estiloBotonChico} onClick={() => alCambiar({ ...grupo, condiciones: [...grupo.condiciones, { campo: "estado_intranet", operador: "es", valor: "" }] })}>
             + Añadir condición
           </button>
-          {regla.condiciones.length === 0 && <span style={{ marginLeft: "10px", color: "var(--warning)", fontSize: "0.82rem" }}>Sin condiciones la regla no se aplica a nada.</span>}
+          {grupo.condiciones.length === 0 && <span style={{ marginLeft: "10px", color: "var(--warning)", fontSize: "0.82rem" }}>Un grupo sin condiciones no cuenta.</span>}
         </div>
+    </div>
+  );
+}
+
+function Editor({ regla, sugerencias, alCambiar }: { regla: ReglaColor; sugerencias: SugerenciasReglas; alCambiar: (r: ReglaColor) => void }) {
+  const extra = regla.grupos ?? [];
+  const cambiarExtra = (i: number, g: GrupoCondiciones) => alCambiar({ ...regla, grupos: extra.map((x, j) => (j === i ? g : x)) });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", background: "rgba(255, 255, 255, 0.02)" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
+        Nombre:
+        <input className="form-input" value={regla.nombre} maxLength={80} onChange={(e) => alCambiar({ ...regla, nombre: e.target.value })} style={{ flex: 1, maxWidth: "380px" }} />
+      </label>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>Cuándo se aplica</span>
+        <GrupoEditor idBase={`${regla.id}-0`} titulo="Grupo 1" grupo={{ combinar: regla.combinar, condiciones: regla.condiciones }} sugerencias={sugerencias} alCambiar={(g) => alCambiar({ ...regla, combinar: g.combinar, condiciones: g.condiciones })} />
+        {extra.map((g, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <span style={{ fontSize: "0.82rem", color: "var(--primary)", fontWeight: 700, paddingLeft: "6px" }}>{(regla.unir ?? "y") === "o" ? "— O —" : "— Y —"}</span>
+            <GrupoEditor idBase={`${regla.id}-${i + 1}`} titulo={`Grupo ${i + 2}`} grupo={g} sugerencias={sugerencias} alCambiar={(nuevo) => cambiarExtra(i, nuevo)} alQuitar={() => alCambiar({ ...regla, grupos: extra.filter((_, j) => j !== i) })} />
+          </div>
+        ))}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <button type="button" className="btn btn-secondary" style={estiloBotonChico} onClick={() => alCambiar({ ...regla, grupos: [...extra, { combinar: "todas", condiciones: [{ campo: "estado_intranet", operador: "es", valor: "" }] }] })} title="Añade otro grupo de condiciones a la regla, con su propia combinación">
+            + Añadir otro grupo de condiciones
+          </button>
+          {extra.length > 0 && (
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.88rem" }}>
+              La regla se aplica si se cumple
+              <select className="form-input" value={regla.unir ?? "y"} onChange={(e) => alCambiar({ ...regla, unir: e.target.value === "o" ? "o" : "y" })} style={estiloSelect}>
+                <option value="y">el grupo 1 Y todos los demás</option>
+                <option value="o">el grupo 1 O alguno de los demás</option>
+              </select>
+            </label>
+          )}
+        </div>
+        {extra.length === 0 && <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>Con un solo grupo funciona como siempre. Con varios puedes combinar, por ejemplo: (matrícula vacía Y estado Comercial) O (RCI con fecha Y sin facturación).</span>}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -247,7 +285,7 @@ export default function GestorReglasColor({ sugerencias }: { sugerencias: Sugere
               <input type="checkbox" checked={r.activa} onChange={(e) => cambiar({ ...r, activa: e.target.checked })} title={r.activa ? "Regla activa: desmárcala para dejar de aplicarla sin borrarla" : "Regla desactivada"} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
               <div style={{ flex: "1 1 240px", minWidth: 0 }}>
                 <strong>{r.nombre || "(sin nombre)"}</strong>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{r.condiciones.length === 0 ? "Sin condiciones" : r.condiciones.map(resumenCondicion).join(r.combinar === "todas" ? " Y " : " O ")}</div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{textoDeRegla(r)}</div>
               </div>
               <span style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-secondary" style={estiloBotonChico} disabled={i === 0} onClick={() => mover(i, -1)} title="Subir (más prioridad)" aria-label={`Subir ${r.nombre}`}>▲</button>

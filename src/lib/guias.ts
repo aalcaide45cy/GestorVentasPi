@@ -206,7 +206,7 @@ export const GUIAS: Record<string, Guia> = {
   "config.expedientes.reglas": {
     titulo: "Colores de fila",
     queEs: "Reglas que pintan de un color las filas de la lista de Expedientes cuando se cumplen unas condiciones (el estado de la intranet, hace cuántos días se hizo el pedido, la marca, el vendedor…).",
-    pasos: ["Pulsa «+ Añadir regla», ponle nombre y elige las condiciones, el color y la intensidad.", "Si una fila cumple varias reglas, gana la que esté más arriba: usa ▲ y ▼ para cambiar la prioridad.", "Desmarca una regla para dejar de aplicarla sin borrarla.", "«Guardar el esquema actual» guarda el conjunto con un nombre; «Exportar» e «Importar» lo llevan a otro equipo en un archivo."],
+    pasos: ["Pulsa «+ Añadir regla», ponle nombre y elige las condiciones, el color y la intensidad.", "Cada regla tiene uno o varios grupos de condiciones: en cada grupo eliges si se cumplen todas, alguna o ninguna, y con «+ Añadir otro grupo» los unes con Y u O (por ejemplo: (matrícula vacía Y estado Comercial) O (RCI con fecha Y sin facturación)).", "Si una fila cumple varias reglas, gana la que esté más arriba: usa ▲ y ▼ para cambiar la prioridad.", "Desmarca una regla para dejar de aplicarla sin borrarla.", "«Guardar el esquema actual» guarda el conjunto con un nombre; «Exportar» e «Importar» lo llevan a otro equipo en un archivo."],
     ojo: ["Las reglas se guardan en el navegador de cada equipo."],
   },
   "config.bbdd": {

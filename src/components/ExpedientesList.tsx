@@ -32,7 +32,7 @@ import CasillaAnulados, { CasillaDeshabilitados, useMostrarAnulados, useMostrarD
 import { esAnulado, estaEntregadoEnIntranet } from "@/lib/anulados";
 import { TODAS_LAS_FECHAS } from "@/lib/filtros-expedientes";
 import { RANGO_VACIO, enRango, hayRango, moverMeses, normalizarRango, rangoDeAtajo, textoRango, type AtajoRango, type RangoFechas } from "@/lib/rango-fechas";
-import { fondoDeRegla, reglaQueAplica, textoDeRegla } from "@/lib/reglas-color";
+import { fondoDeRegla, gruposDeRegla, reglaQueAplica, textoDeRegla } from "@/lib/reglas-color";
 import { useReglasColor } from "@/lib/reglas-color-cliente";
 import { CLAVE_ETIQUETA_COPIA, CLAVE_PERMITIR_DUPLICADOS, guardarPreferencia, permitirDuplicadosAhora, usePreferencia } from "@/lib/preferencias";
 import type { ExpedienteDto, TiendaDto, VendedorDto } from "@/lib/dto";
@@ -1573,10 +1573,10 @@ export default function ExpedientesList({
           </table>
         </div>
 
-        {reglasColor.some((r) => r.activa && r.condiciones.length > 0) && (
+        {reglasColor.some((r) => r.activa && gruposDeRegla(r).some((g) => g.condiciones.length > 0)) && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 10px", padding: "8px 4px 2px", fontSize: "0.78rem", color: "var(--text-secondary)" }} title="Qué significa el color de cada fila. Gana la primera regla, por orden, cuyas condiciones se cumplan. Se configura en Configuración › Expedientes › Colores de fila">
             <strong>🎨 Colores de las filas:</strong>
-            {reglasColor.filter((r) => r.activa && r.condiciones.length > 0).map((r) => (
+            {reglasColor.filter((r) => r.activa && gruposDeRegla(r).some((g) => g.condiciones.length > 0)).map((r) => (
               <span key={r.id} className="leyenda-regla" tabIndex={0} title={`${r.nombre || "Regla sin nombre"}: ${textoDeRegla(r)}`} style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: "999px", border: `1px solid ${r.color}`, background: fondoDeRegla(r), color: "var(--text-primary)", cursor: "default" }}>
                 <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: r.color, flex: "0 0 auto", marginRight: "6px" }} />
                 <span style={{ whiteSpace: "nowrap" }}>{r.nombre || "Regla sin nombre"}</span>

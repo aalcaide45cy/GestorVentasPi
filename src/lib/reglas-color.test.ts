@@ -1,12 +1,32 @@
 import { describe, expect, it } from "vitest";
 import type { ExpedienteDto } from "./dto";
-import { aArchivoDeReglas, fondoDeRegla, leerImportacion, leerReglas, reglaNueva, reglaPedidosRecientes, reglaQueAplica, type ReglaColor } from "./reglas-color";
+import { aArchivoDeReglas, fondoDeRegla, leerImportacion, leerReglas, reglaNueva, reglaPedidosRecientes, reglaQueAplica, textoDeRegla, type ReglaColor } from "./reglas-color";
 
 const exp = (o: Record<string, unknown>): ExpedienteDto => ({ id_expediente: 1, fecha_expediente: null, estado_intranet: null, tipoDeVenta: null, estadoVehiculo: null, modelo: null, usuario: null, cliente: null, comisionado: null, ...o }) as unknown as ExpedienteDto;
 const regla = (o: Partial<ReglaColor>): ReglaColor => ({ ...reglaNueva(), ...o });
 const HOY = "2026-10-24";
 
 describe("reglas de color de las filas", () => {
+  it("grupos de condiciones: todas, alguna o ninguna, unidos con Y u O", () => {
+    const c = (campo: "matricula" | "estado_intranet" | "bastidor", operador: string, valor = "") => ({ campo, operador, valor });
+    // (sin matrícula Y estado Comercial) O (con bastidor)
+    const regla1 = regla({ combinar: "todas", condiciones: [c("matricula", "vacio"), c("estado_intranet", "es", "Comercial")], unir: "o", grupos: [{ combinar: "todas", condiciones: [c("bastidor", "no_vacio")] }] });
+    expect(reglaQueAplica(exp({ matricula: null, estado_intranet: "Comercial" }), [regla1], HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ matricula: "1234ABC", estado_intranet: "Comercial", vin: "VF1" }), [regla1], HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ matricula: "1234ABC", estado_intranet: "Comercial", vin: null }), [regla1], HOY)).toBeNull();
+    // Unidos con «Y»: hay que cumplir los dos grupos (y «ninguna» niega)
+    const regla2 = regla({ combinar: "alguna", condiciones: [c("estado_intranet", "es", "Archivado"), c("estado_intranet", "es", "Post-venta")], grupos: [{ combinar: "ninguna", condiciones: [c("matricula", "vacio")] }] });
+    expect(reglaQueAplica(exp({ estado_intranet: "Archivado", matricula: "1234ABC" }), [regla2], HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({ estado_intranet: "Archivado", matricula: null }), [regla2], HOY)).toBeNull();
+    expect(reglaQueAplica(exp({ estado_intranet: "Comercial", matricula: "1234ABC" }), [regla2], HOY)).toBeNull();
+    // Un grupo sin condiciones no cuenta y una regla sin ninguna no se aplica
+    expect(reglaQueAplica(exp({ estado_intranet: "Archivado" }), [regla({ combinar: "todas", condiciones: [c("estado_intranet", "es", "Archivado")], grupos: [{ combinar: "todas", condiciones: [] }] })], HOY)).not.toBeNull();
+    expect(reglaQueAplica(exp({}), [regla({ combinar: "todas", condiciones: [], grupos: [] })], HOY)).toBeNull();
+    expect(textoDeRegla(regla1)).toBe("(Matrícula está vacío y Estado intranet es «Comercial») O (Bastidor no está vacío)");
+  });
+  it("las reglas guardadas de antes (sin grupos) siguen igual", () => {
+    expect(leerReglas(JSON.stringify([regla({ nombre: "Antigua" })]), [])[0]).toMatchObject({ nombre: "Antigua" });
+  });
   it("por apuntes: tiene o no un apunte (un expediente puede llevar varios)", () => {
     const ap = (...titulos: string[]) => titulos.map((titulo, id) => ({ id, titulo, etiqueta: "", color: "#000000", mostrar_etiqueta: false }));
     const conSeguro = [regla({ condiciones: [{ campo: "apunte", operador: "es", valor: "seguro" }] })];

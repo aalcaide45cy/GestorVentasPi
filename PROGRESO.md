@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.38.0 (28/10/2026)
+
+- **Reglas de color con varios grupos de condiciones.** Cada regla tiene un grupo principal (como siempre) y se le pueden añadir más con «+ Añadir otro grupo de condiciones». En cada grupo se elige si se cumplen **todas**, **alguna** o **ninguna** de sus condiciones, y los grupos se unen con **Y** (todos) u **O** (alguno), por ejemplo «(matrícula vacía Y estado Comercial) O (RCI con fecha Y sin facturación)». Las reglas de antes no cambian (campos nuevos `grupos` y `unir` opcionales, y «ninguna» en `combinar`; `reglaQueAplica`, `cumpleRegla` y `textoDeRegla` en `lib/reglas-color.ts`). El resumen de cada regla, la leyenda bajo la tabla y la guía reflejan los grupos.
+
 ## Versión 1.37.0 (28/10/2026)
 
 - **Comentario del estado de cada expediente** (migración 0066, columna `comentario` de `apuntes_expediente`). En la ventana que se abre al pulsar la etiqueta se elige el estado, se escribe un comentario opcional (por ejemplo, el motivo de una incidencia) y se pulsa **Guardar**; al pasar el ratón por la etiqueta en la lista sale el estado y su comentario. También se edita en el apartado «Apuntes» del expediente. Cambiar el estado sin mandar comentario no lo borra.

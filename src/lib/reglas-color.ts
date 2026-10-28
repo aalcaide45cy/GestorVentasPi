@@ -52,14 +52,27 @@ export const esquemaCondicion = z.object({
   operador: z.enum(OPERADORES.map((o) => o.id) as [string, ...string[]]),
   valor: z.string().max(200),
 });
+/** Combinación de las condiciones de un grupo: se cumplen todas, alguna, o ninguna. */
+export const COMBINACIONES = ["todas", "alguna", "ninguna"] as const;
+export const esquemaGrupo = z.object({
+  combinar: z.enum(COMBINACIONES),
+  condiciones: z.array(esquemaCondicion).max(12),
+});
+export type GrupoCondiciones = z.infer<typeof esquemaGrupo>;
+
 export const esquemaRegla = z.object({
   id: z.string().min(1).max(60),
   nombre: z.string().max(80),
   activa: z.boolean(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   fuerza: z.enum(["suave", "media", "fuerte"]),
-  combinar: z.enum(["todas", "alguna"]),
+  /** Grupo principal de condiciones: cómo se combinan (todas, alguna o ninguna) y cuáles son. */
+  combinar: z.enum(COMBINACIONES),
   condiciones: z.array(esquemaCondicion).max(12),
+  /** Más grupos de condiciones (cada uno con su propia combinación), unidos al principal con `unir`. Las reglas de antes no los tienen. */
+  grupos: z.array(esquemaGrupo).max(10).optional(),
+  /** Cómo se unen los grupos entre sí: «y» (se cumplen todos) u «o» (se cumple alguno). Por defecto, «y». */
+  unir: z.enum(["y", "o"]).optional(),
 });
 export const esquemaReglas = z.array(esquemaRegla).max(50);
 export const esquemaEsquemas = z.array(z.object({ nombre: z.string().min(1).max(80), reglas: esquemaReglas })).max(50);
@@ -231,22 +244,52 @@ export function fondoDeRegla(r: Pick<ReglaColor, "color" | "fuerza">): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${FUERZAS_REGLA[r.fuerza]})`;
 }
 
+/** Si un expediente cumple un grupo de condiciones: todas, alguna o ninguna. Un grupo sin condiciones no cuenta (`null`). */
+function cumpleGrupo(e: ExpedienteDto, g: GrupoCondiciones, hoy: string): boolean | null {
+  if (g.condiciones.length === 0) return null;
+  if (g.combinar === "todas") return g.condiciones.every((c) => cumple(e, c, hoy));
+  if (g.combinar === "alguna") return g.condiciones.some((c) => cumple(e, c, hoy));
+  return !g.condiciones.some((c) => cumple(e, c, hoy));
+}
+
+/** Los grupos de condiciones de una regla: el principal (`combinar` + `condiciones`) y los que se hayan añadido. */
+export const gruposDeRegla = (r: Pick<ReglaColor, "combinar" | "condiciones" | "grupos">): GrupoCondiciones[] => [{ combinar: r.combinar, condiciones: r.condiciones }, ...(r.grupos ?? [])];
+
+/** Si un expediente cumple una regla: sus grupos de condiciones, unidos con «y» (todos) u «o» (alguno). Una regla sin ninguna condición no se aplica. */
+export function cumpleRegla(e: ExpedienteDto, r: ReglaColor, hoy: string): boolean {
+  const resultados = gruposDeRegla(r).map((g) => cumpleGrupo(e, g, hoy)).filter((x): x is boolean => x !== null);
+  if (resultados.length === 0) return false;
+  return (r.unir ?? "y") === "o" ? resultados.some(Boolean) : resultados.every(Boolean);
+}
+
 /** La primera regla activa (con condiciones) que cumple el expediente, o `null`. `hoy` es la fecha local `AAAA-MM-DD`. */
 export function reglaQueAplica(e: ExpedienteDto, reglas: ReglaColor[], hoy: string): ReglaColor | null {
   for (const r of reglas) {
-    if (!r.activa || r.condiciones.length === 0) continue;
-    const ok = r.combinar === "todas" ? r.condiciones.every((c) => cumple(e, c, hoy)) : r.condiciones.some((c) => cumple(e, c, hoy));
-    if (ok) return r;
+    if (!r.activa) continue;
+    if (cumpleRegla(e, r, hoy)) return r;
   }
   return null;
 }
 
-/** Frase que explica cuándo se aplica una regla (para la leyenda bajo la tabla): «Estado intranet es Matriculación y Fecha de pedido es de hoy o de hace como máximo (días) 3». */
-export function textoDeRegla(r: ReglaColor): string {
-  const partes = r.condiciones.map((c) => {
-    const campo = CAMPOS_REGLA.find((x) => x.id === c.campo)?.etiqueta ?? c.campo;
-    const op = OPERADORES.find((o) => o.id === c.operador);
-    return `${campo} ${op?.etiqueta ?? c.operador}${op?.conValor ? ` «${c.valor}»` : ""}`;
-  });
-  return partes.join(r.combinar === "todas" ? " y " : " o ");
+/** Texto de una condición: «Estado intranet es «Matriculación»». */
+export function textoDeCondicion(c: Condicion): string {
+  const campo = CAMPOS_REGLA.find((x) => x.id === c.campo)?.etiqueta ?? c.campo;
+  const op = OPERADORES.find((o) => o.id === c.operador);
+  return `${campo} ${op?.etiqueta ?? c.operador}${op?.conValor ? ` «${c.valor}»` : ""}`;
+}
+
+/** Texto de un grupo: las condiciones unidas con «y» (todas), «o» (alguna) o «ninguna de: …». */
+export function textoDeGrupo(g: GrupoCondiciones): string {
+  const partes = g.condiciones.map(textoDeCondicion);
+  if (partes.length === 0) return "";
+  if (g.combinar === "ninguna") return `ninguna de: ${partes.join("; ")}`;
+  return partes.join(g.combinar === "todas" ? " y " : " o ");
+}
+
+/** Frase que explica cuándo se aplica una regla (para la leyenda bajo la tabla y el resumen de Configuración): los grupos de condiciones unidos con «y» u «o». */
+export function textoDeRegla(r: Pick<ReglaColor, "combinar" | "condiciones" | "grupos" | "unir">): string {
+  const grupos = gruposDeRegla(r).filter((g) => g.condiciones.length > 0);
+  if (grupos.length === 0) return "Sin condiciones";
+  if (grupos.length === 1) return textoDeGrupo(grupos[0]);
+  return grupos.map((g) => `(${textoDeGrupo(g)})`).join((r.unir ?? "y") === "o" ? " O " : " Y ");
 }
