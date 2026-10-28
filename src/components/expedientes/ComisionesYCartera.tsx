@@ -238,7 +238,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
         <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
           El denominador son los coches que cuentan este mes y el numerador los financiados (RCI este mes); una financiación adelantada solo suma a la tasa de su marca, no a la global ni a la de usados.{esVo || resultado.tasaIncluyeVo ? "" : " Los usados no cuentan porque el plan lo tiene desactivado."}
         </p>
-        <TablaDatos<FilaTasa> id="detalle-tasa-coches" columnas={columnasTasa} claseFila={(f) => claseFinanciacionFuera(f.fila)} compacta filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." pie={(fs) => ({ cliente: `${fs.length} coche${fs.length === 1 ? "" : "s"}`, cuenta: `${fs.filter((f) => f.coche.cuenta).length} cuentan`, financiado: `${fs.filter((f) => f.coche.financiado).length} financiados`, aviso: fs.some((f) => f.fila.fuera) ? `${fs.filter((f) => f.fila.fuera).length} de otro mes` : "" })} />
+        <TablaDatos<FilaTasa> alto="none" id="detalle-tasa-coches" columnas={columnasTasa} claseFila={(f) => claseFinanciacionFuera(f.fila)} compacta filas={coches} clave={(f) => f.coche.idExpediente} placeholder="Buscar por cliente, marca, modelo…" vacio="No hay coches para calcular esta tasa." pie={(fs) => ({ cliente: `${fs.length} coche${fs.length === 1 ? "" : "s"}`, cuenta: `${fs.filter((f) => f.coche.cuenta).length} cuentan`, financiado: `${fs.filter((f) => f.coche.financiado).length} financiados`, aviso: fs.some((f) => f.fila.fuera) ? `${fs.filter((f) => f.fila.fuera).length} de otro mes` : "" })} />
       </>
     );
   } else if (tipo === "objetivo") {
@@ -263,6 +263,7 @@ function DetalleIndicador({ tipo, resultado, filas, porId, nombreMarca, alCerrar
         {(tipo === "puntos" || tipo === "tramo") && <TablaDatos<FilaResumen> id="detalle-puntos-resumen" columnas={columnasResumen} filas={resumen} clave={(f) => f.concepto} />}
         <TablaDatos<FilaDesglose>
           id="desglose-comisiones"
+                alto="none"
           claseFila={claseFinanciacionFuera}
           compacta
           columnas={columnasModal}
@@ -450,6 +451,7 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--border-light)", paddingTop: "10px" }}>
               <TablaDatos<FilaDesglose>
                 id="desglose-comisiones"
+                alto="none"
                 columnas={columnasTarjeta}
                 compacta
                 claseFila={claseFinanciacionFuera}
