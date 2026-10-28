@@ -16,6 +16,9 @@ export const CLAVE_VO_RETOMA = "vo-retoma";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "El color debe ser tipo #3b82f6");
 
+/** Los colores de un semáforo, por orden: rojo, amarillo, verde y gris (apagado). El botón «Restablecer colores» los vuelve a poner. */
+export const COLORES_SEMAFORO = ["#ef4444", "#eab308", "#22c55e", "#9ca3af"];
+
 export const ESTADOS_SEMAFORO_INICIALES = [
   { color: "#ef4444", texto: "Aún no solicitado" },
   { color: "#eab308", texto: "Solicitado, sin terminar" },

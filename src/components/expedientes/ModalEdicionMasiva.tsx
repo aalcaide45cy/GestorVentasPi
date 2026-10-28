@@ -243,7 +243,6 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
                     {s.semaforo ? (
                       s.semaforo_estados.map((e, i) => (
                         <option key={i} value={i}>
-                          {e.icono ? `${e.icono} ` : ""}
                           {e.texto}
                         </option>
                       ))

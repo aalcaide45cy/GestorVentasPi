@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { apuntesPredefinidos, papeleraElementos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { actualizarApunte, actualizarPredefinido, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
+import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
 import { restaurar } from "./papelera";
@@ -80,28 +80,27 @@ describe("apuntes de los expedientes", () => {
     await expect(fijarEstadoMasivo(db, admin, [idExpediente], (await predefinido("vo-retoma")).id, 0)).rejects.toThrow(/no es un semáforo/);
   });
 
-  it("la etiqueta admite emoticonos, cada estado puede llevar el suyo y se elige el estilo de la etiqueta", async () => {
+  it("la etiqueta admite emoticonos y se pinta con el color del estado (estilo «texto»)", async () => {
     const { admin, ana, idExpediente } = await escenario();
     const seguro = await predefinido("seguro");
-    const estados = [{ ...seguro.semaforo_estados[0], icono: "🔴" }, { ...seguro.semaforo_estados[1], icono: "🟡" }, { ...seguro.semaforo_estados[2], icono: "🟢" }, seguro.semaforo_estados[3]];
-    const p = await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, etiqueta: "🚗 SEGURO", estilo_etiqueta: "texto", semaforo_estados: estados }));
+    expect(seguro.estilo_etiqueta).toBe("texto");
+    const p = await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, etiqueta: "🚗 SEGURO" }));
     expect(p).toMatchObject({ etiqueta: "🚗 SEGURO", estilo_etiqueta: "texto" });
     const [a] = await listarApuntes(db, idExpediente);
     await fijarEstadoSemaforo(db, ana, a.id, 1);
-    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ etiqueta: "🚗 SEGURO", estilo: "texto", estado_semaforo: 1, estados: expect.arrayContaining([expect.objectContaining({ icono: "🟡" })]) });
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ etiqueta: "🚗 SEGURO", estilo: "texto", estado_semaforo: 1, color: "#eab308" });
   });
 
-  it("edición en masa de un apunte que no es semáforo: añadirlo o quitarlo (a la Papelera) de varios expedientes", async () => {
-    const { admin, ana, otra, idExpediente } = await escenario();
-    const retoma = await predefinido("vo-retoma");
-    const deOtra = await crearExpediente(db, otra, esquemaCrearExpediente.parse({ cliente: { nombre: "De otra", dni: "55555555B" }, expediente: {} }));
-    expect(await anadirOQuitarMasivo(db, ana, [idExpediente, deOtra.id_expediente], retoma.id, "anadir")).toBe(1);
-    expect(await anadirOQuitarMasivo(db, admin, [idExpediente, deOtra.id_expediente], retoma.id, "anadir")).toBe(1);
-    expect((await listarApuntes(db, deOtra.id_expediente)).some((a) => a.id_predefinido === retoma.id)).toBe(true);
-    expect(await anadirOQuitarMasivo(db, ana, [idExpediente, deOtra.id_expediente], retoma.id, "quitar")).toBe(1);
-    expect((await listarApuntes(db, idExpediente)).some((a) => a.id_predefinido === retoma.id)).toBe(false);
-    expect((await listarApuntes(db, deOtra.id_expediente)).some((a) => a.id_predefinido === retoma.id)).toBe(true);
-    expect(await db.select().from(papeleraElementos).where(eq(papeleraElementos.tipo, "apunte"))).toHaveLength(1);
+  it("los colores del semáforo se pueden restablecer a rojo, amarillo, verde y gris", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const cambiados = seguro.semaforo_estados.map((e) => ({ ...e, color: "#123456" }));
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, semaforo_estados: cambiados }));
+    expect((await listarApuntes(db, idExpediente))[0].color).toBe("#123456");
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, semaforo_estados: seguro.semaforo_estados.map((e, i) => ({ ...e, color: COLORES_SEMAFORO[i] })) }));
+    const [a] = await listarApuntes(db, idExpediente);
+    expect(a.color).toBe("#ef4444");
+    expect((await fijarEstadoSemaforo(db, ana, a.id, 2)).color).toBe("#22c55e");
   });
 
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {

@@ -5,6 +5,9 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
 
+/** Rojo, amarillo, verde y gris: los colores de un semáforo (copia de `COLORES_SEMAFORO`, que vive en el servidor). */
+const COLORES_SEMAFORO = ["#ef4444", "#eab308", "#22c55e", "#9ca3af"];
+
 const ESTADOS_INICIALES: EstadoSemaforo[] = [
   { color: "#ef4444", texto: "Aún no solicitado" },
   { color: "#eab308", texto: "Solicitado, sin terminar" },
@@ -82,7 +85,6 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
             <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <input type="color" value={e.color} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)) })} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none" }} />
               <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)) })} placeholder="Qué significa este color" style={{ flex: 1 }} />
-              <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, icono: ev.target.value } : x)) })} placeholder="🙂" aria-label={`Emoticono del estado ${i + 1}`} title="Emoticono que sale delante de la etiqueta cuando el apunte está en este estado (por ejemplo 🔴 🟡 🟢)" style={{ width: "58px", textAlign: "center" }} />
               <label title="Si está marcado, la etiqueta de este estado se ve tenue, como apagada (por ejemplo, un gris para «no lleva seguro»)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                 <input type="checkbox" checked={e.apagado === true} onChange={(ev) => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)) })} />
                 Tenue
@@ -94,6 +96,9 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
               )}
             </div>
           ))}
+          <button type="button" className="btn btn-secondary" onClick={() => alCambiar({ semaforo_estados: b.semaforo_estados.map((x, i) => ({ ...x, color: COLORES_SEMAFORO[i] ?? "#3b82f6" })) })} style={{ alignSelf: "flex-start", padding: "3px 10px", fontSize: "0.78rem" }} title="Vuelve a poner los colores en rojo, amarillo, verde y gris (los significados no cambian). Después hay que pulsar «Guardar cambios»">
+            ↺ Restablecer los colores del semáforo
+          </button>
           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="El estado con el que empieza cada expediente (los nuevos, y los que ya hay si marcas «Lo llevan todos los expedientes» y aún no lo tenían)">
             Estado en el que empiezan los expedientes
             <select className="form-input" value={Math.min(b.estado_inicial, b.semaforo_estados.length - 1)} onChange={(e) => alCambiar({ estado_inicial: Number(e.target.value) })} style={{ width: "auto", maxWidth: "100%" }}>

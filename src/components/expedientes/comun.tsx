@@ -123,7 +123,8 @@ export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apu
   if (visibles.length === 0) return null;
   const estilo = (color: string, tipo: "relleno" | "texto"): React.CSSProperties =>
     tipo === "texto"
-      ? { background: `${color}1f`, color, fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", border: `1px solid ${color}` }
+      ? // El emoticono es una imagen a todo color: para «pintarlo» del color del estado se oculta y se deja su silueta como sombra sin desenfoque (con las letras pasa igual)
+        { background: `${color}1f`, color: "transparent", textShadow: `0 0 0 ${color}`, fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", border: `1px solid ${color}` }
       : { background: color, color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", textShadow: "0 0 2px rgba(0,0,0,0.35)", border: "none" };
   return (
     <>
@@ -131,11 +132,9 @@ export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apu
         const semaforo = a.estados !== null && a.estado_semaforo !== null;
         const texto = semaforo ? (a.estados?.[a.estado_semaforo ?? 0]?.texto ?? "") : "";
         const apagado = semaforo && a.estados?.[a.estado_semaforo ?? 0]?.apagado === true;
-        const icono = semaforo ? (a.estados?.[a.estado_semaforo ?? 0]?.icono ?? "") : "";
-        const rotulo = `${icono ? `${icono} ` : ""}${a.etiqueta}`;
         return semaforo ? (
-          <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${texto}. Pulsa para cambiarlo`} style={{ ...estilo(a.color, a.estilo), cursor: "pointer", ...(apagado ? { opacity: 0.45, textShadow: "none" } : {}) }}>
-            {rotulo}
+          <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${texto}. Pulsa para cambiarlo`} style={{ ...estilo(a.color, a.estilo), cursor: "pointer", ...(apagado ? { opacity: 0.45, ...(a.estilo === "texto" ? {} : { textShadow: "none" }) } : {}) }}>
+            {a.etiqueta}
           </button>
         ) : (
           <span key={a.id} title={`Apunte: ${a.titulo}`} style={estilo(a.color, a.estilo)}>

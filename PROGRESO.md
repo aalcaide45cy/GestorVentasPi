@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.34.3 (28/10/2026)
+
+- **Emoticonos en el texto de la etiqueta, del color del estado.** El emoticono se escribe dentro del texto de la etiqueta («🚗 SEGURO») y, con el estilo **«Texto en color»**, tanto el emoticono como las letras se pintan del color del estado (el emoticono, que es una imagen a todo color, se oculta y se deja su silueta como sombra del color del semáforo). El Seguro pasa a ese estilo (migración 0064); se puede volver a la cápsula con relleno en Configuración › Expedientes › 🚦 Semáforo. Se quitan los emoticonos por estado de la 1.34.1, que no eran lo pedido.
+- **«↺ Restablecer los colores del semáforo»** en Configuración y en la ventana de la etiqueta: vuelve a poner rojo, amarillo, verde y gris (`COLORES_SEMAFORO`) sin tocar los significados.
+
 ## Versión 1.34.2 (28/10/2026)
 
 - **«Editar Expedientes en Masa» muestra todos los apuntes predefinidos.** Los que son semáforo (Seguro…) enseñan su selector de estado con sus emoticonos; los que no lo son (VO de retoma…) enseñan «Añadir a todos los que no lo tengan» / «Quitar de todos (va a la Papelera)» (`POST /api/expedientes/apuntes` con `accion: "apunte_masivo"`; el vendedor solo con sus expedientes). Si quieres estados también en el VO de retoma, basta marcar «Funciona como un semáforo» en Configuración › Expedientes › 🚦 Semáforo.

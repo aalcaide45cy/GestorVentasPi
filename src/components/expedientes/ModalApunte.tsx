@@ -7,6 +7,8 @@ import { useToast } from "@/components/Toast";
 import type { ExpedienteDto } from "@/lib/dto";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
 
+const COLORES_SEMAFORO = ["#ef4444", "#eab308", "#22c55e", "#9ca3af"];
+
 type ApunteLista = NonNullable<ExpedienteDto["apuntes"]>[number];
 
 /**
@@ -79,7 +81,6 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
               style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: `2px solid ${i === actual ? e.color : "var(--border-light)"}`, background: i === actual ? `${e.color}22` : "transparent", color: "var(--text-primary)", textAlign: "left", cursor: "pointer", fontSize: "0.92rem", fontWeight: i === actual ? 700 : 500 }}
             >
               <span style={{ width: "16px", height: "16px", borderRadius: "50%", background: e.color, flex: "0 0 auto", opacity: e.apagado ? 0.45 : 1 }} />
-              {e.icono ? `${e.icono} ` : ""}
               {e.texto}
               {i === actual && <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--text-secondary)" }}>actual</span>}
             </button>
@@ -94,7 +95,6 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
               <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 <input type="color" value={e.color} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, color: ev.target.value } : x)))} aria-label={`Color del estado ${i + 1}`} style={{ width: "34px", height: "28px", padding: 0, border: "none", background: "none", flex: "0 0 auto" }} />
                 <input className="form-input" maxLength={80} value={e.texto} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, texto: ev.target.value } : x)))} style={{ flex: 1 }} aria-label={`Significado del estado ${i + 1}`} />
-                <input className="form-input" maxLength={8} value={e.icono ?? ""} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, icono: ev.target.value } : x)))} placeholder="🙂" aria-label={`Emoticono del estado ${i + 1}`} title="Emoticono que sale delante de la etiqueta en este estado" style={{ width: "58px", textAlign: "center" }} />
                 <label title="Si está marcado, la etiqueta se ve tenue (como apagada)" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                   <input type="checkbox" checked={e.apagado === true} onChange={(ev) => setEstados((l) => l.map((x, j) => (j === i ? { ...x, apagado: ev.target.checked } : x)))} />
                   Tenue
@@ -102,6 +102,9 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
               </div>
             ))}
           </div>
+          <button type="button" className="btn btn-secondary" onClick={() => setEstados((l) => l.map((x, i) => ({ ...x, color: COLORES_SEMAFORO[i] ?? "#3b82f6" })))} style={{ marginTop: "8px", padding: "3px 10px", fontSize: "0.78rem" }} title="Vuelve a poner los colores en rojo, amarillo, verde y gris (los significados no cambian)">
+            ↺ Restablecer los colores del semáforo
+          </button>
           {cambiado && (
             <button type="button" className="btn btn-primary" disabled={ocupado || estados.some((e) => e.texto.trim() === "")} onClick={() => void guardarColores()} style={{ marginTop: "10px", padding: "5px 14px", fontSize: "0.82rem" }}>
               Guardar colores y significados
