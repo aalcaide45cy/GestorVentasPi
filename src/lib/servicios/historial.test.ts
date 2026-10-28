@@ -8,6 +8,7 @@ import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { actualizarCliente, crearCliente, eliminarClientes, esquemaCliente } from "./clientes";
 import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./expedientes-escritura";
+import { fijarEstadoSemaforo, listarApuntes } from "./apuntes";
 import { aplicarHistorial, leerHistorial } from "./historial";
 import { eliminarPlan, guardarPlan, leerPlan } from "./planes";
 
@@ -28,6 +29,18 @@ async function preparar() {
 }
 
 describe("historial de deshacer y rehacer", () => {
+  it("deshace y rehace un cambio de estado de un semáforo", async () => {
+    const { vendedor } = await preparar();
+    const exp = await comoPeticion(vendedor.idUsuario, "Crear expediente", () => crearExpediente(db, vendedor, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana López", dni: "11111111H" }, expediente: {} })));
+    const [seguro] = await listarApuntes(db, exp.id_expediente);
+    await comoPeticion(vendedor.idUsuario, "Cambiar apuntes y semáforos de expedientes", () => fijarEstadoSemaforo(db, vendedor, seguro.id, 2));
+    expect((await listarApuntes(db, exp.id_expediente))[0].estado_semaforo).toBe(2);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+    expect((await listarApuntes(db, exp.id_expediente))[0].estado_semaforo).toBe(0);
+    await aplicarHistorial(db, vendedor.idUsuario, "rehacer");
+    expect((await listarApuntes(db, exp.id_expediente))[0]).toMatchObject({ estado_semaforo: 2, color: "#22c55e" });
+  });
+
   it("deshace y rehace la creación, la edición y el borrado de un expediente", async () => {
     const { vendedor } = await preparar();
     const exp = await comoPeticion(vendedor.idUsuario, "Crear expediente", () =>

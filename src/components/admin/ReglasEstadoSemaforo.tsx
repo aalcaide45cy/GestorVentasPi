@@ -1,5 +1,6 @@
 "use client";
 
+import { useToast } from "@/components/Toast";
 import { GrupoEditor, type SugerenciasReglas } from "./GestorReglasColor";
 import type { GrupoCondiciones } from "@/lib/reglas-color";
 import { reglaEstadoNueva, type ReglaEstado } from "@/lib/reglas-semaforo";
@@ -32,6 +33,7 @@ function ReglaEditor({
   alSubir?: () => void;
   alBajar?: () => void;
 }) {
+  const { confirmar } = useToast();
   const extra = regla.grupos ?? [];
   const cambiarExtra = (i: number, g: GrupoCondiciones) =>
     alCambiar({ ...regla, grupos: extra.map((x, j) => (j === i ? g : x)) });
@@ -107,8 +109,15 @@ function ReglaEditor({
           type="button"
           className="btn btn-secondary"
           style={estiloBotonChico}
-          onClick={() => {
-            if (window.confirm(`¿Quitar la regla «${regla.nombre}»?`))
+          onClick={async () => {
+            if (
+              await confirmar({
+                titulo: "Quitar la regla",
+                texto: `¿Quitar la regla «${regla.nombre}»?`,
+                aceptar: "Quitar",
+                peligro: true,
+              })
+            )
               alQuitar();
           }}
           title="Quitar la regla"

@@ -56,6 +56,7 @@ function Campos({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
  */
 export default function ApuntesExpediente({ idExpediente }: { idExpediente: number }) {
   const { mostrar } = useToast();
+  const nombreExp = `Expediente #EXP-${String(idExpediente).padStart(4, "0")}`;
   const [apuntes, setApuntes] = useState<ApunteDto[] | null>(null);
   const [predefinidos, setPredefinidos] = useState<PredefinidoDto[]>([]);
   const [editados, setEditados] = useState<Record<number, Borrador>>({});
@@ -95,7 +96,7 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
   const rapido = (p: PredefinidoDto) =>
     ejecutar(async () => {
       const { data } = await llamar<{ creado: boolean }>("/api/expedientes/apuntes", { method: "POST", cuerpo: { accion: "rapido", id_expediente: idExpediente, id_predefinido: p.id } });
-      mostrar(data.creado ? `Apunte «${p.titulo}» añadido.` : `Este expediente ya tiene el apunte «${p.titulo}».`);
+      mostrar(data.creado ? `${nombreExp}: apunte «${p.titulo}» añadido.` : `${nombreExp} ya tiene el apunte «${p.titulo}».`);
     });
   const guardarNuevo = () =>
     nuevo &&
@@ -106,22 +107,22 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
   const guardar = (a: ApunteDto, b: Borrador) =>
     ejecutar(async () => {
       await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: b });
-      mostrar("Apunte guardado.");
+      mostrar(`${nombreExp}: apunte guardado.`);
     });
   const estado = (a: ApunteDto, i: number) =>
     ejecutar(async () => {
       await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: i, comentario: comentarios[a.id] ?? a.comentario } });
-      mostrar(`${a.titulo}: ${a.estados?.[i]?.texto ?? ""}`);
+      mostrar(`${nombreExp} · ${a.titulo}: ${a.estados?.[i]?.texto ?? ""}`);
     });
   const guardarComentario = (a: ApunteDto) =>
     ejecutar(async () => {
       await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: a.estado_semaforo ?? 0, comentario: comentarios[a.id] ?? a.comentario } });
-      mostrar("Comentario guardado.");
+      mostrar(`${nombreExp}: comentario guardado.`);
     });
   const eliminar = (a: ApunteDto) =>
     ejecutar(async () => {
       await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "DELETE" });
-      mostrar(`Apunte «${a.titulo}» eliminado (está en la Papelera).`);
+      mostrar(`${nombreExp}: apunte «${a.titulo}» eliminado (está en la Papelera).`);
     });
 
   const yaTiene = (p: PredefinidoDto) => (apuntes ?? []).some((a) => a.id_predefinido === p.id);

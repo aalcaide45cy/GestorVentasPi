@@ -734,7 +734,7 @@ export default function PanelApuntesPredefinidos({
 }: {
   sugerencias: SugerenciasReglas;
 }) {
-  const { mostrar } = useToast();
+  const { mostrar, confirmar } = useToast();
   const [lista, setLista] = useState<PredefinidoDto[] | null>(null);
   const [editados, setEditados] = useState<Record<number, Borrador>>({});
   const [nuevo, setNuevo] = useState<Borrador | null>(null);
@@ -907,11 +907,15 @@ export default function PanelApuntesPredefinidos({
                         type="button"
                         className="btn btn-secondary"
                         disabled={ocupado}
-                        onClick={() => {
+                        onClick={async () => {
                           if (
-                            window.confirm(
-                              `Esto ${m ? "mostrará" : "ocultará"} la etiqueta «${p.titulo}» en la lista de TODOS los expedientes. ¿Seguro?`,
-                            )
+                            await confirmar({
+                              titulo: m
+                                ? "Mostrar la etiqueta"
+                                : "Ocultar la etiqueta",
+                              texto: `Esto ${m ? "mostrará" : "ocultará"} la etiqueta «${p.titulo}» en la lista de TODOS los expedientes.`,
+                              aceptar: m ? "Mostrar" : "Ocultar",
+                            })
                           )
                             void ejecutar(async () => {
                               const { data } = await llamar<{
@@ -957,9 +961,11 @@ export default function PanelApuntesPredefinidos({
                               return;
                             }
                             if (
-                              !window.confirm(
-                                `Con las reglas de «${p.titulo}», ${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} cambiaría${data.cambiados === 1 ? "" : "n"} de estado. ¿Aplicarlo ahora?`,
-                              )
+                              !(await confirmar({
+                                titulo: "Revisar con las reglas",
+                                texto: `Con las reglas de «${p.titulo}», ${data.cambiados} expediente${data.cambiados === 1 ? "" : "s"} cambiaría${data.cambiados === 1 ? "" : "n"} de estado. ¿Aplicarlo ahora?`,
+                                aceptar: "Aplicar ahora",
+                              }))
                             )
                               return;
                             const r = await llamar<{ cambiados: number }>(
@@ -1025,11 +1031,14 @@ export default function PanelApuntesPredefinidos({
                     type="button"
                     className="btn btn-secondary"
                     disabled={ocupado}
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        window.confirm(
-                          `¿Quitar el predefinido «${p.titulo}»? Los apuntes ya creados en los expedientes se quedan.`,
-                        )
+                        await confirmar({
+                          titulo: "Quitar el predefinido",
+                          texto: `¿Quitar el predefinido «${p.titulo}»? Los apuntes ya creados en los expedientes se quedan.`,
+                          aceptar: "Quitar",
+                          peligro: true,
+                        })
                       )
                         void ejecutar(
                           async () =>

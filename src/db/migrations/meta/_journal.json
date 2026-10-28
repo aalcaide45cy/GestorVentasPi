@@ -477,6 +477,13 @@
       "when": 1793205231858,
       "tag": "0067_reglas_estado_semaforo",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1793205231859,
+      "tag": "0068_historial_apuntes",
+      "breakpoints": true
     }
   ]
 }

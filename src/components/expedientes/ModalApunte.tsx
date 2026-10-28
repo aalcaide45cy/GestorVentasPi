@@ -30,7 +30,7 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
     setOcupado(true);
     try {
       await llamar(`/api/expedientes/apuntes?id=${apunte.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: elegido, comentario } });
-      mostrar(`${apunte.titulo}: ${estados[elegido]?.texto ?? ""}${comentario.trim() ? " (con comentario)" : ""}`);
+      mostrar(`${cliente ? `${cliente} · ` : ""}${apunte.titulo}: ${estados[elegido]?.texto ?? ""}${comentario.trim() ? " (con comentario)" : ""}`);
       alCerrar();
     } catch (e) {
       mostrar(textoError(e), "error");

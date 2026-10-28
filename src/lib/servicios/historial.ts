@@ -91,6 +91,8 @@ const NOMBRE_TABLA: Record<string, string> = {
   estado_vehiculo: "un estado de vehículo",
   tiendas: "una tienda",
   commission_plans: "un plan de comisionamiento",
+  apuntes_expediente: "un apunte o semáforo de un expediente",
+  apuntes_predefinidos: "un apunte predefinido",
 };
 
 /**
