@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.34.4 (28/10/2026)
+
+- **Los emoticonos son opcionales y su color también.** Nueva casilla «Pintar los emoticonos del color del estado» (con el estilo «Texto en color»): si se desmarca, los emoticonos del texto de la etiqueta conservan sus colores y solo las letras llevan el color del semáforo (migración 0065, columna `colorear_emoticonos`).
+- **Ayuda del semáforo.** «ℹ️ ¿Cómo funciona el semáforo?» (`AyudaSemaforo.tsx`) explica en lenguaje sencillo qué es, cómo se cambia el estado (pulsando la etiqueta, en la edición en masa o dentro del expediente) y qué se configura; sale al principio de Configuración › Expedientes › 🚦 Semáforo y, resumida, en la ventana de la etiqueta; también está en la guía de la pantalla.
+
 ## Versión 1.34.3 (28/10/2026)
 
 - **Emoticonos en el texto de la etiqueta, del color del estado.** El emoticono se escribe dentro del texto de la etiqueta («🚗 SEGURO») y, con el estilo **«Texto en color»**, tanto el emoticono como las letras se pintan del color del estado (el emoticono, que es una imagen a todo color, se oculta y se deja su silueta como sombra del color del semáforo). El Seguro pasa a ese estilo (migración 0064); se puede volver a la cápsula con relleno en Configuración › Expedientes › 🚦 Semáforo. Se quitan los emoticonos por estado de la 1.34.1, que no eran lo pedido.

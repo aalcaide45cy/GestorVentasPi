@@ -42,6 +42,8 @@ export const esquemaPredefinido = z.object({
   lado: z.enum(["izquierda", "derecha"]).default("derecha"),
   /** Cómo se pinta la etiqueta: con relleno de color o con el texto y el borde en color. */
   estilo_etiqueta: z.enum(["relleno", "texto"]).default("relleno"),
+  /** Con el estilo «texto»: si los emoticonos se pintan del color del estado o conservan sus colores. */
+  colorear_emoticonos: z.boolean().default(true),
   /** Estado en el que empiezan los expedientes (posición en los estados del semáforo). */
   estado_inicial: z.number().int().min(0).max(4).default(0),
 });
@@ -79,6 +81,7 @@ export interface PredefinidoDto {
   semaforo_estados: EstadoSemaforo[];
   lado: "izquierda" | "derecha";
   estilo_etiqueta: "relleno" | "texto";
+  colorear_emoticonos: boolean;
   estado_inicial: number;
 }
 
@@ -109,11 +112,12 @@ export interface ApunteListaDto {
   mostrar_etiqueta: boolean;
   lado: "izquierda" | "derecha";
   estilo: "relleno" | "texto";
+  colorear_emoticonos: boolean;
   estado_semaforo: number | null;
   estados: EstadoSemaforo[] | null;
 }
 
-const aPredefinido = (f: typeof apuntesPredefinidos.$inferSelect): PredefinidoDto => ({ id: f.id, clave: f.clave, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, rapido: f.rapido, por_defecto: f.porDefecto, semaforo: f.semaforo, semaforo_estados: f.semaforoEstados, lado: f.lado === "izquierda" ? "izquierda" : "derecha", estilo_etiqueta: f.estiloEtiqueta === "texto" ? "texto" : "relleno", estado_inicial: Math.min(f.estadoInicial, Math.max(f.semaforoEstados.length - 1, 0)) });
+const aPredefinido = (f: typeof apuntesPredefinidos.$inferSelect): PredefinidoDto => ({ id: f.id, clave: f.clave, titulo: f.titulo, descripcion: f.descripcion, etiqueta: f.etiqueta, color: f.color, mostrar_etiqueta: f.mostrarEtiqueta, rapido: f.rapido, por_defecto: f.porDefecto, semaforo: f.semaforo, semaforo_estados: f.semaforoEstados, lado: f.lado === "izquierda" ? "izquierda" : "derecha", estilo_etiqueta: f.estiloEtiqueta === "texto" ? "texto" : "relleno", colorear_emoticonos: f.colorearEmoticonos, estado_inicial: Math.min(f.estadoInicial, Math.max(f.semaforoEstados.length - 1, 0)) });
 
 /** El color con el que se pinta un apunte: en un semáforo, el de su estado actual (los colores se pueden cambiar desde Configuración); si no, el suyo. */
 const colorDe = (color: string, estado: number | null, estados: EstadoSemaforo[] | null): string => (estados && estado !== null ? (estados[estado]?.color ?? color) : color);
@@ -136,7 +140,7 @@ function soloAdministrador(u: UsuarioActual): void {
 }
 
 function camposPredefinido(e: EntradaPredefinido) {
-  return { titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta, rapido: e.rapido, porDefecto: e.por_defecto, semaforo: e.semaforo, semaforoEstados: e.semaforo ? e.semaforo_estados : [], lado: e.lado, estiloEtiqueta: e.estilo_etiqueta, estadoInicial: e.semaforo ? Math.min(e.estado_inicial, e.semaforo_estados.length - 1) : 0 };
+  return { titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta, rapido: e.rapido, porDefecto: e.por_defecto, semaforo: e.semaforo, semaforoEstados: e.semaforo ? e.semaforo_estados : [], lado: e.lado, estiloEtiqueta: e.estilo_etiqueta, colorearEmoticonos: e.colorear_emoticonos, estadoInicial: e.semaforo ? Math.min(e.estado_inicial, e.semaforo_estados.length - 1) : 0 };
 }
 
 /** Añade el predefinido a todos los expedientes que aún no lo tienen (los nuevos lo reciben solos por un disparador de la base de datos). */
@@ -319,7 +323,7 @@ export async function apuntesPorExpediente(ej: Ejecutor, ids?: number[]): Promis
   for (const { a, p } of filas) {
     const estados = p?.semaforo ? p.semaforoEstados : null;
     const l = mapa.get(a.idExpediente) ?? [];
-    l.push({ id: a.id, id_predefinido: a.idPredefinido, titulo: a.titulo, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, lado: p?.lado === "izquierda" ? "izquierda" : "derecha", estilo: p?.estiloEtiqueta === "texto" ? "texto" : "relleno", estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados });
+    l.push({ id: a.id, id_predefinido: a.idPredefinido, titulo: a.titulo, etiqueta: a.etiqueta, color: colorDe(a.color, a.estadoSemaforo, estados), mostrar_etiqueta: a.mostrarEtiqueta, lado: p?.lado === "izquierda" ? "izquierda" : "derecha", estilo: p?.estiloEtiqueta === "texto" ? "texto" : "relleno", colorear_emoticonos: p?.colorearEmoticonos ?? true, estado_semaforo: estados ? (a.estadoSemaforo ?? 0) : null, estados });
     mapa.set(a.idExpediente, l);
   }
   return mapa;

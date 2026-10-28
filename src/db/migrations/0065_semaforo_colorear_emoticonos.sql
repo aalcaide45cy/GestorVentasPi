@@ -1,0 +1,1 @@
+ALTER TABLE "apuntes_predefinidos" ADD COLUMN "colorear_emoticonos" boolean DEFAULT true NOT NULL;

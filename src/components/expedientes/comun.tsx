@@ -113,6 +113,10 @@ interface CeldaClienteProps {
   alAsignar: (id: number) => void;
 }
 
+/** Un emoticono (con sus variantes y uniones). */
+const EMOTICONOS = /((?:\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*))/u;
+const EMOTICONOS_PRUEBA = /^\p{Extended_Pictographic}/u;
+
 /**
  * Etiquetas de los apuntes del expediente que se han marcado para mostrarse (SEGURO, VO…), a un lado u otro del icono del cliente según el apunte.
  * Las que funcionan como semáforo se pueden pulsar: abren la ventana para cambiar su estado.
@@ -123,9 +127,14 @@ export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apu
   if (visibles.length === 0) return null;
   const estilo = (color: string, tipo: "relleno" | "texto"): React.CSSProperties =>
     tipo === "texto"
-      ? // El emoticono es una imagen a todo color: para «pintarlo» del color del estado se oculta y se deja su silueta como sombra sin desenfoque (con las letras pasa igual)
-        { background: `${color}1f`, color: "transparent", textShadow: `0 0 0 ${color}`, fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", border: `1px solid ${color}` }
+      ? { background: `${color}1f`, color, fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", border: `1px solid ${color}` }
       : { background: color, color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.03em", padding: "1px 7px", borderRadius: "999px", lineHeight: 1.5, whiteSpace: "nowrap", textShadow: "0 0 2px rgba(0,0,0,0.35)", border: "none" };
+  // Con el estilo «texto» las letras llevan el color del estado; los emoticonos, que son imágenes a todo color, o se «pintan» (se ocultan y se deja su silueta como sombra
+  // del color del estado) o conservan sus colores, según el ajuste del apunte
+  const rotulo = (a: NonNullable<ExpedienteDto["apuntes"]>[number]): React.ReactNode =>
+    a.estilo === "texto" && a.colorear_emoticonos
+      ? a.etiqueta.split(EMOTICONOS).map((t, i) => (EMOTICONOS_PRUEBA.test(t) ? <span key={i} style={{ color: "transparent", textShadow: `0 0 0 ${a.color}` }}>{t}</span> : t))
+      : a.etiqueta;
   return (
     <>
       {visibles.map((a) => {
@@ -134,11 +143,11 @@ export function EtiquetasApuntes({ apuntes, lado, idExpediente, cliente }: { apu
         const apagado = semaforo && a.estados?.[a.estado_semaforo ?? 0]?.apagado === true;
         return semaforo ? (
           <button key={a.id} type="button" onClick={() => setAbierto(a.id)} title={`${a.titulo}: ${texto}. Pulsa para cambiarlo`} style={{ ...estilo(a.color, a.estilo), cursor: "pointer", ...(apagado ? { opacity: 0.45, ...(a.estilo === "texto" ? {} : { textShadow: "none" }) } : {}) }}>
-            {a.etiqueta}
+            {rotulo(a)}
           </button>
         ) : (
           <span key={a.id} title={`Apunte: ${a.titulo}`} style={estilo(a.color, a.estilo)}>
-            {a.etiqueta}
+            {rotulo(a)}
           </span>
         );
       })}

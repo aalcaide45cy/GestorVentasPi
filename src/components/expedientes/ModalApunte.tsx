@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import type { ExpedienteDto } from "@/lib/dto";
+import AyudaSemaforo from "./AyudaSemaforo";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
 
 const COLORES_SEMAFORO = ["#ef4444", "#eab308", "#22c55e", "#9ca3af"];
@@ -45,7 +46,7 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
       if (!p) throw new Error("No se encuentra el apunte predefinido");
       await llamar(`/api/admin/apuntes-predefinidos?id=${p.id}`, {
         method: "PUT",
-        cuerpo: { titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: true, semaforo_estados: estados, lado: p.lado, estilo_etiqueta: p.estilo_etiqueta, estado_inicial: p.estado_inicial },
+        cuerpo: { titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: true, semaforo_estados: estados, lado: p.lado, estilo_etiqueta: p.estilo_etiqueta, colorear_emoticonos: p.colorear_emoticonos, estado_inicial: p.estado_inicial },
       });
       mostrar("Colores y significados guardados para todos los expedientes.");
       alCerrar();
@@ -86,6 +87,8 @@ export default function ModalApunte({ apunte, cliente, alCerrar }: { apunte: Apu
             </button>
           ))}
         </div>
+
+        <AyudaSemaforo completa={false} />
 
         <details style={{ borderTop: "1px solid var(--border-light)", paddingTop: "10px" }}>
           <summary style={{ cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}>🎨 Cambiar el color y el significado de cada estado</summary>

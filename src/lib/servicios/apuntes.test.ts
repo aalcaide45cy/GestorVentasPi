@@ -85,10 +85,13 @@ describe("apuntes de los expedientes", () => {
     const seguro = await predefinido("seguro");
     expect(seguro.estilo_etiqueta).toBe("texto");
     const p = await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, etiqueta: "🚗 SEGURO" }));
-    expect(p).toMatchObject({ etiqueta: "🚗 SEGURO", estilo_etiqueta: "texto" });
+    expect(p).toMatchObject({ etiqueta: "🚗 SEGURO", estilo_etiqueta: "texto", colorear_emoticonos: true });
     const [a] = await listarApuntes(db, idExpediente);
     await fijarEstadoSemaforo(db, ana, a.id, 1);
-    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ etiqueta: "🚗 SEGURO", estilo: "texto", estado_semaforo: 1, color: "#eab308" });
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ etiqueta: "🚗 SEGURO", estilo: "texto", estado_semaforo: 1, color: "#eab308", colorear_emoticonos: true });
+    // Los emoticonos son opcionales: se puede dejar que conserven sus colores
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, etiqueta: "SEGURO", colorear_emoticonos: false }));
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.[0]).toMatchObject({ etiqueta: "SEGURO", colorear_emoticonos: false });
   });
 
   it("los colores del semáforo se pueden restablecer a rojo, amarillo, verde y gris", async () => {

@@ -1242,6 +1242,8 @@ export const apuntesPredefinidos = pgTable(
     semaforoEstados: jsonb("semaforo_estados").$type<{ color: string; texto: string; apagado?: boolean; icono?: string }[]>().notNull().default(sql`'[]'::jsonb`),
     /** Cómo se pinta la etiqueta: con el color de fondo (`relleno`) o con el texto y el borde en color (`texto`). */
     estiloEtiqueta: varchar("estilo_etiqueta", { length: 10 }).notNull().default("relleno"),
+    /** Si los emoticonos del texto de la etiqueta se pintan del color del estado (silueta) o conservan sus colores. Solo con el estilo «texto». */
+    colorearEmoticonos: boolean("colorear_emoticonos").notNull().default(true),
     /** Estado en el que empiezan los expedientes (posición en `semaforoEstados`). */
     estadoInicial: integer("estado_inicial").notNull().default(0),
     /** A qué lado del icono del cliente sale la etiqueta en la lista: izquierda o derecha. */

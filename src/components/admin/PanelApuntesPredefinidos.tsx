@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
+import AyudaSemaforo from "@/components/expedientes/AyudaSemaforo";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
 
 /** Rojo, amarillo, verde y gris: los colores de un semáforo (copia de `COLORES_SEMAFORO`, que vive en el servidor). */
@@ -26,11 +27,12 @@ interface Borrador {
   semaforo_estados: EstadoSemaforo[];
   lado: "izquierda" | "derecha";
   estilo_etiqueta: "relleno" | "texto";
+  colorear_emoticonos: boolean;
   estado_inicial: number;
 }
 
-const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha", estilo_etiqueta: "relleno", estado_inicial: 0 });
-const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado, estilo_etiqueta: p.estilo_etiqueta, estado_inicial: p.estado_inicial });
+const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false, rapido: true, por_defecto: false, semaforo: false, semaforo_estados: ESTADOS_INICIALES, lado: "derecha", estilo_etiqueta: "relleno", colorear_emoticonos: true, estado_inicial: 0 });
+const deP = (p: PredefinidoDto): Borrador => ({ titulo: p.titulo, descripcion: p.descripcion, etiqueta: p.etiqueta, color: p.color, mostrar_etiqueta: p.mostrar_etiqueta, rapido: p.rapido, por_defecto: p.por_defecto, semaforo: p.semaforo, semaforo_estados: p.semaforo_estados.length > 0 ? p.semaforo_estados : ESTADOS_INICIALES, lado: p.lado, estilo_etiqueta: p.estilo_etiqueta, colorear_emoticonos: p.colorear_emoticonos, estado_inicial: p.estado_inicial });
 
 function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador>) => void }) {
   return (
@@ -73,6 +75,10 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
           <option value="relleno">Con relleno de color</option>
           <option value="texto">Texto en color</option>
         </select>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem", opacity: b.estilo_etiqueta === "texto" ? 1 : 0.5 }} title="Solo con el estilo «Texto en color». Si está marcado, los emoticonos del texto de la etiqueta se pintan del color del estado; si no, conservan sus colores y solo las letras llevan el color. Los emoticonos son opcionales">
+        <input type="checkbox" checked={b.colorear_emoticonos} disabled={b.estilo_etiqueta !== "texto"} onChange={(e) => alCambiar({ colorear_emoticonos: e.target.checked })} />
+        Pintar los emoticonos del color del estado
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem" }} title="Un semáforo tiene varios estados, cada uno con su color y su significado (por ejemplo rojo: aún no solicitado). Al pulsar la etiqueta en la lista se cambia el estado de ese expediente">
         <input type="checkbox" checked={b.semaforo} onChange={(e) => alCambiar({ semaforo: e.target.checked })} />
@@ -166,6 +172,8 @@ export default function PanelApuntesPredefinidos() {
           Cada expediente puede llevar apuntes (por ejemplo «hay que contratar el seguro» o «deja un VO de retoma»). Aquí defines los que tienen botón rápido: el título, la descripción, el texto y el color de la etiqueta que sale junto al icono del cliente en la lista, y si sale por defecto. «VO de retoma» lo añade solo la lectura de un pedido con retoma.
         </p>
       </div>
+
+      <AyudaSemaforo />
 
       {lista === null && <span style={{ color: "var(--text-muted)" }}>Cargando…</span>}
       {(lista ?? []).map((p) => {
