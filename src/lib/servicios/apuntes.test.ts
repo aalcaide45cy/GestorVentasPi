@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { apuntesPredefinidos, papeleraElementos } from "@/db/schema";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, mostrarEnTodos, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
+import { COLORES_SEMAFORO, actualizarApunte, actualizarPredefinido, mostrarEnTodos, ordenarPredefinidos, anadirOQuitarMasivo, anadirRapido, anadirVoRetoma, apuntesPorExpediente, crearApunte, crearPredefinido, eliminarApunte, eliminarPredefinido, esquemaApunte, esquemaPredefinido, fijarEstadoMasivo, fijarEstadoSemaforo, listarApuntes, listarPredefinidos } from "./apuntes";
 import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente } from "./expedientes-escritura";
 import { revisarReglasDe } from "./reglas-semaforo";
@@ -198,6 +198,19 @@ describe("apuntes de los expedientes", () => {
     await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, semaforo_estados: estados, orden_estados: [2, 0, 1, 3] }));
     expect((await listarApuntes(db, idExpediente))[0]).toMatchObject({ estado_semaforo: 0, color: "#22c55e" });
     expect((await listarApuntes(db, idExpediente))[0].estados?.[0]).toMatchObject({ modo: "texto", icono: "¿Lleva?" });
+  });
+
+  it("los predefinidos se pueden ordenar y las etiquetas del expediente siguen ese orden", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const nuevo = await crearPredefinido(db, admin, esquemaPredefinido.parse({ titulo: "Encuesta", etiqueta: "ENC", mostrar_etiqueta: true, por_defecto: true }));
+    expect((await listarApuntes(db, idExpediente)).map((a) => a.titulo)).toEqual(["Seguro", "Encuesta"]);
+    const todos = (await listarPredefinidos(db)).map((p) => p.id);
+    await expect(ordenarPredefinidos(db, ana, todos)).rejects.toThrow(/administrador/);
+    await expect(ordenarPredefinidos(db, admin, [seguro.id, seguro.id])).rejects.toThrow(/no válido/);
+    await ordenarPredefinidos(db, admin, [nuevo.id, ...todos.filter((i) => i !== nuevo.id)]);
+    expect((await listarPredefinidos(db))[0].titulo).toBe("Encuesta");
+    expect((await apuntesPorExpediente(db)).get(idExpediente)?.map((a) => a.titulo)).toEqual(["Encuesta", "Seguro"]);
   });
 
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {

@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.40.4 (28/10/2026)
+
+- **Orden de los predefinidos** (Ajustes › Semáforo): flechas ▲ ▼ en cada uno (`PUT /api/admin/apuntes-predefinidos?orden=1`, `ordenarPredefinidos`). Las etiquetas de un expediente siguen ese orden.
+
 ## Versión 1.40.3 (28/10/2026)
 
 - En la ventana de la etiqueta del semáforo, **doble clic en un estado** lo elige y lo guarda al momento (con el comentario que haya escrito).

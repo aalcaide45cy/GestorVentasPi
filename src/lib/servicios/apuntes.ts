@@ -200,6 +200,14 @@ export async function actualizarPredefinido(ej: Ejecutor, u: UsuarioActual, id: 
   return aPredefinido(f);
 }
 
+/** Fija el orden de los apuntes predefinidos (el de Ajustes y el de las etiquetas en la lista de Expedientes): `ids` en el orden deseado. */
+export async function ordenarPredefinidos(ej: Ejecutor, u: UsuarioActual, ids: number[]): Promise<void> {
+  soloAdministrador(u);
+  const existentes = (await ej.select({ id: apuntesPredefinidos.id }).from(apuntesPredefinidos)).map((x) => x.id);
+  if (new Set(ids).size !== ids.length || ids.some((i) => !existentes.includes(i))) throw new HttpError(400, "Orden no válido");
+  for (let i = 0; i < ids.length; i++) await ej.update(apuntesPredefinidos).set({ orden: i + 1 }).where(eq(apuntesPredefinidos.id, ids[i]));
+}
+
 export async function eliminarPredefinido(ej: Ejecutor, u: UsuarioActual, id: number): Promise<void> {
   soloAdministrador(u);
   const [f] = await ej.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, id));
@@ -219,7 +227,7 @@ async function comprobarAcceso(ej: Ejecutor, u: UsuarioActual, idExpediente: num
 }
 
 export async function listarApuntes(ej: Ejecutor, idExpediente: number): Promise<ApunteDto[]> {
-  return (await ej.select(unirPredefinido).from(apuntesExpediente).leftJoin(apuntesPredefinidos, eq(apuntesExpediente.idPredefinido, apuntesPredefinidos.id)).where(eq(apuntesExpediente.idExpediente, idExpediente)).orderBy(asc(apuntesExpediente.creadoEn), asc(apuntesExpediente.id))).map(aApunte);
+  return (await ej.select(unirPredefinido).from(apuntesExpediente).leftJoin(apuntesPredefinidos, eq(apuntesExpediente.idPredefinido, apuntesPredefinidos.id)).where(eq(apuntesExpediente.idExpediente, idExpediente)).orderBy(sql`coalesce(${apuntesPredefinidos.orden}, 1000000)`, asc(apuntesExpediente.creadoEn), asc(apuntesExpediente.id))).map(aApunte);
 }
 
 export async function crearApunte(ej: Ejecutor, u: UsuarioActual, idExpediente: number, e: EntradaApunte): Promise<ApunteDto> {
@@ -350,7 +358,7 @@ export async function apuntesPorExpediente(ej: Ejecutor, ids?: number[]): Promis
     .from(apuntesExpediente)
     .leftJoin(apuntesPredefinidos, eq(apuntesExpediente.idPredefinido, apuntesPredefinidos.id))
     .where(ids && ids.length > 0 ? inArray(apuntesExpediente.idExpediente, ids) : undefined)
-    .orderBy(asc(apuntesExpediente.creadoEn), asc(apuntesExpediente.id));
+    .orderBy(sql`coalesce(${apuntesPredefinidos.orden}, 1000000)`, asc(apuntesExpediente.creadoEn), asc(apuntesExpediente.id));
   const mapa = new Map<number, ApunteListaDto[]>();
   for (const { a, p } of filas) {
     const estados = p?.semaforo ? p.semaforoEstados : null;

@@ -877,6 +877,36 @@ export default function PanelApuntesPredefinidos({
                   ? `Semáforo de ${p.semaforo_estados.length} estados`
                   : "Apunte sencillo"}
               </span>
+              {[-1, 1].map((d) => {
+                const pos = (lista ?? []).findIndex((x) => x.id === p.id);
+                if (pos + d < 0 || pos + d >= (lista ?? []).length) return null;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={ocupado}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      const ids = (lista ?? []).map((x) => x.id);
+                      [ids[pos], ids[pos + d]] = [ids[pos + d], ids[pos]];
+                      void ejecutar(
+                        async () =>
+                          void (await llamar(
+                            "/api/admin/apuntes-predefinidos?orden=1",
+                            { method: "PUT", cuerpo: { ids } },
+                          )),
+                        "",
+                      );
+                    }}
+                    style={{ padding: "1px 8px", fontSize: "0.75rem" }}
+                    title={d < 0 ? "Subir (va antes)" : "Bajar (va después)"}
+                    aria-label={`${d < 0 ? "Subir" : "Bajar"} ${p.titulo}`}
+                  >
+                    {d < 0 ? "▲" : "▼"}
+                  </button>
+                );
+              })}
               {p.clave && (
                 <span
                   style={{
