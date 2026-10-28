@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import AyudaSemaforo from "@/components/expedientes/AyudaSemaforo";
+import AyudaEmoticonos from "@/components/expedientes/AyudaEmoticonos";
 import { EtiquetaApunte } from "@/components/expedientes/etiqueta-apunte";
 import type { EstadoSemaforo, PredefinidoDto } from "@/lib/servicios/apuntes";
 
@@ -83,6 +84,7 @@ function Editor({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
           <label style={estiloCampo}>
             Texto de la etiqueta <span style={pista}>(admite emoticonos, son opcionales)</span>
             <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. 🚗 SEGURO" />
+            <AyudaEmoticonos alInsertar={(emo) => alCambiar({ etiqueta: `${b.etiqueta}${b.etiqueta && !b.etiqueta.endsWith(" ") ? " " : ""}${emo}`.slice(0, 24) })} />
           </label>
           <label style={estiloCampo}>
             Estilo

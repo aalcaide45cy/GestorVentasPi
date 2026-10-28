@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import type { ApunteDto, PredefinidoDto } from "@/lib/servicios/apuntes";
+import AyudaEmoticonos from "./AyudaEmoticonos";
 
 interface Borrador {
   titulo: string;
@@ -32,6 +33,7 @@ function Campos({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
       <label style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
         Texto de la etiqueta
         <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. SEGURO" />
+        <AyudaEmoticonos alInsertar={(emo) => alCambiar({ etiqueta: `${b.etiqueta}${b.etiqueta && !b.etiqueta.endsWith(" ") ? " " : ""}${emo}`.slice(0, 24) })} />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8rem" }} title="Si está marcado, el texto de la etiqueta sale junto al icono del cliente en la lista de Expedientes">
         <input type="checkbox" checked={b.mostrar_etiqueta} onChange={(e) => alCambiar({ mostrar_etiqueta: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />

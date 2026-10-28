@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.34.7 (28/10/2026)
+
+- **Ayuda para escribir emoticonos.** Bajo «Texto de la etiqueta» (en Configuración › Expedientes › 🚦 Semáforo y en los apuntes del expediente) sale «😀 ¿Cómo pongo un emoticono?»: el atajo de teclado de cada sistema (Windows: tecla de Windows + punto; Mac: Control + Cmd + Espacio; móvil: la carita del teclado) y una fila de emoticonos frecuentes que se añaden con un clic (`AyudaEmoticonos.tsx`).
+
 ## Versión 1.34.6 (28/10/2026)
 
 - **Casillas más grandes y más aire en el formulario del semáforo.** Las casillas de marcar del semáforo (en Configuración, en la ventana de la etiqueta y en los apuntes del expediente) pasan a 18-20 px con el color de la aplicación, y los bloques del formulario tienen más espacio entre campos.
