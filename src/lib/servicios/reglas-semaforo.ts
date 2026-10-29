@@ -4,6 +4,7 @@ import { apuntesExpediente, apuntesPredefinidos, expedientes } from "@/db/schema
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { estadoPorReglas } from "@/lib/reglas-semaforo";
+import { evaluarAlertas } from "./alertas";
 import { hoyIso } from "./comun";
 import { aDto, relacionesExpediente } from "./expedientes";
 
@@ -12,7 +13,7 @@ import { aDto, relacionesExpediente } from "./expedientes";
  * Con `idPredefinido` solo revisa ese semáforo; con `simular` no cambia nada y solo cuenta. Devuelve cuántos semáforos cambian.
  * Sin `ids` revisa todos los expedientes. Con `alCrear` (expedientes recién creados) también cuentan las reglas «solo al crear», que deciden el estado con el que empiezan.
  */
-export async function aplicarReglasSemaforo(ej: Ejecutor, ids?: number[], opciones: { idPredefinido?: number; simular?: boolean; alCrear?: boolean } = {}): Promise<number> {
+async function aplicarReglas(ej: Ejecutor, ids: number[] | undefined, opciones: { idPredefinido?: number; simular?: boolean; alCrear?: boolean }): Promise<number> {
   if (ids && ids.length === 0) return 0;
   const predefinidos = (await ej.select().from(apuntesPredefinidos).where(opciones.idPredefinido ? eq(apuntesPredefinidos.id, opciones.idPredefinido) : undefined)).filter((p) => p.semaforo && p.reglasEstado.some((r) => r.activa));
   if (predefinidos.length === 0) return 0;
@@ -41,8 +42,15 @@ export async function aplicarReglasSemaforo(ej: Ejecutor, ids?: number[], opcion
   return cambiados;
 }
 
+/** Aplica las reglas del semáforo y, después, revisa las alertas de esos expedientes (el semáforo puede haber cambiado). */
+export async function aplicarReglasSemaforo(ej: Ejecutor, ids?: number[], opciones: { idPredefinido?: number; simular?: boolean; alCrear?: boolean } = {}): Promise<number> {
+  const cambiados = await aplicarReglas(ej, ids, opciones);
+  if (ids && !opciones.simular) await evaluarAlertas(ej, ids);
+  return cambiados;
+}
+
 /** Solo el administrador: revisa (o solo cuenta, con `simular`) todos los expedientes con las reglas de un semáforo. */
 export async function revisarReglasDe(ej: Ejecutor, u: UsuarioActual, idPredefinido: number, simular: boolean): Promise<number> {
   if (!esAdministrador(u.rol)) throw new HttpError(403, "Solo el administrador puede cambiar los apuntes predefinidos");
-  return aplicarReglasSemaforo(ej, undefined, { idPredefinido, simular });
+  return aplicarReglas(ej, undefined, { idPredefinido, simular });
 }

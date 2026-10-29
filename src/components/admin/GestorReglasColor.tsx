@@ -26,6 +26,8 @@ export interface SugerenciasReglas {
   tiposVenta: string[];
   estados: string[];
   marcas: string[];
+  /** Las opciones de «Estado de un semáforo»: «Título: estado» de cada estado de cada semáforo. */
+  semaforos?: string[];
 }
 
 const ESTADOS_INTRANET_HABITUALES = ["Archivado", "Anulado", "Post-venta", "Matriculación", "Facturación", "Entrega"];
@@ -38,7 +40,7 @@ const estiloSelect = { width: "auto", padding: "5px 8px", fontSize: "0.88rem" } 
 export function GrupoEditor({ idBase, grupo, sugerencias, titulo, alCambiar, alQuitar }: { idBase: string; grupo: GrupoCondiciones; sugerencias: SugerenciasReglas; titulo: string; alCambiar: (g: GrupoCondiciones) => void; alQuitar?: () => void }) {
   const cambiarCondicion = (i: number, c: Condicion) => alCambiar({ ...grupo, condiciones: grupo.condiciones.map((x, j) => (j === i ? c : x)) });
   const lista = (campo: CampoRegla): string[] =>
-    campo === "tipo_venta" ? sugerencias.tiposVenta : campo === "estado" ? sugerencias.estados : campo === "marca" ? sugerencias.marcas : campo === "clase" ? ["VN", "VO"] : campo === "comisionado" ? ["Comisionado", "Reclamado", "Pendiente"] : campo === "estado_intranet" ? ESTADOS_INTRANET_HABITUALES : [];
+    campo === "tipo_venta" ? sugerencias.tiposVenta : campo === "estado" ? sugerencias.estados : campo === "marca" ? sugerencias.marcas : campo === "estado_semaforo" ? (sugerencias.semaforos ?? []) : campo === "clase" ? ["VN", "VO"] : campo === "comisionado" ? ["Comisionado", "Reclamado", "Pendiente"] : campo === "estado_intranet" ? ESTADOS_INTRANET_HABITUALES : [];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>

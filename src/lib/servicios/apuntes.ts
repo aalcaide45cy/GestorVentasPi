@@ -5,6 +5,7 @@ import { apuntesExpediente, apuntesPredefinidos, expedientes } from "@/db/schema
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { archivarElementos } from "./papelera-elementos";
+import { evaluarAlertas } from "./alertas";
 import { esquemaReglasEstado, type ReglaEstado } from "@/lib/reglas-semaforo";
 
 /**
@@ -233,6 +234,7 @@ export async function listarApuntes(ej: Ejecutor, idExpediente: number): Promise
 export async function crearApunte(ej: Ejecutor, u: UsuarioActual, idExpediente: number, e: EntradaApunte): Promise<ApunteDto> {
   await comprobarAcceso(ej, u, idExpediente);
   const [f] = await ej.insert(apuntesExpediente).values({ idExpediente, titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta }).returning();
+  await evaluarAlertas(ej, [idExpediente]);
   return aApunte({ a: f, p: null });
 }
 
@@ -252,6 +254,7 @@ export async function anadirRapido(ej: Ejecutor, u: UsuarioActual | null, idExpe
     returning id`);
   const creado = ((r as unknown as { rows: unknown[] }).rows?.length ?? 0) > 0;
   const [f] = await ej.select().from(apuntesExpediente).where(and(eq(apuntesExpediente.idExpediente, idExpediente), eq(apuntesExpediente.idPredefinido, p.id)));
+  if (creado) await evaluarAlertas(ej, [idExpediente]);
   return { creado, apunte: aApunte({ a: f, p }) };
 }
 
@@ -269,6 +272,7 @@ export async function actualizarApunte(ej: Ejecutor, u: UsuarioActual, id: numbe
   await comprobarAcceso(ej, u, a.idExpediente);
   const [f] = await ej.update(apuntesExpediente).set({ titulo: e.titulo, descripcion: e.descripcion, etiqueta: e.etiqueta, color: e.color, mostrarEtiqueta: e.mostrar_etiqueta }).where(eq(apuntesExpediente.id, id)).returning();
   const [p] = f.idPredefinido ? await ej.select().from(apuntesPredefinidos).where(eq(apuntesPredefinidos.id, f.idPredefinido)) : [null];
+  await evaluarAlertas(ej, [a.idExpediente]);
   return aApunte({ a: f, p });
 }
 
@@ -290,7 +294,9 @@ export async function fijarEstadoMasivo(ej: Ejecutor, u: UsuarioActual, ids: num
     on conflict (id_expediente, id_predefinido) where id_predefinido is not null
     do update set estado_semaforo = excluded.estado_semaforo, color = excluded.color
     returning id`);
-  return (r as unknown as { rows: unknown[] }).rows.length;
+  const n = (r as unknown as { rows: unknown[] }).rows.length;
+  if (n > 0) await evaluarAlertas(ej, ids);
+  return n;
 }
 
 /**
@@ -311,11 +317,14 @@ export async function anadirOQuitarMasivo(ej: Ejecutor, u: UsuarioActual, ids: n
       from expedientes e where e.id_expediente in (${lista}) and e.eliminado_en is null ${propios}
       on conflict (id_expediente, id_predefinido) where id_predefinido is not null do nothing
       returning id`);
-    return (r as unknown as { rows: unknown[] }).rows.length;
+    const n = (r as unknown as { rows: unknown[] }).rows.length;
+    if (n > 0) await evaluarAlertas(ej, ids);
+    return n;
   }
   const donde = sql`t.id_predefinido = ${p.id} and t.id_expediente in (select e.id_expediente from expedientes e where e.id_expediente in (${lista}) ${propios})`;
   const n = await archivarElementos(ej, "apunte", donde, { etiqueta: `Apunte «${p.titulo}» quitado en masa`, detalle: p.descripcion || null }, u.idUsuario);
   await ej.execute(sql`delete from apuntes_expediente t where ${donde}`);
+  if (n > 0) await evaluarAlertas(ej, ids);
   return n;
 }
 
@@ -337,6 +346,7 @@ export async function fijarEstadoSemaforo(ej: Ejecutor, u: UsuarioActual, id: nu
   if (!p?.semaforo) throw new HttpError(400, "Este apunte no es un semáforo");
   if (!Number.isInteger(estado) || estado < 0 || estado >= p.semaforoEstados.length) throw new HttpError(400, "Estado no válido");
   const [f] = await ej.update(apuntesExpediente).set({ estadoSemaforo: estado, color: p.semaforoEstados[estado].color, ...(comentario !== undefined ? { comentario: comentario.trim().slice(0, 1000) } : {}) }).where(eq(apuntesExpediente.id, id)).returning();
+  await evaluarAlertas(ej, [a.idExpediente]);
   return aApunte({ a: f, p });
 }
 
@@ -347,6 +357,7 @@ export async function eliminarApunte(ej: Ejecutor, u: UsuarioActual, id: number)
   await comprobarAcceso(ej, u, a.idExpediente);
   await archivarElementos(ej, "apunte", sql`t.id = ${id}`, { etiqueta: `Apunte «${a.titulo}» del expediente #EXP-${String(a.idExpediente).padStart(4, "0")}`, detalle: a.descripcion || null }, u.idUsuario);
   await ej.delete(apuntesExpediente).where(eq(apuntesExpediente.id, id));
+  await evaluarAlertas(ej, [a.idExpediente]);
 }
 
 /* ------------------------------ Para la lista de Expedientes ------------------------------ */

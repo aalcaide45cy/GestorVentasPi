@@ -484,6 +484,13 @@
       "when": 1793205231859,
       "tag": "0068_historial_apuntes",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1793205231860,
+      "tag": "0069_alertas",
+      "breakpoints": true
     }
   ]
 }

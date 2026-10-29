@@ -11,6 +11,7 @@ import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/
 import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
 import GestorReglasColor, { type SugerenciasReglas } from "./GestorReglasColor";
 import PanelApuntesPredefinidos from "./PanelApuntesPredefinidos";
+import GestorAlertas from "./GestorAlertas";
 import { SubPestanas } from "./estructura";
 import { estiloPanel } from "./utilidades";
 
@@ -113,6 +114,7 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
           { clave: "lista", etiqueta: "📄 Lista", ayuda: "Cuántos expedientes se ven por página, qué se ve al abrir la lista y si se recuerda el filtro" },
           { clave: "reglas", etiqueta: "🎨 Colores de fila", ayuda: "Reglas para pintar de un color las filas de la lista de expedientes según su estado, sus fechas, su marca…, con esquemas guardados y exportación" },
           { clave: "apuntes", etiqueta: "🚦 Semáforo", ayuda: "El semáforo del Seguro y los demás apuntes predefinidos de los expedientes (VO de retoma…): estados con su color y significado, estado inicial, etiqueta junto al icono del cliente y botón rápido" },
+          { clave: "alertas", etiqueta: "❗ Alertas", ayuda: "Avisos que saltan cuando un expediente pasa a cumplir unas condiciones (por ejemplo, tiene matrícula y el seguro sigue sin contratar), y el aspecto del botón ❗ de la barra superior" },
           { clave: "modos", etiqueta: "🔓 Selección y eliminación", ayuda: "Cuánto tiempo se quedan activos los modos de selección y de eliminación de la lista" },
           { clave: "foto", etiqueta: "🖼️ Foto del cliente", ayuda: "Cuántos segundos hay que esperar con el ratón encima del cliente para ver su foto" },
         ]}
@@ -120,6 +122,7 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
         {(pestana) => (
           <>
             {pestana === "reglas" && <GestorReglasColor sugerencias={sugerencias} />}
+            {pestana === "alertas" && <GestorAlertas sugerencias={sugerencias} />}
             {pestana === "apuntes" && <PanelApuntesPredefinidos sugerencias={sugerencias} />}
             {pestana === "lista" && (
               <>

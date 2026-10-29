@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import type { ReglaEstado } from "../lib/reglas-semaforo";import {
+import type { ReglaEstado } from "../lib/reglas-semaforo";
+import type { DefinicionAlerta } from "../lib/alertas";import {
   bigint,
   bigserial,
   boolean,
@@ -1279,4 +1280,49 @@ export const apuntesExpediente = pgTable(
     index("apuntes_expediente_exp_idx").on(t.idExpediente),
     uniqueIndex("apuntes_expediente_predefinido_uq").on(t.idExpediente, t.idPredefinido).where(sql`${t.idPredefinido} is not null`),
   ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Alertas                                                             */
+/* ------------------------------------------------------------------ */
+
+/** Reglas de alerta (Configuración › Expedientes › Alertas): cuando un expediente pasa a cumplir las condiciones, se avisa para que no se pase nada. */
+export const alertasReglas = pgTable("alertas_reglas", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 80 }).notNull(),
+  activa: boolean("activa").notNull().default(true),
+  /** Texto del aviso; admite {cliente}, {matricula}, {vendedor} y {expediente}. */
+  mensaje: text("mensaje").notNull().default(""),
+  /** También avisa a los administradores (además del vendedor del expediente). */
+  avisarAdmin: boolean("avisar_admin").notNull().default(false),
+  /** Las condiciones, con la misma forma que las reglas de color: `combinar`, `condiciones`, `grupos` y `unir`. */
+  definicion: jsonb("definicion").$type<DefinicionAlerta>().notNull(),
+  orden: integer("orden").notNull().default(0),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Una alerta concreta: una regla, un expediente y la persona a la que avisa. Cuando la condición deja de cumplirse se resuelve sola. */
+export const alertas = pgTable(
+  "alertas",
+  {
+    id: serial("id").primaryKey(),
+    idRegla: integer("id_regla")
+      .notNull()
+      .references(() => alertasReglas.id, { onDelete: "cascade" }),
+    idExpediente: integer("id_expediente")
+      .notNull()
+      .references(() => expedientes.idExpediente, { onDelete: "cascade" }),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    mensaje: text("mensaje").notNull(),
+    /** pendiente, pospuesta o resuelta. */
+    estado: varchar("estado", { length: 12 }).notNull().default("pendiente"),
+    pospuestaHasta: timestamp("pospuesta_hasta", { withTimezone: true }),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    resueltaEn: timestamp("resuelta_en", { withTimezone: true }),
+    /** Cómo se resolvió: «hecho» (la persona) o «automatica» (la condición dejó de cumplirse). */
+    motivo: varchar("motivo", { length: 12 }),
+  },
+  (t) => [uniqueIndex("alertas_regla_exp_usuario_uq").on(t.idRegla, t.idExpediente, t.idUsuario), index("alertas_usuario_estado_idx").on(t.idUsuario, t.estado)],
 );

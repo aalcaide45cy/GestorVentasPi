@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 import IndicadorRecursos from "@/components/IndicadorRecursos";
 import CampanaNotificaciones from "@/components/CampanaNotificaciones";
+import BotonAlertas from "@/components/alertas/BotonAlertas";
 import IndicadorTareas from "@/components/IndicadorTareas";
 import RefrescoDeDatos from "@/components/RefrescoDeDatos";
 import BotonMenuMovil from "@/components/BotonMenuMovil";
@@ -126,6 +127,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             {esAdministrador(normalizarRol(user.rol)) && <IndicadorTareas />}
             {esRolActivo(normalizarRol(user.rol)) && <BotonAvisarFallo version={versionDeLaApp()} />}
             <CampanaNotificaciones />
+            {esRolActivo(normalizarRol(user.rol)) && <BotonAlertas />}
             <Suspense fallback={null}>
               <GlobalSearch />
             </Suspense>

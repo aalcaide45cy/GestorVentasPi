@@ -16,6 +16,7 @@ export const CAMPOS_REGLA = [
   { id: "vendedor", etiqueta: "Vendedor", tipo: "texto" },
   { id: "cliente", etiqueta: "Cliente", tipo: "texto" },
   { id: "apunte", etiqueta: "Apunte", tipo: "texto" },
+  { id: "estado_semaforo", etiqueta: "Estado de un semáforo", tipo: "texto" },
   { id: "matricula", etiqueta: "Matrícula", tipo: "texto" },
   { id: "bastidor", etiqueta: "Bastidor", tipo: "texto" },
   { id: "comisionado", etiqueta: "Comisionado", tipo: "texto" },
@@ -200,8 +201,13 @@ function cumple(e: ExpedienteDto, c: Condicion, hoy: string): boolean {
   }
   const q = sinAcentos(c.valor);
   // Un expediente puede tener varios apuntes: «es» y «contiene» se cumplen si alguno coincide; «no es» y «no contiene», si ninguno
-  if (c.campo === "apunte") {
-    const titulos = (e.apuntes ?? []).map((a) => sinAcentos(a.titulo));
+  // «Estado de un semáforo»: cada semáforo cuenta como «Título: estado» (por ejemplo «Seguro: Póliza emitida»)
+  if (c.campo === "apunte" || c.campo === "estado_semaforo") {
+    const titulos = (e.apuntes ?? []).flatMap((a) => {
+      if (c.campo === "apunte") return [sinAcentos(a.titulo)];
+      const estado = a.estados && a.estado_semaforo !== null ? a.estados[a.estado_semaforo]?.texto : undefined;
+      return estado === undefined ? [] : [sinAcentos(`${a.titulo}: ${estado}`)];
+    });
     switch (c.operador) {
       case "es":
         return titulos.includes(q);
