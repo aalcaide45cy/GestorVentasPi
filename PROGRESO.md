@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.47.0 (29/10/2026)
+
+- **Alertas resueltas eliminables**: «🗑 Eliminar» en cada una y «Vaciar las resueltas» en la pestaña Resueltas (acciones `eliminar` y `vaciar_resueltas` de `/api/alertas`; solo las resueltas y solo las propias). Si la condición sigue cumpliéndose, volverá a saltar la próxima vez que se guarde el expediente.
+- **La ventana de la alerta salta al momento**: el botón revisa las alertas 0,4 s después de cada cambio que sale bien (como el historial), sin esperar al sondeo de 30 s. Y una alerta que se reabre o vuelve a saltar sale otra vez en ventana aunque ya se hubiera visto en la sesión (se identifica por id y fecha de creación).
+
 ## Versión 1.46.1 (29/10/2026)
 
 - **Cabecera de la tabla de Expedientes siempre a la vista**: al bajar, una copia fija de la fila de títulos (con ordenar y todo) se queda arriba, alineada con la tabla y con su desplazamiento lateral (`CabeceraFlotante`; el `position: sticky` no vale porque la tabla tiene scroll horizontal propio).

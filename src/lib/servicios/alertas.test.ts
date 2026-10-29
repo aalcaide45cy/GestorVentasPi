@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { esquemaReglaAlerta } from "@/lib/alertas";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { fijarEstadoSemaforo, listarApuntes } from "./apuntes";
-import { actualizarReglaAlerta, crearReglaAlerta, evaluarAlertas, misAlertas, posponerAlerta, reabrirAlerta, reevaluarTodas, resolverAlerta } from "./alertas";
+import { actualizarReglaAlerta, crearReglaAlerta, eliminarAlerta, evaluarAlertas, misAlertas, posponerAlerta, reabrirAlerta, reevaluarTodas, resolverAlerta, vaciarResueltas } from "./alertas";
 import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente } from "./expedientes-escritura";
 
@@ -83,6 +83,24 @@ describe("alertas", () => {
     expect(r.pendientes).toHaveLength(0);
     expect(r.resueltas[0]).toMatchObject({ motivo: "automatica" });
     expect(await reevaluarTodas(db, admin)).toBe(0);
+  });
+
+  it("las resueltas se pueden eliminar una a una o todas a la vez, y las abiertas no", async () => {
+    const { admin, ana, otra, id } = await escenario();
+    await crearReglaAlerta(db, admin, reglaSeguro);
+    await guardar(ana, id, { matricula: "1234ABC" });
+    const [a] = (await misAlertas(db, ana)).pendientes;
+    await expect(eliminarAlerta(db, ana, a.id)).rejects.toThrow(/resueltas/);
+    await resolverAlerta(db, ana, a.id);
+    await expect(eliminarAlerta(db, otra, a.id)).rejects.toThrow(/no encontrada/);
+    await eliminarAlerta(db, ana, a.id);
+    expect((await misAlertas(db, ana)).resueltas).toHaveLength(0);
+    // Vaciar: solo las resueltas propias
+    await guardar(ana, id, { comentarios: "otra vez" }); // la condición sigue cumpliéndose: vuelve a crearse
+    const [b] = (await misAlertas(db, ana)).pendientes;
+    await resolverAlerta(db, ana, b.id);
+    expect(await vaciarResueltas(db, ana)).toBe(1);
+    expect(await vaciarResueltas(db, ana)).toBe(0);
   });
 
   it("puede avisar también al administrador, solo el administrador cambia las reglas y se puede revisar todo", async () => {

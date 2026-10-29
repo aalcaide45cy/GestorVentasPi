@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Modal from "@/components/Modal";
+import { useToast } from "@/components/Toast";
 import type { AlertaDto } from "@/lib/alertas";
 import {
   APLAZAMIENTOS,
@@ -38,6 +39,7 @@ export default function PanelAlertas({
       : "pospuestas",
   );
   const rapidos = useBotonesRapidos();
+  const { confirmar } = useToast();
   const lista = datos[pestana];
   const nombres: Record<Pestana, string> = {
     pendientes: "Pendientes",
@@ -70,6 +72,33 @@ export default function PanelAlertas({
             </button>
           ))}
         </div>
+        {pestana === "resueltas" && lista.length > 0 && (
+          <div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={ocupado}
+              onClick={async () => {
+                if (
+                  await confirmar({
+                    titulo: "Vaciar las resueltas",
+                    texto: `¿Eliminar las ${lista.length} alertas resueltas del registro?`,
+                    aceptar: "Eliminar",
+                    peligro: true,
+                  })
+                )
+                  void alAccion(
+                    { accion: "vaciar_resueltas" },
+                    0,
+                    "Alertas resueltas eliminadas.",
+                  );
+              }}
+              style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+            >
+              🗑 Vaciar las resueltas
+            </button>
+          </div>
+        )}
         {lista.length === 0 && (
           <p style={{ margin: 0, color: "var(--text-muted)" }}>
             {pestana === "pendientes"
@@ -218,6 +247,24 @@ export default function PanelAlertas({
                   title="La vuelve a poner como pendiente (si ya no se cumple la condición, se resolverá sola)"
                 >
                   ↩ Reabrir
+                </button>
+              )}
+              {a.estado === "resuelta" && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={ocupado}
+                  onClick={() =>
+                    void alAccion(
+                      { accion: "eliminar" },
+                      a.id,
+                      "Alerta eliminada.",
+                    )
+                  }
+                  style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+                  title="Quita esta alerta del registro"
+                >
+                  🗑 Eliminar
                 </button>
               )}
             </div>

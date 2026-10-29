@@ -195,7 +195,9 @@ export const APLAZAMIENTOS = [
 ] as const;
 export type Aplazamiento = (typeof APLAZAMIENTOS)[number]["id"];
 export type CuerpoAlerta =
-  { accion: "hecho" | "reabrir" } | { accion: "posponer"; hasta: Aplazamiento };
+  | { accion: "hecho" | "reabrir" | "eliminar" }
+  | { accion: "vaciar_resueltas" }
+  | { accion: "posponer"; hasta: Aplazamiento };
 
 export const CLAVE_ALERTAS_BOTONES = "exp-alertas-botones";
 export const CLAVE_ALERTAS_ASPECTO_PLEGADO = "exp-alertas-aspecto-plegado";

@@ -168,3 +168,16 @@ export async function reabrirAlerta(ej: Ejecutor, u: UsuarioActual, id: number):
   const a = await propia(ej, u, id);
   await ej.update(alertas).set({ estado: "pendiente", motivo: null, resueltaEn: null, pospuestaHasta: null }).where(eq(alertas.id, a.id));
 }
+
+/** Elimina una alerta ya resuelta de mi registro (si la condición sigue cumpliéndose, volverá a saltar la próxima vez que se guarde el expediente). */
+export async function eliminarAlerta(ej: Ejecutor, u: UsuarioActual, id: number): Promise<void> {
+  const a = await propia(ej, u, id);
+  if (a.estado !== "resuelta") throw new HttpError(409, "Solo se pueden eliminar las alertas resueltas");
+  await ej.delete(alertas).where(eq(alertas.id, a.id));
+}
+
+/** Elimina todas mis alertas resueltas. Devuelve cuántas. */
+export async function vaciarResueltas(ej: Ejecutor, u: UsuarioActual): Promise<number> {
+  const r = await ej.delete(alertas).where(and(eq(alertas.idUsuario, u.idUsuario), eq(alertas.estado, "resuelta"))).returning({ id: alertas.id });
+  return r.length;
+}

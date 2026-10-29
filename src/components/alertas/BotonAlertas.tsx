@@ -28,18 +28,21 @@ interface Datos {
 const VACIO: Datos = { pendientes: [], pospuestas: [], resueltas: [] };
 const CLAVE_VISTAS = "gv-alertas-vistas";
 
-const leerVistas = (): Set<number> => {
+/** Una alerta se enseña en ventana una vez por sesión; si se reabre o vuelve a saltar (cambia su fecha de creación), vuelve a salir. */
+const claveVista = (a: AlertaDto): string => `${a.id}:${a.creada_en}`;
+
+const leerVistas = (): Set<string> => {
   try {
     return new Set(
       JSON.parse(
         window.sessionStorage.getItem(CLAVE_VISTAS) ?? "[]",
-      ) as number[],
+      ) as string[],
     );
   } catch {
     return new Set();
   }
 };
-const guardarVistas = (v: Set<number>) => {
+const guardarVistas = (v: Set<string>) => {
   try {
     window.sessionStorage.setItem(CLAVE_VISTAS, JSON.stringify([...v]));
   } catch {
@@ -58,7 +61,7 @@ export default function BotonAlertas() {
   const aspecto = useAspectoAlertas();
   const rapidos = useBotonesRapidos();
   const [datos, setDatos] = useState<Datos>(VACIO);
-  const [vistas, setVistas] = useState<Set<number>>(new Set());
+  const [vistas, setVistas] = useState<Set<string>>(new Set());
   const [registro, setRegistro] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [listo, setListo] = useState(false);
@@ -86,6 +89,38 @@ export default function BotonAlertas() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargar();
   }, [cargar, version]);
+  // Cada cambio que hace la aplicación (una petición que no es de lectura y sale bien) puede disparar una alerta: se revisa enseguida, para que salga la ventana al momento
+  useEffect(() => {
+    const original = window.fetch;
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const mio = async (...args: Parameters<typeof fetch>) => {
+      const respuesta = await original(...args);
+      const metodo = (
+        args[1]?.method ?? (args[0] instanceof Request ? args[0].method : "GET")
+      ).toUpperCase();
+      const url =
+        typeof args[0] === "string"
+          ? args[0]
+          : args[0] instanceof Request
+            ? args[0].url
+            : String(args[0]);
+      if (
+        respuesta.ok &&
+        metodo !== "GET" &&
+        url.includes("/api/") &&
+        !url.includes("/api/alertas")
+      ) {
+        if (espera) clearTimeout(espera);
+        espera = setTimeout(() => void cargar(), 400);
+      }
+      return respuesta;
+    };
+    window.fetch = mio;
+    return () => {
+      if (window.fetch === mio) window.fetch = original;
+      if (espera) clearTimeout(espera);
+    };
+  }, [cargar]);
   useEffect(() => {
     const cada = window.setInterval(() => {
       if (document.visibilityState === "visible") void cargar();
@@ -98,9 +133,9 @@ export default function BotonAlertas() {
     };
   }, [cargar]);
 
-  const marcarVista = (id: number) => {
+  const marcarVista = (a: AlertaDto) => {
     setVistas((v) => {
-      const n = new Set(v).add(id);
+      const n = new Set(v).add(claveVista(a));
       guardarVistas(n);
       return n;
     });
@@ -126,7 +161,7 @@ export default function BotonAlertas() {
   // La alerta que sale en ventana: la primera pendiente que todavía no se ha enseñado en esta sesión
   const enVentana =
     !registro && listo
-      ? datos.pendientes.find((a) => !vistas.has(a.id))
+      ? datos.pendientes.find((a) => !vistas.has(claveVista(a)))
       : undefined;
 
   return (
@@ -162,7 +197,7 @@ export default function BotonAlertas() {
           <div
             role="alertdialog"
             aria-modal="true"
-            onClick={() => marcarVista(enVentana.id)}
+            onClick={() => marcarVista(enVentana)}
             style={{
               position: "fixed",
               inset: 0,
@@ -283,7 +318,7 @@ export default function BotonAlertas() {
                   type="button"
                   className="btn btn-secondary"
                   disabled={ocupado}
-                  onClick={() => marcarVista(enVentana.id)}
+                  onClick={() => marcarVista(enVentana)}
                   style={{ padding: "6px 14px" }}
                   title="Cierra esta ventana; la alerta sigue pendiente y volverá a salir al iniciar sesión"
                 >
@@ -294,7 +329,7 @@ export default function BotonAlertas() {
                   className="btn btn-secondary"
                   disabled={ocupado}
                   onClick={() => {
-                    marcarVista(enVentana.id);
+                    marcarVista(enVentana);
                     router.push(
                       `/dashboard/expedientes/editar/${enVentana.id_expediente}`,
                     );
