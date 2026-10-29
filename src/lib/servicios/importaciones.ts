@@ -286,7 +286,7 @@ export async function importarExpedientesCsv(
               vin: vin || null,
             })
             .returning({ id: expedientes.idExpediente });
-          await aplicarReglasSemaforo(sp, [nuevo.id]);
+          await aplicarReglasSemaforo(sp, [nuevo.id], { alCrear: true });
           return nuevo.id;
         });
         importados++;

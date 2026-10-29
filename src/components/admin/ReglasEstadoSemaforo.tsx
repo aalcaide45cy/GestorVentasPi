@@ -247,6 +247,24 @@ function ReglaEditor({
           ))}
         </select>
       </div>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          fontSize: "0.88rem",
+        }}
+        title="Marcada, la regla decide con qué estado empieza un expediente nuevo (también los que se crean al importar o leer un pedido) y no actúa después"
+      >
+        <input
+          type="checkbox"
+          checked={regla.solo_al_crear ?? false}
+          onChange={(e) =>
+            alCambiar({ ...regla, solo_al_crear: e.target.checked })
+          }
+        />
+        Solo al crear el expediente (decide con qué estado empieza)
+      </label>
       <div
         style={{
           display: "flex",

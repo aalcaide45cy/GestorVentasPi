@@ -115,7 +115,7 @@ export async function crearExpediente(
         fechaCobrado: e.fecha_cobrado ?? null,
       })
       .returning({ id: expedientes.idExpediente });
-    await aplicarReglasSemaforo(tx, [nuevo.id]);
+    await aplicarReglasSemaforo(tx, [nuevo.id], { alCrear: true });
     return { valor: nuevo.id, idsDespues: [nuevo.id] };
   });
   const creado = await obtenerExpediente(ej, id);

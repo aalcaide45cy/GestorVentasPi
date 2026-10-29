@@ -710,6 +710,17 @@ function Editor({
                 </option>
               ))}
             </select>
+            <span
+              style={{
+                fontSize: "0.74rem",
+                fontWeight: 400,
+                color: "var(--text-muted)",
+              }}
+            >
+              Es el estado por defecto. Para que dependa de algo (por ejemplo,
+              «si es VO empieza en…»), crea una regla en la sección 5 y marca
+              «Solo al crear el expediente».
+            </span>
           </label>
         </fieldset>
       )}

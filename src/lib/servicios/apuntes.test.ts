@@ -213,6 +213,23 @@ describe("apuntes de los expedientes", () => {
     expect((await apuntesPorExpediente(db)).get(idExpediente)?.map((a) => a.titulo)).toEqual(["Encuesta", "Seguro"]);
   });
 
+  it("una regla «solo al crear» decide el estado con el que empieza un expediente nuevo y no actúa después", async () => {
+    const { admin, ana, idExpediente } = await escenario();
+    const seguro = await predefinido("seguro");
+    const regla = { id: "i1", nombre: "VO empieza amarillo", activa: true, estado: 1, desde: [], solo_al_crear: true, combinar: "todas" as const, condiciones: [{ campo: "matricula" as const, operador: "contiene", valor: "ZZZ" }] };
+    await actualizarPredefinido(db, admin, seguro.id, esquemaPredefinido.parse({ ...seguro, reglas_estado: [regla] }));
+    const igual = await crearExpediente(db, ana, esquemaCrearExpediente.parse({ cliente: { nombre: "Igual", dni: "66666666C" }, expediente: { matricula: "1234AAA" } }));
+    expect((await listarApuntes(db, igual.id_expediente))[0]).toMatchObject({ estado_semaforo: 0 });
+    const con = await crearExpediente(db, ana, esquemaCrearExpediente.parse({ cliente: { nombre: "Con", dni: "77777777D" }, expediente: { matricula: "9999ZZZ" } }));
+    expect((await listarApuntes(db, con.id_expediente))[0]).toMatchObject({ estado_semaforo: 1, color: "#eab308" });
+    // Al guardar después, la regla ya no actúa
+    await fijarEstadoSemaforo(db, ana, (await listarApuntes(db, con.id_expediente))[0].id, 2);
+    await actualizarExpedientes(db, ana, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: con.id_expediente, expediente: { comentarios: "x" } }));
+    expect((await listarApuntes(db, con.id_expediente))[0]).toMatchObject({ estado_semaforo: 2 });
+    expect(await revisarReglasDe(db, admin, seguro.id, true)).toBe(0);
+    expect((await listarApuntes(db, idExpediente))[0]).toMatchObject({ estado_semaforo: 0 });
+  });
+
   it("un predefinido nuevo «por defecto» llega también a los expedientes que ya existen", async () => {
     const { admin, idExpediente } = await escenario();
     const nuevo = await crearPredefinido(db, admin, esquemaPredefinido.parse({ titulo: "Garantía", etiqueta: "GAR", mostrar_etiqueta: true, por_defecto: true }));

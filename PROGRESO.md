@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.41.0 (29/10/2026)
+
+- **Reglas para el estado inicial**: cada regla automática del semáforo tiene la casilla «Solo al crear el expediente». Marcada, decide con qué estado empieza un expediente nuevo (al crearlo a mano, al importar un CSV o al leer un pedido) y no actúa en los guardados posteriores ni en «Revisar ahora». Sin marcar, actúa al crear y en cada guardado, como antes. El «Estado en el que empiezan» sigue siendo el estado por defecto (`solo_al_crear` en `reglas_estado`).
+
 ## Versión 1.40.4 (28/10/2026)
 
 - **Orden de los predefinidos** (Ajustes › Semáforo): flechas ▲ ▼ en cada uno (`PUT /api/admin/apuntes-predefinidos?orden=1`, `ordenarPredefinidos`). Las etiquetas de un expediente siguen ese orden.

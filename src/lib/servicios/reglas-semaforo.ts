@@ -10,9 +10,9 @@ import { aDto, relacionesExpediente } from "./expedientes";
 /**
  * Pasa los semáforos de los expedientes al estado que mandan sus reglas (si algún semáforo tiene reglas activas).
  * Con `idPredefinido` solo revisa ese semáforo; con `simular` no cambia nada y solo cuenta. Devuelve cuántos semáforos cambian.
- * Sin `ids` revisa todos los expedientes.
+ * Sin `ids` revisa todos los expedientes. Con `alCrear` (expedientes recién creados) también cuentan las reglas «solo al crear», que deciden el estado con el que empiezan.
  */
-export async function aplicarReglasSemaforo(ej: Ejecutor, ids?: number[], opciones: { idPredefinido?: number; simular?: boolean } = {}): Promise<number> {
+export async function aplicarReglasSemaforo(ej: Ejecutor, ids?: number[], opciones: { idPredefinido?: number; simular?: boolean; alCrear?: boolean } = {}): Promise<number> {
   if (ids && ids.length === 0) return 0;
   const predefinidos = (await ej.select().from(apuntesPredefinidos).where(opciones.idPredefinido ? eq(apuntesPredefinidos.id, opciones.idPredefinido) : undefined)).filter((p) => p.semaforo && p.reglasEstado.some((r) => r.activa));
   if (predefinidos.length === 0) return 0;
@@ -32,7 +32,7 @@ export async function aplicarReglasSemaforo(ej: Ejecutor, ids?: number[], opcion
       const a = propios.find((x) => x.idPredefinido === p.id);
       if (!a) continue;
       const actual = a.estadoSemaforo ?? 0;
-      const nuevo = estadoPorReglas(dto, p.reglasEstado, actual, p.semaforoEstados.length, hoy);
+      const nuevo = estadoPorReglas(dto, p.reglasEstado, actual, p.semaforoEstados.length, hoy, opciones.alCrear === true);
       if (nuevo === null || nuevo === actual) continue;
       cambiados++;
       if (!opciones.simular) await ej.update(apuntesExpediente).set({ estadoSemaforo: nuevo, color: p.semaforoEstados[nuevo].color }).where(eq(apuntesExpediente.id, a.id));
