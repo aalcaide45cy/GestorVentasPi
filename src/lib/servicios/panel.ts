@@ -3,6 +3,7 @@ import type { Ejecutor } from "@/db";
 import { expedientes, marcas, modelos, tiendas, tipoDeVenta } from "@/db/schema";
 import type { ExpedienteDto, TiendaDto, TipoVentaDto } from "@/lib/dto";
 import type { MarcaConModelos } from "@/components/QuickExpedienteCreator";
+import { apuntesPorExpediente } from "./apuntes";
 import { aDto, relacionesExpediente } from "./expedientes";
 import { marcaDto, modeloDto, tiendaDto, tipoVentaDto } from "./mapeos";
 import { listarVendedores } from "./usuarios";
@@ -47,8 +48,10 @@ export async function cargarDatosPanel(ej: Ejecutor, limiteRecientes = 5): Promi
     listarVendedores(ej),
   ]);
 
+  // Las etiquetas de los apuntes y semáforos (como en la lista de Expedientes)
+  const apuntes = await apuntesPorExpediente(ej, filasRecientes.map((f) => f.idExpediente));
   return {
-    recientes: filasRecientes.map(aDto),
+    recientes: filasRecientes.map((f) => ({ ...aDto(f), apuntes: apuntes.get(f.idExpediente) ?? [] })),
     tiendas: ts.map(tiendaDto),
     tiposVenta: tvs.map(tipoVentaDto),
     marcasAccesoRapido: ms.map((m) => ({ ...marcaDto(m), modelos: m.modelos.map((mo) => modeloDto(mo)) })),

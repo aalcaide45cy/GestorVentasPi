@@ -32,6 +32,10 @@ interface Props {
   claveVistas?: string;
   alCambiar: (c: ConfigColumnas) => void;
   alCerrar: () => void;
+  /** Si se dan, cada columna lleva botones para hacerla más ancha o más estrecha (el ancho cambiado, y el de fábrica de cada una). */
+  anchos?: Record<string, number>;
+  anchosPorDefecto?: Record<string, number>;
+  alCambiarAnchos?: (anchos: Record<string, number>) => void;
 }
 
 /** Completa un orden guardado con las columnas que falten (columnas nuevas de versiones posteriores) y quita las que ya no existen. */
@@ -42,7 +46,7 @@ export function normalizarOrden(guardado: string[] | null | undefined, todas: st
 
 const igual = (a: ConfigColumnas, b: ConfigColumnas, claves: string[]): boolean => claves.every((c, i) => a.orden[i] === b.orden[i] && (a.visibles[c] !== false) === (b.visibles[c] !== false));
 
-export default function PanelColumnas({ columnas, actual, predeterminada, vistasIncluidas, claveVistas = CLAVE_VISTAS_COLUMNAS, alCambiar, alCerrar }: Props) {
+export default function PanelColumnas({ columnas, actual, predeterminada, vistasIncluidas, claveVistas = CLAVE_VISTAS_COLUMNAS, alCambiar, alCerrar, anchos, anchosPorDefecto, alCambiarAnchos }: Props) {
   const { mostrar } = useToast();
   const [guardadas, fijarGuardadas] = usePreferencia(claveVistas);
   const [nombre, setNombre] = useState("");
@@ -112,6 +116,11 @@ export default function PanelColumnas({ columnas, actual, predeterminada, vistas
               <button type="button" className="btn btn-secondary" style={chico} disabled={esPredeterminada} onClick={() => aplicar(predeterminada, "Columnas restauradas: orden y visibilidad predeterminados.")} title="Vuelve al orden y a las columnas con los que viene la aplicación. No borra tus vistas guardadas.">
                 ↺ Restaurar predeterminado
               </button>
+              {alCambiarAnchos && anchos && Object.keys(anchos).length > 0 && (
+                <button type="button" className="btn btn-secondary" style={chico} onClick={() => { alCambiarAnchos({}); mostrar("✅ Anchos de columna restaurados."); }} title="Vuelve a los anchos de fábrica de todas las columnas">
+                  ↔ Anchos de fábrica
+                </button>
+              )}
             </div>
             <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", maxHeight: "420px", overflowY: "auto" }}>
               {actual.orden.map((clave, i) => (
@@ -153,6 +162,17 @@ export default function PanelColumnas({ columnas, actual, predeterminada, vistas
                     <input type="checkbox" checked={actual.visibles[clave] !== false} onChange={(e) => alCambiar({ ...actual, visibles: { ...actual.visibles, [clave]: e.target.checked } })} style={{ width: "15px", height: "15px", accentColor: "var(--primary)" }} />
                     {etiqueta(clave)}
                   </label>
+                  {anchosPorDefecto && alCambiarAnchos && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px" }} title="Ancho de la columna en la tabla (se guarda en tu perfil)">
+                      <button type="button" className="btn btn-secondary" style={{ padding: "0 7px", fontSize: "0.7rem" }} disabled={(anchos?.[clave] ?? anchosPorDefecto[clave] ?? 100) <= 40} onClick={() => alCambiarAnchos({ ...anchos, [clave]: Math.max(40, (anchos?.[clave] ?? anchosPorDefecto[clave] ?? 100) - 10) })} title="Más estrecha" aria-label={`Hacer más estrecha la columna ${etiqueta(clave)}`}>
+                        −
+                      </button>
+                      <span style={{ minWidth: "38px", textAlign: "center", fontSize: "0.72rem", color: anchos?.[clave] !== undefined ? "var(--primary)" : "var(--text-muted)" }}>{anchos?.[clave] ?? anchosPorDefecto[clave] ?? 100}</span>
+                      <button type="button" className="btn btn-secondary" style={{ padding: "0 7px", fontSize: "0.7rem" }} disabled={(anchos?.[clave] ?? anchosPorDefecto[clave] ?? 100) >= 600} onClick={() => alCambiarAnchos({ ...anchos, [clave]: Math.min(600, (anchos?.[clave] ?? anchosPorDefecto[clave] ?? 100) + 10) })} title="Más ancha" aria-label={`Hacer más ancha la columna ${etiqueta(clave)}`}>
+                        +
+                      </button>
+                    </span>
+                  )}
                   <button type="button" className="btn btn-secondary" style={{ padding: "0 7px", fontSize: "0.7rem" }} disabled={i === 0} onClick={() => mover(clave, i - 1)} title="Subir (más a la izquierda en la tabla)">
                     ▲
                   </button>

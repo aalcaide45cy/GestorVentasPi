@@ -216,6 +216,17 @@ export default function ExpedientesList({
       return ORDEN_POR_DEFECTO;
     }
   }, [ordenGuardado]);
+  // Ancho de cada columna cuando se ha cambiado desde «Columnas y vistas» (se guarda en el perfil, en la base de datos)
+  const [anchosGuardados, fijarAnchos] = usePreferencia("exp-column-widths");
+  const anchos = useMemo<Record<string, number>>(() => {
+    try {
+      const v = anchosGuardados ? (JSON.parse(anchosGuardados) as Record<string, number>) : {};
+      return v && typeof v === "object" ? v : {};
+    } catch {
+      return {};
+    }
+  }, [anchosGuardados]);
+  const anchoDe = (clave: Columna): number => (Number.isFinite(anchos[clave]) ? Math.max(40, Math.min(anchos[clave], 600)) : ANCHO_COLUMNA[clave]);
   const [tamanoGuardado] = usePreferencia("exp-default-page-size");
   const [tamanoElegido, setTamano] = useState<number | null>(null);
   const tamano = tamanoElegido ?? (Number(tamanoGuardado) > 0 ? Number(tamanoGuardado) : 20);
@@ -884,7 +895,7 @@ export default function ExpedientesList({
             {hayPanelAbierto ? "⇕ Plegar" : "⇕ Desplegar"}
           </button>
           {selectorColumnas && (
-            <PanelColumnas columnas={COLUMNAS} actual={{ orden, visibles }} predeterminada={{ orden: ORDEN_POR_DEFECTO, visibles: POR_DEFECTO }} vistasIncluidas={VISTAS_INCLUIDAS} alCambiar={cambiarConfigColumnas} alCerrar={() => setSelectorColumnas(false)} />
+            <PanelColumnas anchos={anchos} anchosPorDefecto={ANCHO_COLUMNA} alCambiarAnchos={(a) => fijarAnchos(JSON.stringify(a))} columnas={COLUMNAS} actual={{ orden, visibles }} predeterminada={{ orden: ORDEN_POR_DEFECTO, visibles: POR_DEFECTO }} vistasIncluidas={VISTAS_INCLUIDAS} alCambiar={cambiarConfigColumnas} alCerrar={() => setSelectorColumnas(false)} />
           )}
         </GrupoAcciones>
 
@@ -1351,11 +1362,11 @@ export default function ExpedientesList({
         />
 
         <div className="table-container tabla-pagina">
-          <table className="table-premium table-compact tabla-fija" style={{ width: (seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + ANCHO_COLUMNA[c.clave], 0) + ANCHO_ACCIONES, minWidth: "100%" }}>
+          <table className="table-premium table-compact tabla-fija" style={{ width: (seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + anchoDe(c.clave), 0) + ANCHO_ACCIONES, minWidth: "100%" }}>
             <colgroup>
               {seleccionActiva && <col style={{ width: ANCHO_SELECCION }} />}
               {columnasActivas.map((c) => (
-                <col key={c.clave} style={{ width: ANCHO_COLUMNA[c.clave] }} />
+                <col key={c.clave} style={{ width: anchoDe(c.clave) }} />
               ))}
               <col style={{ width: ANCHO_ACCIONES }} />
             </colgroup>

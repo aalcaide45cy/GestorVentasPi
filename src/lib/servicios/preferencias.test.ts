@@ -41,7 +41,7 @@ describe("preferencias de cada usuario", () => {
 
 describe("qué preferencias se sincronizan", () => {
   it("las de ajustes sí y las del momento o del equipo no", () => {
-    for (const c of ["exp-reglas-color", "exp-esquemas-color", "config-pestana", "perfil-tema", "perfil-zoom", "exp-seleccion-desde", "exp-borrado-desde", "expedientes-permitir-duplicados", "subpestana-config-expedientes", "herramientas-pestana", "dash-docs-pestana", "exp-resumen-mes", "sidebar-collapsed", "cotejo-mes", "paleta-colores", "exp-filtros-guardados", "exp-filtros-abiertos", "exp-visible-columns", "dash-orden-paneles", "dash-paneles-ocultos", "dash-n-recientes", "dash-colores-filas", "clientes-orden", "tabla-desglose-comisiones", "plegable-dash-recientes", "mostrar-anulados-expedientes", "foto-cliente-retraso-segundos"]) expect(esPreferenciaSincronizada(c), c).toBe(true);
+    for (const c of ["exp-reglas-color", "exp-esquemas-color", "config-pestana", "perfil-tema", "perfil-zoom", "exp-seleccion-desde", "exp-borrado-desde", "expedientes-permitir-duplicados", "subpestana-config-expedientes", "herramientas-pestana", "dash-docs-pestana", "exp-resumen-mes", "sidebar-collapsed", "cotejo-mes", "paleta-colores", "exp-filtros-guardados", "exp-filtros-abiertos", "exp-visible-columns", "exp-column-widths", "dash-orden-paneles", "dash-paneles-ocultos", "dash-n-recientes", "dash-colores-filas", "clientes-orden", "tabla-desglose-comisiones", "plegable-dash-recientes", "mostrar-anulados-expedientes", "foto-cliente-retraso-segundos"]) expect(esPreferenciaSincronizada(c), c).toBe(true);
     for (const c of ["visible_expediente_ids", "theme", "colorTheme", "completar-datos-borrador", ""]) expect(esPreferenciaSincronizada(c), c).toBe(false);
   });
 });
