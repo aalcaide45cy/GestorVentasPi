@@ -72,6 +72,19 @@ describe("alertas", () => {
     expect((await misAlertas(db, ana)).pendientes).toHaveLength(1);
   });
 
+  it("un expediente anulado en la intranet no genera alertas y las abiertas se resuelven", async () => {
+    const { admin, ana, id } = await escenario();
+    await crearReglaAlerta(db, admin, reglaSeguro);
+    await guardar(ana, id, { matricula: "1234ABC" });
+    expect((await misAlertas(db, ana)).pendientes).toHaveLength(1);
+    await db.execute(sql`update expedientes set estado_intranet = 'Anulado' where id_expediente = ${id}`);
+    await guardar(ana, id, { comentarios: "x" });
+    const r = await misAlertas(db, ana);
+    expect(r.pendientes).toHaveLength(0);
+    expect(r.resueltas[0]).toMatchObject({ motivo: "automatica" });
+    expect(await reevaluarTodas(db, admin)).toBe(0);
+  });
+
   it("puede avisar también al administrador, solo el administrador cambia las reglas y se puede revisar todo", async () => {
     const { admin, ana, otra, id } = await escenario();
     await expect(crearReglaAlerta(db, ana, reglaSeguro)).rejects.toThrow(/administrador/);

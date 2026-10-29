@@ -3,6 +3,7 @@ import type { Ejecutor } from "@/db";
 import { alertas, alertasReglas, apuntesExpediente, apuntesPredefinidos, clientes, expedientes, usuarios } from "@/db/schema";
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
+import { esAnulado } from "@/lib/anulados";
 import { cumpleAlerta, textoDeAlerta, type AlertaDto, type EntradaReglaAlerta, type ReglaAlertaDto } from "@/lib/alertas";
 import { hoyIso } from "./comun";
 import { aDto, relacionesExpediente } from "./expedientes";
@@ -71,7 +72,8 @@ export async function evaluarAlertas(ej: Ejecutor, ids: number[]): Promise<numbe
   for (const f of filas) {
     const dto = { ...aDto(f), apuntes: apuntesDe.get(f.idExpediente) ?? [] };
     for (const r of reglas) {
-      const cumple = cumpleAlerta(dto, r.definicion, hoy);
+      // Un expediente anulado en la intranet no genera alertas (y las que tuviera abiertas se resuelven)
+      const cumple = !esAnulado(dto.estado_intranet) && cumpleAlerta(dto, r.definicion, hoy);
       const destinatarios = new Set<number>([f.idUsuario, ...(r.avisarAdmin ? admins : [])].filter((x): x is number => typeof x === "number"));
       const mensaje = textoDeAlerta(r.mensaje, dto);
       const propias = existentes.filter((x) => x.idRegla === r.id && x.idExpediente === f.idExpediente);

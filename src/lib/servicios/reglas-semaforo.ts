@@ -4,6 +4,7 @@ import { apuntesExpediente, apuntesPredefinidos, expedientes } from "@/db/schema
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { estadoPorReglas } from "@/lib/reglas-semaforo";
+import { esAnulado } from "@/lib/anulados";
 import { evaluarAlertas } from "./alertas";
 import { hoyIso } from "./comun";
 import { aDto, relacionesExpediente } from "./expedientes";
@@ -26,7 +27,8 @@ async function aplicarReglas(ej: Ejecutor, ids: number[] | undefined, opciones: 
   let cambiados = 0;
   for (const f of filas) {
     const propios = dePorExpediente.get(f.idExpediente) ?? [];
-    if (propios.length === 0) continue;
+    // Un expediente anulado en la intranet no cambia de estado con las reglas
+    if (propios.length === 0 || esAnulado(f.estadoIntranet)) continue;
     // La condición «Apunte» mira los títulos de los apuntes del expediente
     const dto = { ...aDto(f), apuntes: propios.map((a) => ({ id: a.id, id_predefinido: a.idPredefinido, titulo: a.titulo, etiqueta: a.etiqueta, color: a.color, mostrar_etiqueta: a.mostrarEtiqueta, lado: "derecha" as const, estilo: "relleno" as const, colorear_emoticonos: true, comentario: a.comentario, estado_semaforo: a.estadoSemaforo, estados: null })) };
     for (const p of predefinidos) {
