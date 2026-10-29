@@ -588,6 +588,21 @@ export default function ExpedientesList({
   const refTabla = useRef<HTMLDivElement>(null);
   // La parte fija de arriba (herramientas y filtros): la cabecera flotante de la tabla se queda justo debajo
   const refFija = useRef<HTMLDivElement>(null);
+  // Con los filtros abiertos la parte fija puede ocupar media pantalla y dejar sin sitio a la lista: entonces no se queda fija (se desplaza con la página); plegando los filtros, vuelve a quedarse arriba
+  const [fijaAlta, setFijaAlta] = useState(false);
+  useEffect(() => {
+    const el = refFija.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const medir = () => setFijaAlta(el.offsetHeight > window.innerHeight * 0.42);
+    const o = new ResizeObserver(medir);
+    o.observe(el);
+    window.addEventListener("resize", medir);
+    medir();
+    return () => {
+      o.disconnect();
+      window.removeEventListener("resize", medir);
+    };
+  }, []);
   /**
    * Se elige solo con la casilla (pulsar en otra parte de la fila no elige). Con Mayús pulsada, la casilla marca (o desmarca) de golpe todos los que hay
    * entre el último que se tocó y este, en el orden en que se ven en la tabla.
@@ -915,7 +930,7 @@ export default function ExpedientesList({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       {/* Cabecera fija: herramientas y filtros se quedan arriba al bajar por la lista (el buscador global es el del encabezado de la aplicación) */}
-      <div ref={refFija} style={{ position: "sticky", top: 0, zIndex: 40, background: "var(--bg-app)", paddingBottom: "6px", display: "flex", flexDirection: "column", gap: "10px" }}>
+      <div ref={refFija} style={{ position: fijaAlta ? "static" : "sticky", top: 0, zIndex: 40, background: "var(--bg-app)", paddingBottom: "6px", display: "flex", flexDirection: "column", gap: "10px" }}>
       {/* BARRA DE ACCIONES: lo que se hace con la lista, en cuatro grupos */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 16px", background: "rgba(255, 255, 255, 0.03)", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
         <GrupoAcciones titulo="Datos">
