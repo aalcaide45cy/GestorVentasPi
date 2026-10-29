@@ -4,15 +4,23 @@ import { useCallback, useEffect, useState } from "react";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
 import {
-  animacionDeAlerta,
   CLAVE_ALERTAS_COLOR,
+  CLAVE_ALERTAS_COLOR_ICONO,
   CLAVE_ALERTAS_EFECTO,
+  CLAVE_ALERTAS_ESTILO,
+  CLAVE_ALERTAS_ICONO,
+  CLAVE_ALERTAS_TAMANO,
   CLAVE_ALERTAS_VELOCIDAD,
   COLORES_ALERTA,
   EFECTOS_ALERTA,
+  ESTILOS_BOTON,
+  ICONOS_ALERTA,
+  TAMANOS_ICONO,
   useAspectoAlertas,
   VELOCIDADES_ALERTA,
 } from "@/components/alertas/aspecto-alertas";
+import VistaBotonAlertas from "@/components/alertas/VistaBotonAlertas";
+import AyudaEmoticonos from "@/components/expedientes/AyudaEmoticonos";
 import {
   definicionNueva,
   type DefinicionAlerta,
@@ -254,13 +262,13 @@ export default function GestorAlertas({
 }) {
   const { mostrar, confirmar } = useToast();
   const aspecto = useAspectoAlertas();
-  const animacion = animacionDeAlerta(aspecto);
   const [reglas, setReglas] = useState<ReglaAlertaDto[] | null>(null);
   const [esAdmin, setEsAdmin] = useState(true);
   const [editados, setEditados] = useState<Record<number, Borrador>>({});
   const [nuevo, setNuevo] = useState<Borrador | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [semaforos, setSemaforos] = useState<string[]>([]);
+  const [titulos, setTitulos] = useState<string[]>([]);
 
   const cargar = useCallback(async () => {
     try {
@@ -277,15 +285,16 @@ export default function GestorAlertas({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargar();
     llamar<PredefinidoDto[]>("/api/admin/apuntes-predefinidos")
-      .then((r) =>
+      .then((r) => {
         setSemaforos(
           r.data
             .filter((p) => p.semaforo)
             .flatMap((p) =>
               p.semaforo_estados.map((e) => `${p.titulo}: ${e.texto}`),
             ),
-        ),
-      )
+        );
+        setTitulos(r.data.map((p) => p.titulo));
+      })
       .catch(() => undefined);
   }, [cargar]);
 
@@ -301,7 +310,11 @@ export default function GestorAlertas({
       setOcupado(false);
     }
   };
-  const sug: SugerenciasReglas = { ...sugerencias, semaforos };
+  const sug: SugerenciasReglas = {
+    ...sugerencias,
+    semaforos,
+    apuntes: titulos,
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -310,7 +323,7 @@ export default function GestorAlertas({
           <h4
             style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0" }}
           >
-            ❗ Aspecto del botón de alertas
+            🎛️ Aspecto del botón de alertas
           </h4>
           <p
             style={{
@@ -320,145 +333,350 @@ export default function GestorAlertas({
               lineHeight: 1.5,
             }}
           >
-            Cuando tienes alertas pendientes, el botón ❗ de la barra superior
-            se anima. Elige cómo (se guarda en tu perfil).
+            El botón de la barra superior, junto a la campana. Cuando tienes
+            alertas pendientes se anima y lleva el número. Todo se guarda en tu
+            perfil.
           </p>
         </div>
-        <div
+        <span
           style={{
             display: "flex",
-            gap: "16px",
             alignItems: "center",
-            flexWrap: "wrap",
+            gap: "10px",
+            fontSize: "0.9rem",
           }}
         >
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "0.9rem",
-            }}
-          >
-            Efecto
-            <select
-              className="form-input"
-              value={aspecto.efecto}
-              onChange={(e) =>
-                guardarPreferencia(CLAVE_ALERTAS_EFECTO, e.target.value)
-              }
-              style={estiloSelect}
+          Vista previa
+          <VistaBotonAlertas
+            aspecto={aspecto}
+            pendientes={3}
+            activo
+            titulo="Así se verá con alertas pendientes"
+          />
+          <VistaBotonAlertas
+            aspecto={aspecto}
+            pendientes={0}
+            activo={false}
+            titulo="Así se verá sin alertas"
+          />
+        </span>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: "16px 28px",
+            alignItems: "start",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>Icono</span>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
             >
-              {EFECTOS_ALERTA.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.etiqueta}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "0.9rem",
-            }}
-          >
-            Velocidad
-            <select
-              className="form-input"
-              value={aspecto.velocidad}
-              onChange={(e) =>
-                guardarPreferencia(CLAVE_ALERTAS_VELOCIDAD, e.target.value)
-              }
-              style={estiloSelect}
-              disabled={aspecto.efecto === "ninguno"}
-            >
-              {VELOCIDADES_ALERTA.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.etiqueta}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "0.9rem",
-            }}
-          >
-            Color
-            {COLORES_ALERTA.map((c) => (
-              <button
-                key={c.color}
-                type="button"
-                title={c.etiqueta}
-                aria-label={c.etiqueta}
-                aria-pressed={aspecto.color === c.color}
-                onClick={() => guardarPreferencia(CLAVE_ALERTAS_COLOR, c.color)}
+              <input
+                className="form-input"
+                aria-label="Icono del botón"
+                maxLength={8}
+                value={aspecto.icono}
+                onChange={(e) =>
+                  guardarPreferencia(CLAVE_ALERTAS_ICONO, e.target.value)
+                }
                 style={{
-                  width: "26px",
-                  height: "26px",
-                  borderRadius: "50%",
-                  cursor: "pointer",
-                  background: c.color,
-                  border: `3px solid ${aspecto.color === c.color ? "var(--text-primary)" : "var(--border-light)"}`,
+                  width: "80px",
+                  textAlign: "center",
+                  fontSize: "1.3rem",
+                  padding: "4px",
                 }}
               />
-            ))}
-            <input
-              type="color"
-              value={aspecto.color}
-              onChange={(e) =>
-                guardarPreferencia(CLAVE_ALERTAS_COLOR, e.target.value)
-              }
-              aria-label="Otro color"
-              title="Otro color"
-              style={{
-                width: "34px",
-                height: "28px",
-                padding: 0,
-                border: "1px solid var(--border-light)",
-                borderRadius: "var(--radius-sm)",
-                background: "transparent",
-                cursor: "pointer",
-              }}
+              {ICONOS_ALERTA.map((i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={
+                    aspecto.icono === i
+                      ? "btn btn-primary"
+                      : "btn btn-secondary"
+                  }
+                  onClick={() => guardarPreferencia(CLAVE_ALERTAS_ICONO, i)}
+                  aria-label={`Usar ${i}`}
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: "1.05rem",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {i}
+                </button>
+              ))}
+            </div>
+            <AyudaEmoticonos
+              alInsertar={(emo) => guardarPreferencia(CLAVE_ALERTAS_ICONO, emo)}
             />
-          </span>
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "0.85rem",
-              color: "var(--text-secondary)",
-            }}
-          >
-            Así se verá:
-            <span
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              Color del icono
+            </span>
+            <div
               style={{
-                position: "relative",
-                display: "inline-flex",
+                display: "flex",
+                gap: "8px",
                 alignItems: "center",
-                justifyContent: "center",
-                width: "36px",
-                height: "36px",
-                border: `1px solid ${aspecto.color}`,
-                borderRadius: "var(--radius-sm)",
-                background: `${aspecto.color}22`,
-                fontSize: "1.1rem",
+                flexWrap: "wrap",
               }}
             >
-              <span
-                className={animacion.clase}
-                style={{ ...animacion.estilo, lineHeight: 1 }}
+              <button
+                type="button"
+                className={
+                  aspecto.colorIcono === ""
+                    ? "btn btn-primary"
+                    : "btn btn-secondary"
+                }
+                onClick={() =>
+                  guardarPreferencia(CLAVE_ALERTAS_COLOR_ICONO, "")
+                }
+                style={estiloBotonChico}
+                title="El emoticono con sus propios colores"
               >
-                ❗
-              </span>
+                Original
+              </button>
+              {COLORES_ALERTA.map((c) => (
+                <button
+                  key={c.color}
+                  type="button"
+                  title={`Pintar el icono de ${c.etiqueta.toLowerCase()}`}
+                  aria-label={`Icono ${c.etiqueta}`}
+                  aria-pressed={aspecto.colorIcono === c.color}
+                  onClick={() =>
+                    guardarPreferencia(CLAVE_ALERTAS_COLOR_ICONO, c.color)
+                  }
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    cursor: "pointer",
+                    background: c.color,
+                    border: `3px solid ${aspecto.colorIcono === c.color ? "var(--text-primary)" : "var(--border-light)"}`,
+                  }}
+                />
+              ))}
+              <input
+                type="color"
+                value={aspecto.colorIcono || "#ffffff"}
+                onChange={(e) =>
+                  guardarPreferencia(CLAVE_ALERTAS_COLOR_ICONO, e.target.value)
+                }
+                aria-label="Otro color del icono"
+                title="Otro color para el icono"
+                style={{
+                  width: "34px",
+                  height: "28px",
+                  padding: 0,
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-sm)",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
+              Con un color, el emoticono se pinta entero de ese color (silueta).
             </span>
-          </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              Color del botón (borde, fondo y número)
+            </span>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              {COLORES_ALERTA.map((c) => (
+                <button
+                  key={c.color}
+                  type="button"
+                  title={c.etiqueta}
+                  aria-label={c.etiqueta}
+                  aria-pressed={aspecto.color === c.color}
+                  onClick={() =>
+                    guardarPreferencia(CLAVE_ALERTAS_COLOR, c.color)
+                  }
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    cursor: "pointer",
+                    background: c.color,
+                    border: `3px solid ${aspecto.color === c.color ? "var(--text-primary)" : "var(--border-light)"}`,
+                  }}
+                />
+              ))}
+              <input
+                type="color"
+                value={aspecto.color}
+                onChange={(e) =>
+                  guardarPreferencia(CLAVE_ALERTAS_COLOR, e.target.value)
+                }
+                aria-label="Otro color del botón"
+                title="Otro color"
+                style={{
+                  width: "34px",
+                  height: "28px",
+                  padding: 0,
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-sm)",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              />
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              flexWrap: "wrap",
+              alignItems: "flex-end",
+            }}
+          >
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                fontSize: "0.85rem",
+              }}
+            >
+              Estilo del botón
+              <select
+                className="form-input"
+                value={aspecto.estilo}
+                onChange={(e) =>
+                  guardarPreferencia(CLAVE_ALERTAS_ESTILO, e.target.value)
+                }
+                style={estiloSelect}
+              >
+                {ESTILOS_BOTON.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                fontSize: "0.85rem",
+              }}
+            >
+              Tamaño del icono
+              <select
+                className="form-input"
+                value={aspecto.tamano}
+                onChange={(e) =>
+                  guardarPreferencia(CLAVE_ALERTAS_TAMANO, e.target.value)
+                }
+                style={estiloSelect}
+              >
+                {TAMANOS_ICONO.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              flexWrap: "wrap",
+              alignItems: "flex-end",
+            }}
+          >
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                fontSize: "0.85rem",
+              }}
+            >
+              Animación
+              <select
+                className="form-input"
+                value={aspecto.efecto}
+                onChange={(e) =>
+                  guardarPreferencia(CLAVE_ALERTAS_EFECTO, e.target.value)
+                }
+                style={estiloSelect}
+              >
+                {EFECTOS_ALERTA.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                fontSize: "0.85rem",
+              }}
+            >
+              Velocidad
+              <select
+                className="form-input"
+                value={aspecto.velocidad}
+                onChange={(e) =>
+                  guardarPreferencia(CLAVE_ALERTAS_VELOCIDAD, e.target.value)
+                }
+                style={estiloSelect}
+                disabled={aspecto.efecto === "ninguno"}
+              >
+                {VELOCIDADES_ALERTA.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+        <div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={estiloBotonChico}
+            onClick={() => {
+              for (const k of [
+                CLAVE_ALERTAS_EFECTO,
+                CLAVE_ALERTAS_VELOCIDAD,
+                CLAVE_ALERTAS_COLOR,
+                CLAVE_ALERTAS_ICONO,
+                CLAVE_ALERTAS_COLOR_ICONO,
+                CLAVE_ALERTAS_ESTILO,
+                CLAVE_ALERTAS_TAMANO,
+              ])
+                guardarPreferencia(k, "");
+              mostrar("Aspecto del botón de alertas restablecido.");
+            }}
+          >
+            ↺ Restablecer el aspecto
+          </button>
         </div>
       </div>
 

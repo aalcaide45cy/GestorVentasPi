@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.45.0 (29/10/2026)
+
+- **Alertas: condición «Estado de un semáforo»** con un desplegable que lista todos los semáforos y sus estados («Seguro: Póliza emitida»…); la condición «Apunte» sugiere los títulos de los predefinidos.
+- **Botón de alertas personalizable** (Configuración › Expedientes › ❗ Alertas › Aspecto): icono a gusto (cualquier emoticono, con sugerencias y la ayuda de emoticonos), color del icono (original o pintado de un color), color del botón (12 colores + selector), estilo (fondo suave, fondo de color o solo contorno), tamaño del icono, 12 animaciones (parpadeo, intermitente, pulso, latido, destello, brillo, onda, rebote, temblor, balanceo, giro, arcoíris) y 5 velocidades, con vista previa y «Restablecer». Preferencias `exp-alertas-*` (sincronizadas con el perfil).
+
 ## Versión 1.44.0 (29/10/2026)
 
 - **Sistema de alertas** (para que no se pase nada). Reglas en Configuración de Expedientes › «❗ Alertas» (solo el administrador): mismas condiciones que las reglas de color (grupos todas/alguna/ninguna, Y/O) y un campo nuevo, «Estado de un semáforo» (se compara con «Título: estado», p. ej. «Seguro: Seguro aún no solicitado»). Mensaje con {cliente}, {matricula}, {vendedor}, {expediente}; opción de avisar también a los administradores.

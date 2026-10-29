@@ -13,6 +13,7 @@ import {
   useAspectoAlertas,
 } from "./aspecto-alertas";
 import PanelAlertas from "./PanelAlertas";
+import VistaBotonAlertas from "./VistaBotonAlertas";
 
 interface Datos {
   pendientes: AlertaDto[];
@@ -130,65 +131,17 @@ export default function BotonAlertas() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setRegistro(true)}
-        aria-label={
-          pendientes > 0 ? `Alertas: ${pendientes} pendientes` : "Alertas"
-        }
-        title={
+      <VistaBotonAlertas
+        aspecto={aspecto}
+        pendientes={pendientes}
+        activo={pendientes > 0}
+        alPulsar={() => setRegistro(true)}
+        titulo={
           pendientes > 0
             ? `Alertas: ${pendientes} pendiente${pendientes === 1 ? "" : "s"}`
             : "Alertas (no hay ninguna pendiente)"
         }
-        style={{
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: "36px",
-          height: "36px",
-          border: `1px solid ${pendientes > 0 ? aspecto.color : "var(--border-light)"}`,
-          borderRadius: "var(--radius-sm)",
-          background: pendientes > 0 ? `${aspecto.color}22` : "transparent",
-          cursor: "pointer",
-          fontSize: "1.1rem",
-          flex: "0 0 auto",
-        }}
-      >
-        <span
-          className={pendientes > 0 ? animacion.clase : ""}
-          style={
-            pendientes > 0
-              ? { ...animacion.estilo, lineHeight: 1 }
-              : { lineHeight: 1, opacity: 0.6 }
-          }
-        >
-          ❗
-        </span>
-        {pendientes > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: "-6px",
-              right: "-6px",
-              minWidth: "18px",
-              height: "18px",
-              padding: "0 5px",
-              borderRadius: "9px",
-              background: aspecto.color,
-              color: "#fff",
-              fontSize: "0.68rem",
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {pendientes > 99 ? "99+" : pendientes}
-          </span>
-        )}
-      </button>
+      />
 
       {registro && (
         <PanelAlertas
