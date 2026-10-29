@@ -17,11 +17,13 @@ interface Posicion {
  */
 export default function CabeceraFlotante({
   contenedor,
+  fijaArriba,
   anchoTabla,
   claseTabla,
   children,
 }: {
   contenedor: RefObject<HTMLDivElement | null>;
+  fijaArriba?: RefObject<HTMLElement | null>;
   anchoTabla: number;
   claseTabla: string;
   children: ReactNode;
@@ -41,17 +43,22 @@ export default function CabeceraFlotante({
         principal && getComputedStyle(principal).overflowY === "auto"
           ? Math.max(0, principal.getBoundingClientRect().top)
           : 0;
+      // Si hay una parte fija encima (herramientas y filtros, que se pueden plegar y desplegar), la cabecera se queda justo debajo de ella
+      const fija = fijaArriba?.current;
+      const base = fija
+        ? Math.max(arriba, fija.getBoundingClientRect().bottom)
+        : arriba;
       const alto = 40;
-      if (r.top < arriba && r.bottom > arriba + alto + 8 && r.width > 0) {
+      if (r.top < base && r.bottom > base + alto + 8 && r.width > 0) {
         setPos((p) =>
           p &&
-          p.top === arriba &&
+          p.top === base &&
           p.left === r.left &&
           p.width === r.width &&
           p.desplazamiento === c.scrollLeft
             ? p
             : {
-                top: arriba,
+                top: base,
                 left: r.left,
                 width: r.width,
                 desplazamiento: c.scrollLeft,
@@ -65,13 +72,19 @@ export default function CabeceraFlotante({
     // En fase de captura se oyen los desplazamientos de cualquier contenedor (la página, <main> o la propia tabla)
     window.addEventListener("scroll", pedir, true);
     window.addEventListener("resize", pedir);
+    // Plegar o desplegar los filtros cambia la altura de la parte fija sin que haya scroll: se vuelve a calcular
+    const observador =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(pedir) : null;
+    if (fijaArriba?.current) observador?.observe(fijaArriba.current);
+    if (contenedor.current) observador?.observe(contenedor.current);
     pedir();
     return () => {
       window.removeEventListener("scroll", pedir, true);
       window.removeEventListener("resize", pedir);
+      observador?.disconnect();
       if (marco) window.cancelAnimationFrame(marco);
     };
-  }, [contenedor]);
+  }, [contenedor, fijaArriba]);
 
   if (!pos || typeof document === "undefined") return null;
   return createPortal(
@@ -84,7 +97,8 @@ export default function CabeceraFlotante({
         left: pos.left,
         width: pos.width,
         overflow: "hidden",
-        zIndex: 40,
+        padding: "0 2px",
+        zIndex: 39,
         boxShadow: "0 4px 10px rgba(0,0,0,0.18)",
         background: "var(--bg-card)",
         pointerEvents: "auto",
