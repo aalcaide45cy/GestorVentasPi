@@ -12,6 +12,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CajaDatos, GrupoDatos, OpcionDatos } from "@/components/datos/OpcionesDatos";
 import { eventoDeArchivos } from "@/lib/biblioteca-cliente";
 import { BotonesDatosSeccion } from "@/components/datos/DatosSeccion";
+import CabeceraFlotante from "@/components/expedientes/CabeceraFlotante";
 import PanelColumnas, { normalizarOrden, type ConfigColumnas } from "@/components/expedientes/PanelColumnas";
 import { ModalConfirmar } from "@/components/Modal";
 import Modal from "@/components/Modal";
@@ -584,6 +585,7 @@ export default function ExpedientesList({
   const seleccionarTodos = (marcado: boolean) => setSeleccionados(marcado ? filtrados.map((e) => e.id_expediente) : []);
   /** Último expediente marcado o desmarcado con su casilla: el punto de partida de un rango con Mayús. */
   const ultimaMarca = useRef<number | null>(null);
+  const refTabla = useRef<HTMLDivElement>(null);
   /**
    * Se elige solo con la casilla (pulsar en otra parte de la fila no elige). Con Mayús pulsada, la casilla marca (o desmarca) de golpe todos los que hay
    * entre el último que se tocó y este, en el orden en que se ven en la tabla.
@@ -851,6 +853,37 @@ export default function ExpedientesList({
     fijarColumnas(JSON.stringify(c.visibles));
     fijarOrden(JSON.stringify(c.orden));
   };
+
+  // El <colgroup> y el <thead> de la tabla de la lista (se pintan dos veces: en la tabla y en la cabecera flotante que se ve al bajar)
+  const encabezadoTabla = () => (
+    <>
+            <colgroup>
+              {seleccionActiva && <col style={{ width: ANCHO_SELECCION }} />}
+              {columnasActivas.map((c) => (
+                <col key={c.clave} style={{ width: anchoDe(c.clave) }} />
+              ))}
+              <col style={{ width: ANCHO_ACCIONES }} />
+            </colgroup>
+            <thead>
+              <tr>
+                {seleccionActiva && (
+                  <th style={{ width: "40px", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={filtrados.length > 0 && seleccionados.length === filtrados.length}
+                      onChange={(e) => seleccionarTodos(e.target.checked)}
+                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                    />
+                  </th>
+                )}
+                {columnasActivas.map((c) => (
+                  <Fragment key={c.clave}>{cabecera(c.clave, ENCABEZADOS[c.clave].etiqueta, ENCABEZADOS[c.clave].fondo)}</Fragment>
+                ))}
+                <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Acciones</th>
+              </tr>
+            </thead>
+    </>
+  );
 
   const celdaFecha = (exp: ExpedienteDto, campo: CampoFecha, nombre: string, fondo: string) => (
     <CeldaFecha exp={exp} campo={campo} nombre={nombre} fondo={fondo} formatear={formatDate} detalleMatricula alEditar={abrirEditar} alBorrar={abrirBorrar} />
@@ -1378,33 +1411,9 @@ export default function ExpedientesList({
           alIrAPagina={(p) => setPagina(Math.max(1, Math.min(p, totalPaginas)))}
         />
 
-        <div className="table-container tabla-pagina">
+        <div className="table-container tabla-pagina" ref={refTabla}>
           <table className="table-premium table-compact tabla-fija" style={{ width: (seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + anchoDe(c.clave), 0) + ANCHO_ACCIONES, minWidth: "100%" }}>
-            <colgroup>
-              {seleccionActiva && <col style={{ width: ANCHO_SELECCION }} />}
-              {columnasActivas.map((c) => (
-                <col key={c.clave} style={{ width: anchoDe(c.clave) }} />
-              ))}
-              <col style={{ width: ANCHO_ACCIONES }} />
-            </colgroup>
-            <thead>
-              <tr>
-                {seleccionActiva && (
-                  <th style={{ width: "40px", textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={filtrados.length > 0 && seleccionados.length === filtrados.length}
-                      onChange={(e) => seleccionarTodos(e.target.checked)}
-                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                    />
-                  </th>
-                )}
-                {columnasActivas.map((c) => (
-                  <Fragment key={c.clave}>{cabecera(c.clave, ENCABEZADOS[c.clave].etiqueta, ENCABEZADOS[c.clave].fondo)}</Fragment>
-                ))}
-                <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Acciones</th>
-              </tr>
-            </thead>
+            {encabezadoTabla()}
             <tbody>
               {visiblesPagina.map((exp) => {
                 const marcada = seleccionados.includes(exp.id_expediente);
@@ -1600,6 +1609,13 @@ export default function ExpedientesList({
             </tbody>
           </table>
         </div>
+        <CabeceraFlotante
+          contenedor={refTabla}
+          claseTabla="table-premium table-compact tabla-fija"
+          anchoTabla={(seleccionActiva ? ANCHO_SELECCION : 0) + columnasActivas.reduce((t, c) => t + anchoDe(c.clave), 0) + ANCHO_ACCIONES}
+        >
+          {encabezadoTabla()}
+        </CabeceraFlotante>
 
         {reglasColor.some((r) => r.activa && gruposDeRegla(r).some((g) => g.condiciones.length > 0)) && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 10px", padding: "8px 4px 2px", fontSize: "0.78rem", color: "var(--text-secondary)" }} title="Qué significa el color de cada fila. Gana la primera regla, por orden, cuyas condiciones se cumplan. Se configura en Configuración › Expedientes › Colores de fila">

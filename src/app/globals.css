@@ -750,3 +750,5 @@ tr.fila-aviso > td:last-child {
 @media (prefers-reduced-motion: reduce) {
   .gv-ef-intermitente, .gv-ef-onda, .gv-ef-rebote, .gv-ef-temblor, .gv-ef-balanceo, .gv-ef-giro, .gv-ef-arcoiris { animation: none; }
 }
+/* La copia fija de la cabecera de la tabla de Expedientes (se ve al bajar la página): mismo aspecto que la cabecera de la tabla. */
+.cabecera-flotante thead th { background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }

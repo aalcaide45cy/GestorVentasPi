@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.46.1 (29/10/2026)
+
+- **Cabecera de la tabla de Expedientes siempre a la vista**: al bajar, una copia fija de la fila de títulos (con ordenar y todo) se queda arriba, alineada con la tabla y con su desplazamiento lateral (`CabeceraFlotante`; el `position: sticky` no vale porque la tabla tiene scroll horizontal propio).
+
 ## Versión 1.46.0 (29/10/2026)
 
 - **Botones rápidos para posponer las alertas** (en la ventana de la alerta y en el registro), elegibles en Configuración › Expedientes › ❗ Alertas › «Botones rápidos para posponer» (15 min, 30 min, 1 h, 2 h, 4 h, mañana, 3 días, 1 semana; por defecto solo «1 hora»). El desplegable «Posponer…» se mantiene con todas las opciones. Preferencia `exp-alertas-botones`.
