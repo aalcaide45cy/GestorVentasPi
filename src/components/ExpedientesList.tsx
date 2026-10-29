@@ -266,6 +266,8 @@ export default function ExpedientesList({
   const [fTipo, setFTipo] = useState("");
   const [fEstado, setFEstado] = useState("");
   const [fIntranet, setFIntranet] = useState("");
+  // «En curso»: los expedientes con los que se está trabajando (todo menos Anulado, Post-venta y Archivado en la intranet)
+  const [fEnCurso, setFEnCurso] = useState(false);
   const [fApunte, setFApunte] = useState("");
   const [fVendedor, setFVendedor] = useState(currentUserName ?? "");
   const [fMes, setFMes] = useState("");
@@ -445,13 +447,14 @@ export default function ExpedientesList({
       if (fTipo && !e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase().includes(fTipo.toLowerCase())) return false;
       if (fEstado && !e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(fEstado.toLowerCase())) return false;
       if (fApunte && (fApunte === "__sin__" ? (e.apuntes ?? []).length > 0 : !(e.apuntes ?? []).some((a) => a.titulo.toLowerCase() === fApunte.toLowerCase()))) return false;
+      if (fEnCurso && /anulad|post[\s-]?venta|archivad/i.test(e.estado_intranet ?? "")) return false;
       if (fIntranet && (fIntranet === "__sin__" ? !!e.estado_intranet : (e.estado_intranet ?? "").toLowerCase() !== fIntranet.toLowerCase())) return false;
       if (fVendedor && (e.usuario?.nombre?.toLowerCase().trim() ?? "") !== fVendedor.toLowerCase().trim()) return false;
       if ((rangoActivo || fMes || fAnio) && !cumpleFechas(e)) return false;
       if (fTienda && e.id_tienda !== Number(fTienda)) return false;
       return true;
     });
-  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, mostrarDeshabilitados, fMarca, fModelo, fTipo, fEstado, fIntranet, fApunte, fVendedor, fTienda, rangoActivo, fMes, fAnio, cumpleFechas]);
+  }, [expedientes, busqueda, ocultarEntregados, mostrarAnulados, mostrarDeshabilitados, fMarca, fModelo, fTipo, fEstado, fIntranet, fEnCurso, fApunte, fVendedor, fTienda, rangoActivo, fMes, fAnio, cumpleFechas]);
 
   const ordenados = useMemo(() => {
     const valor = (e: ExpedienteDto): string => {
@@ -527,6 +530,7 @@ export default function ExpedientesList({
     setFTipo("");
     setFEstado("");
     setFIntranet("");
+    setFEnCurso(false);
     setFApunte("");
     setFVendedor(currentUserName ?? ""); // al limpiar se vuelve a ver solo lo del usuario que ha iniciado sesión
     setFMes("");
@@ -808,6 +812,7 @@ export default function ExpedientesList({
   if (fTipo) filtrosActivos.push(`Tipo de venta: ${fTipo}`);
   if (fEstado) filtrosActivos.push(`Estado: ${fEstado}`);
   if (fApunte) filtrosActivos.push(`Apunte: ${fApunte === "__sin__" ? "sin apuntes" : fApunte}`);
+  if (fEnCurso) filtrosActivos.push("En curso (sin Anulado, Post-venta ni Archivado)");
   if (fIntranet) filtrosActivos.push(`Estado intranet: ${fIntranet === "__sin__" ? "sin estado" : fIntranet}`);
   if (ocultarEntregados) filtrosActivos.push("Entregados ocultos");
 
@@ -1099,6 +1104,18 @@ export default function ExpedientesList({
             </h4>
             <button type="button" className="btn btn-secondary" onClick={limpiarFiltros} title="Quita todos los filtros y deja solo los expedientes del comercial que ha iniciado sesión" style={{ padding: "4px 10px", fontSize: "0.75rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}>
               🧹 Limpiar filtros
+            </button>
+            <button
+              type="button"
+              className={fEnCurso ? "btn btn-primary" : "btn btn-secondary"}
+              onClick={() => {
+                limpiarFiltros();
+                setFEnCurso(true);
+              }}
+              title="Muestra los expedientes con los que estás trabajando: todos los que no están Anulados, en Post-venta ni Archivados en la intranet, sin importar la fecha, y solo los del comercial que ha iniciado sesión"
+              style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+            >
+              🛠️ En curso
             </button>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }} title="Qué expedientes entran en la lista y en los totales">

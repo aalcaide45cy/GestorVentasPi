@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.43.0 (29/10/2026)
+
+- **Botón «🛠️ En curso»** junto a «Limpiar filtros» en Expedientes: quita todos los filtros (también las fechas), deja solo los expedientes del vendedor con la sesión iniciada y oculta los que están Anulado, Post-venta o Archivado en la intranet (los que no tienen estado intranet sí salen). Aparece en la lista de filtros activos.
+
 ## Versión 1.42.0 (29/10/2026)
 
 - **Dashboard: etiquetas de semáforo y apuntes** bajo el nombre del cliente en «Últimos expedientes activos», igual que en Expedientes (`panel.ts` ahora carga `apuntes`).
