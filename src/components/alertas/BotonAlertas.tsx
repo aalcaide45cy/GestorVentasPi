@@ -9,8 +9,13 @@ import type { AlertaDto } from "@/lib/alertas";
 import { useVersionDatos } from "@/lib/datos-version";
 import {
   animacionDeAlerta,
+  APLAZAMIENTOS,
   cuando,
+  estiloIcono,
   useAspectoAlertas,
+  useBotonesRapidos,
+  type Aplazamiento,
+  type CuerpoAlerta,
 } from "./aspecto-alertas";
 import PanelAlertas from "./PanelAlertas";
 import VistaBotonAlertas from "./VistaBotonAlertas";
@@ -51,6 +56,7 @@ export default function BotonAlertas() {
   const { mostrar } = useToast();
   const version = useVersionDatos();
   const aspecto = useAspectoAlertas();
+  const rapidos = useBotonesRapidos();
   const [datos, setDatos] = useState<Datos>(VACIO);
   const [vistas, setVistas] = useState<Set<number>>(new Set());
   const [registro, setRegistro] = useState(false);
@@ -99,13 +105,7 @@ export default function BotonAlertas() {
       return n;
     });
   };
-  const accion = async (
-    cuerpo:
-      | { accion: "hecho" | "reabrir" }
-      | { accion: "posponer"; hasta: "1h" | "manana" | "3dias" },
-    id: number,
-    texto: string,
-  ) => {
+  const accion = async (cuerpo: CuerpoAlerta, id: number, texto: string) => {
     setOcupado(true);
     try {
       await llamar("/api/alertas", {
@@ -233,13 +233,32 @@ export default function BotonAlertas() {
                   alignItems: "center",
                 }}
               >
+                {rapidos.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={ocupado}
+                    onClick={() =>
+                      void accion(
+                        { accion: "posponer", hasta: r },
+                        enVentana.id,
+                        "Alerta pospuesta.",
+                      )
+                    }
+                    style={{ padding: "6px 12px" }}
+                    title={APLAZAMIENTOS.find((x) => x.id === r)?.etiqueta}
+                  >
+                    ⏰ {APLAZAMIENTOS.find((x) => x.id === r)?.corta}
+                  </button>
+                ))}
                 <select
                   className="form-input"
                   aria-label="Posponer la alerta"
                   value=""
                   disabled={ocupado}
                   onChange={(e) => {
-                    const v = e.target.value as "1h" | "manana" | "3dias";
+                    const v = e.target.value as Aplazamiento | "";
                     if (v)
                       void accion(
                         { accion: "posponer", hasta: v },
@@ -254,9 +273,11 @@ export default function BotonAlertas() {
                   }}
                 >
                   <option value="">⏰ Posponer…</option>
-                  <option value="1h">Dentro de 1 hora</option>
-                  <option value="manana">Mañana a las 8:00</option>
-                  <option value="3dias">Dentro de 3 días</option>
+                  {APLAZAMIENTOS.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.etiqueta}
+                    </option>
+                  ))}
                 </select>
                 <button
                   type="button"

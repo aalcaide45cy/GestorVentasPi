@@ -3,7 +3,13 @@
 import { useState } from "react";
 import Modal from "@/components/Modal";
 import type { AlertaDto } from "@/lib/alertas";
-import { cuando } from "./aspecto-alertas";
+import {
+  APLAZAMIENTOS,
+  cuando,
+  useBotonesRapidos,
+  type Aplazamiento,
+  type CuerpoAlerta,
+} from "./aspecto-alertas";
 
 interface Datos {
   pendientes: AlertaDto[];
@@ -23,13 +29,7 @@ export default function PanelAlertas({
   datos: Datos;
   ocupado: boolean;
   alCerrar: () => void;
-  alAccion: (
-    cuerpo:
-      | { accion: "hecho" | "reabrir" }
-      | { accion: "posponer"; hasta: "1h" | "manana" | "3dias" },
-    id: number,
-    texto: string,
-  ) => Promise<void>;
+  alAccion: (cuerpo: CuerpoAlerta, id: number, texto: string) => Promise<void>;
   alIr: (idExpediente: number) => void;
 }) {
   const [pestana, setPestana] = useState<Pestana>(
@@ -37,6 +37,7 @@ export default function PanelAlertas({
       ? "pendientes"
       : "pospuestas",
   );
+  const rapidos = useBotonesRapidos();
   const lista = datos[pestana];
   const nombres: Record<Pestana, string> = {
     pendientes: "Pendientes",
@@ -150,13 +151,32 @@ export default function PanelAlertas({
                   >
                     ✔ Hecho
                   </button>
+                  {rapidos.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={ocupado}
+                      onClick={() =>
+                        void alAccion(
+                          { accion: "posponer", hasta: r },
+                          a.id,
+                          "Alerta pospuesta.",
+                        )
+                      }
+                      style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+                      title={APLAZAMIENTOS.find((x) => x.id === r)?.etiqueta}
+                    >
+                      ⏰ {APLAZAMIENTOS.find((x) => x.id === r)?.corta}
+                    </button>
+                  ))}
                   <select
                     className="form-input"
                     aria-label="Posponer"
                     value=""
                     disabled={ocupado}
                     onChange={(e) => {
-                      const v = e.target.value as "1h" | "manana" | "3dias";
+                      const v = e.target.value as Aplazamiento | "";
                       if (v)
                         void alAccion(
                           { accion: "posponer", hasta: v },
@@ -174,9 +194,11 @@ export default function PanelAlertas({
                       ⏰{" "}
                       {a.estado === "pospuesta" ? "Posponer más…" : "Posponer…"}
                     </option>
-                    <option value="1h">Dentro de 1 hora</option>
-                    <option value="manana">Mañana a las 8:00</option>
-                    <option value="3dias">Dentro de 3 días</option>
+                    {APLAZAMIENTOS.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.etiqueta}
+                      </option>
+                    ))}
                   </select>
                 </>
               )}

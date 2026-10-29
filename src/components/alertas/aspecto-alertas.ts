@@ -181,3 +181,38 @@ export const cuando = (iso: string): string =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+/** Opciones para posponer una alerta. El desplegable las lleva todas; los botones rápidos, las que se elijan en Configuración. */
+export const APLAZAMIENTOS = [
+  { id: "15m", etiqueta: "Dentro de 15 minutos", corta: "15 min" },
+  { id: "30m", etiqueta: "Dentro de 30 minutos", corta: "30 min" },
+  { id: "1h", etiqueta: "Dentro de 1 hora", corta: "1 hora" },
+  { id: "2h", etiqueta: "Dentro de 2 horas", corta: "2 horas" },
+  { id: "4h", etiqueta: "Dentro de 4 horas", corta: "4 horas" },
+  { id: "manana", etiqueta: "Mañana a las 8:00", corta: "Mañana" },
+  { id: "3dias", etiqueta: "Dentro de 3 días", corta: "3 días" },
+  { id: "semana", etiqueta: "Dentro de 1 semana", corta: "1 semana" },
+] as const;
+export type Aplazamiento = (typeof APLAZAMIENTOS)[number]["id"];
+export type CuerpoAlerta =
+  { accion: "hecho" | "reabrir" } | { accion: "posponer"; hasta: Aplazamiento };
+
+export const CLAVE_ALERTAS_BOTONES = "exp-alertas-botones";
+export const CLAVE_ALERTAS_ASPECTO_PLEGADO = "exp-alertas-aspecto-plegado";
+
+/** Los botones rápidos de posponer que quiere cada persona (por defecto, solo «1 hora»). */
+export function useBotonesRapidos(): Aplazamiento[] {
+  const [guardado] = usePreferencia(CLAVE_ALERTAS_BOTONES);
+  if (guardado === null || guardado === "") return ["1h"];
+  try {
+    const v = JSON.parse(guardado) as unknown;
+    const ids = Array.isArray(v)
+      ? v.filter((x): x is Aplazamiento =>
+          APLAZAMIENTOS.some((a) => a.id === x),
+        )
+      : ["1h"];
+    return APLAZAMIENTOS.map((a) => a.id).filter((id) => ids.includes(id));
+  } catch {
+    return ["1h"];
+  }
+}

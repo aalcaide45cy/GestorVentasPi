@@ -16,14 +16,15 @@ export const GET = manejar(async () => {
 const esquema = z.discriminatedUnion("accion", [
   z.object({ accion: z.literal("hecho"), id: z.number().int().positive() }),
   z.object({ accion: z.literal("reabrir"), id: z.number().int().positive() }),
-  z.object({ accion: z.literal("posponer"), id: z.number().int().positive(), hasta: z.enum(["1h", "manana", "3dias"]) }),
+  z.object({ accion: z.literal("posponer"), id: z.number().int().positive(), hasta: z.enum(["15m", "30m", "1h", "2h", "4h", "manana", "3dias", "semana"]) }),
 ]);
 
-/** Cuándo vuelve a saltar una alerta pospuesta: dentro de una hora, mañana a las 8:00 o dentro de tres días a las 8:00. */
-function fechaDeAplazamiento(hasta: "1h" | "manana" | "3dias"): Date {
+/** Cuándo vuelve a saltar una alerta pospuesta: dentro de unos minutos u horas, o mañana, dentro de tres días o de una semana a las 8:00. */
+function fechaDeAplazamiento(hasta: "15m" | "30m" | "1h" | "2h" | "4h" | "manana" | "3dias" | "semana"): Date {
   const d = new Date();
-  if (hasta === "1h") return new Date(d.getTime() + 3_600_000);
-  d.setDate(d.getDate() + (hasta === "manana" ? 1 : 3));
+  const minutos = { "15m": 15, "30m": 30, "1h": 60, "2h": 120, "4h": 240 }[hasta as "15m"];
+  if (minutos) return new Date(d.getTime() + minutos * 60_000);
+  d.setDate(d.getDate() + (hasta === "manana" ? 1 : hasta === "3dias" ? 3 : 7));
   d.setHours(8, 0, 0, 0);
   return d;
 }
