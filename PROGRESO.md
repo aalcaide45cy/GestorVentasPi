@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.47.3 (29/10/2026)
+
+- La cabecera flotante de Expedientes salía **descuadrada con el zoom de la página distinto de 100 %** (por ejemplo 96 %): `zoom` se aplica a toda la página y las posiciones fijas se multiplican por él. Ahora se divide por `--z` (`zoomDePagina`). Comprobado al 96 %: sus columnas caen a 1 px de las de la tabla. Sombra más discreta y mismo relleno lateral que la tabla.
+
 ## Versión 1.47.2 (29/10/2026)
 
 - Revisión visual de Expedientes (copia de prueba con los datos reales, escritorio y móvil): la cabecera flotante queda justo debajo de la parte fija y las columnas casan. Con la **caja de filtros abierta** la parte fija ocupaba más de la mitad de la pantalla y dejaba la lista sin sitio: ahora, si mide más del 42 % del alto, **no se queda fija** (se desplaza con la página y la cabecera de columnas flota arriba del todo); al plegar los filtros vuelve a quedarse arriba.

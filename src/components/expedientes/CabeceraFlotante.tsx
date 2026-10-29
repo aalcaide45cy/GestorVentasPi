@@ -10,6 +10,14 @@ interface Posicion {
   desplazamiento: number;
 }
 
+/** El tamaño de la página (el control de zoom del menú lateral): se aplica con `zoom` a toda la página, y las posiciones fijas se multiplican por él, así que hay que dividir por él. */
+const zoomDePagina = (): number => {
+  const z = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--z"),
+  );
+  return Number.isFinite(z) && z > 0 ? z : 1;
+};
+
 /**
  * Cabecera de la tabla que se queda a la vista al bajar la página: la tabla de Expedientes tiene su propio desplazamiento horizontal, así que el truco normal
  * (`position: sticky`) no funciona. Cuando la cabecera de verdad sale por arriba, se enseña una copia fija, alineada con la tabla y con su mismo desplazamiento lateral.
@@ -50,19 +58,21 @@ export default function CabeceraFlotante({
         : arriba;
       const alto = 40;
       if (r.top < base && r.bottom > base + alto + 8 && r.width > 0) {
+        const z = zoomDePagina();
+        const nueva: Posicion = {
+          top: base / z,
+          left: r.left / z,
+          width: r.width / z,
+          desplazamiento: c.scrollLeft,
+        };
         setPos((p) =>
           p &&
-          p.top === base &&
-          p.left === r.left &&
-          p.width === r.width &&
-          p.desplazamiento === c.scrollLeft
+          p.top === nueva.top &&
+          p.left === nueva.left &&
+          p.width === nueva.width &&
+          p.desplazamiento === nueva.desplazamiento
             ? p
-            : {
-                top: base,
-                left: r.left,
-                width: r.width,
-                desplazamiento: c.scrollLeft,
-              },
+            : nueva,
         );
       } else setPos(null);
     };
@@ -97,9 +107,9 @@ export default function CabeceraFlotante({
         left: pos.left,
         width: pos.width,
         overflow: "hidden",
-        padding: "0 2px",
+        padding: "0 3px",
         zIndex: 39,
-        boxShadow: "0 4px 10px rgba(0,0,0,0.18)",
+        boxShadow: "0 1px 0 var(--border-light), 0 3px 6px rgba(0,0,0,0.12)",
         background: "var(--bg-card)",
         pointerEvents: "auto",
       }}
