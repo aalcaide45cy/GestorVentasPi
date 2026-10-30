@@ -93,6 +93,8 @@ const NOMBRE_TABLA: Record<string, string> = {
   commission_plans: "un plan de comisionamiento",
   apuntes_expediente: "un apunte o semáforo de un expediente",
   apuntes_predefinidos: "un apunte predefinido",
+  alertas: "una alerta",
+  alertas_reglas: "una regla de alerta",
 };
 
 /**

@@ -8,6 +8,8 @@ import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { actualizarCliente, crearCliente, eliminarClientes, esquemaCliente } from "./clientes";
 import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
 import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./expedientes-escritura";
+import { esquemaReglaAlerta } from "@/lib/alertas";
+import { crearReglaAlerta, eliminarAlerta, eliminarReglaAlerta, listarReglasAlerta, misAlertas, posponerAlerta, resolverAlerta } from "./alertas";
 import { fijarEstadoSemaforo, listarApuntes } from "./apuntes";
 import { aplicarHistorial, leerHistorial } from "./historial";
 import { eliminarPlan, guardarPlan, leerPlan } from "./planes";
@@ -29,6 +31,55 @@ async function preparar() {
 }
 
 describe("historial de deshacer y rehacer", () => {
+  it("deshace y rehace lo de las alertas: borrar una alerta o una regla, «hecho», posponer y el efecto de un semáforo sobre ellas", async () => {
+    const { vendedor } = await preparar();
+    const admin = await crearUsuarioPrueba("administrador", "Admin");
+    const regla = await comoPeticion(admin.idUsuario, "Cambiar reglas de alerta", () =>
+      crearReglaAlerta(db, admin, esquemaReglaAlerta.parse({ nombre: "Seguro", mensaje: "Contrata el seguro de {cliente}", definicion: { combinar: "todas", condiciones: [{ campo: "matricula", operador: "no_vacio", valor: "" }, { campo: "estado_semaforo", operador: "es", valor: "Seguro: Seguro aún no solicitado" }] } })),
+    );
+    const exp = await comoPeticion(vendedor.idUsuario, "Crear expediente", () => crearExpediente(db, vendedor, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana López", dni: "11111111H" }, expediente: { matricula: "1111AAA" } })));
+    const id = exp.id_expediente;
+    const pendientes = async () => (await misAlertas(db, vendedor)).pendientes.length;
+    expect(await pendientes()).toBe(1);
+
+    // Cambiar el semáforo resuelve la alerta sola; deshacer devuelve las dos cosas
+    const [seguro] = await listarApuntes(db, id);
+    await comoPeticion(vendedor.idUsuario, "Cambiar apuntes y semáforos de expedientes", () => fijarEstadoSemaforo(db, vendedor, seguro.id, 1));
+    expect(await pendientes()).toBe(0);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+    expect((await listarApuntes(db, id))[0].estado_semaforo).toBe(0);
+    expect(await pendientes()).toBe(1);
+    await aplicarHistorial(db, vendedor.idUsuario, "rehacer");
+    expect((await listarApuntes(db, id))[0].estado_semaforo).toBe(1);
+    expect(await pendientes()).toBe(0);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+
+    // «Hecho» y eliminar una resuelta, por error, se deshacen
+    const [a] = (await misAlertas(db, vendedor)).pendientes;
+    await comoPeticion(vendedor.idUsuario, "Cambiar alertas", () => resolverAlerta(db, vendedor, a.id));
+    expect(await pendientes()).toBe(0);
+    await comoPeticion(vendedor.idUsuario, "Cambiar alertas", () => eliminarAlerta(db, vendedor, a.id));
+    expect((await misAlertas(db, vendedor)).resueltas).toHaveLength(0);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+    expect((await misAlertas(db, vendedor)).resueltas).toHaveLength(1);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+    expect(await pendientes()).toBe(1);
+
+    // Posponer también se deshace
+    await comoPeticion(vendedor.idUsuario, "Cambiar alertas", () => posponerAlerta(db, vendedor, a.id, new Date(Date.now() + 3_600_000)));
+    expect((await misAlertas(db, vendedor)).pospuestas).toHaveLength(1);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+    expect(await pendientes()).toBe(1);
+
+    // Borrar la regla (con sus alertas) por error y deshacerlo
+    await comoPeticion(admin.idUsuario, "Cambiar reglas de alerta", () => eliminarReglaAlerta(db, admin, regla.id));
+    expect(await listarReglasAlerta(db)).toHaveLength(0);
+    expect(await pendientes()).toBe(0);
+    await aplicarHistorial(db, admin.idUsuario, "deshacer");
+    expect(await listarReglasAlerta(db)).toHaveLength(1);
+    expect(await pendientes()).toBe(1);
+  });
+
   it("deshace y rehace un cambio de estado de un semáforo", async () => {
     const { vendedor } = await preparar();
     const exp = await comoPeticion(vendedor.idUsuario, "Crear expediente", () => crearExpediente(db, vendedor, esquemaCrearExpediente.parse({ cliente: { nombre: "Ana López", dni: "11111111H" }, expediente: {} })));

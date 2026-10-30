@@ -32,6 +32,8 @@ const VERBO: Record<string, string> = { POST: "Crear", PUT: "Modificar", PATCH: 
 const ETIQUETAS: { ruta: RegExp; metodo?: RegExp; texto: string }[] = [
   { ruta: /^\/api\/expedientes\/apuntes/, texto: "Cambiar apuntes y semáforos de expedientes" },
   { ruta: /^\/api\/admin\/apuntes-predefinidos/, texto: "Cambiar apuntes predefinidos" },
+  { ruta: /^\/api\/admin\/alertas-reglas/, texto: "Cambiar reglas de alerta" },
+  { ruta: /^\/api\/alertas/, texto: "Cambiar alertas" },
   { ruta: /^\/api\/expedientes\/duplicar/, texto: "Duplicar expedientes" },
   { ruta: /^\/api\/expedientes\/completar/, texto: "Completar datos de expedientes" },
   { ruta: /^\/api\/expedientes\/(importar-excel|import)/, texto: "Importar expedientes" },
