@@ -41,6 +41,8 @@ export interface FiltrosActuales {
   intranet: string;
   /** Apunte del expediente («__sin__» = sin apuntes). */
   apunte: string;
+  /** «En curso»: sin Anulado, Post-venta ni Archivado en la intranet. */
+  enCurso: boolean;
   /** Rango «Desde / Hasta» (AAAA-MM-DD) sobre el campo de fecha elegido. */
   desde: string;
   hasta: string;
@@ -93,6 +95,7 @@ export function aplicarPredefinidos(p: FiltrosPredefinidos, nombreUsuario: strin
     tienda: "",
     intranet: "",
     apunte: "",
+    enCurso: false,
     desde: "",
     hasta: "",
     ...ORDEN_INICIAL,
@@ -117,6 +120,7 @@ export function leerFiltrosGuardados(texto: string | null): FiltrosActuales | nu
     tienda: s(o.tienda),
     intranet: s(o.intranet),
     apunte: s(o.apunte),
+    enCurso: o.enCurso === true,
     desde: /^\d{4}-\d{2}-\d{2}$/.test(s(o.desde)) ? s(o.desde) : "",
     hasta: /^\d{4}-\d{2}-\d{2}$/.test(s(o.hasta)) ? s(o.hasta) : "",
     ordenCampo: s(o.ordenCampo) || ORDEN_INICIAL.ordenCampo,

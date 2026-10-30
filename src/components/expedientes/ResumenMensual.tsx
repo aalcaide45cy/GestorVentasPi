@@ -9,7 +9,7 @@ import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
 import { columnaClienteExpediente, columnaMatricula, columnasExpediente } from "./columnas-expediente";
-import { BotonPlegar, PanelCartera, PanelComisiones, firmaExpedientes, usePlegable } from "./ComisionesYCartera";
+import { TituloPlegable, PanelCartera, PanelComisiones, firmaExpedientes, usePlegable } from "./ComisionesYCartera";
 
 const MESES = [
   "Enero",
@@ -204,7 +204,7 @@ export default function ResumenMensual({ expedientes: todos, catalogo, anios, ve
     <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
         <div>
-          <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
+          <TituloPlegable abierto={panelAbierto} alternar={alternarPanel} titulo="Detalle y Resumen Estadístico">📊 Detalle y Resumen Estadístico</TituloPlegable>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
           <div style={{ marginTop: "6px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             {esMesActual ? (
@@ -254,7 +254,6 @@ export default function ResumenMensual({ expedientes: todos, catalogo, anios, ve
               </option>
             ))}
           </select>
-          <BotonPlegar abierto={panelAbierto} alternar={alternarPanel} titulo="Detalle y Resumen Estadístico" />
         </div>
       </div>
 

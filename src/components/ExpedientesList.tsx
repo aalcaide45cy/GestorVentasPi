@@ -308,6 +308,7 @@ export default function ExpedientesList({
     setFTipoFecha(f.tipoFecha);
     setFTienda(f.tienda);
     setFIntranet(f.intranet);
+    setFEnCurso(f.enCurso);
     setFApunte(f.apunte);
     setRango({ desde: f.desde, hasta: f.hasta });
     setOrdenCampo(f.ordenCampo);
@@ -334,6 +335,7 @@ export default function ExpedientesList({
       tipoFecha: fTipoFecha,
       tienda: fTienda,
       intranet: fIntranet,
+      enCurso: fEnCurso,
       apunte: fApunte,
       desde: rango.desde,
       hasta: rango.hasta,
@@ -341,7 +343,7 @@ export default function ExpedientesList({
       ordenAsc,
     };
     guardarPreferencia(CLAVE_FILTROS_GUARDADOS, JSON.stringify(actuales));
-  }, [filtrosListos, recordarEnEstaPantalla, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda, fIntranet, fApunte, rango, ordenCampo, ordenAsc]);
+  }, [filtrosListos, recordarEnEstaPantalla, recordarFiltros, busqueda, ocultarEntregados, fMarca, fModelo, fTipo, fEstado, fVendedor, fMes, fAnio, fTipoFecha, fTienda, fIntranet, fEnCurso, fApunte, rango, ordenCampo, ordenAsc]);
 
   const [importandoExcel, setImportandoExcel] = useState(false);
   const [completando, setCompletando] = useState(false);

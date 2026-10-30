@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.48.0 (30/10/2026)
+
+- El botón **«🛠️ En curso»** ahora **se recuerda** al cambiar de pestaña y volver (se guarda con el resto de filtros recordados: `enCurso` en `filtros-expedientes.ts`).
+- **Comisiones**: la tarjeta cuyo detalle está abierto (Puntos, Tramo, Objetivo X, Coches, Bruto, Penalización y las tasas) se marca con un marco azul (`outline` de `--primary`), como las del Resumen estadístico.
+- **Plegar y desplegar**: el botón «Plegar/Desplegar» de la derecha de **Comisiones**, **Cartera** y **Detalle y Resumen Estadístico** se sustituye por una flechita (▾/▸) en el propio título, que se pulsa para plegar, igual que en «Filtros» (`TituloPlegable`).
+
 ## Versión 1.47.3 (29/10/2026)
 
 - La cabecera flotante de Expedientes salía **descuadrada con el zoom de la página distinto de 100 %** (por ejemplo 96 %): `zoom` se aplica a toda la página y las posiciones fijas se multiplican por él. Ahora se divide por `--z` (`zoomDePagina`). Comprobado al 96 %: sus columnas caen a 1 px de las de la tabla. Sombra más discreta y mismo relleno lateral que la tabla.

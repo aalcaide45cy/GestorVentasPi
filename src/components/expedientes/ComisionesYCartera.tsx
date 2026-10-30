@@ -42,11 +42,21 @@ export function usePlegable(clave: string): { abierto: boolean; alternar: () => 
   return { abierto, alternar: () => guardar(abierto ? "cerrado" : "abierto") };
 }
 
-export function BotonPlegar({ abierto, alternar, titulo }: { abierto: boolean; alternar: () => void; titulo: string }) {
+/** El título de un panel que se pliega y se despliega al pulsarlo, con su flechita (como la caja de filtros). */
+export function TituloPlegable({ abierto, alternar, children, titulo }: { abierto: boolean; alternar: () => void; children: ReactNode; titulo: string }) {
   return (
-    <button type="button" onClick={alternar} aria-expanded={abierto} title={abierto ? `Plegar «${titulo}»` : `Desplegar «${titulo}»`} className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }}>
-      {abierto ? "▾ Plegar" : "▸ Desplegar"}
-    </button>
+    <h4
+      role="button"
+      tabIndex={0}
+      aria-expanded={abierto}
+      onClick={alternar}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), alternar())}
+      title={abierto ? `Plegar «${titulo}»` : `Desplegar «${titulo}»`}
+      style={{ fontSize: "1rem", fontWeight: "bold", margin: 0, cursor: "pointer", userSelect: "none", display: "inline-flex", alignItems: "center", gap: "8px" }}
+    >
+      <span aria-hidden>{abierto ? "▾" : "▸"}</span>
+      {children}
+    </h4>
   );
 }
 
@@ -66,7 +76,7 @@ interface TarjetaProps {
 }
 
 /** Cajita con un indicador (puntos, tramo, bruto…) para ver las cifras de un vistazo. */
-function Indicador({ etiqueta, ayuda, children, alAbrir }: { etiqueta: string; ayuda: string; children: ReactNode; alAbrir?: () => void }) {
+function Indicador({ etiqueta, ayuda, children, alAbrir, activo }: { etiqueta: string; ayuda: string; children: ReactNode; alAbrir?: () => void; activo?: boolean }) {
   return (
     <div
       title={alAbrir ? `${ayuda} (pulsa para ver el detalle)` : ayuda}
@@ -74,7 +84,7 @@ function Indicador({ etiqueta, ayuda, children, alAbrir }: { etiqueta: string; a
       tabIndex={alAbrir ? 0 : undefined}
       onClick={alAbrir}
       onKeyDown={alAbrir ? (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), alAbrir()) : undefined}
-      style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", justifyContent: "center", gap: "2px", minWidth: 0, minHeight: "58px", overflow: "hidden", cursor: alAbrir ? "pointer" : undefined }}
+      style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", background: "rgba(255, 255, 255, 0.02)", display: "flex", flexDirection: "column", justifyContent: "center", gap: "2px", minWidth: 0, minHeight: "58px", overflow: "hidden", outline: activo ? "2px solid var(--primary)" : "none", cursor: alAbrir ? "pointer" : undefined }}
     >
       <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{etiqueta}{alAbrir ? " 🔎" : ""}</span>
       <span style={{ fontSize: "1.15rem", fontWeight: 800, overflowWrap: "anywhere", lineHeight: 1.2 }}>{children}</span>
@@ -322,10 +332,12 @@ interface PropsFichaTasa {
   nota?: ReactNode;
   ayuda: string;
   alAbrir: () => void;
+  /** El detalle de esta tasa está abierto: se marca con el marco de color. */
+  activa?: boolean;
 }
 
 /** Una tasa de intervención financiera de un vistazo: porcentaje, fracción, barra con la marca del objetivo y si se cumple. */
-function FichaTasa({ titulo, numerador, denominador, objetivo, tipoTasa, cumplida, nota, ayuda, alAbrir }: PropsFichaTasa) {
+function FichaTasa({ titulo, numerador, denominador, objetivo, tipoTasa, cumplida, nota, ayuda, alAbrir, activa }: PropsFichaTasa) {
   const sinCoches = denominador === 0;
   const pct = sinCoches ? 0 : (numerador * 100) / denominador;
   const color = sinCoches ? "var(--text-muted)" : objetivo === null ? "var(--text-primary)" : cumplida ? "var(--success)" : "var(--warning)";
@@ -337,7 +349,7 @@ function FichaTasa({ titulo, numerador, denominador, objetivo, tipoTasa, cumplid
       title={`${ayuda} (pulsa para ver el detalle)`}
       onClick={alAbrir}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), alAbrir())}
-      style={{ border: `1px solid ${sinCoches || objetivo === null ? "var(--border-light)" : cumplida ? "var(--success)" : "var(--warning)"}`, borderRadius: "var(--radius-sm)", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "4px", cursor: "pointer", minWidth: 0, background: "rgba(255, 255, 255, 0.02)" }}
+      style={{ border: `1px solid ${sinCoches || objetivo === null ? "var(--border-light)" : cumplida ? "var(--success)" : "var(--warning)"}`, borderRadius: "var(--radius-sm)", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "4px", cursor: "pointer", minWidth: 0, background: "rgba(255, 255, 255, 0.02)", outline: activa ? "2px solid var(--primary)" : "none" }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "6px" }}>
         <span style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</span>
@@ -407,23 +419,23 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
             </div>
             <div style={{ flex: 1, minWidth: "260px", display: "flex", flexDirection: "column", gap: "8px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
-                <Indicador etiqueta="Puntos" alAbrir={() => alternarDetalle("puntos")} ayuda={efP.titulo || "Puntos del mes"}>
+                <Indicador etiqueta="Puntos" alAbrir={() => alternarDetalle("puntos")} activo={detalle === "puntos"} ayuda={efP.titulo || "Puntos del mes"}>
                   <span className={efP.className} style={efP.style}>{puntos(resultado.puntosMes)}</span>
                   <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 400 }}> / {puntos(resultado.objetivoX)}</span>
                 </Indicador>
-                <Indicador etiqueta="Tramo" alAbrir={() => alternarDetalle("tramo")} ayuda={efT.titulo || "Tramo del mes"}>
+                <Indicador etiqueta="Tramo" alAbrir={() => alternarDetalle("tramo")} activo={detalle === "tramo"} ayuda={efT.titulo || "Tramo del mes"}>
                   <span className={efT.className} style={efT.style}>{etiquetaTramo(resultado.tramo)}</span>
                 </Indicador>
-                <Indicador etiqueta="Objetivo X" alAbrir={() => alternarDetalle("objetivo")} ayuda="Puntos que marcan el tramo X de este mes">
+                <Indicador etiqueta="Objetivo X" alAbrir={() => alternarDetalle("objetivo")} activo={detalle === "objetivo"} ayuda="Puntos que marcan el tramo X de este mes">
                   {puntos(resultado.objetivoX)}
                 </Indicador>
-                <Indicador etiqueta="Coches" alAbrir={() => alternarDetalle("coches")} ayuda="Expedientes que cuentan en este mes">
+                <Indicador etiqueta="Coches" alAbrir={() => alternarDetalle("coches")} activo={detalle === "coches"} ayuda="Expedientes que cuentan en este mes">
                   {resultado.lineas.filter((l) => l.cuenta).length}
                 </Indicador>
-                <Indicador etiqueta="Bruto" alAbrir={() => alternarDetalle("bruto")} ayuda="Comisión antes de penalizaciones">
+                <Indicador etiqueta="Bruto" alAbrir={() => alternarDetalle("bruto")} activo={detalle === "bruto"} ayuda="Comisión antes de penalizaciones">
                   {euros(resultado.bruto)}
                 </Indicador>
-                <Indicador etiqueta="Penalización" alAbrir={() => alternarDetalle("penalizacion")} ayuda="Penalizaciones descontadas del bruto">
+                <Indicador etiqueta="Penalización" alAbrir={() => alternarDetalle("penalizacion")} activo={detalle === "penalizacion"} ayuda="Penalizaciones descontadas del bruto">
                   <span style={{ color: resultado.penalizacion > 0 ? "var(--danger)" : "var(--text-muted)" }}>{resultado.penalizacion > 0 ? `−${euros(resultado.penalizacion)}` : "—"}</span>
                 </Indicador>
               </div>
@@ -431,11 +443,11 @@ function TarjetaComision({ clave, titulo, mesTexto, pagoTexto, resultado, cargad
                 <div style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
                   <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Tasa de intervención financiera</span>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
-                    <FichaTasa titulo={resultado.tasaIncluyeVo ? "Global (nuevos y usados)" : "Global (nuevos)"} numerador={tasaG.numerador} denominador={tasaG.denominador} objetivo={tasaG.objetivo} tipoTasa={tasaG.tipoTasa} cumplida={tasaG.cumplida} ayuda="Coches financiados entre los que cuentan este mes" alAbrir={() => alternarDetalle("tasa")} nota={<NotaFueraDeMes adelantadas={adelantadasG} anteriores={anterioresG} />} />
+                    <FichaTasa titulo={resultado.tasaIncluyeVo ? "Global (nuevos y usados)" : "Global (nuevos)"} numerador={tasaG.numerador} denominador={tasaG.denominador} objetivo={tasaG.objetivo} tipoTasa={tasaG.tipoTasa} cumplida={tasaG.cumplida} ayuda="Coches financiados entre los que cuentan este mes" activa={detalle === "tasa"} alAbrir={() => alternarDetalle("tasa")} nota={<NotaFueraDeMes adelantadas={adelantadasG} anteriores={anterioresG} />} />
                     {tasas.map((x) => (
-                      <FichaTasa key={x.idMarca} titulo={nombreMarca(x.idMarca)} numerador={x.numerador} denominador={x.denominador} objetivo={x.objetivo} tipoTasa={x.tipoTasa} cumplida={x.cumplida} ayuda={`Tasa de la marca ${nombreMarca(x.idMarca)}`} alAbrir={() => alternarDetalle("tasa")} />
+                      <FichaTasa key={x.idMarca} titulo={nombreMarca(x.idMarca)} numerador={x.numerador} denominador={x.denominador} objetivo={x.objetivo} tipoTasa={x.tipoTasa} cumplida={x.cumplida} ayuda={`Tasa de la marca ${nombreMarca(x.idMarca)}`} activa={detalle === "tasa"} alAbrir={() => alternarDetalle("tasa")} />
                     ))}
-                    {tasaV && tasaV.denominador > 0 && <FichaTasa titulo="Usados (VO)" numerador={tasaV.numerador} denominador={tasaV.denominador} objetivo={tasaV.objetivo} tipoTasa={tasaV.tipoTasa} cumplida={tasaV.cumplida} ayuda="Usados financiados entre los que cuentan este mes" alAbrir={() => alternarDetalle("tasaVo")} nota={<NotaFueraDeMes adelantadas={adelantadasV} anteriores={anterioresV} />} />}
+                    {tasaV && tasaV.denominador > 0 && <FichaTasa titulo="Usados (VO)" numerador={tasaV.numerador} denominador={tasaV.denominador} objetivo={tasaV.objetivo} tipoTasa={tasaV.tipoTasa} cumplida={tasaV.cumplida} ayuda="Usados financiados entre los que cuentan este mes" activa={detalle === "tasaVo"} alAbrir={() => alternarDetalle("tasaVo")} nota={<NotaFueraDeMes adelantadas={adelantadasV} anteriores={anterioresV} />} />}
                   </div>
                 </div>
               )}
@@ -531,7 +543,7 @@ export function PanelComisiones({ anio, mes, expedientes, catalogo, usuario }: C
     <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "flex-start" }}>
         <div>
-          <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>💶 Comisiones</h4>
+          <TituloPlegable abierto={abierto} alternar={alternar} titulo="Comisiones">💶 Comisiones</TituloPlegable>
           {abierto && (
             <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>
               Lo que generas en un mes se cobra en la nómina del mes siguiente. Se recalcula solo al poner fechas de matriculación (o de facturación, cobro, RCI…).
@@ -544,7 +556,6 @@ export function PanelComisiones({ anio, mes, expedientes, catalogo, usuario }: C
               {verAnterior ? "Ocultar mes anterior" : "Mostrar mes anterior"}
             </button>
           )}
-          <BotonPlegar abierto={abierto} alternar={alternar} titulo="Comisiones" />
         </div>
       </div>
       {abierto && <div style={{ display: "grid", gridTemplateColumns: verAnterior ? "repeat(auto-fit, minmax(min(420px, 100%), 1fr))" : "1fr", gap: "16px" }}>
@@ -623,7 +634,7 @@ export function PanelCartera({ anio, mes, expedientes }: { anio: number; mes: nu
     <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
         <div>
-          <h4 style={{ fontSize: "1rem", fontWeight: "bold", margin: 0 }}>📁 Cartera: pedidos de {etiquetaMes(previo.anio, previo.mes)}</h4>
+          <TituloPlegable abierto={abierto} alternar={alternar} titulo="Cartera">📁 Cartera: pedidos de {etiquetaMes(previo.anio, previo.mes)}</TituloPlegable>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>
             Expedientes con fecha de pedido en ese mes. La afectación (bastidor de fábrica) es la fecha clave. Pulsa uno para abrirlo.
           </p>
@@ -635,7 +646,6 @@ export function PanelCartera({ anio, mes, expedientes }: { anio: number; mes: nu
               Añadir pendientes de matricular de meses anteriores
             </label>
           )}
-          <BotonPlegar abierto={abierto} alternar={alternar} titulo="Cartera" />
         </div>
       </div>
       {abierto && <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "0.85rem" }}>
