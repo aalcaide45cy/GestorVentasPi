@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.51.0 (30/10/2026)
+
+- **Calendario: vistas de Mes, Semana y Día** (selector junto a «Hoy»; se recuerda la última: preferencia `exp-calendario-vista`). Semana y Día llevan una fila «Todo el día» y una rejilla por horas (de las 7 a las 21, ampliada si hay notas fuera de ese tramo): las notas con hora van a su hora, las de todo el día, las alertas pendientes y las fechas de expedientes, arriba. Pulsar una hora vacía añade una nota a esa hora; pulsar la cabecera de un día lo abre en la vista de Día. Las flechas avanzan un mes, una semana o un día.
+
 ## Versión 1.50.1 (30/10/2026)
 
 - **Calendario: capa «❗ Alertas»** (activada por defecto, recuerda tu elección): las alertas pendientes salen en el día de hoy y las pospuestas en el día y la hora en que vuelven a saltar, también en «Próximos 15 días». Pulsar una abre el registro de alertas.

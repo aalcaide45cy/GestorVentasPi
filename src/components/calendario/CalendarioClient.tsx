@@ -16,6 +16,7 @@ import {
   type OcurrenciaDto,
 } from "@/lib/calendario";
 import { usePreferencia } from "@/lib/preferencias";
+import VistaHoras from "./VistaHoras";
 
 const MESES = [
   "Enero",
@@ -63,6 +64,8 @@ const aIso = (d: Date) =>
 const diaMes = (iso: string) => Number(iso.slice(8, 10));
 const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
 
+type Vista = "mes" | "semana" | "dia";
+
 interface Borrador {
   id: number | null;
   titulo: string;
@@ -82,13 +85,16 @@ interface Borrador {
   autor: string | null;
 }
 
-const nuevoBorrador = (fecha: string): Borrador => ({
+const nuevoBorrador = (
+  fecha: string,
+  hora: string | null = null,
+): Borrador => ({
   id: null,
   titulo: "",
   notas: "",
   fecha,
-  todoElDia: true,
-  hora: "09:00",
+  todoElDia: hora === null,
+  hora: hora ?? "09:00",
   color: COLORES[0],
   expediente: "",
   compartido: false,
@@ -121,8 +127,17 @@ const deEvento = (e: OcurrenciaDto): Borrador => ({
 export default function CalendarioClient() {
   const { mostrar, confirmar } = useToast();
   const hoy = aIso(new Date());
-  const [anio, setAnio] = useState(() => new Date().getFullYear());
-  const [mes, setMes] = useState(() => new Date().getMonth());
+  // La vista (mes, semana o día) y el día en torno al cual se muestra
+  const [vistaGuardada, fijarVista] = usePreferencia("exp-calendario-vista");
+  const vista: Vista =
+    vistaGuardada === "semana" || vistaGuardada === "dia"
+      ? vistaGuardada
+      : "mes";
+  const [ancla, setAncla] = useState(() => aIso(new Date()));
+  const [anio, mes] = [
+    Number(ancla.slice(0, 4)),
+    Number(ancla.slice(5, 7)) - 1,
+  ];
   const [verExp, fijarVerExp] = usePreferencia("exp-calendario-expedientes");
   const conExpedientes = verExp === "true";
   const [verAl, fijarVerAl] = usePreferencia("exp-calendario-alertas");
@@ -131,12 +146,24 @@ export default function CalendarioClient() {
   const [borrador, setBorrador] = useState<Borrador | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
-  // La cuadrícula: seis semanas que empiezan en lunes
-  const inicio = useMemo(() => {
-    const primero = new Date(anio, mes, 1);
-    return aIso(new Date(anio, mes, 1 - ((primero.getDay() + 6) % 7)));
-  }, [anio, mes]);
-  const fin = sumarDias(inicio, 41);
+  // Lo que se pide al servidor: la cuadrícula del mes (seis semanas desde el lunes), la semana o el día
+  const lunesDe = (iso: string) => {
+    const [a, m, d] = iso.split("-").map(Number);
+    return sumarDias(iso, -((new Date(a, m - 1, d).getDay() + 6) % 7));
+  };
+  const inicio = useMemo(
+    () =>
+      vista === "mes"
+        ? lunesDe(`${anio}-${dos(mes + 1)}-01`)
+        : vista === "semana"
+          ? lunesDe(ancla)
+          : ancla,
+    [vista, anio, mes, ancla],
+  );
+  const fin = sumarDias(
+    inicio,
+    vista === "mes" ? 41 : vista === "semana" ? 6 : 0,
+  );
   const { datos, recargar } = useCarga<Datos>(
     `/api/calendario?desde=${inicio}&hasta=${fin}${filtros}`,
     { eventos: [], fechasExpedientes: [], alertas: [] },
@@ -151,11 +178,19 @@ export default function CalendarioClient() {
   const expPorDia = (d: string) =>
     datos.fechasExpedientes.filter((e) => e.dia === d);
   const alPorDia = (d: string) => datos.alertas.filter((a) => a.dia === d);
-  const moverMes = (n: number) => {
-    const d = new Date(anio, mes + n, 1);
-    setAnio(d.getFullYear());
-    setMes(d.getMonth());
+  const mover = (n: number) => {
+    if (vista === "mes") setAncla(aIso(new Date(anio, mes + n, 1)));
+    else setAncla(sumarDias(ancla, n * (vista === "semana" ? 7 : 1)));
   };
+  const titulo = (() => {
+    if (vista === "mes") return `${MESES[mes]} ${anio}`;
+    const corto = (iso: string) =>
+      `${Number(iso.slice(8, 10))} ${MESES[Number(iso.slice(5, 7)) - 1].slice(0, 3).toLowerCase()}`;
+    if (vista === "semana")
+      return `${corto(inicio)} – ${corto(fin)} ${fin.slice(0, 4)}`;
+    const [a, m, d] = ancla.split("-").map(Number);
+    return `${["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"][new Date(a, m - 1, d).getDay()]} ${d} de ${MESES[m - 1].toLowerCase()} de ${a}`;
+  })();
 
   const guardar = async () => {
     if (!borrador) return;
@@ -290,26 +325,26 @@ export default function CalendarioClient() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => moverMes(-1)}
-            aria-label="Mes anterior"
+            onClick={() => mover(-1)}
+            aria-label="Anterior"
             style={{ padding: "4px 10px" }}
           >
             ◀
           </button>
           <strong
             style={{
-              minWidth: "150px",
+              minWidth: vista === "mes" ? "150px" : "230px",
               textAlign: "center",
               fontSize: "1.1rem",
             }}
           >
-            {MESES[mes]} {anio}
+            {titulo}
           </strong>
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => moverMes(1)}
-            aria-label="Mes siguiente"
+            onClick={() => mover(1)}
+            aria-label="Siguiente"
             style={{ padding: "4px 10px" }}
           >
             ▶
@@ -317,15 +352,31 @@ export default function CalendarioClient() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => {
-              const d = new Date();
-              setAnio(d.getFullYear());
-              setMes(d.getMonth());
-            }}
+            onClick={() => setAncla(hoy)}
             style={{ padding: "4px 12px", fontSize: "0.85rem" }}
           >
             Hoy
           </button>
+          <span
+            role="group"
+            aria-label="Vista"
+            style={{ display: "inline-flex", gap: "4px", marginLeft: "6px" }}
+          >
+            {(["mes", "semana", "dia"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={
+                  vista === v ? "btn btn-primary" : "btn btn-secondary"
+                }
+                onClick={() => fijarVista(v)}
+                aria-pressed={vista === v}
+                style={{ padding: "4px 12px", fontSize: "0.85rem" }}
+              >
+                {v === "mes" ? "Mes" : v === "semana" ? "Semana" : "Día"}
+              </button>
+            ))}
+          </span>
           <label
             style={{
               display: "flex",
@@ -369,147 +420,167 @@ export default function CalendarioClient() {
           </button>
         </div>
 
-        <div style={{ overflowX: "auto" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, minmax(92px, 1fr))",
-              gap: "1px",
-              background: "var(--border-light)",
-              border: "1px solid var(--border-light)",
-              borderRadius: "var(--radius-sm)",
-              overflow: "hidden",
-              minWidth: "660px",
-            }}
-          >
-            {DIAS_SEMANA.map((d) => (
-              <div
-                key={d}
-                style={{
-                  background: "var(--bg-card)",
-                  padding: "4px 6px",
-                  fontSize: "0.72rem",
-                  fontWeight: 700,
-                  color: "var(--text-secondary)",
-                  textAlign: "center",
-                }}
-              >
-                {d}
-              </div>
-            ))}
-            {celdas.map((d) => {
-              const delMes = Number(d.slice(5, 7)) - 1 === mes;
-              const evs = porDia(d);
-              const exps = expPorDia(d);
-              const als = alPorDia(d);
-              const todos = [
-                ...als.map((a) => ({ k: "a" as const, a })),
-                ...evs.map((e) => ({ k: "e" as const, e })),
-                ...exps.map((x) => ({ k: "x" as const, x })),
-              ];
-              return (
+        {vista === "mes" && (
+          <div style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(7, minmax(92px, 1fr))",
+                gap: "1px",
+                background: "var(--border-light)",
+                border: "1px solid var(--border-light)",
+                borderRadius: "var(--radius-sm)",
+                overflow: "hidden",
+                minWidth: "660px",
+              }}
+            >
+              {DIAS_SEMANA.map((d) => (
                 <div
                   key={d}
-                  onClick={() => setBorrador(nuevoBorrador(d))}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") setBorrador(nuevoBorrador(d));
-                  }}
-                  title="Añadir una nota en este día"
                   style={{
                     background: "var(--bg-card)",
-                    minHeight: "92px",
-                    padding: "3px 4px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "2px",
-                    cursor: "pointer",
-                    opacity: delMes ? 1 : 0.5,
-                    outline: d === hoy ? "2px solid var(--primary)" : "none",
-                    outlineOffset: "-2px",
+                    padding: "4px 6px",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    color: "var(--text-secondary)",
+                    textAlign: "center",
                   }}
                 >
-                  <span
+                  {d}
+                </div>
+              ))}
+              {celdas.map((d) => {
+                const delMes = Number(d.slice(5, 7)) - 1 === mes;
+                const evs = porDia(d);
+                const exps = expPorDia(d);
+                const als = alPorDia(d);
+                const todos = [
+                  ...als.map((a) => ({ k: "a" as const, a })),
+                  ...evs.map((e) => ({ k: "e" as const, e })),
+                  ...exps.map((x) => ({ k: "x" as const, x })),
+                ];
+                return (
+                  <div
+                    key={d}
+                    onClick={() => setBorrador(nuevoBorrador(d))}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setBorrador(nuevoBorrador(d));
+                    }}
+                    title="Añadir una nota en este día"
                     style={{
-                      fontSize: "0.75rem",
-                      fontWeight: d === hoy ? 800 : 600,
-                      color:
-                        d === hoy ? "var(--primary)" : "var(--text-secondary)",
+                      background: "var(--bg-card)",
+                      minHeight: "92px",
+                      padding: "3px 4px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "2px",
+                      cursor: "pointer",
+                      opacity: delMes ? 1 : 0.5,
+                      outline: d === hoy ? "2px solid var(--primary)" : "none",
+                      outlineOffset: "-2px",
                     }}
                   >
-                    {diaMes(d)}
-                  </span>
-                  {todos.slice(0, 4).map((t) =>
-                    t.k === "a" ? (
-                      <button
-                        key={`al-${t.a.id}`}
-                        type="button"
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          abrirAlertas();
-                        }}
-                        title={`${t.a.estado === "pospuesta" ? "Alerta pospuesta: vuelve a saltar" : "Alerta pendiente"}${t.a.hora ? ` a las ${t.a.hora}` : ""}\n${t.a.mensaje}`}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "1px 5px",
-                          fontSize: "0.7rem",
-                          border: "1px solid var(--danger)",
-                          borderRadius: "4px",
-                          background: "rgba(239, 68, 68, 0.12)",
-                          color: "var(--text-primary)",
-                          cursor: "pointer",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {t.a.estado === "pospuesta" ? "⏰" : "❗"}{" "}
-                        {t.a.hora ? `${t.a.hora} ` : ""}
-                        {t.a.mensaje}
-                      </button>
-                    ) : t.k === "e" ? (
-                      chip(t.e)
-                    ) : (
-                      <Link
-                        key={`${t.x.id_expediente}-${t.x.tipo}`}
-                        href={`/dashboard/expedientes/editar/${t.x.id_expediente}`}
-                        onClick={(ev) => ev.stopPropagation()}
-                        title={`${TIPO_FECHA[t.x.tipo]}: ${t.x.cliente ?? "Sin cliente"}${t.x.matricula ? ` · ${t.x.matricula}` : ""}`}
-                        style={{
-                          display: "block",
-                          padding: "1px 5px",
-                          fontSize: "0.68rem",
-                          borderRadius: "4px",
-                          border: "1px dashed var(--border-light)",
-                          color: "var(--text-secondary)",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {TIPO_FECHA[t.x.tipo].split(" ")[0]}{" "}
-                        {t.x.cliente ?? "Sin cliente"}
-                      </Link>
-                    ),
-                  )}
-                  {todos.length > 4 && (
                     <span
                       style={{
-                        fontSize: "0.68rem",
-                        color: "var(--text-muted)",
+                        fontSize: "0.75rem",
+                        fontWeight: d === hoy ? 800 : 600,
+                        color:
+                          d === hoy
+                            ? "var(--primary)"
+                            : "var(--text-secondary)",
                       }}
                     >
-                      +{todos.length - 4} más
+                      {diaMes(d)}
                     </span>
-                  )}
-                </div>
-              );
-            })}
+                    {todos.slice(0, 4).map((t) =>
+                      t.k === "a" ? (
+                        <button
+                          key={`al-${t.a.id}`}
+                          type="button"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            abrirAlertas();
+                          }}
+                          title={`${t.a.estado === "pospuesta" ? "Alerta pospuesta: vuelve a saltar" : "Alerta pendiente"}${t.a.hora ? ` a las ${t.a.hora}` : ""}\n${t.a.mensaje}`}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "1px 5px",
+                            fontSize: "0.7rem",
+                            border: "1px solid var(--danger)",
+                            borderRadius: "4px",
+                            background: "rgba(239, 68, 68, 0.12)",
+                            color: "var(--text-primary)",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {t.a.estado === "pospuesta" ? "⏰" : "❗"}{" "}
+                          {t.a.hora ? `${t.a.hora} ` : ""}
+                          {t.a.mensaje}
+                        </button>
+                      ) : t.k === "e" ? (
+                        chip(t.e)
+                      ) : (
+                        <Link
+                          key={`${t.x.id_expediente}-${t.x.tipo}`}
+                          href={`/dashboard/expedientes/editar/${t.x.id_expediente}`}
+                          onClick={(ev) => ev.stopPropagation()}
+                          title={`${TIPO_FECHA[t.x.tipo]}: ${t.x.cliente ?? "Sin cliente"}${t.x.matricula ? ` · ${t.x.matricula}` : ""}`}
+                          style={{
+                            display: "block",
+                            padding: "1px 5px",
+                            fontSize: "0.68rem",
+                            borderRadius: "4px",
+                            border: "1px dashed var(--border-light)",
+                            color: "var(--text-secondary)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {TIPO_FECHA[t.x.tipo].split(" ")[0]}{" "}
+                          {t.x.cliente ?? "Sin cliente"}
+                        </Link>
+                      ),
+                    )}
+                    {todos.length > 4 && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        +{todos.length - 4} más
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
+        {vista !== "mes" && (
+          <VistaHoras
+            dias={Array.from({ length: vista === "semana" ? 7 : 1 }, (_, k) =>
+              sumarDias(inicio, k),
+            )}
+            hoy={hoy}
+            datos={datos}
+            alAnadir={(dia, hora) => setBorrador(nuevoBorrador(dia, hora))}
+            alEditar={(e) => setBorrador({ ...deEvento(e), fecha: e.fecha })}
+            alAbrirAlertas={abrirAlertas}
+            alIrDia={(dia) => {
+              setAncla(dia);
+              fijarVista("dia");
+            }}
+          />
+        )}
       </div>
 
       <div
