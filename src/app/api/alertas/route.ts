@@ -18,6 +18,7 @@ const esquema = z.discriminatedUnion("accion", [
   z.object({ accion: z.literal("reabrir"), id: z.number().int().positive() }),
   z.object({ accion: z.literal("eliminar"), id: z.number().int().positive() }),
   z.object({ accion: z.literal("vaciar_resueltas") }),
+  z.object({ accion: z.literal("posponer_fecha"), id: z.number().int().positive(), en: z.string().datetime() }),
   z.object({ accion: z.literal("posponer"), id: z.number().int().positive(), hasta: z.enum(["15m", "30m", "1h", "2h", "4h", "manana", "3dias", "semana"]) }),
 ]);
 
@@ -38,6 +39,7 @@ export const POST = manejar(async (req: Request) => {
   else if (e.accion === "reabrir") await reabrirAlerta(db, u, e.id);
   else if (e.accion === "eliminar") await eliminarAlerta(db, u, e.id);
   else if (e.accion === "vaciar_resueltas") return NextResponse.json({ success: true, data: { eliminadas: await vaciarResueltas(db, u) } });
+  else if (e.accion === "posponer_fecha") await posponerAlerta(db, u, e.id, new Date(e.en));
   else if (e.accion === "posponer") await posponerAlerta(db, u, e.id, fechaDeAplazamiento(e.hasta));
   else throw new HttpError(400, "Acción no válida");
   return NextResponse.json({ success: true, data: { ok: true } });

@@ -154,12 +154,12 @@ export async function resolverAlerta(ej: Ejecutor, u: UsuarioActual, id: number)
   await ej.update(alertas).set({ estado: "resuelta", motivo: "hecho", resueltaEn: new Date(), pospuestaHasta: null }).where(eq(alertas.id, a.id));
 }
 
-/** Pospone la alerta hasta `hasta` (en el futuro, como mucho 30 días). */
+/** Pospone la alerta hasta `hasta` (en el futuro, como mucho un año). */
 export async function posponerAlerta(ej: Ejecutor, u: UsuarioActual, id: number, hasta: Date): Promise<void> {
   const a = await propia(ej, u, id);
   if (a.estado === "resuelta") throw new HttpError(409, "Esta alerta ya está resuelta");
   const ahora = Date.now();
-  if (!(hasta.getTime() > ahora) || hasta.getTime() > ahora + 30 * 86_400_000) throw new HttpError(400, "Fecha de aplazamiento no válida");
+  if (!(hasta.getTime() > ahora) || hasta.getTime() > ahora + 366 * 86_400_000) throw new HttpError(400, "Fecha de aplazamiento no válida");
   await ej.update(alertas).set({ estado: "pospuesta", pospuestaHasta: hasta }).where(eq(alertas.id, a.id));
 }
 

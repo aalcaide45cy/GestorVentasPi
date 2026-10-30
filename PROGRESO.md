@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.49.0 (30/10/2026)
+
+- **Posponer una alerta al día y la hora que quieras**: botón «📅 Día y hora…» (ventana de la alerta y registro) con un selector de fecha y hora; hasta un año vista (acción `posponer_fecha` de `/api/alertas`).
+
 ## Versión 1.48.1 (30/10/2026)
 
 - **Deshacer / rehacer cubre las alertas**: `alertas` y `alertas_reglas` llevan el disparador del historial (migración 0070, `when` 1793205231861). Se deshacen y rehacen «Hecho», posponer, eliminar una alerta o vaciar las resueltas, y crear, cambiar o borrar una regla de alerta (con sus alertas). Etiquetas «Cambiar alertas» y «Cambiar reglas de alerta».

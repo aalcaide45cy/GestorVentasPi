@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
+import PosponerFecha from "./PosponerFecha";
 import type { AlertaDto } from "@/lib/alertas";
 import {
   APLAZAMIENTOS,
@@ -229,6 +230,17 @@ export default function PanelAlertas({
                       </option>
                     ))}
                   </select>
+                  <PosponerFecha
+                    pequeno
+                    ocupado={ocupado}
+                    alElegir={(en) =>
+                      void alAccion(
+                        { accion: "posponer_fecha", en },
+                        a.id,
+                        "Alerta pospuesta.",
+                      )
+                    }
+                  />
                 </>
               )}
               {a.estado === "resuelta" && (

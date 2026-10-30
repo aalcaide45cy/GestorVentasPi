@@ -18,6 +18,7 @@ import {
   type CuerpoAlerta,
 } from "./aspecto-alertas";
 import PanelAlertas from "./PanelAlertas";
+import PosponerFecha from "./PosponerFecha";
 import VistaBotonAlertas from "./VistaBotonAlertas";
 
 interface Datos {
@@ -314,6 +315,16 @@ export default function BotonAlertas() {
                     </option>
                   ))}
                 </select>
+                <PosponerFecha
+                  ocupado={ocupado}
+                  alElegir={(en) =>
+                    void accion(
+                      { accion: "posponer_fecha", en },
+                      enVentana.id,
+                      "Alerta pospuesta.",
+                    )
+                  }
+                />
                 <button
                   type="button"
                   className="btn btn-secondary"

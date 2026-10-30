@@ -59,6 +59,10 @@ describe("alertas", () => {
     expect(r.pendientes).toHaveLength(0);
     expect(r.pospuestas).toHaveLength(1);
     await expect(posponerAlerta(db, ana, a.id, new Date(Date.now() - 1000))).rejects.toThrow(/no válida/);
+    // Día y hora a elegir: hasta un año
+    await expect(posponerAlerta(db, ana, a.id, new Date(Date.now() + 400 * 86_400_000))).rejects.toThrow(/no válida/);
+    await posponerAlerta(db, ana, a.id, new Date(Date.now() + 40 * 86_400_000));
+    expect((await misAlertas(db, ana)).pospuestas).toHaveLength(1);
     // Llega su hora
     await db.execute(sql`update alertas set pospuesta_hasta = now() - interval '1 minute'`);
     r = await misAlertas(db, ana);

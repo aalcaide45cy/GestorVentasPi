@@ -197,7 +197,8 @@ export type Aplazamiento = (typeof APLAZAMIENTOS)[number]["id"];
 export type CuerpoAlerta =
   | { accion: "hecho" | "reabrir" | "eliminar" }
   | { accion: "vaciar_resueltas" }
-  | { accion: "posponer"; hasta: Aplazamiento };
+  | { accion: "posponer"; hasta: Aplazamiento }
+  | { accion: "posponer_fecha"; en: string };
 
 export const CLAVE_ALERTAS_BOTONES = "exp-alertas-botones";
 export const CLAVE_ALERTAS_ASPECTO_PLEGADO = "exp-alertas-aspecto-plegado";
