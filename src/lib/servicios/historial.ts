@@ -95,6 +95,7 @@ const NOMBRE_TABLA: Record<string, string> = {
   apuntes_predefinidos: "un apunte predefinido",
   alertas: "una alerta",
   alertas_reglas: "una regla de alerta",
+  calendario_eventos: "una nota del calendario",
 };
 
 /**

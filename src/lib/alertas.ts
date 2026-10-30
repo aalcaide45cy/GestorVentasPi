@@ -39,7 +39,10 @@ export function textoDeAlerta(plantilla: string, e: Pick<ExpedienteDto, "id_expe
 
 export interface AlertaDto {
   id: number;
-  id_expediente: number;
+  /** Nulo en un aviso del calendario sin expediente. */
+  id_expediente: number | null;
+  /** La nota del calendario que lo generó (si viene del calendario). */
+  id_evento: number | null;
   mensaje: string;
   estado: "pendiente" | "pospuesta" | "resuelta";
   /** Si está pospuesta, hasta cuándo (ISO). */

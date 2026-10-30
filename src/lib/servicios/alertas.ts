@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db";
 import { alertas, alertasReglas, apuntesExpediente, apuntesPredefinidos, clientes, expedientes, usuarios } from "@/db/schema";
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { esAnulado } from "@/lib/anulados";
 import { cumpleAlerta, textoDeAlerta, type AlertaDto, type EntradaReglaAlerta, type ReglaAlertaDto } from "@/lib/alertas";
+import { generarAvisosCalendario, resolverAvisosDeEventosHechos } from "./calendario";
 import { hoyIso } from "./comun";
 import { aDto, relacionesExpediente } from "./expedientes";
 
@@ -49,7 +50,7 @@ export async function evaluarAlertas(ej: Ejecutor, ids: number[]): Promise<numbe
   if (ids.length === 0) return 0;
   const reglas = (await ej.select().from(alertasReglas).where(eq(alertasReglas.activa, true))).filter((r) => r.definicion.condiciones.length > 0 || (r.definicion.grupos ?? []).some((g) => g.condiciones.length > 0));
   // Las reglas apagadas o borradas dejan de tener alertas abiertas
-  const abiertasHuerfanas = await ej.select({ id: alertas.id }).from(alertas).where(and(inArray(alertas.idExpediente, ids), ne(alertas.estado, "resuelta"), reglas.length > 0 ? sql`${alertas.idRegla} not in (${sql.join(reglas.map((r) => sql`${r.id}`), sql`, `)})` : undefined));
+  const abiertasHuerfanas = await ej.select({ id: alertas.id }).from(alertas).where(and(inArray(alertas.idExpediente, ids), ne(alertas.estado, "resuelta"), isNotNull(alertas.idRegla), reglas.length > 0 ? sql`${alertas.idRegla} not in (${sql.join(reglas.map((r) => sql`${r.id}`), sql`, `)})` : undefined));
   if (abiertasHuerfanas.length > 0) await ej.update(alertas).set({ estado: "resuelta", motivo: "automatica", resueltaEn: new Date(), pospuestaHasta: null }).where(inArray(alertas.id, abiertasHuerfanas.map((a) => a.id)));
   if (reglas.length === 0) return 0;
 
@@ -111,29 +112,33 @@ export async function reevaluarTodas(ej: Ejecutor, u: UsuarioActual): Promise<nu
 
 const ESTADOS_ALERTA = ["pendiente", "pospuesta", "resuelta"] as const;
 
-const aAlerta = (f: { a: typeof alertas.$inferSelect; regla: string; cliente: string | null; matricula: string | null }): AlertaDto => ({
+const aAlerta = (f: { a: typeof alertas.$inferSelect; regla: string | null; cliente: string | null; matricula: string | null }): AlertaDto => ({
   id: f.a.id,
   id_expediente: f.a.idExpediente,
+  id_evento: f.a.idEvento,
   mensaje: f.a.mensaje,
   estado: (ESTADOS_ALERTA as readonly string[]).includes(f.a.estado) ? (f.a.estado as AlertaDto["estado"]) : "pendiente",
   pospuesta_hasta: f.a.pospuestaHasta?.toISOString() ?? null,
   creada_en: f.a.creadaEn.toISOString(),
   resuelta_en: f.a.resueltaEn?.toISOString() ?? null,
   motivo: f.a.motivo === "hecho" || f.a.motivo === "automatica" ? f.a.motivo : null,
-  regla: f.regla,
+  regla: f.regla ?? "📅 Calendario",
   cliente: f.cliente,
   matricula: f.matricula,
 });
 
 /** Las alertas de una persona: las pospuestas cuya hora ha llegado vuelven a ser pendientes. Las resueltas, solo las de los últimos 60 días. */
 export async function misAlertas(ej: Ejecutor, u: UsuarioActual): Promise<{ pendientes: AlertaDto[]; pospuestas: AlertaDto[]; resueltas: AlertaDto[] }> {
+  // Los recordatorios del calendario que ya han llegado se convierten en alertas
+  await generarAvisosCalendario(ej, u);
+  await resolverAvisosDeEventosHechos(ej, u);
   await ej.update(alertas).set({ estado: "pendiente", pospuestaHasta: null }).where(and(eq(alertas.idUsuario, u.idUsuario), eq(alertas.estado, "pospuesta"), lte(alertas.pospuestaHasta, new Date())));
   const hace60 = new Date(Date.now() - 60 * 86_400_000);
   const filas = await ej
     .select({ a: alertas, regla: alertasReglas.nombre, cliente: clientes.nombre, matricula: expedientes.matricula })
     .from(alertas)
-    .innerJoin(alertasReglas, eq(alertas.idRegla, alertasReglas.id))
-    .innerJoin(expedientes, eq(alertas.idExpediente, expedientes.idExpediente))
+    .leftJoin(alertasReglas, eq(alertas.idRegla, alertasReglas.id))
+    .leftJoin(expedientes, eq(alertas.idExpediente, expedientes.idExpediente))
     .leftJoin(clientes, eq(expedientes.idCliente, clientes.id))
     .where(and(eq(alertas.idUsuario, u.idUsuario), isNull(expedientes.eliminadoEn), sql`(${alertas.estado} <> 'resuelta' or ${alertas.resueltaEn} >= ${hace60})`))
     .orderBy(desc(alertas.creadaEn), desc(alertas.id))

@@ -185,9 +185,13 @@ export default function BotonAlertas() {
           ocupado={ocupado}
           alCerrar={() => setRegistro(false)}
           alAccion={accion}
-          alIr={(id) => {
+          alIr={(alerta) => {
             setRegistro(false);
-            router.push(`/dashboard/expedientes/editar/${id}`);
+            router.push(
+              alerta.id_expediente !== null
+                ? `/dashboard/expedientes/editar/${alerta.id_expediente}`
+                : "/dashboard/calendario",
+            );
           }}
         />
       )}
@@ -257,7 +261,9 @@ export default function BotonAlertas() {
               <span
                 style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}
               >
-                {enVentana.cliente ?? "Sin cliente"}
+                {enVentana.id_expediente === null
+                  ? ""
+                  : (enVentana.cliente ?? "Sin cliente")}
                 {enVentana.matricula ? ` · ${enVentana.matricula}` : ""}
               </span>
               <div
@@ -342,12 +348,16 @@ export default function BotonAlertas() {
                   onClick={() => {
                     marcarVista(enVentana);
                     router.push(
-                      `/dashboard/expedientes/editar/${enVentana.id_expediente}`,
+                      enVentana.id_expediente !== null
+                        ? `/dashboard/expedientes/editar/${enVentana.id_expediente}`
+                        : "/dashboard/calendario",
                     );
                   }}
                   style={{ padding: "6px 14px" }}
                 >
-                  Ir al expediente
+                  {enVentana.id_expediente !== null
+                    ? "Ir al expediente"
+                    : "Ir al calendario"}
                 </button>
                 <button
                   type="button"

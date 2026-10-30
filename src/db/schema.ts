@@ -1306,12 +1306,12 @@ export const alertas = pgTable(
   "alertas",
   {
     id: serial("id").primaryKey(),
-    idRegla: integer("id_regla")
-      .notNull()
-      .references(() => alertasReglas.id, { onDelete: "cascade" }),
-    idExpediente: integer("id_expediente")
-      .notNull()
-      .references(() => expedientes.idExpediente, { onDelete: "cascade" }),
+    /** La regla que la generó (nula en los avisos del calendario). */
+    idRegla: integer("id_regla").references(() => alertasReglas.id, { onDelete: "cascade" }),
+    /** El expediente al que se refiere (nulo en un aviso del calendario sin expediente). */
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "cascade" }),
+    /** La nota del calendario que la generó (solo en los avisos del calendario). */
+    idEvento: integer("id_evento").references(() => calendarioEventos.id, { onDelete: "cascade" }),
     idUsuario: integer("id_usuario")
       .notNull()
       .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
@@ -1325,4 +1325,49 @@ export const alertas = pgTable(
     motivo: varchar("motivo", { length: 12 }),
   },
   (t) => [uniqueIndex("alertas_regla_exp_usuario_uq").on(t.idRegla, t.idExpediente, t.idUsuario), index("alertas_usuario_estado_idx").on(t.idUsuario, t.estado)],
+);
+
+/* ------------------------------------------------------------------ */
+/* Calendario                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Notas y eventos del calendario de cada persona; se pueden compartir con el resto del equipo, repetir y llevar recordatorios (que salen como alertas). */
+export const calendarioEventos = pgTable(
+  "calendario_eventos",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    titulo: varchar("titulo", { length: 120 }).notNull(),
+    notas: text("notas").notNull().default(""),
+    fecha: date("fecha").notNull(),
+    /** «HH:MM»; sin hora = todo el día. */
+    hora: varchar("hora", { length: 5 }),
+    color: varchar("color", { length: 7 }).notNull().default("#3b82f6"),
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
+    /** Visible (solo lectura) para el resto del equipo. */
+    compartido: boolean("compartido").notNull().default(false),
+    /** ninguna, diaria, semanal, mensual o anual. */
+    repeticion: varchar("repeticion", { length: 10 }).notNull().default("ninguna"),
+    repetirHasta: date("repetir_hasta"),
+    /** Minutos antes del evento a los que avisar (0 = a la hora). */
+    recordatorios: jsonb("recordatorios").$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+    hecho: boolean("hecho").notNull().default(false),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("calendario_eventos_usuario_fecha_idx").on(t.idUsuario, t.fecha)],
+);
+
+/** Recordatorios del calendario ya avisados (por persona): así un aviso que se elimina no vuelve a salir. */
+export const calendarioAvisos = pgTable(
+  "calendario_avisos",
+  {
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    clave: varchar("clave", { length: 60 }).notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.idUsuario, t.clave] })],
 );

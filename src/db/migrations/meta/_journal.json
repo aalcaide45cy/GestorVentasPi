@@ -498,6 +498,13 @@
       "when": 1793205231861,
       "tag": "0070_historial_alertas",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1793205231862,
+      "tag": "0071_calendario",
+      "breakpoints": true
     }
   ]
 }

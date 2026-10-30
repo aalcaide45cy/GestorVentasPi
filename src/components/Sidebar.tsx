@@ -477,6 +477,12 @@ export default function Sidebar({ user, version, zoom = 100 }: SidebarProps) {
 
           {isVendedorOrUp && (
             <>
+              <EnlaceNav href="/dashboard/calendario" titulo="Calendario" guia="menu.calendario" colapsado={isCollapsed}>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </EnlaceNav>
               <EnlaceNav href="/dashboard/comisiones" titulo="Comisiones" guia="menu.comisiones" colapsado={isCollapsed} insignia={avisosRejilla?.total} ayudaInsignia={`${avisosRejilla?.total ?? 0} validación(es) de comisiones pendiente(s): rejillas de la empresa sin subir o con coches sin resolver. Pulsa el círculo para ver cuáles son.`} alPulsarInsignia={() => setVerAvisos(true)}>
                 <line x1="12" y1="1" x2="12" y2="23" />
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />

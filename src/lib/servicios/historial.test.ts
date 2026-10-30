@@ -10,6 +10,8 @@ import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedient
 import { actualizarExpedientes, crearExpediente, eliminarExpedientes } from "./expedientes-escritura";
 import { esquemaReglaAlerta } from "@/lib/alertas";
 import { crearReglaAlerta, eliminarAlerta, eliminarReglaAlerta, listarReglasAlerta, misAlertas, posponerAlerta, resolverAlerta } from "./alertas";
+import { esquemaEvento } from "@/lib/calendario";
+import { actualizarEvento, crearEvento, eliminarEvento, leerCalendario } from "./calendario";
 import { fijarEstadoSemaforo, listarApuntes } from "./apuntes";
 import { aplicarHistorial, leerHistorial } from "./historial";
 import { eliminarPlan, guardarPlan, leerPlan } from "./planes";
@@ -31,6 +33,21 @@ async function preparar() {
 }
 
 describe("historial de deshacer y rehacer", () => {
+  it("deshace y rehace las notas del calendario: crear, cambiar y quitar", async () => {
+    const { vendedor } = await preparar();
+    const ver = async () => (await leerCalendario(db, vendedor, "2026-10-01", "2026-10-31", false)).eventos.map((e) => e.titulo);
+    const ev = await comoPeticion(vendedor.idUsuario, "Cambiar el calendario", () => crearEvento(db, vendedor, esquemaEvento.parse({ titulo: "Llamar", fecha: "2026-10-30" })));
+    await comoPeticion(vendedor.idUsuario, "Cambiar el calendario", () => actualizarEvento(db, vendedor, ev.id, esquemaEvento.parse({ titulo: "Llamar al banco", fecha: "2026-10-30" })));
+    await comoPeticion(vendedor.idUsuario, "Cambiar el calendario", () => eliminarEvento(db, vendedor, ev.id));
+    expect(await ver()).toEqual([]);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+    expect(await ver()).toEqual(["Llamar al banco"]);
+    await aplicarHistorial(db, vendedor.idUsuario, "deshacer");
+    expect(await ver()).toEqual(["Llamar"]);
+    await aplicarHistorial(db, vendedor.idUsuario, "rehacer");
+    expect(await ver()).toEqual(["Llamar al banco"]);
+  });
+
   it("deshace y rehace lo de las alertas: borrar una alerta o una regla, «hecho», posponer y el efecto de un semáforo sobre ellas", async () => {
     const { vendedor } = await preparar();
     const admin = await crearUsuarioPrueba("administrador", "Admin");

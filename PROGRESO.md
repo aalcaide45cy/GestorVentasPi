@@ -617,6 +617,13 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.50.0 (30/10/2026)
+
+- **Pestaña 📅 Calendario** (menú lateral, `/dashboard/calendario`): vista de mes (seis semanas, lunes primero) con las notas de cada día, lista «Próximos 15 días» y formulario de nota (título, día, hora o todo el día, notas, color, repetición diaria/semanal/mensual/anual con fecha final opcional, expediente opcional, recordatorios, compartir con el equipo y marcar como hecha). Las notas compartidas las ve el resto del equipo solo para leer; solo las cambia su dueño o el administrador.
+- **Recordatorios como alertas**: a la hora, 5/15/30 min, 1/2 h, 1/2 días o 1 semana antes; los de todo el día cuentan a las 9:00. Salen en la ventana de alertas y en el botón ❗ (hecho, posponer, día y hora…). Se generan al consultar las alertas (sondeo de 30 s), también los de las últimas 24 h si la aplicación estaba cerrada, y **solo una vez** aunque la alerta se elimine (tabla `calendario_avisos`). Los avisos no salen con la aplicación cerrada (sin push, a petición del propietario).
+- **Capa opcional «Fechas de mis expedientes»**: entrega, matriculación, RCI y afectación (el administrador ve las de todos), con enlace al expediente.
+- Datos: tablas `calendario_eventos` y `calendario_avisos`; `alertas` admite avisos sin regla ni expediente (`id_regla`/`id_expediente` nulos, `id_evento`). Migración 0071 (`when` 1793205231862). Las notas entran en el historial de **deshacer/rehacer** («Cambiar el calendario»).
+
 ## Versión 1.49.0 (30/10/2026)
 
 - **Posponer una alerta al día y la hora que quieras**: botón «📅 Día y hora…» (ventana de la alerta y registro) con un selector de fecha y hora; hasta un año vista (acción `posponer_fecha` de `/api/alertas`).

@@ -90,6 +90,17 @@ export const GUIAS: Record<string, Guia> = {
     ],
     ojo: ["Las rejillas leídas se revisan antes de guardarse: corrige lo mal leído a mano.", "El motor de lectura (OCR) se puede cambiar en «Mi mes», bajo el botón de subir la hoja."],
   },
+  "menu.calendario": {
+    titulo: "Calendario",
+    queEs: "Tus notas y eventos, con avisos que salen como alertas, y opcionalmente las fechas de tus expedientes.",
+    pasos: [
+      "Pulsa un día (o «+ Nueva nota») para apuntar algo: título, día, hora (o todo el día), notas y color.",
+      "Marca los recordatorios que quieras (a la hora, 15 minutos antes, un día antes…): salen en una ventana y en el botón ❗ de las alertas, donde se pueden dar por hechos o posponer.",
+      "Una nota puede repetirse cada día, semana, mes o año (con fecha final opcional) y compartirse con el equipo, que la ve pero no la cambia.",
+      "«Fechas de mis expedientes» añade al calendario las entregas, matriculaciones, RCI y afectaciones.",
+    ],
+    ojo: ["Los avisos salen con la aplicación abierta en el navegador; si estaba cerrada, aparecen al abrirla (hasta 24 horas después).", "Las notas de todo el día avisan a las 9:00."],
+  },
   "menu.informes": {
     titulo: "Informes",
     queEs: "Informes de rendimiento de ventas y comisiones, con gráficos por marca, forma de pago y comercial.",

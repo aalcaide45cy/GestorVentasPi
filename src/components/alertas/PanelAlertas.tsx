@@ -32,7 +32,7 @@ export default function PanelAlertas({
   ocupado: boolean;
   alCerrar: () => void;
   alAccion: (cuerpo: CuerpoAlerta, id: number, texto: string) => Promise<void>;
-  alIr: (idExpediente: number) => void;
+  alIr: (alerta: AlertaDto) => void;
 }) {
   const [pestana, setPestana] = useState<Pestana>(
     datos.pendientes.length > 0 || datos.pospuestas.length === 0
@@ -145,7 +145,7 @@ export default function PanelAlertas({
             <span
               style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}
             >
-              {a.cliente ?? "Sin cliente"}
+              {a.id_expediente === null ? "" : (a.cliente ?? "Sin cliente")}
               {a.matricula ? ` · ${a.matricula}` : ""}
             </span>
             <div
@@ -159,10 +159,12 @@ export default function PanelAlertas({
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => alIr(a.id_expediente)}
+                onClick={() => alIr(a)}
                 style={{ padding: "3px 10px", fontSize: "0.78rem" }}
               >
-                Ir al expediente
+                {a.id_expediente !== null
+                  ? "Ir al expediente"
+                  : "Ir al calendario"}
               </button>
               {a.estado !== "resuelta" && (
                 <>
