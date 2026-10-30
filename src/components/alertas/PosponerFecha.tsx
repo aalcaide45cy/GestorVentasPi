@@ -23,9 +23,11 @@ export default function PosponerFecha({
     d.setHours(9, 0, 0, 0);
     return aLocal(d);
   });
+  const [minimo] = useState(() => aLocal(new Date()));
   const fecha = new Date(valor);
   const valida =
-    !Number.isNaN(fecha.getTime()) && fecha.getTime() > Date.now() + 60_000;
+    !Number.isNaN(fecha.getTime()) &&
+    fecha.getTime() > new Date(minimo).getTime() + 60_000;
   const estilo = pequeno
     ? { padding: "3px 10px", fontSize: "0.78rem" }
     : { padding: "6px 12px" };
