@@ -122,6 +122,12 @@ export default function BotonAlertas() {
       if (espera) clearTimeout(espera);
     };
   }, [cargar]);
+  // Otras pantallas (el calendario) piden abrir el registro de alertas con este evento
+  useEffect(() => {
+    const abrir = () => setRegistro(true);
+    window.addEventListener("gv-abrir-alertas", abrir);
+    return () => window.removeEventListener("gv-abrir-alertas", abrir);
+  }, []);
   useEffect(() => {
     const cada = window.setInterval(() => {
       if (document.visibilityState === "visible") void cargar();

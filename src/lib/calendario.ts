@@ -78,6 +78,16 @@ export interface FechaExpedienteDto {
   matricula: string | null;
 }
 
+/** Una alerta mía que se ve en el calendario: las pendientes en el día de hoy y las pospuestas en el día y la hora en que vuelven a saltar. */
+export interface AlertaCalendarioDto {
+  id: number;
+  dia: string;
+  hora: string | null;
+  estado: "pendiente" | "pospuesta";
+  mensaje: string;
+  id_expediente: number | null;
+}
+
 /* ---------- Fechas (como texto AAAA-MM-DD, sin husos horarios) ---------- */
 
 const dias = (iso: string): number => {

@@ -13,7 +13,7 @@ export const GET = manejar(async (req: Request) => {
   const q = new URL(req.url).searchParams;
   const desde = q.get("desde") ?? "";
   const hasta = q.get("hasta") ?? "";
-  return NextResponse.json({ success: true, data: await leerCalendario(db, u, desde, hasta, q.get("expedientes") === "1") });
+  return NextResponse.json({ success: true, data: await leerCalendario(db, u, desde, hasta, q.get("expedientes") === "1", q.get("alertas") === "1") });
 });
 
 export const POST = manejar(async (req: Request) => {

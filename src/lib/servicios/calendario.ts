@@ -3,7 +3,7 @@ import type { Ejecutor } from "@/db";
 import { alertas, calendarioAvisos, calendarioEventos, clientes, expedientes, usuarios } from "@/db/schema";
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
-import { diasDeOcurrencia, momentoDe, sumarDias, type EntradaEvento, type EventoDto, type FechaExpedienteDto, type OcurrenciaDto, type Repeticion } from "@/lib/calendario";
+import { diasDeOcurrencia, momentoDe, sumarDias, type AlertaCalendarioDto, type EntradaEvento, type EventoDto, type FechaExpedienteDto, type OcurrenciaDto, type Repeticion } from "@/lib/calendario";
 import { hoyIso } from "./comun";
 
 const REPETICIONES_VALIDAS = ["ninguna", "diaria", "semanal", "mensual", "anual"];
@@ -27,7 +27,7 @@ const aEvento = (f: typeof calendarioEventos.$inferSelect, autor: string | null,
 });
 
 /** Lo que se ve en el calendario entre dos días (incluidos): mis notas y las que otros han compartido, repetidas donde toque; y, si se pide, las fechas de mis expedientes. */
-export async function leerCalendario(ej: Ejecutor, u: UsuarioActual, desde: string, hasta: string, conExpedientes: boolean): Promise<{ eventos: OcurrenciaDto[]; fechasExpedientes: FechaExpedienteDto[] }> {
+export async function leerCalendario(ej: Ejecutor, u: UsuarioActual, desde: string, hasta: string, conExpedientes: boolean, conAlertas = false): Promise<{ eventos: OcurrenciaDto[]; fechasExpedientes: FechaExpedienteDto[]; alertas: AlertaCalendarioDto[] }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta) || hasta < desde) throw new HttpError(400, "Rango de fechas no válido");
   const filas = await ej
     .select({ e: calendarioEventos, autor: usuarios.nombre })
@@ -65,7 +65,22 @@ export async function leerCalendario(ej: Ejecutor, u: UsuarioActual, desde: stri
       }
     fechasExpedientes.sort((a, b) => a.dia.localeCompare(b.dia));
   }
-  return { eventos, fechasExpedientes };
+
+  const alertasCal: AlertaCalendarioDto[] = [];
+  if (conAlertas) {
+    const hoy = hoyIso();
+    const mias = await ej.select().from(alertas).where(and(eq(alertas.idUsuario, u.idUsuario), inArray(alertas.estado, ["pendiente", "pospuesta"])));
+    const dosDigitos = (n: number) => String(n).padStart(2, "0");
+    for (const a of mias) {
+      if (a.estado === "pospuesta" && a.pospuestaHasta) {
+        const d = a.pospuestaHasta;
+        const dia = `${d.getFullYear()}-${dosDigitos(d.getMonth() + 1)}-${dosDigitos(d.getDate())}`;
+        if (dia >= desde && dia <= hasta) alertasCal.push({ id: a.id, dia, hora: `${dosDigitos(d.getHours())}:${dosDigitos(d.getMinutes())}`, estado: "pospuesta", mensaje: a.mensaje, id_expediente: a.idExpediente });
+      } else if (a.estado === "pendiente" && hoy >= desde && hoy <= hasta) alertasCal.push({ id: a.id, dia: hoy, hora: null, estado: "pendiente", mensaje: a.mensaje, id_expediente: a.idExpediente });
+    }
+    alertasCal.sort((x, y) => x.dia.localeCompare(y.dia) || (x.hora ?? "").localeCompare(y.hora ?? "") || x.id - y.id);
+  }
+  return { eventos, fechasExpedientes, alertas: alertasCal };
 }
 
 const valores = (e: EntradaEvento) => ({

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { esquemaEvento } from "@/lib/calendario";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
-import { misAlertas, resolverAlerta, eliminarAlerta } from "./alertas";
+import { misAlertas, posponerAlerta, resolverAlerta, eliminarAlerta } from "./alertas";
 import { actualizarEvento, crearEvento, eliminarEvento, generarAvisosCalendario, leerCalendario } from "./calendario";
 import { esquemaCrearExpediente } from "./expedientes";
 import { crearExpediente } from "./expedientes-escritura";
@@ -76,6 +76,23 @@ describe("calendario", () => {
     expect((await misAlertas(db, ana)).pendientes.length).toBeGreaterThan(0);
     await actualizarEvento(db, ana, ev2.id, nota({ titulo: "Otra", fecha: hoy, hora, recordatorios: [0, 5], hecho: true }));
     expect((await misAlertas(db, ana)).pendientes).toHaveLength(0);
+  });
+
+  it("la capa de alertas enseña las pendientes en hoy y las pospuestas el día y la hora en que vuelven", async () => {
+    const ana = await crearUsuarioPrueba("vendedor", "Ana");
+    const hoy = fechaLocal(new Date());
+    const hace = new Date(Date.now() - 10 * 60_000);
+    const hora = `${String(hace.getHours()).padStart(2, "0")}:${String(hace.getMinutes()).padStart(2, "0")}`;
+    await crearEvento(db, ana, nota({ titulo: "Aviso uno", fecha: hoy, hora, recordatorios: [0] }));
+    await crearEvento(db, ana, nota({ titulo: "Aviso dos", fecha: hoy, hora, recordatorios: [5] }));
+    const [uno, dos] = (await misAlertas(db, ana)).pendientes;
+    const manana = new Date(Date.now() + 26 * 3_600_000);
+    await posponerAlerta(db, ana, uno.id, manana);
+    const r = await leerCalendario(db, ana, fechaLocal(new Date(Date.now() - 86_400_000)), fechaLocal(new Date(Date.now() + 3 * 86_400_000)), false, true);
+    expect(r.alertas.map((a) => [a.estado, a.dia, a.id])).toEqual([["pendiente", hoy, dos.id], ["pospuesta", fechaLocal(manana), uno.id]]);
+    expect(r.alertas.find((a) => a.estado === "pospuesta")?.hora).toMatch(/^\d\d:\d\d$/);
+    expect((await leerCalendario(db, ana, "2026-01-01", "2026-01-31", false, true)).alertas).toEqual([]);
+    expect((await leerCalendario(db, ana, hoy, hoy, false, false)).alertas).toEqual([]);
   });
 
   it("un recordatorio con «1 día antes» avisa un día antes de la nota", async () => {

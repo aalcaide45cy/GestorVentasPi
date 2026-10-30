@@ -10,6 +10,7 @@ import {
   RECORDATORIOS,
   REPETICIONES,
   sumarDias,
+  type AlertaCalendarioDto,
   type EntradaEvento,
   type FechaExpedienteDto,
   type OcurrenciaDto,
@@ -51,7 +52,10 @@ const TIPO_FECHA: Record<FechaExpedienteDto["tipo"], string> = {
 interface Datos {
   eventos: OcurrenciaDto[];
   fechasExpedientes: FechaExpedienteDto[];
+  alertas: AlertaCalendarioDto[];
 }
+
+const abrirAlertas = () => window.dispatchEvent(new Event("gv-abrir-alertas"));
 
 const dos = (n: number) => String(n).padStart(2, "0");
 const aIso = (d: Date) =>
@@ -121,6 +125,9 @@ export default function CalendarioClient() {
   const [mes, setMes] = useState(() => new Date().getMonth());
   const [verExp, fijarVerExp] = usePreferencia("exp-calendario-expedientes");
   const conExpedientes = verExp === "true";
+  const [verAl, fijarVerAl] = usePreferencia("exp-calendario-alertas");
+  const conAlertas = verAl !== "false";
+  const filtros = `${conExpedientes ? "&expedientes=1" : ""}${conAlertas ? "&alertas=1" : ""}`;
   const [borrador, setBorrador] = useState<Borrador | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -131,18 +138,19 @@ export default function CalendarioClient() {
   }, [anio, mes]);
   const fin = sumarDias(inicio, 41);
   const { datos, recargar } = useCarga<Datos>(
-    `/api/calendario?desde=${inicio}&hasta=${fin}${conExpedientes ? "&expedientes=1" : ""}`,
-    { eventos: [], fechasExpedientes: [] },
+    `/api/calendario?desde=${inicio}&hasta=${fin}${filtros}`,
+    { eventos: [], fechasExpedientes: [], alertas: [] },
   );
   const { datos: proximos } = useCarga<Datos>(
-    `/api/calendario?desde=${hoy}&hasta=${sumarDias(hoy, 14)}${conExpedientes ? "&expedientes=1" : ""}`,
-    { eventos: [], fechasExpedientes: [] },
+    `/api/calendario?desde=${hoy}&hasta=${sumarDias(hoy, 14)}${filtros}`,
+    { eventos: [], fechasExpedientes: [], alertas: [] },
   );
 
   const celdas = Array.from({ length: 42 }, (_, i) => sumarDias(inicio, i));
   const porDia = (d: string) => datos.eventos.filter((e) => e.dia === d);
   const expPorDia = (d: string) =>
     datos.fechasExpedientes.filter((e) => e.dia === d);
+  const alPorDia = (d: string) => datos.alertas.filter((a) => a.dia === d);
   const moverMes = (n: number) => {
     const d = new Date(anio, mes + n, 1);
     setAnio(d.getFullYear());
@@ -335,6 +343,22 @@ export default function CalendarioClient() {
             />
             Fechas de mis expedientes
           </label>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.85rem",
+            }}
+            title="Enseña en el calendario las alertas pendientes (hoy) y las pospuestas, en el día y la hora en que vuelven a saltar"
+          >
+            <input
+              type="checkbox"
+              checked={conAlertas}
+              onChange={(e) => fijarVerAl(e.target.checked ? "true" : "false")}
+            />
+            ❗ Alertas
+          </label>
           <button
             type="button"
             className="btn btn-primary"
@@ -377,7 +401,9 @@ export default function CalendarioClient() {
               const delMes = Number(d.slice(5, 7)) - 1 === mes;
               const evs = porDia(d);
               const exps = expPorDia(d);
+              const als = alPorDia(d);
               const todos = [
+                ...als.map((a) => ({ k: "a" as const, a })),
                 ...evs.map((e) => ({ k: "e" as const, e })),
                 ...exps.map((x) => ({ k: "x" as const, x })),
               ];
@@ -415,7 +441,36 @@ export default function CalendarioClient() {
                     {diaMes(d)}
                   </span>
                   {todos.slice(0, 4).map((t) =>
-                    t.k === "e" ? (
+                    t.k === "a" ? (
+                      <button
+                        key={`al-${t.a.id}`}
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          abrirAlertas();
+                        }}
+                        title={`${t.a.estado === "pospuesta" ? "Alerta pospuesta: vuelve a saltar" : "Alerta pendiente"}${t.a.hora ? ` a las ${t.a.hora}` : ""}\n${t.a.mensaje}`}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "1px 5px",
+                          fontSize: "0.7rem",
+                          border: "1px solid var(--danger)",
+                          borderRadius: "4px",
+                          background: "rgba(239, 68, 68, 0.12)",
+                          color: "var(--text-primary)",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {t.a.estado === "pospuesta" ? "⏰" : "❗"}{" "}
+                        {t.a.hora ? `${t.a.hora} ` : ""}
+                        {t.a.mensaje}
+                      </button>
+                    ) : t.k === "e" ? (
                       chip(t.e)
                     ) : (
                       <Link
@@ -468,11 +523,55 @@ export default function CalendarioClient() {
       >
         <h4 style={{ margin: 0, fontSize: "1rem" }}>🔜 Próximos 15 días</h4>
         {proximos.eventos.length === 0 &&
+          proximos.alertas.length === 0 &&
           proximos.fechasExpedientes.length === 0 && (
             <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
               No hay nada apuntado en los próximos días.
             </span>
           )}
+        {proximos.alertas.map((a) => (
+          <div
+            key={`al-${a.id}`}
+            style={{
+              display: "flex",
+              gap: "10px",
+              alignItems: "center",
+              flexWrap: "wrap",
+              fontSize: "0.88rem",
+            }}
+          >
+            <span
+              style={{
+                minWidth: "92px",
+                color: "var(--danger)",
+                fontWeight: 600,
+              }}
+            >
+              {a.dia === hoy ? "Hoy" : fechaCorta(a.dia)}
+              {a.hora ? ` · ${a.hora}` : ""}
+            </span>
+            <button
+              type="button"
+              onClick={abrirAlertas}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                color: "var(--text-primary)",
+                textAlign: "left",
+              }}
+              title="Abre el registro de alertas"
+            >
+              {a.estado === "pospuesta" ? "⏰" : "❗"} {a.mensaje}
+            </button>
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+              {a.estado === "pospuesta"
+                ? "alerta pospuesta"
+                : "alerta pendiente"}
+            </span>
+          </div>
+        ))}
         {proximos.eventos.map((e) => (
           <div
             key={`${e.id}-${e.dia}`}
