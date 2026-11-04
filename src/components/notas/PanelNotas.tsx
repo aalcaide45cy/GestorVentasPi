@@ -6,6 +6,7 @@ import { llamar, textoError } from "@/components/comisiones/api";
 import { useVersionDatos } from "@/lib/datos-version";
 import {
   ambitoDe,
+  type EtiquetaDto,
   type GrupoDto,
   type NotaDto,
   type NotaResumenDto,
@@ -13,7 +14,9 @@ import {
 } from "@/lib/notas";
 import { usePreferencia } from "@/lib/preferencias";
 import { fechaRelativa } from "./api-notas";
+import ChipEtiqueta, { aspectoDe } from "./ChipEtiqueta";
 import EditorNota from "./EditorNota";
+import ModalEtiqueta from "./ModalEtiqueta";
 
 const COLORES_GRUPO = [
   "#3b82f6",
@@ -59,6 +62,14 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
     "lista",
   );
   const [cargando, setCargando] = useState(true);
+  const [catalogo, setCatalogo] = useState<EtiquetaDto[]>([]);
+  const [editandoEtiqueta, setEditandoEtiqueta] = useState<{
+    inicial: EtiquetaDto | null;
+  } | null>(null);
+  // Filtros por color (de la nota o de sus etiquetas) y arrastrar notas a un grupo
+  const [colorNota, setColorNota] = useState<string | null>(null);
+  const [colorEtiqueta, setColorEtiqueta] = useState<string | null>(null);
+  const [sobre, setSobre] = useState<string | null>(null);
   const [ultima, fijarUltima] = usePreferencia("exp-notas-ultima");
   const refImportar = useRef<HTMLInputElement>(null);
   const ambito = ambitoDe(tipos[0]);
@@ -66,11 +77,13 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
 
   const cargar = useCallback(async () => {
     try {
-      const [n, p, g] = await Promise.all([
+      const [n, p, g, et] = await Promise.all([
         llamar<NotaResumenDto[]>(`/api/notas?tipos=${consulta}`),
         llamar<NotaResumenDto[]>(`/api/notas?tipos=${consulta}&papelera=1`),
         llamar<GrupoDto[]>(`/api/notas/grupos?ambito=${ambito}`),
+        llamar<EtiquetaDto[]>("/api/notas/etiquetas"),
       ]);
+      setCatalogo(et.data);
       setLista(n.data);
       setPapelera(p.data);
       setGrupos(g.data);
@@ -113,8 +126,33 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
     const m = new Map<string, number>();
     for (const n of lista)
       for (const t of n.etiquetas) m.set(t, (m.get(t) ?? 0) + 1);
+    // Las etiquetas creadas a mano salen aunque todavía no tengan notas
+    for (const c of catalogo)
+      if (
+        ![...m.keys()].some((k) => k.toLowerCase() === c.nombre.toLowerCase())
+      )
+        m.set(c.nombre, 0);
     return [...m].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [lista]);
+  }, [lista, catalogo]);
+  // Colores en uso, para los filtros
+  const coloresNota = useMemo(
+    () => [
+      ...new Set(lista.map((n) => n.color).filter((c): c is string => !!c)),
+    ],
+    [lista],
+  );
+  const coloresEtiqueta = useMemo(
+    () => [
+      ...new Set(
+        lista.flatMap((n) =>
+          n.etiquetas
+            .map((t) => aspectoDe(catalogo, t)?.color)
+            .filter((c): c is string => !!c),
+        ),
+      ),
+    ],
+    [lista, catalogo],
+  );
 
   const visibles = useMemo(() => {
     const q = buscar.trim().toLowerCase();
@@ -129,7 +167,18 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
       if (vista.clase === "compartidas" && n.permiso === "propietario")
         return false;
       if (vista.clase === "fijadas" && !n.fijada) return false;
-      if (vista.clase === "etiqueta" && !n.etiquetas.includes(vista.texto))
+      if (
+        vista.clase === "etiqueta" &&
+        !n.etiquetas.some((t) => t.toLowerCase() === vista.texto.toLowerCase())
+      )
+        return false;
+      if (colorNota && n.color !== colorNota) return false;
+      if (
+        colorEtiqueta &&
+        !n.etiquetas.some(
+          (t) => aspectoDe(catalogo, t)?.color === colorEtiqueta,
+        )
+      )
         return false;
       if (
         q &&
@@ -140,9 +189,35 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
         return false;
       return true;
     });
-  }, [lista, papelera, vista, buscar]);
+  }, [lista, papelera, vista, buscar, colorNota, colorEtiqueta, catalogo]);
 
   const cuenta = (f: (n: NotaResumenDto) => boolean) => lista.filter(f).length;
+
+  /** Suelta una nota arrastrada sobre un grupo (o sobre «Sin grupo»). */
+  const moverAGrupo = async (idNota: number, idGrupo: number | null) => {
+    const n = lista.find((x) => x.id === idNota);
+    if (!n) return;
+    if (n.permiso !== "propietario") {
+      mostrar("Solo quien creó la nota puede moverla de grupo.", "error");
+      return;
+    }
+    if (n.id_grupo === idGrupo) return;
+    try {
+      await llamar(`/api/notas?id=${idNota}`, {
+        method: "PUT",
+        cuerpo: { id_grupo: idGrupo },
+      });
+      mostrar(
+        idGrupo === null
+          ? "Nota sin grupo."
+          : `Movida a «${grupos.find((g) => g.id === idGrupo)?.nombre ?? "grupo"}».`,
+      );
+      await cargar();
+      if (abierta?.id === idNota) setAbierta({ ...abierta, id_grupo: idGrupo });
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    }
+  };
 
   const nueva = async () => {
     try {
@@ -325,13 +400,56 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
     v: Vista,
     etiqueta: string,
     n?: number,
-    extra?: { color?: string; acciones?: React.ReactNode },
+    extra?: {
+      color?: string;
+      acciones?: React.ReactNode;
+      soltar?: (idNota: number) => void;
+    },
   ) => {
     const activo = claveVista(vista) === claveVista(v);
     return (
       <div
         key={claveVista(v)}
-        style={{ display: "flex", alignItems: "center", gap: "4px" }}
+        onDragOver={
+          extra?.soltar
+            ? (e) => {
+                e.preventDefault();
+                setSobre(claveVista(v));
+              }
+            : undefined
+        }
+        onDragLeave={
+          extra?.soltar
+            ? () => setSobre((x) => (x === claveVista(v) ? null : x))
+            : undefined
+        }
+        onDrop={
+          extra?.soltar
+            ? (e) => {
+                e.preventDefault();
+                setSobre(null);
+                const id = Number(
+                  (e.dataTransfer.getData("text/plain") || "").replace(
+                    "nota:",
+                    "",
+                  ),
+                );
+                if (id > 0) extra.soltar?.(id);
+              }
+            : undefined
+        }
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          borderRadius: "var(--radius-sm)",
+          outline:
+            sobre === claveVista(v) ? "2px dashed var(--primary)" : "none",
+          background:
+            sobre === claveVista(v)
+              ? "rgba(var(--primary-rgb), 0.12)"
+              : undefined,
+        }}
       >
         <button
           type="button"
@@ -458,6 +576,7 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
             cuenta((n) => n.id_grupo === g.id),
             {
               color: g.color,
+              soltar: (id: number) => void moverAGrupo(id, g.id),
               acciones: (
                 <span style={{ display: "flex" }}>
                   <button
@@ -511,24 +630,81 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
           { clase: "sin-grupo" },
           "Sin grupo",
           cuenta((n) => n.id_grupo === null && n.permiso === "propietario"),
+          { soltar: (id: number) => void moverAGrupo(id, null) },
         )}
-        {etiquetas.length > 0 && (
-          <div
+        <div
+          style={{
+            margin: "8px 4px 2px",
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            color: "var(--text-muted)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          Etiquetas
+          <button
+            type="button"
+            onClick={() => setEditandoEtiqueta({ inicial: null })}
+            title="Nueva etiqueta, con color y emoticono"
+            aria-label="Nueva etiqueta"
             style={{
-              margin: "8px 4px 2px",
-              fontSize: "0.7rem",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              color: "var(--text-muted)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--primary)",
+              fontSize: "1rem",
             }}
           >
-            Etiquetas
-          </div>
+            ＋
+          </button>
+        </div>
+        {etiquetas.length === 0 && (
+          <span
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--text-muted)",
+              padding: "2px 8px",
+            }}
+          >
+            Crea etiquetas con color y emoticono, o añádelas desde cada nota.
+          </span>
         )}
-        {etiquetas.map(([t, n]) =>
-          itemSide({ clase: "etiqueta", texto: t }, `🏷 ${t}`, n),
-        )}
+        {etiquetas.map(([t, n]) => {
+          const asp = aspectoDe(catalogo, t);
+          return itemSide(
+            { clase: "etiqueta", texto: t },
+            `${asp?.emoji || "🏷"} ${t}`,
+            n,
+            {
+              color: asp?.color ?? undefined,
+              acciones: (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditandoEtiqueta({
+                      inicial: asp ?? { nombre: t, color: null, emoji: null },
+                    })
+                  }
+                  title="Cambiar el color, el emoticono o el nombre"
+                  aria-label={`Editar la etiqueta ${t}`}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    opacity: 0.6,
+                  }}
+                >
+                  ✎
+                </button>
+              ),
+            },
+          );
+        })}
         <div
           style={{
             marginTop: "8px",
@@ -614,6 +790,100 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
             ＋ Nueva
           </button>
         </div>
+        {(coloresNota.length > 0 ||
+          coloresEtiqueta.length > 0 ||
+          colorNota ||
+          colorEtiqueta) && (
+          <div
+            style={{
+              display: "flex",
+              gap: "6px 14px",
+              flexWrap: "wrap",
+              alignItems: "center",
+              fontSize: "0.72rem",
+              color: "var(--text-muted)",
+            }}
+          >
+            {coloresNota.length > 0 && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+                title="Filtrar por el color de la nota"
+              >
+                Nota
+                {coloresNota.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={`Notas de color ${c}`}
+                    aria-pressed={colorNota === c}
+                    onClick={() => setColorNota(colorNota === c ? null : c)}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "50%",
+                      background: c,
+                      cursor: "pointer",
+                      border: `2px solid ${colorNota === c ? "var(--text-primary)" : "transparent"}`,
+                    }}
+                  />
+                ))}
+              </span>
+            )}
+            {coloresEtiqueta.length > 0 && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+                title="Filtrar por el color de las etiquetas"
+              >
+                Etiqueta
+                {coloresEtiqueta.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={`Etiquetas de color ${c}`}
+                    aria-pressed={colorEtiqueta === c}
+                    onClick={() =>
+                      setColorEtiqueta(colorEtiqueta === c ? null : c)
+                    }
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "4px",
+                      background: c,
+                      cursor: "pointer",
+                      border: `2px solid ${colorEtiqueta === c ? "var(--text-primary)" : "transparent"}`,
+                    }}
+                  />
+                ))}
+              </span>
+            )}
+            {(colorNota || colorEtiqueta) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setColorNota(null);
+                  setColorEtiqueta(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--primary)",
+                  fontSize: "0.72rem",
+                }}
+              >
+                ✕ Quitar filtros
+              </button>
+            )}
+          </div>
+        )}
         {vista.clase === "papelera" && papelera.length > 0 && (
           <button
             type="button"
@@ -668,6 +938,18 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
               >
                 <button
                   type="button"
+                  draggable={
+                    vista.clase !== "papelera" && n.permiso === "propietario"
+                  }
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", `nota:${n.id}`);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  title={
+                    n.permiso === "propietario" && vista.clase !== "papelera"
+                      ? "Arrástrala a un grupo de la izquierda"
+                      : undefined
+                  }
                   onClick={() =>
                     vista.clase === "papelera" ? undefined : void abrir(n.id)
                   }
@@ -746,7 +1028,12 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
                       </span>
                     )}
                     {n.etiquetas.slice(0, 3).map((t) => (
-                      <span key={t}>🏷 {t}</span>
+                      <ChipEtiqueta
+                        key={t}
+                        nombre={t}
+                        aspecto={aspectoDe(catalogo, t)}
+                        pequeno
+                      />
                     ))}
                     {n.n_ficheros > 0 && <span>📎 {n.n_ficheros}</span>}
                     {n.compartida && <span>👥</span>}
@@ -805,6 +1092,7 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
         {abierta ? (
           <EditorNota
             key={abierta.id}
+            catalogo={catalogo}
             nota={abierta}
             grupos={grupos}
             alCambiar={() => void cargar()}
@@ -831,6 +1119,13 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
           </div>
         )}
       </section>
+      {editandoEtiqueta && (
+        <ModalEtiqueta
+          inicial={editandoEtiqueta.inicial}
+          alCerrar={() => setEditandoEtiqueta(null)}
+          alGuardar={() => void cargar()}
+        />
+      )}
     </div>
   );
 }

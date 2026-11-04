@@ -519,6 +519,13 @@
       "when": 1793205231864,
       "tag": "0073_notas_versiones",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1793205231865,
+      "tag": "0074_notas_etiquetas",
+      "breakpoints": true
     }
   ]
 }

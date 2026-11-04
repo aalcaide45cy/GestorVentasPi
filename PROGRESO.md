@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.53.0 (04/11/2026)
+
+- **Etiquetas con color y emoticono** (tabla `notas_etiquetas`, migración 0074): se crean con «＋» junto a «Etiquetas» (aunque aún no tengan notas) o se personalizan con ✎; cambiar el nombre lo cambia en todas tus notas y quitar una etiqueta la saca de todas. Salen con su color y emoticono en la lista, en el editor y en la barra lateral, y el campo de etiquetas sugiere las que ya tienes. El exportar/importar lleva su aspecto (importar no pisa el de las tuyas).
+- **Filtros por color**: puntitos «Nota» (color de la nota) y «Etiqueta» (color de sus etiquetas) encima de la lista, con «✕ Quitar filtros».
+- **Arrastrar notas a un grupo**: arrastra una nota de la lista sobre un grupo (o «Sin grupo») de la izquierda; el grupo se marca al pasar por encima. Solo las notas propias.
+
 ## Versión 1.52.1 (04/11/2026)
 
 - **Arreglo del bucle al pegar una imagen**: subir o quitar un adjunto cambiaba la fecha de la nota y el siguiente guardado automático chocaba con ella (aviso de conflicto una y otra vez). Ahora los adjuntos no cuentan como cambio del texto, y tras un aviso de conflicto no se reintenta solo: se elige «Ver su versión» o «Guardar la mía».

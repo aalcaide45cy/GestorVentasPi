@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import sharp from "sharp";
 import type { Ejecutor } from "@/db";
-import { notas, notasCompartidos, notasFicheros, notasFicherosDatos, notasGrupos, notasVersiones, usuarios } from "@/db/schema";
+import { notas, notasCompartidos, notasEtiquetas, notasFicheros, notasFicherosDatos, notasGrupos, notasVersiones, usuarios } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import {
@@ -16,6 +16,8 @@ import {
   textoDeFlujo,
   type AmbitoGrupo,
   type ComparticionDto,
+  type EntradaEtiqueta,
+  type EtiquetaDto,
   type EntradaCambiarNota,
   type EntradaComparticion,
   type EntradaCrearNota,
@@ -345,6 +347,7 @@ export async function exportarNotas(ej: Ejecutor, u: UsuarioActual, tipos?: Tipo
     formato: FORMATO_EXPORTACION,
     version: 1,
     exportado_en: new Date().toISOString(),
+    etiquetas: (await ej.select().from(notasEtiquetas).where(eq(notasEtiquetas.idUsuario, u.idUsuario))).filter((et) => filas.some((f) => f.etiquetas.some((t) => t.toLowerCase() === et.nombre.toLowerCase()))).map(aEtiqueta),
     grupos: grupos.map((g) => ({ id: g.id, ambito: g.ambito as AmbitoGrupo, nombre: g.nombre, color: g.color })),
     notas: filas.map((f) => ({ id: f.id, tipo: f.tipo as TipoNota, titulo: f.titulo, contenido: f.contenido, color: f.color, fijada: f.fijada, etiquetas: f.etiquetas, id_grupo: f.idGrupo, creado_en: f.creadoEn.toISOString() })),
     ficheros,
@@ -370,6 +373,8 @@ export async function importarNotas(ej: Ejecutor, u: UsuarioActual, crudo: unkno
         gruposNuevos++;
       }
     }
+    // El color y el emoticono de las etiquetas: solo se crean las que no existían (no se pisan las tuyas)
+    for (const et of p.etiquetas) await tx.insert(notasEtiquetas).values({ idUsuario: u.idUsuario, nombre: et.nombre, color: et.color, emoji: et.emoji }).onConflictDoNothing();
     const mapaNota = new Map<number, number>();
     const mapaFichero = new Map<number, number>();
     let nFicheros = 0;
@@ -433,4 +438,48 @@ export async function restaurarVersion(ej: Ejecutor, u: UsuarioActual, id: numbe
   await guardarVersion(ej, u, fila, true);
   const [f] = await ej.update(notas).set({ contenido: v.contenido, texto: v.texto, titulo: v.titulo, actualizadoEn: new Date() }).where(eq(notas.id, id)).returning({ actualizadoEn: notas.actualizadoEn });
   return { actualizado_en: f.actualizadoEn.toISOString() };
+}
+
+/* ------------------------------ Etiquetas ------------------------------ */
+
+const aEtiqueta = (f: typeof notasEtiquetas.$inferSelect): EtiquetaDto => ({ nombre: f.nombre, color: f.color, emoji: f.emoji });
+
+/** Mis etiquetas con su color y su emoticono (las que he creado o personalizado; las demás son las que usan mis notas sin aspecto propio). */
+export async function listarEtiquetas(ej: Ejecutor, u: UsuarioActual): Promise<EtiquetaDto[]> {
+  return (await ej.select().from(notasEtiquetas).where(eq(notasEtiquetas.idUsuario, u.idUsuario)).orderBy(asc(sql`lower(${notasEtiquetas.nombre})`))).map(aEtiqueta);
+}
+
+/** Crea o cambia una etiqueta (color y emoticono). Con `nuevo_nombre` la renombra en todas mis notas. */
+export async function guardarEtiqueta(ej: Ejecutor, u: UsuarioActual, e: EntradaEtiqueta): Promise<EtiquetaDto> {
+  return ej.transaction(async (tx) => {
+    const [actual] = await tx.select().from(notasEtiquetas).where(and(eq(notasEtiquetas.idUsuario, u.idUsuario), sql`lower(${notasEtiquetas.nombre}) = lower(${e.nombre})`));
+    const nombreFinal = e.nuevo_nombre && e.nuevo_nombre.toLowerCase() !== e.nombre.toLowerCase() ? e.nuevo_nombre : (actual?.nombre ?? e.nombre);
+    if (nombreFinal !== (actual?.nombre ?? e.nombre) || (e.nuevo_nombre && e.nuevo_nombre !== e.nombre)) {
+      const [choque] = await tx.select({ id: notasEtiquetas.id }).from(notasEtiquetas).where(and(eq(notasEtiquetas.idUsuario, u.idUsuario), sql`lower(${notasEtiquetas.nombre}) = lower(${nombreFinal})`, actual ? sql`${notasEtiquetas.id} <> ${actual.id}` : undefined));
+      if (choque) throw new HttpError(409, "Ya existe una etiqueta con ese nombre");
+      // En mis notas, el nombre antiguo pasa al nuevo (sin repetir etiquetas)
+      await tx.execute(sql`
+        update notas set etiquetas = coalesce((select jsonb_agg(distinct t) from (select case when lower(x) = lower(${e.nombre}) then ${nombreFinal} else x end as t from jsonb_array_elements_text(etiquetas) x) q), '[]'::jsonb)
+        where id_usuario = ${u.idUsuario} and exists (select 1 from jsonb_array_elements_text(etiquetas) y where lower(y) = lower(${e.nombre}))`);
+    }
+    const valores = { nombre: nombreFinal, color: e.color ?? null, emoji: e.emoji ? e.emoji : null };
+    if (actual) {
+      const [f] = await tx.update(notasEtiquetas).set(valores).where(eq(notasEtiquetas.id, actual.id)).returning();
+      return aEtiqueta(f);
+    }
+    const [f] = await tx.insert(notasEtiquetas).values({ idUsuario: u.idUsuario, ...valores }).returning();
+    return aEtiqueta(f);
+  });
+}
+
+/** Quita una etiqueta de la lista y de todas mis notas. */
+export async function eliminarEtiqueta(ej: Ejecutor, u: UsuarioActual, nombre: string): Promise<number> {
+  return ej.transaction(async (tx) => {
+    await tx.delete(notasEtiquetas).where(and(eq(notasEtiquetas.idUsuario, u.idUsuario), sql`lower(${notasEtiquetas.nombre}) = lower(${nombre})`));
+    const r = await tx.execute(sql`
+      update notas set etiquetas = coalesce((select jsonb_agg(x) from jsonb_array_elements_text(etiquetas) x where lower(x) <> lower(${nombre})), '[]'::jsonb)
+      where id_usuario = ${u.idUsuario} and exists (select 1 from jsonb_array_elements_text(etiquetas) y where lower(y) = lower(${nombre}))
+      returning id`);
+    return (r as unknown as { rows: unknown[] }).rows.length;
+  });
 }

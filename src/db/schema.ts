@@ -1481,3 +1481,18 @@ export const notasVersiones = pgTable(
   },
   (t) => [index("notas_versiones_nota_idx").on(t.idNota, t.creadoEn)],
 );
+
+/** Las etiquetas de cada persona con su color y su emoticono (las notas guardan solo el nombre; el aspecto sale de aquí). */
+export const notasEtiquetas = pgTable(
+  "notas_etiquetas",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    nombre: varchar("nombre", { length: 30 }).notNull(),
+    color: varchar("color", { length: 7 }),
+    emoji: varchar("emoji", { length: 16 }),
+  },
+  (t) => [uniqueIndex("notas_etiquetas_uq").on(t.idUsuario, sql`lower(${t.nombre})`)],
+);

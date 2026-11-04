@@ -102,6 +102,22 @@ export interface NotaDto extends NotaResumenDto {
   ficheros: FicheroNotaDto[];
 }
 
+export const esquemaEtiqueta = z.object({
+  nombre: z.string().trim().min(1, "Falta el nombre de la etiqueta").max(30),
+  color: color.nullish(),
+  /** Un emoticono (o un par de letras) que sale delante del nombre. */
+  emoji: z.string().trim().max(8).nullish(),
+  /** Para cambiarle el nombre: el nombre nuevo (se cambia en todas las notas). */
+  nuevo_nombre: z.string().trim().min(1).max(30).nullish(),
+});
+export type EntradaEtiqueta = z.infer<typeof esquemaEtiqueta>;
+
+export interface EtiquetaDto {
+  nombre: string;
+  color: string | null;
+  emoji: string | null;
+}
+
 export interface VersionNotaDto {
   id: number;
   titulo: string;
@@ -183,6 +199,8 @@ export interface PaqueteNotas {
     id_grupo: number | null;
     creado_en: string;
   }[];
+  /** El color y el emoticono de las etiquetas que usan las notas. */
+  etiquetas?: { nombre: string; color: string | null; emoji: string | null }[];
   /** Los ficheros adjuntos (en base64), por la nota a la que pertenecen. */
   ficheros: { id: number; id_nota: number; nombre: string; mime: string; datos: string }[];
 }
@@ -193,5 +211,6 @@ export const esquemaPaquete = z.object({
   exportado_en: z.string().optional(),
   grupos: z.array(z.object({ id: z.number(), ambito: z.enum(AMBITOS_GRUPO), nombre: z.string().min(1).max(80), color: color.default("#3b82f6") })).max(500),
   notas: z.array(z.object({ id: z.number(), tipo: z.enum(TIPOS_NOTA), titulo: z.string().max(200).default(""), contenido: z.unknown(), color: color.nullable().default(null), fijada: z.boolean().default(false), etiquetas: z.array(etiqueta).max(30).default([]), id_grupo: z.number().nullable().default(null), creado_en: z.string().optional() })).max(20000),
+  etiquetas: z.array(z.object({ nombre: z.string().min(1).max(30), color: color.nullable().default(null), emoji: z.string().max(8).nullable().default(null) })).max(500).default([]),
   ficheros: z.array(z.object({ id: z.number(), id_nota: z.number(), nombre: z.string().max(300), mime: z.string().max(120), datos: z.string() })).max(20000).default([]),
 });

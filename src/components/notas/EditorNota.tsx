@@ -16,7 +16,13 @@ import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
-import type { FicheroNotaDto, GrupoDto, NotaDto } from "@/lib/notas";
+import type {
+  EtiquetaDto,
+  FicheroNotaDto,
+  GrupoDto,
+  NotaDto,
+} from "@/lib/notas";
+import ChipEtiqueta, { aspectoDe } from "./ChipEtiqueta";
 import {
   esImagen,
   subirFicheroNota,
@@ -43,6 +49,8 @@ type Guardado = "guardado" | "pendiente" | "guardando" | "error" | "conflicto";
 
 interface Props {
   nota: NotaDto;
+  /** Mis etiquetas con su color y emoticono. */
+  catalogo: EtiquetaDto[];
   grupos: GrupoDto[];
   /** Algo ha cambiado fuera del texto (título, grupo, color, etiquetas…): la lista se vuelve a pedir. */
   alCambiar: () => void;
@@ -54,6 +62,7 @@ interface Props {
 /** El editor de una nota: título, barra de formato, texto con guardado automático, etiquetas, color, vínculos, compartir y adjuntos. */
 export default function EditorNota({
   nota,
+  catalogo,
   grupos,
   alCambiar,
   alBorrar,
@@ -276,9 +285,14 @@ export default function EditorNota({
     }
   };
   const añadirEtiqueta = () => {
-    const t = nuevaEtiqueta.trim().slice(0, 30);
+    // Si ya existe una etiqueta con ese nombre (aunque cambien las mayúsculas), se usa la suya
+    const escrita = nuevaEtiqueta.trim().slice(0, 30);
+    const t =
+      catalogo.find((c) => c.nombre.toLowerCase() === escrita.toLowerCase())
+        ?.nombre ?? escrita;
     setNuevaEtiqueta("");
-    if (!t || etiquetas.includes(t)) return;
+    if (!t || etiquetas.some((x) => x.toLowerCase() === t.toLowerCase()))
+      return;
     const nuevas = [...etiquetas, t];
     setEtiquetas(nuevas);
     void cambiarAjuste({ etiquetas: nuevas });
@@ -584,19 +598,7 @@ export default function EditorNota({
       >
         <span style={{ color: "var(--text-muted)" }}>🏷 Etiquetas</span>
         {etiquetas.map((t) => (
-          <span
-            key={t}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              padding: "1px 8px",
-              borderRadius: "999px",
-              background: "rgba(var(--primary-rgb), 0.15)",
-              border: "1px solid var(--primary)",
-            }}
-          >
-            {t}
+          <ChipEtiqueta key={t} nombre={t} aspecto={aspectoDe(catalogo, t)}>
             {!soloLeer && (
               <button
                 type="button"
@@ -614,7 +616,7 @@ export default function EditorNota({
                 ✕
               </button>
             )}
-          </span>
+          </ChipEtiqueta>
         ))}
         {!soloLeer && (
           <input
@@ -622,6 +624,7 @@ export default function EditorNota({
             value={nuevaEtiqueta}
             maxLength={30}
             placeholder="Añadir…"
+            list="notas-etiquetas-sugeridas"
             onChange={(e) => setNuevaEtiqueta(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === ",") {
@@ -633,6 +636,18 @@ export default function EditorNota({
             style={{ width: "110px", padding: "2px 8px", fontSize: "0.8rem" }}
           />
         )}
+        <datalist id="notas-etiquetas-sugeridas">
+          {catalogo
+            .filter(
+              (c) =>
+                !etiquetas.some(
+                  (x) => x.toLowerCase() === c.nombre.toLowerCase(),
+                ),
+            )
+            .map((c) => (
+              <option key={c.nombre} value={c.nombre} />
+            ))}
+        </datalist>
       </div>
 
       {editor && !soloLeer && (

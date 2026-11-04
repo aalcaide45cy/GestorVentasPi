@@ -12,13 +12,16 @@ import {
   eliminarDefinitivamente,
   eliminarFichero,
   eliminarGrupo,
+  eliminarEtiqueta,
   enviarAPapelera,
   exportarNotas,
+  guardarEtiqueta,
   fijarComparticion,
   importarNotas,
   leerComparticion,
   leerFichero,
   leerNota,
+  listarEtiquetas,
   listarGrupos,
   listarVersiones,
   restaurarVersion,
@@ -165,6 +168,31 @@ describe("notas", () => {
     await expect(actualizarNota(db, ana, n.id, { titulo: "Sigue guardando", base })).resolves.toBeTruthy();
   });
 
+  it("etiquetas con color y emoticono: se crean, se renombran en todas las notas y se quitan", async () => {
+    const ana = await crearUsuarioPrueba("vendedor", "Ana");
+    const luis = await crearUsuarioPrueba("vendedor", "Luis");
+    const a = await crearNota(db, ana, { tipo: "nota", titulo: "A", etiquetas: ["Urgente", "banco"] });
+    const b = await crearNota(db, ana, { tipo: "nota", titulo: "B", etiquetas: ["urgente"] });
+    const otra = await crearNota(db, luis, { tipo: "nota", titulo: "De Luis", etiquetas: ["Urgente"] });
+    expect(await guardarEtiqueta(db, ana, { nombre: "Urgente", color: "#ef4444", emoji: "🔥" })).toEqual({ nombre: "Urgente", color: "#ef4444", emoji: "🔥" });
+    // Una etiqueta nueva sin notas también se puede crear
+    await guardarEtiqueta(db, ana, { nombre: "Ideas", color: "#22c55e" });
+    expect((await listarEtiquetas(db, ana)).map((x) => x.nombre)).toEqual(["Ideas", "Urgente"]);
+    expect(await listarEtiquetas(db, luis)).toEqual([]);
+    // Cambiar el color no cambia las notas; renombrar sí, solo en las mías y sin repetir
+    await guardarEtiqueta(db, ana, { nombre: "urgente", color: "#f97316", emoji: "🔥" });
+    expect((await listarEtiquetas(db, ana)).find((x) => x.nombre === "Urgente")?.color).toBe("#f97316");
+    await guardarEtiqueta(db, ana, { nombre: "Urgente", color: "#f97316", nuevo_nombre: "Importante" });
+    expect((await leerNota(db, ana, a.id)).etiquetas.sort()).toEqual(["Importante", "banco"]);
+    expect((await leerNota(db, ana, b.id)).etiquetas).toEqual(["Importante"]);
+    expect((await leerNota(db, luis, otra.id)).etiquetas).toEqual(["Urgente"]);
+    await expect(guardarEtiqueta(db, ana, { nombre: "Importante", nuevo_nombre: "ideas" })).rejects.toThrow(/Ya existe/);
+    // Quitar una etiqueta la saca de las notas
+    expect(await eliminarEtiqueta(db, ana, "importante")).toBe(2);
+    expect((await leerNota(db, ana, a.id)).etiquetas).toEqual(["banco"]);
+    expect((await listarEtiquetas(db, ana)).map((x) => x.nombre)).toEqual(["Ideas"]);
+  });
+
   it("duplicar una nota copia también sus adjuntos y reapunta las imágenes del texto", async () => {
     const ana = await crearUsuarioPrueba("vendedor", "Ana");
     const n = await crearNota(db, ana, { tipo: "nota", titulo: "Original", etiquetas: [] });
@@ -181,6 +209,7 @@ describe("notas", () => {
     const ana = await crearUsuarioPrueba("vendedor", "Ana");
     const luis = await crearUsuarioPrueba("vendedor", "Luis");
     const g = await crearGrupo(db, ana, { ambito: "notas", nombre: "Trabajo", color: "#22c55e" });
+    await guardarEtiqueta(db, ana, { nombre: "a", color: "#22c55e", emoji: "💡" });
     const n = await crearNota(db, ana, { tipo: "nota", titulo: "Con foto", etiquetas: ["a"], id_grupo: g.id });
     const f = await subirFichero(db, ana, n.id, "foto.png", PNG);
     await actualizarNota(db, ana, n.id, { contenido: { type: "doc", content: [{ type: "image", attrs: { src: `/api/notas/ficheros?id=${f.id}` } }] } });
@@ -200,6 +229,7 @@ describe("notas", () => {
     expect(conFoto.ficheros).toHaveLength(1);
     expect(JSON.stringify(conFoto.contenido)).toContain(`/api/notas/ficheros?id=${conFoto.ficheros[0].id}`);
     expect(await listarGrupos(db, luis, "notas")).toHaveLength(1);
+    expect(await listarEtiquetas(db, luis)).toEqual([{ nombre: "a", color: "#22c55e", emoji: "💡" }]);
     // Importar otra vez no pisa nada: reutiliza el grupo y añade copias
     expect(await importarNotas(db, luis, JSON.parse(JSON.stringify(paquete)))).toEqual({ notas: 2, grupos: 0, ficheros: 1 });
     expect(await listarNotas(db, luis)).toHaveLength(4);
