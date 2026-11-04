@@ -102,6 +102,15 @@ export interface NotaDto extends NotaResumenDto {
   ficheros: FicheroNotaDto[];
 }
 
+export interface VersionNotaDto {
+  id: number;
+  titulo: string;
+  extracto: string;
+  creado_en: string;
+  /** Quién estaba editando cuando se guardó este punto. */
+  autor: string | null;
+}
+
 export interface ComparticionDto {
   con: { id_usuario: number | null; permiso: "lectura" | "edicion" }[];
   usuarios: { id: number; nombre: string }[];

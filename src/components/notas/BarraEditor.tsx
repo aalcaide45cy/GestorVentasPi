@@ -65,6 +65,12 @@ export default function BarraEditor({
       bloque: e.isActive("codeBlock"),
       enlace: e.isActive("link"),
       tabla: e.isActive("table"),
+      imagen: e.isActive("image"),
+      anchoImagen:
+        (e.getAttributes("image").ancho as string | null | undefined) ?? null,
+      alineacionImagen:
+        (e.getAttributes("image").alineacion as string | undefined) ??
+        "izquierda",
       izquierda: e.isActive({ textAlign: "left" }),
       centro: e.isActive({ textAlign: "center" }),
       derecha: e.isActive({ textAlign: "right" }),
@@ -358,6 +364,82 @@ export default function BarraEditor({
           {poner(false, "Quitar fila", "−═", () => cadena().deleteRow().run())}
           {poner(false, "Quitar la tabla", "🗑▦", () =>
             cadena().deleteTable().run(),
+          )}
+        </>
+      )}
+      {estado.imagen && (
+        <>
+          {separador}
+          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+            Imagen:
+          </span>
+          {[25, 50, 75, 100].map((p) =>
+            poner(
+              estado.anchoImagen === `${p}%`,
+              `Ancho ${p} % del texto`,
+              `${p}%`,
+              () =>
+                cadena()
+                  .updateAttributes("image", { ancho: `${p}%` })
+                  .run(),
+            ),
+          )}
+          {poner(
+            estado.anchoImagen === null,
+            "Tamaño original (sin pasar del ancho del texto)",
+            "Orig.",
+            () => cadena().updateAttributes("image", { ancho: null }).run(),
+          )}
+          {poner(
+            estado.alineacionImagen === "izquierda",
+            "En su renglón, a la izquierda",
+            "⬅",
+            () =>
+              cadena()
+                .updateAttributes("image", { alineacion: "izquierda" })
+                .run(),
+          )}
+          {poner(
+            estado.alineacionImagen === "centro",
+            "En su renglón, centrada",
+            "⬌",
+            () =>
+              cadena()
+                .updateAttributes("image", { alineacion: "centro" })
+                .run(),
+          )}
+          {poner(
+            estado.alineacionImagen === "derecha",
+            "En su renglón, a la derecha",
+            "➡",
+            () =>
+              cadena()
+                .updateAttributes("image", { alineacion: "derecha" })
+                .run(),
+          )}
+          {poner(
+            estado.alineacionImagen === "flota-izquierda",
+            "A la izquierda, con el texto alrededor",
+            "◧",
+            () =>
+              cadena()
+                .updateAttributes("image", { alineacion: "flota-izquierda" })
+                .run(),
+          )}
+          {poner(
+            estado.alineacionImagen === "flota-derecha",
+            "A la derecha, con el texto alrededor",
+            "◨",
+            () =>
+              cadena()
+                .updateAttributes("image", { alineacion: "flota-derecha" })
+                .run(),
+          )}
+          {poner(
+            false,
+            "Quitar la imagen del texto (el archivo sigue en los adjuntos)",
+            "🗑",
+            () => cadena().deleteSelection().run(),
           )}
         </>
       )}

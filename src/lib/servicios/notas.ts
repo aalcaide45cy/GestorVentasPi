@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import sharp from "sharp";
 import type { Ejecutor } from "@/db";
-import { notas, notasCompartidos, notasFicheros, notasFicherosDatos, notasGrupos, usuarios } from "@/db/schema";
+import { notas, notasCompartidos, notasFicheros, notasFicherosDatos, notasGrupos, notasVersiones, usuarios } from "@/db/schema";
 import { cifrarBuffer, descifrarBuffer } from "@/lib/auth/cifrado";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import {
@@ -27,6 +27,7 @@ import {
   type PaqueteNotas,
   type PermisoNota,
   type TipoNota,
+  type VersionNotaDto,
 } from "@/lib/notas";
 import { expedientes, clientes } from "@/db/schema";
 
@@ -196,6 +197,8 @@ export async function actualizarNota(ej: Ejecutor, u: UsuarioActual, id: number,
   if (e.id_grupo !== undefined) cambios.idGrupo = e.id_grupo ?? null;
   if (e.id_expediente !== undefined) cambios.idExpediente = e.id_expediente ?? null;
   if (e.id_cliente !== undefined) cambios.idCliente = e.id_cliente ?? null;
+  // Punto de restauración: si cambia el contenido y el último punto tiene más de unos minutos, se guarda cómo estaba antes del cambio
+  if (e.contenido !== undefined && fila.tipo === "nota") await guardarVersion(ej, u, fila);
   const [f] = await ej.update(notas).set(cambios).where(eq(notas.id, id)).returning({ actualizadoEn: notas.actualizadoEn });
   return { actualizado_en: f.actualizadoEn.toISOString() };
 }
@@ -302,7 +305,6 @@ export async function subirFichero(ej: Ejecutor, u: UsuarioActual, idNota: numbe
   const limpio = nombre.replace(/[\\/\0]/g, "_").slice(0, 200) || "archivo";
   const [f] = await ej.insert(notasFicheros).values({ idNota, nombre: limpio, mime, tamano: datos.length, tieneMiniatura: miniatura !== null, creadoPor: u.idUsuario }).returning();
   await ej.insert(notasFicherosDatos).values({ idFichero: f.id, datos: cifrarBuffer(datos), miniatura: miniatura ? cifrarBuffer(miniatura) : null });
-  await ej.update(notas).set({ actualizadoEn: new Date() }).where(eq(notas.id, idNota));
   return aFichero(f);
 }
 
@@ -322,7 +324,6 @@ export async function eliminarFichero(ej: Ejecutor, u: UsuarioActual, id: number
   const { permiso } = await accesoA(ej, u, f.idNota);
   if (!poderEditar(permiso)) throw new HttpError(403, "Esta nota es solo para leer");
   await ej.delete(notasFicheros).where(eq(notasFicheros.id, id));
-  await ej.update(notas).set({ actualizadoEn: new Date() }).where(eq(notas.id, f.idNota));
 }
 
 /* ------------------------------ Exportar e importar ------------------------------ */
@@ -399,4 +400,37 @@ export async function importarNotas(ej: Ejecutor, u: UsuarioActual, crudo: unkno
     }
     return { notas: mapaNota.size, grupos: gruposNuevos, ficheros: nFicheros };
   });
+}
+
+/* ------------------------------ Versiones ------------------------------ */
+
+const MINUTOS_ENTRE_VERSIONES = 5;
+const MAX_VERSIONES = 60;
+
+/** Guarda el estado actual de la nota como punto de restauración si el último tiene más de unos minutos (y el texto es distinto). */
+async function guardarVersion(ej: Ejecutor, u: UsuarioActual, fila: typeof notas.$inferSelect, forzar = false): Promise<void> {
+  const [ultima] = await ej.select({ creadoEn: notasVersiones.creadoEn, texto: notasVersiones.texto }).from(notasVersiones).where(eq(notasVersiones.idNota, fila.id)).orderBy(desc(notasVersiones.creadoEn)).limit(1);
+  if (!forzar && ultima && Date.now() - ultima.creadoEn.getTime() < MINUTOS_ENTRE_VERSIONES * 60_000) return;
+  if (!forzar && !ultima && fila.texto.trim() === "") return;
+  if (ultima && ultima.texto === fila.texto && !forzar) return;
+  await ej.insert(notasVersiones).values({ idNota: fila.id, titulo: fila.titulo, contenido: fila.contenido, texto: fila.texto, creadoPor: u.idUsuario });
+  // Solo se guardan las últimas
+  await ej.execute(sql`delete from notas_versiones where id_nota = ${fila.id} and id not in (select id from notas_versiones where id_nota = ${fila.id} order by creado_en desc, id desc limit ${MAX_VERSIONES})`);
+}
+
+export async function listarVersiones(ej: Ejecutor, u: UsuarioActual, id: number): Promise<VersionNotaDto[]> {
+  await accesoA(ej, u, id);
+  const filas = await ej.select({ v: notasVersiones, autor: usuarios.nombre }).from(notasVersiones).leftJoin(usuarios, eq(notasVersiones.creadoPor, usuarios.idUsuario)).where(eq(notasVersiones.idNota, id)).orderBy(desc(notasVersiones.creadoEn), desc(notasVersiones.id));
+  return filas.map(({ v, autor }) => ({ id: v.id, titulo: v.titulo, extracto: v.texto.replace(/\s+/g, " ").trim().slice(0, 400), creado_en: v.creadoEn.toISOString(), autor }));
+}
+
+/** Vuelve a una versión anterior del texto. Antes se guarda como punto lo que hay ahora, por si se quiere volver. */
+export async function restaurarVersion(ej: Ejecutor, u: UsuarioActual, id: number, idVersion: number): Promise<{ actualizado_en: string }> {
+  const { fila, permiso } = await accesoA(ej, u, id);
+  if (!poderEditar(permiso)) throw new HttpError(403, "Esta nota es solo para leer");
+  const [v] = await ej.select().from(notasVersiones).where(and(eq(notasVersiones.id, idVersion), eq(notasVersiones.idNota, id)));
+  if (!v) throw new HttpError(404, "Versión no encontrada");
+  await guardarVersion(ej, u, fila, true);
+  const [f] = await ej.update(notas).set({ contenido: v.contenido, texto: v.texto, titulo: v.titulo, actualizadoEn: new Date() }).where(eq(notas.id, id)).returning({ actualizadoEn: notas.actualizadoEn });
+  return { actualizado_en: f.actualizadoEn.toISOString() };
 }

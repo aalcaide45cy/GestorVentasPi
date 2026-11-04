@@ -20,6 +20,8 @@ import {
   leerFichero,
   leerNota,
   listarGrupos,
+  listarVersiones,
+  restaurarVersion,
   listarNotas,
   restaurarNota,
   subirFichero,
@@ -133,6 +135,34 @@ describe("notas", () => {
     await expect(eliminarFichero(db, luis, img.id)).rejects.toThrow(/solo para leer/);
     await eliminarFichero(db, ana, img.id);
     expect((await leerNota(db, ana, n.id)).ficheros).toHaveLength(1);
+  });
+
+  it("guarda puntos de restauración del texto y se puede volver a una versión anterior", async () => {
+    const ana = await crearUsuarioPrueba("vendedor", "Ana");
+    const luis = await crearUsuarioPrueba("vendedor", "Luis");
+    const n = await crearNota(db, ana, { tipo: "nota", titulo: "Acta", contenido: doc("Texto original importante"), etiquetas: [] });
+    // Al cambiar el texto por primera vez se guarda cómo estaba; los cambios siguientes, en menos de cinco minutos, no
+    await actualizarNota(db, ana, n.id, { contenido: doc("Borré lo importante") });
+    await actualizarNota(db, ana, n.id, { contenido: doc("Y otra cosa después") });
+    const v = await listarVersiones(db, ana, n.id);
+    expect(v).toHaveLength(1);
+    expect(v[0].extracto).toBe("Texto original importante");
+    await expect(listarVersiones(db, luis, n.id)).rejects.toThrow(/no encontrada/);
+    await expect(restaurarVersion(db, luis, n.id, v[0].id)).rejects.toThrow(/no encontrada/);
+    await restaurarVersion(db, ana, n.id, v[0].id);
+    expect((await leerNota(db, ana, n.id)).extracto).toBe("Texto original importante");
+    // Lo que había justo antes de volver también queda como punto para poder rehacerlo
+    expect((await listarVersiones(db, ana, n.id)).map((x) => x.extracto)).toEqual(["Y otra cosa después", "Texto original importante"]);
+    await expect(restaurarVersion(db, ana, n.id, 99999)).rejects.toThrow(/Versión no encontrada/);
+  });
+
+  it("subir o quitar un adjunto no cuenta como un cambio de la nota (no provoca avisos de conflicto)", async () => {
+    const ana = await crearUsuarioPrueba("vendedor", "Ana");
+    const n = await crearNota(db, ana, { tipo: "nota", titulo: "Pegar imagen", etiquetas: [] });
+    const base = (await leerNota(db, ana, n.id)).actualizado_en;
+    const f = await subirFichero(db, ana, n.id, "foto.png", PNG);
+    await eliminarFichero(db, ana, f.id);
+    await expect(actualizarNota(db, ana, n.id, { titulo: "Sigue guardando", base })).resolves.toBeTruthy();
   });
 
   it("duplicar una nota copia también sus adjuntos y reapunta las imágenes del texto", async () => {

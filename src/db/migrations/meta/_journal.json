@@ -512,6 +512,13 @@
       "when": 1793205231863,
       "tag": "0072_notas_y_flujos",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793205231864,
+      "tag": "0073_notas_versiones",
+      "breakpoints": true
     }
   ]
 }

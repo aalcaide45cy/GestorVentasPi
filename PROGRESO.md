@@ -617,6 +617,12 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.52.1 (04/11/2026)
+
+- **Arreglo del bucle al pegar una imagen**: subir o quitar un adjunto cambiaba la fecha de la nota y el siguiente guardado automático chocaba con ella (aviso de conflicto una y otra vez). Ahora los adjuntos no cuentan como cambio del texto, y tras un aviso de conflicto no se reintenta solo: se elige «Ver su versión» o «Guardar la mía».
+- **Imágenes ajustables** (extensión `ImagenAjustable`): se cambia el tamaño arrastrando la esquina o con 25/50/75/100 % y «Orig.» en la barra; se colocan en su renglón (izquierda, centro, derecha) o **flotando a un lado con el texto alrededor**, y se pueden arrastrar a otro sitio del texto. El archivo se guarda siempre original (sin comprimir): solo cambia cómo se enseña.
+- **Deshacer/rehacer del texto**: Ctrl+Z y Ctrl+Y dentro de la nota (hasta 500 pasos, letra a letra o por frases), comprobado. Además, **🕘 Versiones**: cada 5 minutos de edición se guarda un punto de restauración (hasta 60 por nota) para recuperar texto borrado aunque se haya cerrado la nota; al volver a una versión, lo que había queda guardado como otra (tabla `notas_versiones`, migración 0073).
+
 ## Versión 1.52.0 (04/11/2026)
 
 - **Pestaña 📝 Notas** (menú lateral, `/dashboard/notas`) con dos secciones: **Notas** (esta versión) y **Flujos** (diagramas y tableros: llegan en las siguientes). Copia previa en GitHub: rama `copia/antes-de-notas-y-flujos`.

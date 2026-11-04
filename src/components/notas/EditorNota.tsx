@@ -1,7 +1,6 @@
 "use client";
 
 import Highlight from "@tiptap/extension-highlight";
-import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import {
   Table,
@@ -25,7 +24,9 @@ import {
   urlFichero,
 } from "./api-notas";
 import BarraEditor from "./BarraEditor";
+import { ImagenAjustable } from "./ImagenAjustable";
 import ModalCompartir from "./ModalCompartir";
+import ModalVersiones from "./ModalVersiones";
 
 const COLORES_NOTA = [
   "#ef4444",
@@ -74,6 +75,7 @@ export default function EditorNota({
   const [ficheros, setFicheros] = useState<FicheroNotaDto[]>(nota.ficheros);
   const [estado, setEstado] = useState<Guardado>("guardado");
   const [compartiendo, setCompartiendo] = useState(false);
+  const [verVersiones, setVerVersiones] = useState(false);
   const [subidas, setSubidas] = useState<Record<string, number>>({});
   const base = useRef(nota.actualizado_en);
   const pendiente = useRef<{
@@ -82,6 +84,9 @@ export default function EditorNota({
   }>({});
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
   const guardando = useRef(false);
+  // Tras un aviso de conflicto no se reintenta solo (sería un bucle de avisos): se espera a que la persona elija
+  const bloqueado = useRef(false);
+  const sinBase = useRef(false);
 
   const guardar = useCallback(async () => {
     if (guardando.current) return;
@@ -93,9 +98,16 @@ export default function EditorNota({
     try {
       const { data } = await llamar<{ actualizado_en: string }>(
         `/api/notas?id=${nota.id}`,
-        { method: "PUT", cuerpo: { ...cambios, base: base.current } },
+        {
+          method: "PUT",
+          cuerpo: {
+            ...cambios,
+            base: sinBase.current ? undefined : base.current,
+          },
+        },
       );
       base.current = data.actualizado_en;
+      sinBase.current = false;
       setEstado(
         pendiente.current.titulo !== undefined ||
           pendiente.current.contenido !== undefined
@@ -105,14 +117,17 @@ export default function EditorNota({
       alCambiar();
     } catch (e) {
       const texto = textoError(e);
-      setEstado(/Otra persona ha cambiado/.test(texto) ? "conflicto" : "error");
+      const conflicto = /Otra persona ha cambiado/.test(texto);
+      if (conflicto) bloqueado.current = true;
+      setEstado(conflicto ? "conflicto" : "error");
       pendiente.current = { ...cambios, ...pendiente.current };
       mostrar(texto, "error");
     } finally {
       guardando.current = false;
       if (
-        pendiente.current.titulo !== undefined ||
-        pendiente.current.contenido !== undefined
+        !bloqueado.current &&
+        (pendiente.current.titulo !== undefined ||
+          pendiente.current.contenido !== undefined)
       )
         programar();
     }
@@ -120,6 +135,7 @@ export default function EditorNota({
   }, [nota.id]);
 
   const programar = useCallback(() => {
+    if (bloqueado.current) return;
     if (temporizador.current) clearTimeout(temporizador.current);
     temporizador.current = setTimeout(() => void guardar(), 1200);
   }, [guardar]);
@@ -195,6 +211,8 @@ export default function EditorNota({
     content: nota.contenido as Record<string, unknown>,
     extensions: [
       StarterKit.configure({
+        // Ctrl+Z / Ctrl+Y (o Ctrl+Mayús+Z) deshacen y rehacen letras, palabras o fragmentos: hasta 500 pasos
+        undoRedo: { depth: 500, newGroupDelay: 800 },
         link: {
           openOnClick: false,
           autolink: true,
@@ -206,7 +224,7 @@ export default function EditorNota({
       }),
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Image.configure({ allowBase64: false }),
+      ImagenAjustable.configure({ allowBase64: false }),
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -372,7 +390,22 @@ export default function EditorNota({
             onClick={alRecargar}
             style={{ padding: "2px 10px", fontSize: "0.78rem" }}
           >
-            Recargar su versión
+            Ver su versión
+          </button>
+        )}
+        {estado === "conflicto" && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              bloqueado.current = false;
+              sinBase.current = true;
+              void guardar();
+            }}
+            title="Guarda lo que has escrito tú, por encima de la otra versión"
+            style={{ padding: "2px 10px", fontSize: "0.78rem" }}
+          >
+            Guardar la mía
           </button>
         )}
       </div>
@@ -507,6 +540,15 @@ export default function EditorNota({
           </a>
         )}
         <span style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setVerVersiones(true)}
+            title="Ver y recuperar versiones anteriores del texto"
+            style={{ padding: "2px 8px", fontSize: "0.8rem" }}
+          >
+            🕘 Versiones
+          </button>
           <button
             type="button"
             className="btn btn-secondary"
@@ -774,6 +816,14 @@ export default function EditorNota({
           ))}
         </div>
       </div>
+      {verVersiones && (
+        <ModalVersiones
+          idNota={nota.id}
+          puedeEditar={!soloLeer}
+          alCerrar={() => setVerVersiones(false)}
+          alRestaurar={alRecargar}
+        />
+      )}
       {compartiendo && (
         <ModalCompartir
           idNota={nota.id}

@@ -794,3 +794,14 @@ tr.fila-aviso > td:last-child {
 .notas-contenido .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--primary); pointer-events: none; }
 .notas-contenido .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--text-muted); float: left; height: 0; pointer-events: none; }
 .notas-contenido .ProseMirror mark { border-radius: 3px; padding: 0 2px; color: #111; }
+/* Imágenes de las notas: tamaño en porcentaje y colocación (en su renglón o flotando junto al texto) */
+.notas-contenido .nota-img { position: relative; max-width: 100%; line-height: 0; margin: 0.5em 0; }
+.notas-contenido .nota-img img { width: 100%; height: auto; display: block; border-radius: var(--radius-sm); }
+.notas-contenido .nota-img:not([style*="width"]) { width: fit-content; }
+.notas-contenido .nota-img[data-alineacion="centro"] { margin-left: auto; margin-right: auto; }
+.notas-contenido .nota-img[data-alineacion="derecha"] { margin-left: auto; }
+.notas-contenido .nota-img[data-alineacion="flota-izquierda"] { float: left; margin: 0.3em 1em 0.5em 0; }
+.notas-contenido .nota-img[data-alineacion="flota-derecha"] { float: right; margin: 0.3em 0 0.5em 1em; }
+.notas-contenido .nota-img.seleccionada img { outline: 2px solid var(--primary); }
+.notas-contenido .nota-img-asa { position: absolute; right: -6px; bottom: -6px; width: 16px; height: 16px; background: var(--primary); border: 2px solid #fff; border-radius: 4px; cursor: nwse-resize; display: none; touch-action: none; }
+.notas-contenido .nota-img.seleccionada .nota-img-asa, .notas-contenido .nota-img:hover .nota-img-asa { display: block; }

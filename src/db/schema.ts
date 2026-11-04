@@ -1464,3 +1464,20 @@ export const notasFicherosDatos = pgTable("notas_ficheros_datos", {
   datos: bytea("datos").notNull(),
   miniatura: bytea("miniatura"),
 });
+
+/** Puntos de restauración del texto de una nota: cada pocos minutos de edición se guarda cómo estaba antes, para poder volver atrás aunque se haya cerrado la pantalla. */
+export const notasVersiones = pgTable(
+  "notas_versiones",
+  {
+    id: serial("id").primaryKey(),
+    idNota: integer("id_nota")
+      .notNull()
+      .references(() => notas.id, { onDelete: "cascade" }),
+    titulo: varchar("titulo", { length: 200 }).notNull().default(""),
+    contenido: jsonb("contenido").$type<unknown>().notNull(),
+    texto: text("texto").notNull().default(""),
+    creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("notas_versiones_nota_idx").on(t.idNota, t.creadoEn)],
+);
