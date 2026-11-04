@@ -11,7 +11,6 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { useCarga } from "@/components/comisiones/useCarga";
 import Modal from "@/components/Modal";
 import type { AvisoRejilla } from "@/lib/servicios/rejillas";
-import { CLAVE_ABIERTO, CLAVE_MOSTRAR_LABORATORIO } from "@/components/LaboratorioComisiones";
 import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
 import { fijarMenuAbierto, useMovil } from "@/lib/movil";
 import { CLASE_BADGE_ROL, ETIQUETA_ROL, esAdministrador, esRolActivo, normalizarRol } from "@/lib/auth/permisos";
@@ -176,8 +175,6 @@ function GrupoSistema({ colapsado }: { colapsado: boolean }) {
 export default function Sidebar({ user, version, zoom = 100 }: SidebarProps) {
   const [colapsadoGuardado, guardarColapsado] = usePreferencia("sidebar-collapsed");
   const movil = useMovil();
-  const [labAbierto, fijarLabAbierto] = usePreferencia(CLAVE_ABIERTO);
-  const [labMostrar] = usePreferencia(CLAVE_MOSTRAR_LABORATORIO);
   // En móvil el menú es un cajón: siempre con textos (la preferencia de colapsar solo vale en escritorio)
   const isCollapsed = colapsadoGuardado === "true" && !movil;
   const router = useRouter();
@@ -510,24 +507,6 @@ export default function Sidebar({ user, version, zoom = 100 }: SidebarProps) {
                 <polyline points="10 9 9 9 8 9" />
               </EnlaceNav>
             </>
-          )}
-          {isVendedorOrUp && labMostrar !== "false" && (
-            <EnlaceNav
-              href="#"
-              titulo="Laboratorio"
-              guia="menu.laboratorio"
-              colapsado={isCollapsed}
-              activo={labAbierto === "true"}
-              ayuda="Abre o cierra el laboratorio de comisiones: toca reglas y mira cómo se mueven los puntos, el tramo y la comisión sin guardar nada"
-              alPulsar={() => {
-                fijarLabAbierto(labAbierto === "true" ? "false" : "true");
-                if (movil) fijarMenuAbierto(false);
-              }}
-            >
-              <path d="M9 3h6" />
-              <path d="M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3" />
-              <path d="M7.5 15h9" />
-            </EnlaceNav>
           )}
         </nav>
       </div>

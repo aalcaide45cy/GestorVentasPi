@@ -133,7 +133,7 @@ export const GUIAS: Record<string, Guia> = {
   "menu.laboratorio": {
     titulo: "Laboratorio",
     queEs: "Un simulador de comisiones: toca reglas y mira cómo se mueven los puntos, el tramo y la comisión sin guardar nada.",
-    pasos: ["Pulsa «Laboratorio» en el menú para abrir o cerrar el panel.", "Cambia reglas o datos del escenario y mira el resultado al momento.", "Al cerrar el panel no se queda nada guardado."],
+    pasos: ["Pulsa el botón 🧪 de la barra de arriba para abrir o cerrar el panel.", "Cambia reglas o datos del escenario y mira el resultado al momento.", "Al cerrar el panel no se queda nada guardado."],
     ojo: ["El botón se puede ocultar desde «Mis datos»."],
   },
 

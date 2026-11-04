@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { COOKIE_ZOOM, zoomValido } from "@/lib/zoom";
 import { redirect } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
+import BotonLaboratorio from "@/components/BotonLaboratorio";
 import IndicadorRecursos from "@/components/IndicadorRecursos";
 import CampanaNotificaciones from "@/components/CampanaNotificaciones";
 import BotonAlertas from "@/components/alertas/BotonAlertas";
@@ -124,6 +125,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           >
             <BotonMenuMovil />
             {esAdministrador(normalizarRol(user.rol)) && <IndicadorRecursos />}
+            {esRolActivo(normalizarRol(user.rol)) && <BotonLaboratorio />}
             {esAdministrador(normalizarRol(user.rol)) && <IndicadorTareas />}
             {esRolActivo(normalizarRol(user.rol)) && <BotonAvisarFallo version={versionDeLaApp()} />}
             <CampanaNotificaciones />
