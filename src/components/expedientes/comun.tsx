@@ -307,16 +307,16 @@ interface CeldaFechaProps {
 }
 
 /** Botón diminuto de la celda de fecha (poca altura, para que las filas no crezcan). */
-const estiloIcono = (fondo: string): CSSProperties => ({ border: "none", background: fondo, cursor: "pointer", fontSize: "0.58rem", lineHeight: 1, padding: "0 4px", height: "15px", minWidth: "20px", borderRadius: "999px", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" });
+const estiloIcono = (fondo: string): CSSProperties => ({
   border: "none",
   background: fondo,
   cursor: "pointer",
-  fontSize: "0.62rem",
+  fontSize: "0.58rem",
   lineHeight: 1,
-  padding: "0 5px",
-  height: "17px",
-  minWidth: "22px",
-  borderRadius: "4px",
+  padding: "0 4px",
+  height: "15px",
+  minWidth: "20px",
+  borderRadius: "999px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
