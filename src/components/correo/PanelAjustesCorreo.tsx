@@ -3,18 +3,12 @@
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
-import {
-  CLAVE_CORREO_BOTONES,
-  FECHAS_CON_SOBRE,
-  type AjustesCorreoDto,
-} from "@/lib/correo";
-import { usePreferencia } from "@/lib/preferencias";
+import type { AjustesCorreoDto } from "@/lib/correo";
+import BotonesDeFechas from "./BotonesDeFechas";
 
 /** Envío automático: los correos nuevos de las reglas salen solos, uno tras otro con una pausa; si no, esperan a que los revises. */
 export default function PanelAjustesCorreo({ esAdmin }: { esAdmin: boolean }) {
   const { mostrar } = useToast();
-  const [botones, fijarBotones] = usePreferencia(CLAVE_CORREO_BOTONES);
-  const activos = (botones ?? "fecha_entrega").split(",").filter(Boolean);
   const [a, setA] = useState<AjustesCorreoDto | null>(null);
   useEffect(() => {
     llamar<AjustesCorreoDto>("/api/correo/ajustes")
@@ -82,6 +76,7 @@ export default function PanelAjustesCorreo({ esAdmin }: { esAdmin: boolean }) {
           Solo el administrador cambia estos ajustes.
         </span>
       )}
+      <BotonesDeFechas />
       <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
         El límite de correos al día se pone en cada cuenta (pestaña Cuentas).
       </span>

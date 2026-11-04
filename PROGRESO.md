@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.58.0 (04/11/2026)
+- **Botón ✉️ de las fechas, configurable** en Correo → Ajustes: por cada fecha de la lista (afectación, RCI, matriculación, facturación, entrega) se activa o no y se deja predefinido el correo: plantilla (con su firma), cuenta, destinatario (el cliente o una dirección fija) y qué pasa al pulsar (abrir el correo para revisarlo, dejarlo directamente en la cola o enviarlo sin preguntar). Preferencia sincronizada `exp-correo-botones` (JSON; entiende el formato antiguo).
+- Celdas de fecha: la fecha arriba y debajo los botones pequeños (lápiz, sobre, papelera); el Excel quita la hora de entrega si cambia la fecha.
+
 ## Versión 1.57.0 (04/11/2026)
 - **Nueva sección ✉️ Correo** (solo envío, con `nodemailer` 10.3.1): pestañas Cola, Histórico, Plantillas, Cuentas y Ajustes.
   - **Cuentas**: las que quiera cada usuario, con Gmail, IONOS y Outlook ya preconfigurados (u «Otro» con servidor y puerto), contraseña cifrada que no se vuelve a mostrar, firma, máximo de correos al día y «Enviar prueba».

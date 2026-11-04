@@ -23,7 +23,15 @@ export default function ModalCorreo({
 }: {
   correo: CorreoDto | null;
   /** Para un correo nuevo: el expediente de partida y una clave con la que se recuerda lo que se elige (el botón ✉️ de las fechas). */
-  inicial?: { id_expediente: number; clave: string };
+  inicial?: {
+    id_expediente: number;
+    clave: string;
+    predefinido?: {
+      plantilla: number | null;
+      cuenta: number | null;
+      para: string;
+    };
+  };
   alCerrar: () => void;
   alGuardar: () => void;
 }) {
@@ -33,6 +41,13 @@ export default function ModalCorreo({
   );
   const [recordado] = useState(() => {
     try {
+      if (
+        inicial?.predefinido &&
+        (inicial.predefinido.plantilla ||
+          inicial.predefinido.cuenta ||
+          inicial.predefinido.para)
+      )
+        return inicial.predefinido;
       return inicial && guardado
         ? (JSON.parse(guardado) as {
             plantilla: number | null;

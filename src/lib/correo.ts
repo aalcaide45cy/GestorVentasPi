@@ -241,7 +241,7 @@ export function separarDirecciones(texto: string): string[] {
 export const direccionValida = (d: string): boolean =>
   /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/.test(d);
 
-/** Preferencia (sincronizada) con las fechas que llevan el botón ✉️ en las listas, separadas por comas. Sin valor: solo la de entrega. */
+/** Preferencia (sincronizada) con el correo predefinido de cada fecha de las listas. */
 export const CLAVE_CORREO_BOTONES = "exp-correo-botones";
 export const FECHAS_CON_SOBRE = [
   { id: "fecha_afectacion", nombre: "F. Afectación" },
@@ -250,3 +250,46 @@ export const FECHAS_CON_SOBRE = [
   { id: "fecha_facturacion", nombre: "F. Facturación" },
   { id: "fecha_entrega", nombre: "F. Entrega" },
 ] as const;
+
+export interface BotonFecha {
+  /** Si la fecha lleva el botón ✉️. */
+  activo: boolean;
+  id_plantilla: number | null;
+  id_cuenta: number | null;
+  para: "cliente" | "fijo";
+  para_fijo: string;
+  /** Al pulsar: abrir el correo para revisarlo, dejarlo directamente en la cola o enviarlo sin preguntar. */
+  modo: "revisar" | "cola" | "enviar";
+}
+export const botonNuevo = (activo: boolean): BotonFecha => ({
+  activo,
+  id_plantilla: null,
+  id_cuenta: null,
+  para: "cliente",
+  para_fijo: "",
+  modo: "revisar",
+});
+
+/** Lee la configuración guardada; también entiende el formato antiguo (ids separados por comas). Sin nada guardado, solo la fecha de entrega lleva el botón. */
+export function leerBotonesFecha(
+  guardado: string | null,
+): Record<string, BotonFecha> {
+  const res: Record<string, BotonFecha> = {};
+  let json: Record<string, Partial<BotonFecha>> | null = null;
+  if (guardado?.startsWith("{")) {
+    try {
+      json = JSON.parse(guardado) as Record<string, Partial<BotonFecha>>;
+    } catch {
+      json = null;
+    }
+  }
+  const antiguos = json ? [] : (guardado ?? "fecha_entrega").split(",");
+  for (const f of FECHAS_CON_SOBRE) {
+    const j = json?.[f.id];
+    res[f.id] = {
+      ...botonNuevo(json ? false : antiguos.includes(f.id)),
+      ...(j ?? {}),
+    };
+  }
+  return res;
+}

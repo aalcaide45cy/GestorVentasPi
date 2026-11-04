@@ -3,7 +3,7 @@
 import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { CLAVE_CORREO_BOTONES } from "@/lib/correo";
+import { CLAVE_CORREO_BOTONES, leerBotonesFecha } from "@/lib/correo";
 import { usePreferencia } from "@/lib/preferencias";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
@@ -319,8 +319,60 @@ export function CeldaFecha({
 }: CeldaFechaProps) {
   const valor = exp[campo];
   const [escribiendo, setEscribiendo] = useState(false);
+  const { mostrar: mostrarAviso } = useToast();
   const [botones] = usePreferencia(CLAVE_CORREO_BOTONES);
-  const conSobre = (botones ?? "fecha_entrega").split(",").includes(campo);
+  const cfg = leerBotonesFecha(botones)[campo];
+  const conSobre = cfg?.activo ?? false;
+  const pulsarSobre = async () => {
+    if (!cfg || cfg.modo === "revisar" || !cfg.id_plantilla || !cfg.id_cuenta)
+      return setEscribiendo(true);
+    const cabecera = { "Content-Type": "application/json" };
+    try {
+      const r = await fetch("/api/correo/cola", {
+        method: "POST",
+        headers: cabecera,
+        body: JSON.stringify({
+          id_cuenta: cfg.id_cuenta,
+          id_plantilla: cfg.id_plantilla,
+          id_expediente: exp.id_expediente,
+          para: cfg.para === "fijo" ? cfg.para_fijo : "",
+        }),
+      });
+      const j = (await r.json()) as {
+        data?: { id: number; para: string };
+        message?: string;
+      };
+      if (!r.ok || !j.data)
+        throw new Error(j.message ?? "No se pudo preparar el correo");
+      if (cfg.modo === "enviar") {
+        const e = await fetch("/api/correo/cola", {
+          method: "PATCH",
+          headers: cabecera,
+          body: JSON.stringify({ ids: [j.data.id], accion: "enviar" }),
+        });
+        const ej = (await e.json()) as {
+          data?: { fallos?: string[] };
+          message?: string;
+        };
+        if (!e.ok || ej.data?.fallos?.length)
+          throw new Error(
+            ej.data?.fallos?.[0] ?? ej.message ?? "No se pudo enviar",
+          );
+        mostrarAviso("Correo enviado");
+      } else
+        mostrarAviso(
+          j.data.para
+            ? "Correo añadido a la cola de Correo"
+            : "Correo en la cola sin destinatario: revísalo en Correo",
+          j.data.para ? "exito" : "aviso",
+        );
+    } catch (e) {
+      mostrarAviso(
+        e instanceof Error ? e.message : "No se pudo preparar el correo",
+        "error",
+      );
+    }
+  };
   const cobradaOtraFecha =
     detalleMatricula &&
     campo === "fecha_matriculacion" &&
@@ -391,7 +443,7 @@ export function CeldaFecha({
             {valor && conSobre && (
               <button
                 type="button"
-                onClick={() => setEscribiendo(true)}
+                onClick={() => void pulsarSobre()}
                 style={{
                   border: "none",
                   background: "rgba(59, 130, 246, 0.08)",
@@ -470,7 +522,17 @@ export function CeldaFecha({
       {escribiendo && (
         <ModalCorreo
           correo={null}
-          inicial={{ id_expediente: exp.id_expediente, clave: campo }}
+          inicial={{
+            id_expediente: exp.id_expediente,
+            clave: campo,
+            predefinido: cfg
+              ? {
+                  plantilla: cfg.id_plantilla,
+                  cuenta: cfg.id_cuenta,
+                  para: cfg.para === "fijo" ? cfg.para_fijo : "",
+                }
+              : undefined,
+          }}
           alCerrar={() => setEscribiendo(false)}
           alGuardar={() => setEscribiendo(false)}
         />
