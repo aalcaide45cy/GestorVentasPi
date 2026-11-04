@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
+import CorreosDeFicha from "@/components/correo/CorreosDeFicha";
 import NotasVinculadas from "@/components/notas/NotasVinculadas";
 import FichaCliente from "@/components/clientes/FichaCliente";
 import { esRolActivo } from "@/lib/auth/permisos";
@@ -37,6 +38,7 @@ export default async function FichaClientePage({ params }: Props) {
         tiendas={catalogos.tiendas}
       />
       <NotasVinculadas tipo="cliente" id={id} />
+      <CorreosDeFicha idCliente={id} />
     </>
   );
 }

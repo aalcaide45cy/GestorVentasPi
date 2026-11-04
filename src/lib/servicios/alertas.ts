@@ -36,6 +36,7 @@ import {
   resolverAvisosDeEventosHechos,
 } from "./calendario";
 import { hoyIso } from "./comun";
+import { prepararCorreoDeRegla } from "./correo";
 import { aDto, relacionesExpediente } from "./expedientes";
 
 const soloAdministrador = (u: UsuarioActual): void => {
@@ -276,19 +277,21 @@ export async function evaluarAlertas(
         const fila = propias.find((x) => x.idUsuario === u);
         if (cumple) {
           if (!fila) {
-            await ej
-              .insert(alertas)
-              .values({
-                idRegla: r.id,
-                idExpediente: f.idExpediente,
-                idUsuario: u,
-                mensaje,
-                ...(aplazada
-                  ? { estado: "pospuesta", pospuestaHasta: vence }
-                  : {}),
-                venceEn: vence,
-              });
-            if (!aplazada) nuevas++;
+            await ej.insert(alertas).values({
+              idRegla: r.id,
+              idExpediente: f.idExpediente,
+              idUsuario: u,
+              mensaje,
+              ...(aplazada
+                ? { estado: "pospuesta", pospuestaHasta: vence }
+                : {}),
+              venceEn: vence,
+            });
+            if (!aplazada) {
+              nuevas++;
+              if (r.definicion.correo)
+                await prepararCorreoDeRegla(ej, r, f.idExpediente);
+            }
           } else if (
             fila.estado === "resuelta" &&
             fila.motivo === "automatica"
@@ -305,7 +308,11 @@ export async function evaluarAlertas(
                 venceEn: vence,
               })
               .where(eq(alertas.id, fila.id));
-            if (!aplazada) nuevas++;
+            if (!aplazada) {
+              nuevas++;
+              if (r.definicion.correo)
+                await prepararCorreoDeRegla(ej, r, f.idExpediente);
+            }
           } else if (
             r.definicion.cuando &&
             fila.estado !== "resuelta" &&

@@ -201,6 +201,8 @@ export const clientes = pgTable(
     fotoAdjuntoId: integer("foto_adjunto_id"),
     /** Notas libres sobre el cliente. */
     comentarios: text("comentarios"),
+    /** No enviarle correos automáticos (los de las reglas quedan en la cola como «no enviar»). */
+    noEnviarCorreos: boolean("no_enviar_correos").notNull().default(false),
     /** Borrado lógico: fecha en que se «eliminó». Nunca se borra la fila, así el histórico y las estadísticas se conservan. */
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
@@ -1513,4 +1515,74 @@ export const notasVinculos = pgTable(
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("notas_vinculos_uq").on(t.idNota, t.tipo, t.idDestino), index("notas_vinculos_destino_idx").on(t.tipo, t.idDestino)],
+);
+
+/* ------------------------------------------------------------------ */
+/* Correo (solo envío)                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Cuentas desde las que se envía (varias por usuario). La contraseña va cifrada con la clave de la aplicación. */
+export const correoCuentas = pgTable("correo_cuentas", {
+  id: serial("id").primaryKey(),
+  idUsuario: integer("id_usuario")
+    .notNull()
+    .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+  nombre: varchar("nombre", { length: 80 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  /** gmail, ionos, outlook u otro. */
+  proveedor: varchar("proveedor", { length: 12 }).notNull().default("otro"),
+  host: varchar("host", { length: 255 }).notNull(),
+  puerto: integer("puerto").notNull().default(587),
+  /** true: conexión cifrada desde el principio (puerto 465); false: STARTTLS (puerto 587). */
+  seguro: boolean("seguro").notNull().default(false),
+  usuarioSmtp: varchar("usuario_smtp", { length: 255 }).notNull(),
+  passwordCifrada: text("password_cifrada").notNull(),
+  firma: text("firma").notNull().default(""),
+  /** Máximo de correos al día por esta cuenta (0 = sin límite). */
+  limiteDiario: integer("limite_diario").notNull().default(200),
+  activa: boolean("activa").notNull().default(true),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Plantillas de correo con campos del cliente, el expediente, etc. entre llaves ({cliente}, {fecha_entrega}…). */
+export const correoPlantillas = pgTable("correo_plantillas", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 80 }).notNull(),
+  asunto: varchar("asunto", { length: 300 }).notNull().default(""),
+  /** HTML del cuerpo. */
+  cuerpo: text("cuerpo").notNull().default(""),
+  creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** La cola de correos: borradores por revisar, programados, enviados y con error (el histórico). */
+export const correoCola = pgTable(
+  "correo_cola",
+  {
+    id: serial("id").primaryKey(),
+    /** A quién pertenece (quien lo ve y lo envía). */
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    idCuenta: integer("id_cuenta").references(() => correoCuentas.id, { onDelete: "set null" }),
+    idPlantilla: integer("id_plantilla").references(() => correoPlantillas.id, { onDelete: "set null" }),
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
+    idCliente: integer("id_cliente").references(() => clientes.id, { onDelete: "set null" }),
+    /** Destinatarios separados por comas; vacío = «sin destinatario». */
+    para: text("para").notNull().default(""),
+    asunto: varchar("asunto", { length: 300 }).notNull().default(""),
+    cuerpo: text("cuerpo").notNull().default(""),
+    /** Documentos del expediente que se adjuntan: ids de `adjuntos`. */
+    adjuntos: jsonb("adjuntos").$type<number[]>().notNull().default([]),
+    /** borrador (a la espera de que lo revises), programado (se enviará solo), enviando, enviado, error o cancelado. */
+    estado: varchar("estado", { length: 12 }).notNull().default("borrador"),
+    /** De dónde viene: manual, boton (el botón de las fechas) o regla. */
+    origen: varchar("origen", { length: 12 }).notNull().default("manual"),
+    idRegla: integer("id_regla").references(() => alertasReglas.id, { onDelete: "set null" }),
+    error: text("error"),
+    intentos: integer("intentos").notNull().default(0),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+  },
+  (t) => [index("correo_cola_usuario_estado_idx").on(t.idUsuario, t.estado), uniqueIndex("correo_cola_regla_exp_uq").on(t.idRegla, t.idExpediente)],
 );

@@ -29,6 +29,10 @@ export async function register(): Promise<void> {
         });
       })().catch(() => undefined);
     }, 45_000).unref?.();
+    // Correo: si hay correos «programados», los envía uno tras otro respetando la pausa de los ajustes
+    const { procesarCola, prepararCorreosVencidos } = await import("./lib/servicios/correo");
+    setInterval(() => void prepararCorreosVencidos(bdIncidencias).catch((e) => console.error("Correos de reglas:", e instanceof Error ? e.message : e)), 60_000).unref?.();
+    setInterval(() => void procesarCola(bdIncidencias).catch((e) => console.error("Cola de correo:", e instanceof Error ? e.message : e)), 3_000).unref?.();
     // Si este equipo reenvía sus reportes de fallo a un servidor principal, cada minuto reintenta los que no hayan llegado (cola con reintentos)
     const { reenviarPendientes } = await import("./lib/servicios/incidencias-remotas");
     setInterval(() => void reenviarPendientes(bdIncidencias), 60_000).unref?.();

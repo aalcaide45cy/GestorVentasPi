@@ -17,6 +17,16 @@ export const esquemaDefinicionAlerta = z.object({
   grupos: z.array(esquemaGrupo).max(10).optional(),
   unir: z.enum(["y", "o"]).optional(),
   /** Sin esto avisa en cuanto el expediente cumple las condiciones; con esto, a la hora indicada de N días antes (−) o después (+) de una de sus fechas. */
+  /** Además del aviso, prepara un correo con una plantilla (queda en la cola de correo, o sale solo si el envío automático está activado). */
+  correo: z
+    .object({
+      id_plantilla: z.number().int().positive(),
+      id_cuenta: z.number().int().positive(),
+      /** «cliente» = el correo del cliente del expediente; «fijo» = la dirección de `para_fijo`. */
+      para: z.enum(["cliente", "fijo"]),
+      para_fijo: z.string().max(500).default(""),
+    })
+    .optional(),
   cuando: z
     .object({
       campo: z.enum([

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
+import CorreosDeFicha from "@/components/correo/CorreosDeFicha";
 import NotasVinculadas from "@/components/notas/NotasVinculadas";
 import EditarExpedienteForm from "@/components/EditarExpedienteForm";
 import { esRolActivo } from "@/lib/auth/permisos";
@@ -74,7 +75,9 @@ export default async function EditarExpedientePage({ params }: PageProps) {
             }}
           >
             👤 Ver cliente
-            {expediente.cliente?.nombre ? `: ${expediente.cliente.nombre}` : ""}{" "}
+            {expediente.cliente?.nombre
+              ? `: ${expediente.cliente.nombre}`
+              : ""}{" "}
             y sus expedientes
           </Link>
         )}
@@ -108,6 +111,7 @@ export default async function EditarExpedientePage({ params }: PageProps) {
         }))}
       />
       <NotasVinculadas tipo="expediente" id={expediente.id_expediente} />
+      <CorreosDeFicha idExpediente={expediente.id_expediente} />
     </div>
   );
 }

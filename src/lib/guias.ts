@@ -101,6 +101,17 @@ export const GUIAS: Record<string, Guia> = {
     ],
     ojo: ["Lo que borras va a la papelera de notas, desde donde se recupera; solo se borra de verdad desde ahí.", "Si dos personas editan a la vez una nota compartida, la segunda recibe un aviso para no pisar el trabajo de la primera."],
   },
+  "menu.correo": {
+    titulo: "Correo",
+    queEs: "Envío de correos (solo envía, no recibe) con plantillas que se rellenan con los datos del cliente y del expediente. Todo entra en una cola que revisas antes de enviar.",
+    pasos: [
+      "En «Cuentas» añade la cuenta desde la que se envía (Gmail, IONOS, Outlook u otra) y pulsa «Enviar prueba» para comprobar que funciona.",
+      "En «Plantillas» escribe el correo con campos entre llaves ({cliente}, {bastidor}, {fecha_entrega}…).",
+      "En «Cola» crea un correo con «＋ Nuevo correo», revísalo y pulsa «Enviar». Con varios marcados puedes «Programar»: salen uno tras otro con una pausa.",
+      "El «Histórico» guarda lo enviado, lo cancelado y lo que ha fallado, con el motivo.",
+    ],
+    ojo: ["Si un correo falla, te sale un aviso con el motivo y queda en la cola para reintentar.", "Cada cuenta tiene un máximo de correos al día para que el proveedor no la bloquee."],
+  },
   "menu.calendario": {
     titulo: "Calendario",
     queEs: "Tus notas y eventos, con avisos que salen como alertas, y opcionalmente las fechas de tus expedientes.",

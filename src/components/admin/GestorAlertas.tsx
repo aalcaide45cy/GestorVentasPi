@@ -1,5 +1,6 @@
 "use client";
 
+import BloqueCorreoRegla from "./BloqueCorreoRegla";
 import { useCallback, useEffect, useState } from "react";
 import { llamar, textoError } from "@/components/comisiones/api";
 import { useToast } from "@/components/Toast";
@@ -292,6 +293,10 @@ function EditorRegla({
           </span>
         )}
       </div>
+      <BloqueCorreoRegla
+        valor={d.correo}
+        alCambiar={(c) => cambiarDef({ correo: c })}
+      />
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
           Avisa cuando un expediente pase a cumplir

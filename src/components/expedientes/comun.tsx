@@ -2,6 +2,7 @@
 
 import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { IconoCliente } from "../Enlaces";
@@ -10,6 +11,10 @@ import { aspectoEtiqueta } from "./etiqueta-apunte";
 import { useToast } from "../Toast";
 import { EtiquetaEstado, EtiquetaPago, type DatosVehiculo } from "../etiquetas";
 import type { ExpedienteDto } from "@/lib/dto";
+
+const ModalCorreo = dynamic(() => import("../correo/ModalCorreo"), {
+  ssr: false,
+});
 
 export type CampoFecha =
   | "fecha_afectacion"
@@ -311,6 +316,7 @@ export function CeldaFecha({
   alBorrar,
 }: CeldaFechaProps) {
   const valor = exp[campo];
+  const [escribiendo, setEscribiendo] = useState(false);
   const cobradaOtraFecha =
     detalleMatricula &&
     campo === "fecha_matriculacion" &&
@@ -377,6 +383,28 @@ export function CeldaFecha({
             {valor && (
               <button
                 type="button"
+                onClick={() => setEscribiendo(true)}
+                style={{
+                  border: "none",
+                  background: "rgba(59, 130, 246, 0.08)",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  padding: "4px 6px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s",
+                }}
+                title={`Enviar un correo con la fecha de ${nombre}`}
+                className="glass-panel-interactive"
+              >
+                ✉️
+              </button>
+            )}
+            {valor && (
+              <button
+                type="button"
                 onClick={() => alBorrar(exp, campo, nombre)}
                 style={{
                   border: "none",
@@ -418,6 +446,14 @@ export function CeldaFecha({
             </div>
           )}
       </div>
+      {escribiendo && (
+        <ModalCorreo
+          correo={null}
+          inicial={{ id_expediente: exp.id_expediente, clave: campo }}
+          alCerrar={() => setEscribiendo(false)}
+          alGuardar={() => setEscribiendo(false)}
+        />
+      )}
     </td>
   );
 }
