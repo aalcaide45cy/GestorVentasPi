@@ -1413,14 +1413,12 @@ export const notas = pgTable(
     color: varchar("color", { length: 7 }),
     fijada: boolean("fijada").notNull().default(false),
     etiquetas: jsonb("etiquetas").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
-    idCliente: integer("id_cliente").references(() => clientes.id, { onDelete: "set null" }),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
     /** En la papelera de notas desde esta fecha (se puede recuperar). */
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
-  (t) => [index("notas_usuario_tipo_idx").on(t.idUsuario, t.tipo), index("notas_expediente_idx").on(t.idExpediente)],
+  (t) => [index("notas_usuario_tipo_idx").on(t.idUsuario, t.tipo)],
 );
 
 /** Con quién se comparte una nota o un flujo: con una persona o, sin usuario, con todo el equipo; solo para leer o también para editar. */
@@ -1495,4 +1493,20 @@ export const notasEtiquetas = pgTable(
     emoji: varchar("emoji", { length: 16 }),
   },
   (t) => [uniqueIndex("notas_etiquetas_uq").on(t.idUsuario, sql`lower(${t.nombre})`)],
+);
+
+/** A qué está asignada una nota o un flujo: expedientes, clientes, planes de comisiones, marcas, modelos, tiendas o vendedores (varios a la vez). */
+export const notasVinculos = pgTable(
+  "notas_vinculos",
+  {
+    id: serial("id").primaryKey(),
+    idNota: integer("id_nota")
+      .notNull()
+      .references(() => notas.id, { onDelete: "cascade" }),
+    /** expediente, cliente, plan, marca, modelo, tienda o vendedor. */
+    tipo: varchar("tipo", { length: 12 }).notNull(),
+    idDestino: integer("id_destino").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("notas_vinculos_uq").on(t.idNota, t.tipo, t.idDestino), index("notas_vinculos_destino_idx").on(t.tipo, t.idDestino)],
 );

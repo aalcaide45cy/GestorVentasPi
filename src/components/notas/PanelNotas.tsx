@@ -1,5 +1,6 @@
 "use client";
 
+import ChipVinculo from "./ChipVinculo";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
@@ -71,6 +72,15 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
   const [colorEtiqueta, setColorEtiqueta] = useState<string | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
   const [ultima, fijarUltima] = usePreferencia("exp-notas-ultima");
+  const [plegado, fijarPlegado] = usePreferencia("exp-notas-plegado");
+  const sinGrupos = (plegado ?? "").includes("g");
+  const sinLista = (plegado ?? "").includes("l");
+  const alternarPlegado = (c: "g" | "l") =>
+    fijarPlegado(
+      c === "g"
+        ? (sinGrupos ? "" : "g") + (sinLista ? "l" : "")
+        : (sinGrupos ? "g" : "") + (sinLista ? "" : "l"),
+    );
   const refImportar = useRef<HTMLInputElement>(null);
   const ambito = ambitoDe(tipos[0]);
   const consulta = tipos.join(",");
@@ -182,7 +192,7 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
         return false;
       if (
         q &&
-        !`${n.titulo} ${n.extracto} ${n.etiquetas.join(" ")}`
+        !`${n.titulo} ${n.extracto} ${n.etiquetas.join(" ")} ${n.vinculos.map((v) => v.texto).join(" ")}`
           .toLowerCase()
           .includes(q)
       )
@@ -510,80 +520,233 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
 
   const nombreSeccion = tipos[0] === "nota" ? "nota" : "flujo";
   return (
-    <div className="notas-rejilla" data-pantalla={pantalla}>
-      <aside
-        className="notas-lateral"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "2px",
-          padding: "8px",
-          overflowY: "auto",
-          border: "1px solid var(--border-light)",
-          borderRadius: "var(--radius-sm)",
-          background: "var(--bg-card)",
-        }}
+    <>
+      <div
+        className="notas-plegar"
+        style={{ justifyContent: "flex-end", gap: "6px", marginBottom: "6px" }}
       >
-        {itemSide(
-          { clase: "todas" },
-          `📚 Todas las ${nombreSeccion === "nota" ? "notas" : "flujos"}`,
-          lista.length,
-        )}
-        {itemSide(
-          { clase: "fijadas" },
-          "📌 Fijadas",
-          cuenta((n) => n.fijada),
-        )}
-        {itemSide(
-          { clase: "compartidas" },
-          "👥 Compartidas conmigo",
-          cuenta((n) => n.permiso !== "propietario"),
-        )}
-        <div
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => alternarPlegado("g")}
+          title={
+            sinGrupos
+              ? "Enseñar la columna de grupos y etiquetas"
+              : "Esconder la columna de grupos y etiquetas"
+          }
+          style={{ padding: "2px 10px", fontSize: "0.8rem" }}
+        >
+          {sinGrupos ? "▶ Grupos" : "◀ Grupos"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => alternarPlegado("l")}
+          title={
+            sinLista
+              ? "Enseñar la lista de notas"
+              : "Esconder la lista de notas"
+          }
+          style={{ padding: "2px 10px", fontSize: "0.8rem" }}
+        >
+          {sinLista ? "▶ Lista" : "◀ Lista"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => fijarPlegado(sinGrupos && sinLista ? "" : "gl")}
+          title="Esconder o enseñar las dos columnas para ver la nota completa"
+          style={{ padding: "2px 10px", fontSize: "0.8rem" }}
+        >
+          {sinGrupos && sinLista ? "⛶ Salir del modo enfoque" : "⛶ Enfocar"}
+        </button>
+      </div>
+      <div
+        className="notas-rejilla"
+        data-pantalla={pantalla}
+        data-g={sinGrupos ? "0" : "1"}
+        data-l={sinLista ? "0" : "1"}
+      >
+        <aside
+          className="notas-lateral"
           style={{
-            margin: "8px 4px 2px",
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            color: "var(--text-muted)",
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            flexDirection: "column",
+            gap: "2px",
+            padding: "8px",
+            overflowY: "auto",
+            border: "1px solid var(--border-light)",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--bg-card)",
           }}
         >
-          Grupos
-          <button
-            type="button"
-            onClick={() => void nuevoGrupo()}
-            title="Nuevo grupo"
-            aria-label="Nuevo grupo"
+          {itemSide(
+            { clase: "todas" },
+            `📚 Todas las ${nombreSeccion === "nota" ? "notas" : "flujos"}`,
+            lista.length,
+          )}
+          {itemSide(
+            { clase: "fijadas" },
+            "📌 Fijadas",
+            cuenta((n) => n.fijada),
+          )}
+          {itemSide(
+            { clase: "compartidas" },
+            "👥 Compartidas conmigo",
+            cuenta((n) => n.permiso !== "propietario"),
+          )}
+          <div
             style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--primary)",
-              fontSize: "1rem",
+              margin: "8px 4px 2px",
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "var(--text-muted)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            ＋
-          </button>
-        </div>
-        {grupos.map((g) =>
-          itemSide(
-            { clase: "grupo", id: g.id },
-            g.nombre,
-            cuenta((n) => n.id_grupo === g.id),
-            {
-              color: g.color,
-              soltar: (id: number) => void moverAGrupo(id, g.id),
-              acciones: (
-                <span style={{ display: "flex" }}>
+            Grupos
+            <button
+              type="button"
+              onClick={() => void nuevoGrupo()}
+              title="Nuevo grupo"
+              aria-label="Nuevo grupo"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--primary)",
+                fontSize: "1rem",
+              }}
+            >
+              ＋
+            </button>
+          </div>
+          {grupos.map((g) =>
+            itemSide(
+              { clase: "grupo", id: g.id },
+              g.nombre,
+              cuenta((n) => n.id_grupo === g.id),
+              {
+                color: g.color,
+                soltar: (id: number) => void moverAGrupo(id, g.id),
+                acciones: (
+                  <span style={{ display: "flex" }}>
+                    <button
+                      type="button"
+                      onClick={() => void editarGrupo(g)}
+                      title="Cambiar el nombre o el color"
+                      aria-label={`Editar el grupo ${g.nombre}`}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                        opacity: 0.6,
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void borrarGrupo(g)}
+                      title="Quitar el grupo"
+                      aria-label={`Quitar el grupo ${g.nombre}`}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                        opacity: 0.6,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ),
+              },
+            ),
+          )}
+          {grupos.length === 0 && (
+            <span
+              style={{
+                fontSize: "0.78rem",
+                color: "var(--text-muted)",
+                padding: "2px 8px",
+              }}
+            >
+              Crea grupos para ordenar tus{" "}
+              {nombreSeccion === "nota" ? "notas" : "flujos"}.
+            </span>
+          )}
+          {itemSide(
+            { clase: "sin-grupo" },
+            "Sin grupo",
+            cuenta((n) => n.id_grupo === null && n.permiso === "propietario"),
+            { soltar: (id: number) => void moverAGrupo(id, null) },
+          )}
+          <div
+            style={{
+              margin: "8px 4px 2px",
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "var(--text-muted)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            Etiquetas
+            <button
+              type="button"
+              onClick={() => setEditandoEtiqueta({ inicial: null })}
+              title="Nueva etiqueta, con color y emoticono"
+              aria-label="Nueva etiqueta"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--primary)",
+                fontSize: "1rem",
+              }}
+            >
+              ＋
+            </button>
+          </div>
+          {etiquetas.length === 0 && (
+            <span
+              style={{
+                fontSize: "0.78rem",
+                color: "var(--text-muted)",
+                padding: "2px 8px",
+              }}
+            >
+              Crea etiquetas con color y emoticono, o añádelas desde cada nota.
+            </span>
+          )}
+          {etiquetas.map(([t, n]) => {
+            const asp = aspectoDe(catalogo, t);
+            return itemSide(
+              { clase: "etiqueta", texto: t },
+              `${asp?.emoji || "🏷"} ${t}`,
+              n,
+              {
+                color: asp?.color ?? undefined,
+                acciones: (
                   <button
                     type="button"
-                    onClick={() => void editarGrupo(g)}
-                    title="Cambiar el nombre o el color"
-                    aria-label={`Editar el grupo ${g.nombre}`}
+                    onClick={() =>
+                      setEditandoEtiqueta({
+                        inicial: asp ?? { nombre: t, color: null, emoji: null },
+                      })
+                    }
+                    title="Cambiar el color, el emoticono o el nombre"
+                    aria-label={`Editar la etiqueta ${t}`}
                     style={{
                       background: "none",
                       border: "none",
@@ -594,538 +757,441 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
                   >
                     ✎
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void borrarGrupo(g)}
-                    title="Quitar el grupo"
-                    aria-label={`Quitar el grupo ${g.nombre}`}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                      opacity: 0.6,
-                    }}
-                  >
-                    ✕
-                  </button>
-                </span>
-              ),
-            },
-          ),
-        )}
-        {grupos.length === 0 && (
-          <span
+                ),
+              },
+            );
+          })}
+          <div
             style={{
-              fontSize: "0.78rem",
-              color: "var(--text-muted)",
-              padding: "2px 8px",
+              marginTop: "8px",
+              borderTop: "1px solid var(--border-light)",
+              paddingTop: "6px",
             }}
           >
-            Crea grupos para ordenar tus{" "}
-            {nombreSeccion === "nota" ? "notas" : "flujos"}.
-          </span>
-        )}
-        {itemSide(
-          { clase: "sin-grupo" },
-          "Sin grupo",
-          cuenta((n) => n.id_grupo === null && n.permiso === "propietario"),
-          { soltar: (id: number) => void moverAGrupo(id, null) },
-        )}
-        <div
+            {itemSide({ clase: "papelera" }, "🗑 Papelera", papelera.length)}
+          </div>
+          <div
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              gap: "6px",
+              flexWrap: "wrap",
+            }}
+          >
+            <a
+              className="btn btn-secondary"
+              href={`/api/notas/exportar?tipos=${consulta}`}
+              title={`Descarga todas tus ${nombreSeccion === "nota" ? "notas" : "flujos"} con sus adjuntos en un archivo`}
+              style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+            >
+              ⬇ Exportar
+            </a>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => refImportar.current?.click()}
+              title="Importa un archivo exportado antes: crea copias nuevas, no pisa nada"
+              style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+            >
+              ⬆ Importar
+            </button>
+            <input
+              ref={refImportar}
+              type="file"
+              accept=".json,application/json"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) void importar(f);
+              }}
+            />
+          </div>
+        </aside>
+
+        <section
+          className="notas-lista"
           style={{
-            margin: "8px 4px 2px",
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            color: "var(--text-muted)",
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            flexDirection: "column",
+            gap: "8px",
+            minHeight: 0,
           }}
         >
-          Etiquetas
-          <button
-            type="button"
-            onClick={() => setEditandoEtiqueta({ inicial: null })}
-            title="Nueva etiqueta, con color y emoticono"
-            aria-label="Nueva etiqueta"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--primary)",
-              fontSize: "1rem",
-            }}
-          >
-            ＋
-          </button>
-        </div>
-        {etiquetas.length === 0 && (
-          <span
-            style={{
-              fontSize: "0.78rem",
-              color: "var(--text-muted)",
-              padding: "2px 8px",
-            }}
-          >
-            Crea etiquetas con color y emoticono, o añádelas desde cada nota.
-          </span>
-        )}
-        {etiquetas.map(([t, n]) => {
-          const asp = aspectoDe(catalogo, t);
-          return itemSide(
-            { clase: "etiqueta", texto: t },
-            `${asp?.emoji || "🏷"} ${t}`,
-            n,
-            {
-              color: asp?.color ?? undefined,
-              acciones: (
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button
+              type="button"
+              className="btn btn-secondary notas-volver"
+              onClick={() => setPantalla("grupos")}
+              style={{ padding: "4px 10px" }}
+              aria-label="Ver los grupos"
+            >
+              ☰
+            </button>
+            <input
+              className="form-input"
+              type="search"
+              value={buscar}
+              onChange={(e) => setBuscar(e.target.value)}
+              placeholder="🔎 Buscar…"
+              aria-label="Buscar"
+              style={{ flex: 1, padding: "5px 10px" }}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void nueva()}
+              style={{ padding: "4px 12px", fontSize: "0.85rem" }}
+            >
+              ＋ Nueva
+            </button>
+          </div>
+          {(coloresNota.length > 0 ||
+            coloresEtiqueta.length > 0 ||
+            colorNota ||
+            colorEtiqueta) && (
+            <div
+              style={{
+                display: "flex",
+                gap: "6px 14px",
+                flexWrap: "wrap",
+                alignItems: "center",
+                fontSize: "0.72rem",
+                color: "var(--text-muted)",
+              }}
+            >
+              {coloresNota.length > 0 && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                  title="Filtrar por el color de la nota"
+                >
+                  Nota
+                  {coloresNota.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-label={`Notas de color ${c}`}
+                      aria-pressed={colorNota === c}
+                      onClick={() => setColorNota(colorNota === c ? null : c)}
+                      style={{
+                        width: "16px",
+                        height: "16px",
+                        borderRadius: "50%",
+                        background: c,
+                        cursor: "pointer",
+                        border: `2px solid ${colorNota === c ? "var(--text-primary)" : "transparent"}`,
+                      }}
+                    />
+                  ))}
+                </span>
+              )}
+              {coloresEtiqueta.length > 0 && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                  title="Filtrar por el color de las etiquetas"
+                >
+                  Etiqueta
+                  {coloresEtiqueta.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-label={`Etiquetas de color ${c}`}
+                      aria-pressed={colorEtiqueta === c}
+                      onClick={() =>
+                        setColorEtiqueta(colorEtiqueta === c ? null : c)
+                      }
+                      style={{
+                        width: "16px",
+                        height: "16px",
+                        borderRadius: "4px",
+                        background: c,
+                        cursor: "pointer",
+                        border: `2px solid ${colorEtiqueta === c ? "var(--text-primary)" : "transparent"}`,
+                      }}
+                    />
+                  ))}
+                </span>
+              )}
+              {(colorNota || colorEtiqueta) && (
                 <button
                   type="button"
-                  onClick={() =>
-                    setEditandoEtiqueta({
-                      inicial: asp ?? { nombre: t, color: null, emoji: null },
-                    })
-                  }
-                  title="Cambiar el color, el emoticono o el nombre"
-                  aria-label={`Editar la etiqueta ${t}`}
+                  onClick={() => {
+                    setColorNota(null);
+                    setColorEtiqueta(null);
+                  }}
                   style={{
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    fontSize: "0.75rem",
-                    opacity: 0.6,
+                    color: "var(--primary)",
+                    fontSize: "0.72rem",
                   }}
                 >
-                  ✎
+                  ✕ Quitar filtros
                 </button>
-              ),
-            },
-          );
-        })}
-        <div
-          style={{
-            marginTop: "8px",
-            borderTop: "1px solid var(--border-light)",
-            paddingTop: "6px",
-          }}
-        >
-          {itemSide({ clase: "papelera" }, "🗑 Papelera", papelera.length)}
-        </div>
-        <div
-          style={{
-            marginTop: "8px",
-            display: "flex",
-            gap: "6px",
-            flexWrap: "wrap",
-          }}
-        >
-          <a
-            className="btn btn-secondary"
-            href={`/api/notas/exportar?tipos=${consulta}`}
-            title={`Descarga todas tus ${nombreSeccion === "nota" ? "notas" : "flujos"} con sus adjuntos en un archivo`}
-            style={{ padding: "3px 10px", fontSize: "0.78rem" }}
-          >
-            ⬇ Exportar
-          </a>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => refImportar.current?.click()}
-            title="Importa un archivo exportado antes: crea copias nuevas, no pisa nada"
-            style={{ padding: "3px 10px", fontSize: "0.78rem" }}
-          >
-            ⬆ Importar
-          </button>
-          <input
-            ref={refImportar}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) void importar(f);
-            }}
-          />
-        </div>
-      </aside>
-
-      <section
-        className="notas-lista"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px",
-          minHeight: 0,
-        }}
-      >
-        <div style={{ display: "flex", gap: "6px" }}>
-          <button
-            type="button"
-            className="btn btn-secondary notas-volver"
-            onClick={() => setPantalla("grupos")}
-            style={{ padding: "4px 10px" }}
-            aria-label="Ver los grupos"
-          >
-            ☰
-          </button>
-          <input
-            className="form-input"
-            type="search"
-            value={buscar}
-            onChange={(e) => setBuscar(e.target.value)}
-            placeholder="🔎 Buscar…"
-            aria-label="Buscar"
-            style={{ flex: 1, padding: "5px 10px" }}
-          />
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => void nueva()}
-            style={{ padding: "4px 12px", fontSize: "0.85rem" }}
-          >
-            ＋ Nueva
-          </button>
-        </div>
-        {(coloresNota.length > 0 ||
-          coloresEtiqueta.length > 0 ||
-          colorNota ||
-          colorEtiqueta) && (
-          <div
-            style={{
-              display: "flex",
-              gap: "6px 14px",
-              flexWrap: "wrap",
-              alignItems: "center",
-              fontSize: "0.72rem",
-              color: "var(--text-muted)",
-            }}
-          >
-            {coloresNota.length > 0 && (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-                title="Filtrar por el color de la nota"
-              >
-                Nota
-                {coloresNota.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-label={`Notas de color ${c}`}
-                    aria-pressed={colorNota === c}
-                    onClick={() => setColorNota(colorNota === c ? null : c)}
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      borderRadius: "50%",
-                      background: c,
-                      cursor: "pointer",
-                      border: `2px solid ${colorNota === c ? "var(--text-primary)" : "transparent"}`,
-                    }}
-                  />
-                ))}
-              </span>
-            )}
-            {coloresEtiqueta.length > 0 && (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-                title="Filtrar por el color de las etiquetas"
-              >
-                Etiqueta
-                {coloresEtiqueta.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-label={`Etiquetas de color ${c}`}
-                    aria-pressed={colorEtiqueta === c}
-                    onClick={() =>
-                      setColorEtiqueta(colorEtiqueta === c ? null : c)
-                    }
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      borderRadius: "4px",
-                      background: c,
-                      cursor: "pointer",
-                      border: `2px solid ${colorEtiqueta === c ? "var(--text-primary)" : "transparent"}`,
-                    }}
-                  />
-                ))}
-              </span>
-            )}
-            {(colorNota || colorEtiqueta) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setColorNota(null);
-                  setColorEtiqueta(null);
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--primary)",
-                  fontSize: "0.72rem",
-                }}
-              >
-                ✕ Quitar filtros
-              </button>
-            )}
-          </div>
-        )}
-        {vista.clase === "papelera" && papelera.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => void vaciar()}
-            style={{
-              padding: "3px 10px",
-              fontSize: "0.78rem",
-              alignSelf: "flex-start",
-            }}
-          >
-            🗑 Vaciar la papelera
-          </button>
-        )}
-        <div
-          style={{
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: "4px",
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
-          {cargando && (
-            <span style={{ color: "var(--text-muted)", padding: "10px" }}>
-              Cargando…
-            </span>
+              )}
+            </div>
           )}
-          {!cargando && visibles.length === 0 && (
-            <span
+          {vista.clase === "papelera" && papelera.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void vaciar()}
               style={{
-                color: "var(--text-muted)",
-                padding: "10px",
-                fontSize: "0.9rem",
+                padding: "3px 10px",
+                fontSize: "0.78rem",
+                alignSelf: "flex-start",
               }}
             >
-              {buscar
-                ? "No hay nada que coincida con la búsqueda."
-                : vista.clase === "papelera"
-                  ? "La papelera está vacía."
-                  : `Todavía no hay ${nombreSeccion === "nota" ? "notas" : "flujos"} aquí. Pulsa «＋ Nueva».`}
-            </span>
+              🗑 Vaciar la papelera
+            </button>
           )}
-          {visibles.map((n) => {
-            const activa = abierta?.id === n.id;
-            const grupo = grupos.find((g) => g.id === n.id_grupo);
-            return (
-              <div
-                key={n.id}
-                style={{ display: "flex", flexDirection: "column", gap: "2px" }}
+          <div
+            style={{
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "4px",
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            {cargando && (
+              <span style={{ color: "var(--text-muted)", padding: "10px" }}>
+                Cargando…
+              </span>
+            )}
+            {!cargando && visibles.length === 0 && (
+              <span
+                style={{
+                  color: "var(--text-muted)",
+                  padding: "10px",
+                  fontSize: "0.9rem",
+                }}
               >
-                <button
-                  type="button"
-                  draggable={
-                    vista.clase !== "papelera" && n.permiso === "propietario"
-                  }
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("text/plain", `nota:${n.id}`);
-                    e.dataTransfer.effectAllowed = "move";
-                  }}
-                  title={
-                    n.permiso === "propietario" && vista.clase !== "papelera"
-                      ? "Arrástrala a un grupo de la izquierda"
-                      : undefined
-                  }
-                  onClick={() =>
-                    vista.clase === "papelera" ? undefined : void abrir(n.id)
-                  }
-                  aria-current={activa}
+                {buscar
+                  ? "No hay nada que coincida con la búsqueda."
+                  : vista.clase === "papelera"
+                    ? "La papelera está vacía."
+                    : `Todavía no hay ${nombreSeccion === "nota" ? "notas" : "flujos"} aquí. Pulsa «＋ Nueva».`}
+              </span>
+            )}
+            {visibles.map((n) => {
+              const activa = abierta?.id === n.id;
+              const grupo = grupos.find((g) => g.id === n.id_grupo);
+              return (
+                <div
+                  key={n.id}
                   style={{
-                    textAlign: "left",
-                    padding: "8px 10px",
-                    border: "1px solid var(--border-light)",
-                    borderLeft: `4px solid ${n.color ?? "var(--border-light)"}`,
-                    borderRadius: "var(--radius-sm)",
-                    background: activa
-                      ? "rgba(var(--primary-rgb), 0.16)"
-                      : "var(--bg-card)",
-                    color: "var(--text-primary)",
-                    cursor: vista.clase === "papelera" ? "default" : "pointer",
                     display: "flex",
                     flexDirection: "column",
                     gap: "2px",
-                    minWidth: 0,
                   }}
                 >
-                  <span
+                  <button
+                    type="button"
+                    draggable={
+                      vista.clase !== "papelera" && n.permiso === "propietario"
+                    }
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", `nota:${n.id}`);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    title={
+                      n.permiso === "propietario" && vista.clase !== "papelera"
+                        ? "Arrástrala a un grupo de la izquierda"
+                        : undefined
+                    }
+                    onClick={() =>
+                      vista.clase === "papelera" ? undefined : void abrir(n.id)
+                    }
+                    aria-current={activa}
                     style={{
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      border: "1px solid var(--border-light)",
+                      borderLeft: `4px solid ${n.color ?? "var(--border-light)"}`,
+                      borderRadius: "var(--radius-sm)",
+                      background: activa
+                        ? "rgba(var(--primary-rgb), 0.16)"
+                        : "var(--bg-card)",
+                      color: "var(--text-primary)",
+                      cursor:
+                        vista.clase === "papelera" ? "default" : "pointer",
                       display: "flex",
-                      justifyContent: "space-between",
-                      gap: "6px",
+                      flexDirection: "column",
+                      gap: "2px",
+                      minWidth: 0,
                     }}
                   >
-                    <strong
-                      style={{
-                        fontSize: "0.92rem",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {n.fijada ? "📌 " : ""}
-                      {n.titulo || "Sin título"}
-                    </strong>
                     <span
                       style={{
-                        fontSize: "0.72rem",
-                        color: "var(--text-muted)",
-                        flex: "0 0 auto",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "6px",
                       }}
                     >
-                      {fechaRelativa(n.actualizado_en)}
+                      <strong
+                        style={{
+                          fontSize: "0.92rem",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {n.fijada ? "📌 " : ""}
+                        {n.titulo || "Sin título"}
+                      </strong>
+                      <span
+                        style={{
+                          fontSize: "0.72rem",
+                          color: "var(--text-muted)",
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        {fechaRelativa(n.actualizado_en)}
+                      </span>
                     </span>
-                  </span>
-                  {n.extracto && (
+                    {n.extracto && (
+                      <span
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "var(--text-secondary)",
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                        }}
+                      >
+                        {n.extracto}
+                      </span>
+                    )}
                     <span
                       style={{
-                        fontSize: "0.8rem",
-                        color: "var(--text-secondary)",
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
+                        display: "flex",
+                        gap: "6px",
+                        flexWrap: "wrap",
+                        fontSize: "0.7rem",
+                        color: "var(--text-muted)",
                       }}
                     >
-                      {n.extracto}
+                      {grupo && (
+                        <span style={{ color: grupo.color }}>
+                          ● {grupo.nombre}
+                        </span>
+                      )}
+                      {n.etiquetas.slice(0, 3).map((t) => (
+                        <ChipEtiqueta
+                          key={t}
+                          nombre={t}
+                          aspecto={aspectoDe(catalogo, t)}
+                          pequeno
+                        />
+                      ))}
+                      {n.n_ficheros > 0 && <span>📎 {n.n_ficheros}</span>}
+                      {n.compartida && <span>👥</span>}
+                      {n.permiso !== "propietario" && (
+                        <span>
+                          👥 {n.autor}
+                          {n.permiso === "lectura" ? " · solo lectura" : ""}
+                        </span>
+                      )}
+                      {n.vinculos.slice(0, 2).map((v) => (
+                        <ChipVinculo key={`${v.tipo}:${v.id}`} v={v} pequeno />
+                      ))}
+                      {n.vinculos.length > 2 && (
+                        <span>+{n.vinculos.length - 2}</span>
+                      )}
+                    </span>
+                  </button>
+                  {vista.clase === "papelera" && (
+                    <span style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => void restaurar(n)}
+                        style={{ padding: "2px 10px", fontSize: "0.75rem" }}
+                      >
+                        ↩ Recuperar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => void borrarYa(n)}
+                        style={{
+                          padding: "2px 10px",
+                          fontSize: "0.75rem",
+                          color: "var(--danger)",
+                        }}
+                      >
+                        Borrar para siempre
+                      </button>
                     </span>
                   )}
-                  <span
-                    style={{
-                      display: "flex",
-                      gap: "6px",
-                      flexWrap: "wrap",
-                      fontSize: "0.7rem",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {grupo && (
-                      <span style={{ color: grupo.color }}>
-                        ● {grupo.nombre}
-                      </span>
-                    )}
-                    {n.etiquetas.slice(0, 3).map((t) => (
-                      <ChipEtiqueta
-                        key={t}
-                        nombre={t}
-                        aspecto={aspectoDe(catalogo, t)}
-                        pequeno
-                      />
-                    ))}
-                    {n.n_ficheros > 0 && <span>📎 {n.n_ficheros}</span>}
-                    {n.compartida && <span>👥</span>}
-                    {n.permiso !== "propietario" && (
-                      <span>
-                        👥 {n.autor}
-                        {n.permiso === "lectura" ? " · solo lectura" : ""}
-                      </span>
-                    )}
-                    {n.id_expediente && (
-                      <span>
-                        🔗 #EXP-{String(n.id_expediente).padStart(4, "0")}
-                      </span>
-                    )}
-                  </span>
-                </button>
-                {vista.clase === "papelera" && (
-                  <span style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => void restaurar(n)}
-                      style={{ padding: "2px 10px", fontSize: "0.75rem" }}
-                    >
-                      ↩ Recuperar
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => void borrarYa(n)}
-                      style={{
-                        padding: "2px 10px",
-                        fontSize: "0.75rem",
-                        color: "var(--danger)",
-                      }}
-                    >
-                      Borrar para siempre
-                    </button>
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="notas-detalle" style={{ minWidth: 0, minHeight: 0 }}>
-        <button
-          type="button"
-          className="btn btn-secondary notas-volver"
-          onClick={() => setPantalla("lista")}
-          style={{ padding: "4px 10px", marginBottom: "6px" }}
-        >
-          ◀ Volver a la lista
-        </button>
-        {abierta ? (
-          <EditorNota
-            key={abierta.id}
-            catalogo={catalogo}
-            nota={abierta}
-            grupos={grupos}
-            alCambiar={() => void cargar()}
-            alBorrar={() => void aPapelera()}
-            alDuplicar={() => void duplicar()}
-            alRecargar={() => void abrir(abierta.id)}
-          />
-        ) : (
-          <div
-            style={{
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--text-muted)",
-              border: "1px dashed var(--border-light)",
-              borderRadius: "var(--radius-sm)",
-              padding: "30px",
-              textAlign: "center",
-            }}
-          >
-            Elige una {nombreSeccion} de la lista o crea una nueva con «＋
-            Nueva».
+                </div>
+              );
+            })}
           </div>
+        </section>
+
+        <section
+          className="notas-detalle"
+          style={{ minWidth: 0, minHeight: 0 }}
+        >
+          <button
+            type="button"
+            className="btn btn-secondary notas-volver"
+            onClick={() => setPantalla("lista")}
+            style={{ padding: "4px 10px", marginBottom: "6px" }}
+          >
+            ◀ Volver a la lista
+          </button>
+          {abierta ? (
+            <EditorNota
+              key={abierta.id}
+              catalogo={catalogo}
+              nota={abierta}
+              grupos={grupos}
+              alCambiar={() => void cargar()}
+              alBorrar={() => void aPapelera()}
+              alDuplicar={() => void duplicar()}
+              alRecargar={() => void abrir(abierta.id)}
+            />
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--text-muted)",
+                border: "1px dashed var(--border-light)",
+                borderRadius: "var(--radius-sm)",
+                padding: "30px",
+                textAlign: "center",
+              }}
+            >
+              Elige una {nombreSeccion} de la lista o crea una nueva con «＋
+              Nueva».
+            </div>
+          )}
+        </section>
+        {editandoEtiqueta && (
+          <ModalEtiqueta
+            inicial={editandoEtiqueta.inicial}
+            alCerrar={() => setEditandoEtiqueta(null)}
+            alGuardar={() => void cargar()}
+          />
         )}
-      </section>
-      {editandoEtiqueta && (
-        <ModalEtiqueta
-          inicial={editandoEtiqueta.inicial}
-          alCerrar={() => setEditandoEtiqueta(null)}
-          alGuardar={() => void cargar()}
-        />
-      )}
-    </div>
+      </div>
+    </>
   );
 }

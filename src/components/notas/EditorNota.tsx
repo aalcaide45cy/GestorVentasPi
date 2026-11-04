@@ -21,6 +21,8 @@ import type {
   FicheroNotaDto,
   GrupoDto,
   NotaDto,
+  TipoVinculo,
+  VinculoDto,
 } from "@/lib/notas";
 import ChipEtiqueta, { aspectoDe } from "./ChipEtiqueta";
 import {
@@ -33,6 +35,8 @@ import BarraEditor from "./BarraEditor";
 import { ImagenAjustable } from "./ImagenAjustable";
 import ModalCompartir from "./ModalCompartir";
 import ModalVersiones from "./ModalVersiones";
+import ModalVincular from "./ModalVincular";
+import ChipVinculo from "./ChipVinculo";
 
 const COLORES_NOTA = [
   "#ef4444",
@@ -78,9 +82,8 @@ export default function EditorNota({
   const [color, setColor] = useState(nota.color);
   const [fijada, setFijada] = useState(nota.fijada);
   const [idGrupo, setIdGrupo] = useState(nota.id_grupo);
-  const [expediente, setExpediente] = useState(
-    nota.id_expediente ? String(nota.id_expediente) : "",
-  );
+  const [vinculos, setVinculos] = useState<VinculoDto[]>(nota.vinculos);
+  const [vinculando, setVinculando] = useState(false);
   const [ficheros, setFicheros] = useState<FicheroNotaDto[]>(nota.ficheros);
   const [estado, setEstado] = useState<Guardado>("guardado");
   const [compartiendo, setCompartiendo] = useState(false);
@@ -302,13 +305,16 @@ export default function EditorNota({
     setEtiquetas(nuevas);
     void cambiarAjuste({ etiquetas: nuevas });
   };
-  const fijarExpediente = () => {
-    const n =
-      expediente.trim() === ""
-        ? null
-        : Number(expediente.replace(/\D/g, "")) || null;
-    if ((n ?? null) === (nota.id_expediente ?? null)) return;
-    void cambiarAjuste({ id_expediente: n });
+  const guardarVinculos = async (
+    nuevos: { tipo: TipoVinculo; id: number }[],
+  ) => {
+    await cambiarAjuste({ vinculos: nuevos });
+    try {
+      const r = await llamar<NotaDto>(`/api/notas?id=${nota.id}`);
+      setVinculos(r.data.vinculos);
+    } catch {
+      /* se verá al recargar */
+    }
   };
   const quitarFichero = async (f: FicheroNotaDto) => {
     if (
@@ -514,26 +520,15 @@ export default function EditorNota({
                 />
               ))}
             </span>
-            <label
-              style={{ display: "flex", alignItems: "center", gap: "4px" }}
-              title="Vincula la nota a un expediente: escribe su número"
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setVinculando(true)}
+              title="Asigna la nota a expedientes, clientes, planes de comisiones, marcas, modelos, tiendas o vendedores"
+              style={{ padding: "2px 8px", fontSize: "0.8rem" }}
             >
-              Expediente
-              <input
-                className="form-input"
-                inputMode="numeric"
-                value={expediente}
-                onChange={(e) => setExpediente(e.target.value)}
-                onBlur={fijarExpediente}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                placeholder="nº"
-                style={{
-                  width: "64px",
-                  padding: "2px 6px",
-                  fontSize: "0.8rem",
-                }}
-              />
-            </label>
+              🔗 Asignar{vinculos.length > 0 ? ` (${vinculos.length})` : ""}
+            </button>
             <button
               type="button"
               className="btn btn-secondary"
@@ -544,15 +539,22 @@ export default function EditorNota({
             </button>
           </>
         )}
-        {nota.id_expediente && (
-          <a
-            href={`/dashboard/expedientes/editar/${nota.id_expediente}`}
-            style={{ fontSize: "0.8rem" }}
-          >
-            🔗 Ir al expediente #EXP-
-            {String(nota.id_expediente).padStart(4, "0")}
-          </a>
-        )}
+        {vinculos.map((v) => (
+          <ChipVinculo
+            key={`${v.tipo}:${v.id}`}
+            v={v}
+            alQuitar={
+              propietario
+                ? () =>
+                    void guardarVinculos(
+                      vinculos
+                        .filter((x) => !(x.tipo === v.tipo && x.id === v.id))
+                        .map((x) => ({ tipo: x.tipo, id: x.id })),
+                    )
+                : undefined
+            }
+          />
+        ))}
         <span style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
           <button
             type="button"
@@ -831,6 +833,13 @@ export default function EditorNota({
           ))}
         </div>
       </div>
+      {vinculando && (
+        <ModalVincular
+          actuales={vinculos}
+          alCambiar={(n) => void guardarVinculos(n)}
+          alCerrar={() => setVinculando(false)}
+        />
+      )}
       {verVersiones && (
         <ModalVersiones
           idNota={nota.id}

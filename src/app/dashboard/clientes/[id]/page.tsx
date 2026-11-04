@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
+import NotasVinculadas from "@/components/notas/NotasVinculadas";
 import FichaCliente from "@/components/clientes/FichaCliente";
 import { esRolActivo } from "@/lib/auth/permisos";
 import { getCurrentUser } from "@/lib/auth/sesion";
@@ -21,8 +22,21 @@ export default async function FichaClientePage({ params }: Props) {
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
-  const [cliente, expedientes, catalogos] = await Promise.all([obtenerCliente(db, id), expedientesDeCliente(db, id), leerCatalogos(db)]);
+  const [cliente, expedientes, catalogos] = await Promise.all([
+    obtenerCliente(db, id),
+    expedientesDeCliente(db, id),
+    leerCatalogos(db),
+  ]);
   if (!cliente) notFound();
 
-  return <FichaCliente cliente={cliente} expedientes={expedientes} tiendas={catalogos.tiendas} />;
+  return (
+    <>
+      <FichaCliente
+        cliente={cliente}
+        expedientes={expedientes}
+        tiendas={catalogos.tiendas}
+      />
+      <NotasVinculadas tipo="cliente" id={id} />
+    </>
+  );
 }

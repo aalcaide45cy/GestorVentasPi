@@ -754,9 +754,17 @@ tr.fila-aviso > td:last-child {
 .cabecera-flotante thead th { background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
 
 /* Notas y flujos: tres columnas en pantallas anchas (grupos, lista, nota) y una sola cosa cada vez en las estrechas. */
-.notas-rejilla { display: grid; grid-template-columns: 230px 320px minmax(0, 1fr); gap: 12px; height: calc(100 * var(--uvh) - 210px); min-height: 520px; }
+.notas-rejilla { display: grid; grid-template-columns: 230px 320px minmax(0, 1fr); gap: 12px; height: calc(100 * var(--uvh) - 245px); min-height: 520px; }
 .notas-rejilla > * { min-height: 0; }
 .notas-volver { display: none; }
+.notas-plegar { display: flex; }
+@media (min-width: 1001px) {
+  .notas-rejilla[data-g="0"] { grid-template-columns: 320px minmax(0, 1fr); }
+  .notas-rejilla[data-l="0"] { grid-template-columns: 230px minmax(0, 1fr); }
+  .notas-rejilla[data-g="0"][data-l="0"] { grid-template-columns: minmax(0, 1fr); }
+  .notas-rejilla[data-g="0"] .notas-lateral, .notas-rejilla[data-l="0"] .notas-lista { display: none !important; }
+}
+@media (max-width: 1000px) { .notas-plegar { display: none; } }
 @media (max-width: 1000px) {
   .notas-rejilla { grid-template-columns: 1fr; height: auto; min-height: 0; }
   .notas-volver { display: inline-flex; }

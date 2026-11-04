@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.54.0 (04/11/2026)
+- **Notas: se pueden asignar a todo.** Botón «🔗 Asignar» en cada nota: expedientes, clientes, planes de comisiones, marcas, modelos, tiendas y vendedores, varios a la vez (tabla `notas_vinculos`, migración 0075; los vínculos que ya había a expediente/cliente se conservan). Las asignaciones salen como etiquetas con enlace en la nota y en la lista, y el buscador de notas también busca por ellas. En la ficha de un expediente y de un cliente aparece «📝 Notas asignadas» con sus notas. Al duplicar una nota se copian sus asignaciones; al exportar no (los números no valen en otra instalación).
+- **Plegar columnas**: botones «◀ Grupos», «◀ Lista» y «⛶ Enfocar» sobre la sección Notas para esconder las columnas y ver la nota completa (se recuerda).
+- Pruebas: 918 (nueva: asignaciones).
+
 ## Versión 1.53.0 (04/11/2026)
 
 - **Etiquetas con color y emoticono** (tabla `notas_etiquetas`, migración 0074): se crean con «＋» junto a «Etiquetas» (aunque aún no tengan notas) o se personalizan con ✎; cambiar el nombre lo cambia en todas tus notas y quitar una etiqueta la saca de todas. Salen con su color y emoticono en la lista, en el editor y en la barra lateral, y el campo de etiquetas sugiere las que ya tienes. El exportar/importar lleva su aspecto (importar no pisa el de las tuyas).
