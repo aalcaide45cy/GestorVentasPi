@@ -166,6 +166,132 @@ function EditorRegla({
           {"{expediente}"}.
         </span>
       </label>
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+          ¿Cuándo avisa?
+        </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+            fontSize: "0.88rem",
+          }}
+        >
+          <select
+            className="form-input"
+            aria-label="Cuándo avisa"
+            value={d.cuando ? "fecha" : "ya"}
+            onChange={(e) =>
+              cambiarDef({
+                cuando:
+                  e.target.value === "fecha"
+                    ? { campo: "fecha_entrega", dias: -1, hora: "09:00" }
+                    : undefined,
+              })
+            }
+            style={estiloSelect}
+          >
+            <option value="ya">
+              En cuanto el expediente cumpla las condiciones
+            </option>
+            <option value="fecha">
+              En un día relacionado con una fecha del expediente
+            </option>
+          </select>
+          {d.cuando && (
+            <>
+              <input
+                className="form-input"
+                type="number"
+                aria-label="Días"
+                min={0}
+                max={365}
+                value={Math.abs(d.cuando.dias)}
+                onChange={(e) => {
+                  const n = Math.min(
+                    365,
+                    Math.max(0, Number(e.target.value) || 0),
+                  );
+                  cambiarDef({
+                    cuando: { ...d.cuando!, dias: d.cuando!.dias < 0 ? -n : n },
+                  });
+                }}
+                style={{ width: "70px", padding: "4px 8px" }}
+              />
+              días
+              <select
+                className="form-input"
+                aria-label="Antes o después"
+                value={d.cuando.dias < 0 ? "antes" : "despues"}
+                onChange={(e) =>
+                  cambiarDef({
+                    cuando: {
+                      ...d.cuando!,
+                      dias:
+                        e.target.value === "antes"
+                          ? -Math.abs(d.cuando!.dias)
+                          : Math.abs(d.cuando!.dias),
+                    },
+                  })
+                }
+                style={estiloSelect}
+              >
+                <option value="antes">antes de</option>
+                <option value="despues">después de (0 = el mismo día)</option>
+              </select>
+              <select
+                className="form-input"
+                aria-label="Fecha"
+                value={d.cuando.campo}
+                onChange={(e) =>
+                  cambiarDef({
+                    cuando: {
+                      ...d.cuando!,
+                      campo: e.target.value as NonNullable<
+                        DefinicionAlerta["cuando"]
+                      >["campo"],
+                    },
+                  })
+                }
+                style={estiloSelect}
+              >
+                <option value="fecha_entrega">la fecha de entrega</option>
+                <option value="fecha_matriculacion">
+                  la fecha de matriculación
+                </option>
+                <option value="fecha_rci">la fecha RCI</option>
+                <option value="fecha_facturacion">
+                  la fecha de facturación
+                </option>
+                <option value="fecha_afectacion">la fecha de afectación</option>
+                <option value="fecha_expediente">la fecha del pedido</option>
+              </select>
+              a las
+              <input
+                className="form-input"
+                type="time"
+                aria-label="Hora"
+                value={d.cuando.hora}
+                onChange={(e) =>
+                  cambiarDef({
+                    cuando: { ...d.cuando!, hora: e.target.value || "09:00" },
+                  })
+                }
+                style={{ width: "110px", padding: "4px 8px" }}
+              />
+            </>
+          )}
+        </div>
+        {d.cuando && (
+          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+            El aviso queda marcado en el calendario ese día y salta a esa hora.
+            Si cambias la fecha del expediente, se mueve solo. Sin condiciones
+            abajo, avisa siempre que el expediente tenga esa fecha.
+          </span>
+        )}
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
           Avisa cuando un expediente pase a cumplir

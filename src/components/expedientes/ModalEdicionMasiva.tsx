@@ -36,10 +36,19 @@ interface Props {
   alAvisar: (mensaje: string) => void;
 }
 
-const numeroOVacio = (valor: string): number | "" => (valor ? Number(valor) : "");
+const numeroOVacio = (valor: string): number | "" =>
+  valor ? Number(valor) : "";
 
 /** «Editar Expedientes en Masa»: solo se modifican los campos rellenados. */
-export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, esAdministrador, ocupado, alGuardar, alCancelar, alAvisar }: Props) {
+export default function ModalEdicionMasiva({
+  seleccionados,
+  idsSeleccionados,
+  esAdministrador,
+  ocupado,
+  alGuardar,
+  alCancelar,
+  alAvisar,
+}: Props) {
   const [catalogos, setCatalogos] = useState<Catalogos | null>(null);
   const [marca, setMarca] = useState<number | "">("");
   const [modelo, setModelo] = useState<number | "">("");
@@ -53,7 +62,9 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
   const [fEntrega, setFEntrega] = useState("");
   // Semáforos (como el del Seguro): el estado que se pondrá a todos los seleccionados, por predefinido (vacío = no modificar)
   const [semaforos, setSemaforos] = useState<PredefinidoDto[]>([]);
-  const [estadosSemaforo, setEstadosSemaforo] = useState<Record<number, number | "anadir" | "quitar" | "">>({});
+  const [estadosSemaforo, setEstadosSemaforo] = useState<
+    Record<number, number | "anadir" | "quitar" | "">
+  >({});
   const [guardandoSemaforo, setGuardandoSemaforo] = useState(false);
 
   useEffect(() => {
@@ -87,7 +98,9 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
     if (fFactura) cambios.fecha_facturacion = fFactura;
     if (fMat) cambios.fecha_matriculacion = fMat;
     if (fEntrega) cambios.fecha_entrega = fEntrega;
-    const semaforosElegidos = Object.entries(estadosSemaforo).filter(([, v]) => v !== "") as [string, number | "anadir" | "quitar"][];
+    const semaforosElegidos = Object.entries(estadosSemaforo).filter(
+      ([, v]) => v !== "",
+    ) as [string, number | "anadir" | "quitar"][];
     if (Object.keys(cambios).length === 0 && semaforosElegidos.length === 0) {
       alAvisar("Por favor, rellene al menos un campo para modificar.");
       return;
@@ -96,7 +109,20 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
       setGuardandoSemaforo(true);
       try {
         for (const [id, valor] of semaforosElegidos) {
-          const cuerpo = typeof valor === "number" ? { accion: "estado_masivo", ids: idsSeleccionados, id_predefinido: Number(id), estado_semaforo: valor } : { accion: "apunte_masivo", ids: idsSeleccionados, id_predefinido: Number(id), operacion: valor };
+          const cuerpo =
+            typeof valor === "number"
+              ? {
+                  accion: "estado_masivo",
+                  ids: idsSeleccionados,
+                  id_predefinido: Number(id),
+                  estado_semaforo: valor,
+                }
+              : {
+                  accion: "apunte_masivo",
+                  ids: idsSeleccionados,
+                  id_predefinido: Number(id),
+                  operacion: valor,
+                };
           await llamar("/api/expedientes/apuntes", { method: "POST", cuerpo });
         }
       } catch (e) {
@@ -111,7 +137,10 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
   };
 
   const grupo = (etiqueta: string, ancho: string, control: React.ReactNode) => (
-    <div className="form-group" style={{ flex: 1, minWidth: ancho, marginBottom: 0 }}>
+    <div
+      className="form-group"
+      style={{ flex: 1, minWidth: ancho, marginBottom: 0 }}
+    >
       <label className="form-label">{etiqueta}</label>
       {control}
     </div>
@@ -126,8 +155,16 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
       titulo={
         <div>
           <div>Editar Expedientes en Masa ({seleccionados} seleccionados)</div>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "4px", fontWeight: 400 }}>
-            Rellene únicamente los campos que desea modificar. Los campos vacíos no se alterarán.
+          <p
+            style={{
+              color: "var(--text-muted)",
+              fontSize: "0.82rem",
+              marginTop: "4px",
+              fontWeight: 400,
+            }}
+          >
+            Rellene únicamente los campos que desea modificar. Los campos vacíos
+            no se alterarán.
           </p>
         </div>
       }
@@ -136,7 +173,12 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
       pie={
         catalogos ? (
           <>
-            <button type="button" className="btn btn-secondary" onClick={alCancelar} disabled={ocupado}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={alCancelar}
+              disabled={ocupado}
+            >
               Cancelar
             </button>
             <button
@@ -144,16 +186,34 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
               className="btn"
               onClick={() => void guardar()}
               disabled={ocupado || guardandoSemaforo}
-              style={{ backgroundColor: "#2e7d32", color: "white", border: "none", borderRadius: "var(--radius-sm)", padding: "8px 16px", cursor: "pointer", fontWeight: 600 }}
+              style={{
+                backgroundColor: "#2e7d32",
+                color: "white",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                padding: "8px 16px",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
             >
-              {ocupado || guardandoSemaforo ? "Guardando..." : "Guardar Cambios"}
+              {ocupado || guardandoSemaforo
+                ? "Guardando..."
+                : "Guardar Cambios"}
             </button>
           </>
         ) : undefined
       }
     >
       {!catalogos ? (
-        <div style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>Cargando catálogos...</div>
+        <div
+          style={{
+            textAlign: "center",
+            padding: "20px",
+            color: "var(--text-secondary)",
+          }}
+        >
+          Cargando catálogos...
+        </div>
       ) : (
         <>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
@@ -179,7 +239,12 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
             {grupo(
               "Modelo",
               "200px",
-              <select className="form-select" value={modelo} onChange={(e) => setModelo(numeroOVacio(e.target.value))} disabled={marca === ""}>
+              <select
+                className="form-select"
+                value={modelo}
+                onChange={(e) => setModelo(numeroOVacio(e.target.value))}
+                disabled={marca === ""}
+              >
                 <option value="">(No modificar)</option>
                 {marca !== "" &&
                   catalogos.modelosPorMarca[marca]?.map((m) => (
@@ -194,7 +259,11 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
             {grupo(
               "Tipo de Venta",
               "200px",
-              <select className="form-select" value={tipoVenta} onChange={(e) => setTipoVenta(numeroOVacio(e.target.value))}>
+              <select
+                className="form-select"
+                value={tipoVenta}
+                onChange={(e) => setTipoVenta(numeroOVacio(e.target.value))}
+              >
                 <option value="">(No modificar)</option>
                 {catalogos.tiposVenta.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -207,7 +276,11 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
               grupo(
                 "Vendedor",
                 "200px",
-                <select className="form-select" value={vendedor} onChange={(e) => setVendedor(numeroOVacio(e.target.value))}>
+                <select
+                  className="form-select"
+                  value={vendedor}
+                  onChange={(e) => setVendedor(numeroOVacio(e.target.value))}
+                >
                   <option value="">(No modificar)</option>
                   {catalogos.vendedores.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -217,7 +290,13 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
                 </select>,
               )}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "20px 24px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+              gap: "20px 24px",
+            }}
+          >
             {grupo("Fecha Exp.", "0", fecha(fExp, setFExp))}
             {grupo("Fecha Afect.", "0", fecha(fAfect, setFAfect))}
             {grupo("Fecha RCI", "0", fecha(fRci, setFRci))}
@@ -236,21 +315,36 @@ export default function ModalEdicionMasiva({ seleccionados, idsSeleccionados, es
                     value={estadosSemaforo[s.id] ?? ""}
                     onChange={(e) => {
                       const v = e.target.value;
-                      setEstadosSemaforo((x) => ({ ...x, [s.id]: v === "" ? "" : v === "anadir" || v === "quitar" ? v : Number(v) }));
+                      setEstadosSemaforo((x) => ({
+                        ...x,
+                        [s.id]:
+                          v === ""
+                            ? ""
+                            : v === "anadir" || v === "quitar"
+                              ? v
+                              : Number(v),
+                      }));
                     }}
                   >
                     <option value="">(No modificar)</option>
                     {s.semaforo ? (
                       s.semaforo_estados.map((e, i) => (
                         <option key={i} value={i}>
-                          {(e.modo === "icono" || e.modo === "icono_fondo") && e.icono ? `${e.icono} ` : ""}
+                          {(e.modo === "icono" || e.modo === "icono_fondo") &&
+                          e.icono
+                            ? `${e.icono} `
+                            : ""}
                           {e.texto}
                         </option>
                       ))
                     ) : (
                       <>
-                        <option value="anadir">Añadir a todos los que no lo tengan</option>
-                        <option value="quitar">Quitar de todos (va a la Papelera)</option>
+                        <option value="anadir">
+                          Añadir a todos los que no lo tengan
+                        </option>
+                        <option value="quitar">
+                          Quitar de todos (va a la Papelera)
+                        </option>
                       </>
                     )}
                   </select>,

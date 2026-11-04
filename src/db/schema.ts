@@ -267,6 +267,8 @@ export const expedientes = pgTable(
     /** Estado del expediente en la intranet del fabricante (Archivado, Anulado, Matriculación…), tal como viene en sus listados. */
     estadoIntranet: varchar("estado_intranet", { length: 40 }),
     fechaEntrega: date("fecha_entrega"),
+    /** Hora de la entrega (HH:MM), opcional. */
+    horaEntrega: varchar("hora_entrega", { length: 5 }),
     fechaRci: date("fecha_rci"),
     fechaFacturacion: date("fecha_facturacion"),
     /** Notas libres sobre el expediente. */
@@ -1319,6 +1321,8 @@ export const alertas = pgTable(
     /** pendiente, pospuesta o resuelta. */
     estado: varchar("estado", { length: 12 }).notNull().default("pendiente"),
     pospuestaHasta: timestamp("pospuesta_hasta", { withTimezone: true }),
+    /** Si la regla avisa «N días antes/después de una fecha»: cuándo toca (para saber si la fecha cambió). */
+    venceEn: timestamp("vence_en", { withTimezone: true }),
     creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
     resueltaEn: timestamp("resuelta_en", { withTimezone: true }),
     /** Cómo se resolvió: «hecho» (la persona) o «automatica» (la condición dejó de cumplirse). */

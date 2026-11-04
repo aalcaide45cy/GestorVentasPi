@@ -53,7 +53,7 @@ export async function leerCalendario(ej: Ejecutor, u: UsuarioActual, desde: stri
     ] as const;
     const enRango = or(...campos.map(([, c]) => sql`(${c} between ${desde} and ${hasta})`));
     const lista = await ej
-      .select({ id: expedientes.idExpediente, cliente: clientes.nombre, matricula: expedientes.matricula, entrega: expedientes.fechaEntrega, matriculacion: expedientes.fechaMatriculacion, rci: expedientes.fechaRci, afectacion: expedientes.fechaAfectacion })
+      .select({ id: expedientes.idExpediente, cliente: clientes.nombre, matricula: expedientes.matricula, entrega: expedientes.fechaEntrega, horaEntrega: expedientes.horaEntrega, matriculacion: expedientes.fechaMatriculacion, rci: expedientes.fechaRci, afectacion: expedientes.fechaAfectacion })
       .from(expedientes)
       .leftJoin(clientes, eq(expedientes.idCliente, clientes.id))
       .where(and(isNull(expedientes.eliminadoEn), eq(expedientes.deshabilitado, false), propios, enRango))
@@ -61,7 +61,7 @@ export async function leerCalendario(ej: Ejecutor, u: UsuarioActual, desde: stri
     for (const x of lista)
       for (const [tipo] of campos) {
         const dia = x[tipo];
-        if (dia && dia >= desde && dia <= hasta) fechasExpedientes.push({ dia, tipo, id_expediente: x.id, cliente: x.cliente, matricula: x.matricula });
+        if (dia && dia >= desde && dia <= hasta) fechasExpedientes.push({ dia, tipo, id_expediente: x.id, cliente: x.cliente, matricula: x.matricula, ...(tipo === "entrega" && x.horaEntrega ? { hora: x.horaEntrega } : {}) });
       }
     fechasExpedientes.sort((a, b) => a.dia.localeCompare(b.dia));
   }

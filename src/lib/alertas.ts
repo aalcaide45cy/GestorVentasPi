@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { ExpedienteDto } from "./dto";
-import { COMBINACIONES, cumpleRegla, esquemaCondicion, esquemaGrupo } from "./reglas-color";
+import {
+  COMBINACIONES,
+  cumpleRegla,
+  esquemaCondicion,
+  esquemaGrupo,
+} from "./reglas-color";
 
 /**
  * Alertas: reglas que avisan cuando un expediente pasa a cumplir unas condiciones (las mismas que las reglas de color: fechas, estados, matrícula,
@@ -11,6 +16,21 @@ export const esquemaDefinicionAlerta = z.object({
   condiciones: z.array(esquemaCondicion).max(12),
   grupos: z.array(esquemaGrupo).max(10).optional(),
   unir: z.enum(["y", "o"]).optional(),
+  /** Sin esto avisa en cuanto el expediente cumple las condiciones; con esto, a la hora indicada de N días antes (−) o después (+) de una de sus fechas. */
+  cuando: z
+    .object({
+      campo: z.enum([
+        "fecha_expediente",
+        "fecha_afectacion",
+        "fecha_rci",
+        "fecha_matriculacion",
+        "fecha_facturacion",
+        "fecha_entrega",
+      ]),
+      dias: z.number().int().min(-365).max(365),
+      hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    })
+    .optional(),
 });
 export type DefinicionAlerta = z.infer<typeof esquemaDefinicionAlerta>;
 
@@ -23,18 +43,51 @@ export const esquemaReglaAlerta = z.object({
 });
 export type EntradaReglaAlerta = z.infer<typeof esquemaReglaAlerta>;
 
-export const definicionNueva = (): DefinicionAlerta => ({ combinar: "todas", condiciones: [{ campo: "fecha_rci", operador: "tiene", valor: "" }] });
+export const definicionNueva = (): DefinicionAlerta => ({
+  combinar: "todas",
+  condiciones: [{ campo: "fecha_rci", operador: "tiene", valor: "" }],
+});
 
 /** Si el expediente cumple las condiciones de la alerta (una alerta sin condiciones no salta nunca). */
-export const cumpleAlerta = (e: ExpedienteDto, d: DefinicionAlerta, hoy: string): boolean => cumpleRegla(e, d, hoy);
+export const cumpleAlerta = (
+  e: ExpedienteDto,
+  d: DefinicionAlerta,
+  hoy: string,
+): boolean => cumpleRegla(e, d, hoy);
+
+/** Cuándo vence la alerta de una regla con «cuando»: la fecha del expediente más los días, a la hora indicada (hora local). Nulo si el expediente no tiene esa fecha. */
+export function venceAlerta(
+  e: Pick<
+    ExpedienteDto,
+    | "fecha_expediente"
+    | "fecha_afectacion"
+    | "fecha_rci"
+    | "fecha_matriculacion"
+    | "fecha_facturacion"
+    | "fecha_entrega"
+  >,
+  c: NonNullable<DefinicionAlerta["cuando"]>,
+): Date | null {
+  const f = e[c.campo];
+  if (!f) return null;
+  const [a, m, d] = f.split("-").map(Number);
+  const [h, mi] = c.hora.split(":").map(Number);
+  return new Date(a, m - 1, d + c.dias, h, mi, 0, 0);
+}
 
 /** El texto del aviso con los datos del expediente: {cliente}, {matricula}, {vendedor} y {expediente}. */
-export function textoDeAlerta(plantilla: string, e: Pick<ExpedienteDto, "id_expediente" | "matricula" | "cliente" | "usuario">): string {
+export function textoDeAlerta(
+  plantilla: string,
+  e: Pick<ExpedienteDto, "id_expediente" | "matricula" | "cliente" | "usuario">,
+): string {
   return plantilla
     .replaceAll("{cliente}", e.cliente?.nombre ?? "(sin cliente)")
     .replaceAll("{matricula}", e.matricula ?? "(sin matrícula)")
     .replaceAll("{vendedor}", e.usuario?.nombre ?? "")
-    .replaceAll("{expediente}", `#EXP-${String(e.id_expediente).padStart(4, "0")}`);
+    .replaceAll(
+      "{expediente}",
+      `#EXP-${String(e.id_expediente).padStart(4, "0")}`,
+    );
 }
 
 export interface AlertaDto {

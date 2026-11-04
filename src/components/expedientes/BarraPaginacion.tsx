@@ -24,7 +24,15 @@ const estiloNavegacion = (desactivado: boolean) =>
   }) as const;
 
 /** Barra de paginación que se repite arriba y abajo de la tabla. */
-export default function BarraPaginacion({ tamano, pagina, totalPaginas, totalFiltrados, totalGeneral, alCambiarTamano, alIrAPagina }: Props) {
+export default function BarraPaginacion({
+  tamano,
+  pagina,
+  totalPaginas,
+  totalFiltrados,
+  totalGeneral,
+  alCambiarTamano,
+  alIrAPagina,
+}: Props) {
   const enPrimera = pagina === 1;
   const enUltima = pagina === totalPaginas;
   return (
@@ -43,7 +51,14 @@ export default function BarraPaginacion({ tamano, pagina, totalPaginas, totalFil
         color: "var(--text-secondary)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          flexWrap: "wrap",
+        }}
+      >
         <span>Mostrar:</span>
         {TAMANOS_PAGINA.map((t) => (
           <button
@@ -55,7 +70,8 @@ export default function BarraPaginacion({ tamano, pagina, totalPaginas, totalFil
               fontSize: "0.8rem",
               border: `1px solid ${tamano === t ? "var(--primary)" : "var(--border-light)"}`,
               borderRadius: "4px",
-              background: tamano === t ? "rgba(var(--primary-rgb), 0.12)" : "transparent",
+              background:
+                tamano === t ? "rgba(var(--primary-rgb), 0.12)" : "transparent",
               color: tamano === t ? "var(--primary)" : "var(--text-secondary)",
               cursor: "pointer",
               fontWeight: tamano === t ? 700 : 400,
@@ -65,23 +81,56 @@ export default function BarraPaginacion({ tamano, pagina, totalPaginas, totalFil
           </button>
         ))}
         <span style={{ marginLeft: "8px" }}>
-          {totalFiltrados} resultado(s){totalFiltrados !== totalGeneral ? ` (de ${totalGeneral} totales)` : ""}
+          {totalFiltrados} resultado(s)
+          {totalFiltrados !== totalGeneral
+            ? ` (de ${totalGeneral} totales)`
+            : ""}
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        <button type="button" onClick={() => alIrAPagina(1)} disabled={enPrimera} style={estiloNavegacion(enPrimera)} title="Primera página">
+        <button
+          type="button"
+          onClick={() => alIrAPagina(1)}
+          disabled={enPrimera}
+          style={estiloNavegacion(enPrimera)}
+          title="Primera página"
+        >
           «
         </button>
-        <button type="button" onClick={() => alIrAPagina(pagina - 1)} disabled={enPrimera} style={estiloNavegacion(enPrimera)} title="Página anterior">
+        <button
+          type="button"
+          onClick={() => alIrAPagina(pagina - 1)}
+          disabled={enPrimera}
+          style={estiloNavegacion(enPrimera)}
+          title="Página anterior"
+        >
           ‹
         </button>
-        <span style={{ padding: "4px 12px", fontWeight: 600, color: "var(--text-primary)" }}>
+        <span
+          style={{
+            padding: "4px 12px",
+            fontWeight: 600,
+            color: "var(--text-primary)",
+          }}
+        >
           Pág. {pagina} / {totalPaginas}
         </span>
-        <button type="button" onClick={() => alIrAPagina(pagina + 1)} disabled={enUltima} style={estiloNavegacion(enUltima)} title="Página siguiente">
+        <button
+          type="button"
+          onClick={() => alIrAPagina(pagina + 1)}
+          disabled={enUltima}
+          style={estiloNavegacion(enUltima)}
+          title="Página siguiente"
+        >
           ›
         </button>
-        <button type="button" onClick={() => alIrAPagina(totalPaginas)} disabled={enUltima} style={estiloNavegacion(enUltima)} title="Última página">
+        <button
+          type="button"
+          onClick={() => alIrAPagina(totalPaginas)}
+          disabled={enUltima}
+          style={estiloNavegacion(enUltima)}
+          title="Última página"
+        >
           »
         </button>
       </div>

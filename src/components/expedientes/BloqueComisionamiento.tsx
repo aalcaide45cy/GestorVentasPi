@@ -11,7 +11,15 @@ export interface ConceptoForm {
   titulo: string;
   importe_centimos: number;
   descripcion: string;
-  evento: "pedido" | "afectacion" | "rci" | "matriculacion" | "fecha_matriculacion" | "facturacion" | "entrega" | "cobro";
+  evento:
+    | "pedido"
+    | "afectacion"
+    | "rci"
+    | "matriculacion"
+    | "fecha_matriculacion"
+    | "facturacion"
+    | "entrega"
+    | "cobro";
   cobrado: boolean;
 }
 
@@ -45,7 +53,13 @@ export interface ContextoSimulacion {
 
 interface Promos {
   plan: { idPlan: number; nombre: string } | null;
-  promociones: { id: number; nombre?: string; puntosEspeciales: number; minimoUnidades: number; puntosSiNoCumple: number }[];
+  promociones: {
+    id: number;
+    nombre?: string;
+    puntosEspeciales: number;
+    minimoUnidades: number;
+    puntosSiNoCumple: number;
+  }[];
 }
 
 interface Desglose {
@@ -57,7 +71,17 @@ interface Desglose {
   tramo: number | null;
   puntosMes: number | null;
   objetivoX: number | null;
-  linea: { importe: number; puntos: number; conceptos: { concepto: string; descripcion: string; importe: number; puntos: number; aviso?: string }[] } | null;
+  linea: {
+    importe: number;
+    puntos: number;
+    conceptos: {
+      concepto: string;
+      descripcion: string;
+      importe: number;
+      puntos: number;
+      aviso?: string;
+    }[];
+  } | null;
   avisos: string[];
 }
 
@@ -77,35 +101,104 @@ const PESTANA_DE_CONCEPTO: Record<string, string> = {
  * Bonus del plan con evento «Manual»: se marcan los que se aplican a este expediente (el bonus suma, o resta si es una penalización,
  * en el mes en que cuenta el coche). Los bonus con otros eventos se aplican solos y no salen aquí.
  */
-function BonusManuales({ elegidos, alCambiar }: { elegidos: string[]; alCambiar: (b: string[]) => void }) {
-  const { datos: lista } = useCarga<BonusManual[]>("/api/comisiones/bonus-manuales", []);
+function BonusManuales({
+  elegidos,
+  alCambiar,
+}: {
+  elegidos: string[];
+  alCambiar: (b: string[]) => void;
+}) {
+  const { datos: lista } = useCarga<BonusManual[]>(
+    "/api/comisiones/bonus-manuales",
+    [],
+  );
   const claves = new Set(lista.map((b) => b.clave));
   const huerfanos = elegidos.filter((c) => !claves.has(c));
-  const alternar = (clave: string, marcado: boolean) => alCambiar(marcado ? [...elegidos.filter((c) => c !== clave), clave] : elegidos.filter((c) => c !== clave));
+  const alternar = (clave: string, marcado: boolean) =>
+    alCambiar(
+      marcado
+        ? [...elegidos.filter((c) => c !== clave), clave]
+        : elegidos.filter((c) => c !== clave),
+    );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <h3 style={{ fontSize: "1rem" }} title="Bonus del plan de comisionamiento cuyo evento es «Manual»: solo se aplican a los expedientes en los que los marcas aquí">
+      <h3
+        style={{ fontSize: "1rem" }}
+        title="Bonus del plan de comisionamiento cuyo evento es «Manual»: solo se aplican a los expedientes en los que los marcas aquí"
+      >
         Bonus del plan (manuales)
       </h3>
       {lista.length === 0 && elegidos.length === 0 ? (
-        <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-muted)" }}>No hay bonus manuales en los planes. Crea uno en Comisiones › Bonus con el evento «Manual» y aparecerá aquí.</p>
+        <p
+          style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-muted)" }}
+        >
+          No hay bonus manuales en los planes. Crea uno en Comisiones › Bonus
+          con el evento «Manual» y aparecerá aquí.
+        </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {lista.map((b) => (
-            <label key={b.clave} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }} title={`Bonus «${b.nombre}» del plan «${b.plan}»: se aplica a este expediente si lo marcas`}>
-              <input type="checkbox" checked={elegidos.includes(b.clave)} onChange={(e) => alternar(b.clave, e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+            <label
+              key={b.clave}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                cursor: "pointer",
+              }}
+              title={`Bonus «${b.nombre}» del plan «${b.plan}»: se aplica a este expediente si lo marcas`}
+            >
+              <input
+                type="checkbox"
+                checked={elegidos.includes(b.clave)}
+                onChange={(e) => alternar(b.clave, e.target.checked)}
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  accentColor: "var(--primary)",
+                }}
+              />
               <span style={{ fontWeight: 600 }}>{b.nombre}</span>
-              <span style={{ fontSize: "0.82rem", color: b.esPenalizacion ? "var(--danger)" : "var(--text-secondary)" }}>
+              <span
+                style={{
+                  fontSize: "0.82rem",
+                  color: b.esPenalizacion
+                    ? "var(--danger)"
+                    : "var(--text-secondary)",
+                }}
+              >
                 {b.esPenalizacion ? "−" : "+"}
                 {euros(b.importe)}
-                {b.puntos !== 0 ? ` · ${puntos(b.puntos)} pts` : ""} · plan «{b.plan}»
+                {b.puntos !== 0 ? ` · ${puntos(b.puntos)} pts` : ""} · plan «
+                {b.plan}»
               </span>
             </label>
           ))}
           {huerfanos.map((c) => (
-            <label key={c} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", color: "var(--warning)" }} title="Este bonus elegido ya no existe en ningún plan abierto (se borró, está inactivo o su plan está cerrado)">
-              <input type="checkbox" checked onChange={() => alternar(c, false)} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
-              <span>Bonus que ya no está en el plan (desmárcalo para quitarlo)</span>
+            <label
+              key={c}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                cursor: "pointer",
+                color: "var(--warning)",
+              }}
+              title="Este bonus elegido ya no existe en ningún plan abierto (se borró, está inactivo o su plan está cerrado)"
+            >
+              <input
+                type="checkbox"
+                checked
+                onChange={() => alternar(c, false)}
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  accentColor: "var(--primary)",
+                }}
+              />
+              <span>
+                Bonus que ya no está en el plan (desmárcalo para quitarlo)
+              </span>
             </label>
           ))}
         </div>
@@ -131,13 +224,25 @@ export const comisionInicial = (e: {
 });
 
 /** Bloque «Comisionamiento» del expediente + «Desglose Estimado de Comisión» (mismo motor que la liquidación). */
-export default function BloqueComisionamiento({ valor, onChange, contexto, mesCierre }: { valor: ComisionForm; onChange: (v: ComisionForm) => void; contexto: ContextoSimulacion; mesCierre: string | null }) {
+export default function BloqueComisionamiento({
+  valor,
+  onChange,
+  contexto,
+  mesCierre,
+}: {
+  valor: ComisionForm;
+  onChange: (v: ComisionForm) => void;
+  contexto: ContextoSimulacion;
+  mesCierre: string | null;
+}) {
   const [promos, setPromos] = useState<Promos>({ plan: null, promociones: [] });
   const [desglose, setDesglose] = useState<Desglose | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const usaCobro = contexto.cobrado_otra_fecha;
-  const fechaCuenta = usaCobro ? contexto.fecha_cobrado : (contexto.fecha_facturacion ?? contexto.fecha_matriculacion);
+  const fechaCuenta = usaCobro
+    ? contexto.fecha_cobrado
+    : (contexto.fecha_facturacion ?? contexto.fecha_matriculacion);
   const mes = fechaCuenta ? fechaCuenta.slice(0, 7) : mesCierre;
 
   useEffect(() => {
@@ -177,7 +282,11 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           comision_coche_manual: valor.comision_coche_manual,
           comision_financiacion_manual: valor.comision_financiacion_manual,
           bonus_manuales: valor.bonus_manuales,
-          conceptos_especiales: valor.conceptos.map((c) => ({ titulo: c.titulo, importe_centimos: c.importe_centimos, evento: c.evento })),
+          conceptos_especiales: valor.conceptos.map((c) => ({
+            titulo: c.titulo,
+            importe_centimos: c.importe_centimos,
+            evento: c.evento,
+          })),
         },
       })
         .then((r) => {
@@ -185,7 +294,11 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
           setDesglose(r.data);
           setError(null);
         })
-        .catch((e: unknown) => vivo && setError(e instanceof Error ? e.message : "No se pudo calcular"));
+        .catch(
+          (e: unknown) =>
+            vivo &&
+            setError(e instanceof Error ? e.message : "No se pudo calcular"),
+        );
     }, 400);
     return () => {
       vivo = false;
@@ -197,64 +310,199 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
   const set = (c: Partial<ComisionForm>) => onChange({ ...valor, ...c });
 
   return (
-    <div className="glass-panel" style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "20px" }}>
-      <h2 style={{ fontSize: "1.25rem", display: "flex", alignItems: "center", gap: "10px" }}>💶 Comisionamiento</h2>
-      <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
-        Deja en blanco los campos que quieras que se calculen solos. El 0 es un valor válido (el coche suma 0 puntos pero sigue siendo una unidad comisionable).
+    <div
+      className="glass-panel"
+      style={{
+        padding: "32px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: "1.25rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+        }}
+      >
+        💶 Comisionamiento
+      </h2>
+      <p
+        style={{
+          color: "var(--text-secondary)",
+          fontSize: "0.9rem",
+          margin: 0,
+        }}
+      >
+        Deja en blanco los campos que quieras que se calculen solos. El 0 es un
+        valor válido (el coche suma 0 puntos pero sigue siendo una unidad
+        comisionable).
       </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: "20px",
+        }}
+      >
         <div className="form-group">
           <label className="form-label">Puntos del coche</label>
-          <InputCentesimas valor={valor.puntos} vacioEsNulo placeholder="por defecto" onChange={(v) => set({ puntos: v })} sufijo="puntos" />
+          <InputCentesimas
+            valor={valor.puntos}
+            vacioEsNulo
+            placeholder="por defecto"
+            onChange={(v) => set({ puntos: v })}
+            sufijo="puntos"
+          />
         </div>
         <div className="form-group">
           <label className="form-label">Promoción de puntos</label>
-          <select className="form-input" value={valor.id_promocion ?? ""} onChange={(e) => set({ id_promocion: e.target.value ? Number(e.target.value) : null })}>
+          <select
+            className="form-input"
+            value={valor.id_promocion ?? ""}
+            onChange={(e) =>
+              set({
+                id_promocion: e.target.value ? Number(e.target.value) : null,
+              })
+            }
+          >
             <option value="">Sin promoción</option>
             {promos.promociones.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre ?? `Promoción ${p.id}`} ({puntos(p.puntosEspeciales)} pts si ≥ {p.minimoUnidades})
+                {p.nombre ?? `Promoción ${p.id}`} ({puntos(p.puntosEspeciales)}{" "}
+                pts si ≥ {p.minimoUnidades})
               </option>
             ))}
-            {valor.id_promocion !== null && !promos.promociones.some((p) => p.id === valor.id_promocion) && <option value={valor.id_promocion}>Promoción {valor.id_promocion}</option>}
+            {valor.id_promocion !== null &&
+              !promos.promociones.some((p) => p.id === valor.id_promocion) && (
+                <option value={valor.id_promocion}>
+                  Promoción {valor.id_promocion}
+                </option>
+              )}
           </select>
         </div>
         <div className="form-group">
           <label className="form-label">Comisión del coche a mano</label>
-          <InputCentesimas valor={valor.comision_coche_manual} vacioEsNulo placeholder="automática" onChange={(v) => set({ comision_coche_manual: v })} sufijo="€" />
+          <InputCentesimas
+            valor={valor.comision_coche_manual}
+            vacioEsNulo
+            placeholder="automática"
+            onChange={(v) => set({ comision_coche_manual: v })}
+            sufijo="€"
+          />
         </div>
         <div className="form-group">
           <label className="form-label">Comisión de financiación a mano</label>
-          <InputCentesimas valor={valor.comision_financiacion_manual} vacioEsNulo placeholder="automática" onChange={(v) => set({ comision_financiacion_manual: v })} sufijo="€" />
+          <InputCentesimas
+            valor={valor.comision_financiacion_manual}
+            vacioEsNulo
+            placeholder="automática"
+            onChange={(v) => set({ comision_financiacion_manual: v })}
+            sufijo="€"
+          />
         </div>
       </div>
 
-      <BonusManuales elegidos={valor.bonus_manuales} alCambiar={(b) => set({ bonus_manuales: b })} />
+      <BonusManuales
+        elegidos={valor.bonus_manuales}
+        alCambiar={(b) => set({ bonus_manuales: b })}
+      />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <h3 style={{ fontSize: "1rem" }}>Conceptos especiales</h3>
-          <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem" }} onClick={() => set({ conceptos: [...valor.conceptos, { titulo: "", importe_centimos: 0, descripcion: "", evento: "matriculacion", cobrado: false }] })}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+            onClick={() =>
+              set({
+                conceptos: [
+                  ...valor.conceptos,
+                  {
+                    titulo: "",
+                    importe_centimos: 0,
+                    descripcion: "",
+                    evento: "matriculacion",
+                    cobrado: false,
+                  },
+                ],
+              })
+            }
+          >
             + Añadir concepto
           </button>
         </div>
         {valor.conceptos.map((c, i) => {
-          const cambiar = (x: Partial<ConceptoForm>) => set({ conceptos: valor.conceptos.map((y, j) => (j === i ? { ...y, ...x } : y)) });
+          const cambiar = (x: Partial<ConceptoForm>) =>
+            set({
+              conceptos: valor.conceptos.map((y, j) =>
+                j === i ? { ...y, ...x } : y,
+              ),
+            });
           return (
-            <div key={i} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-              <input className="form-input" style={{ flex: "1 1 200px" }} placeholder="Título (p. ej. Bonus Rappel)" value={c.titulo} onChange={(e) => cambiar({ titulo: e.target.value })} />
-              <InputCentesimas valor={c.importe_centimos} sufijo="€" onChange={(v) => cambiar({ importe_centimos: v ?? 0 })} />
-              <select className="form-input" style={{ width: "auto" }} value={c.evento} onChange={(e) => cambiar({ evento: e.target.value as ConceptoForm["evento"] })}>
-                <option value="matriculacion">Evento principal (el mes en que cuenta el coche)</option>
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <input
+                className="form-input"
+                style={{ flex: "1 1 200px" }}
+                placeholder="Título (p. ej. Bonus Rappel)"
+                value={c.titulo}
+                onChange={(e) => cambiar({ titulo: e.target.value })}
+              />
+              <InputCentesimas
+                valor={c.importe_centimos}
+                sufijo="€"
+                onChange={(v) => cambiar({ importe_centimos: v ?? 0 })}
+              />
+              <select
+                className="form-input"
+                style={{ width: "auto" }}
+                value={c.evento}
+                onChange={(e) =>
+                  cambiar({ evento: e.target.value as ConceptoForm["evento"] })
+                }
+              >
+                <option value="matriculacion">
+                  Evento principal (el mes en que cuenta el coche)
+                </option>
                 <option value="pedido">Fecha de pedido (expediente)</option>
                 <option value="afectacion">Fecha de afectación</option>
                 <option value="rci">Fecha RCI</option>
-                <option value="fecha_matriculacion">Fecha de matriculación</option>
+                <option value="fecha_matriculacion">
+                  Fecha de matriculación
+                </option>
                 <option value="facturacion">Fecha de facturación</option>
                 <option value="entrega">Fecha de entrega</option>
                 <option value="cobro">Fecha de cobro</option>
               </select>
-              <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px", fontSize: "0.8rem", color: "var(--danger)" }} onClick={() => set({ conceptos: valor.conceptos.filter((_, j) => j !== i) })}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "0.8rem",
+                  color: "var(--danger)",
+                }}
+                onClick={() =>
+                  set({ conceptos: valor.conceptos.filter((_, j) => j !== i) })
+                }
+              >
                 Quitar
               </button>
             </div>
@@ -262,15 +510,34 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
         })}
       </div>
 
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div
+        style={{
+          borderTop: "1px solid var(--border)",
+          paddingTop: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+        }}
+      >
         <h3 style={{ fontSize: "1rem" }}>Desglose Estimado de Comisión</h3>
         {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
-        {desglose?.aviso && <div style={{ color: "var(--text-muted)" }}>{desglose.aviso}</div>}
-        {desglose && !desglose.aviso && !desglose.hayPlan && <div style={{ color: "var(--warning)" }}>No hay plan de comisionamiento para {nombreMes(desglose.mes)}.</div>}
+        {desglose?.aviso && (
+          <div style={{ color: "var(--text-muted)" }}>{desglose.aviso}</div>
+        )}
+        {desglose && !desglose.aviso && !desglose.hayPlan && (
+          <div style={{ color: "var(--warning)" }}>
+            No hay plan de comisionamiento para {nombreMes(desglose.mes)}.
+          </div>
+        )}
         {desglose?.linea && (
           <>
             <div style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-              {nombreMes(desglose.mes)} · puntos del mes {puntos(desglose.puntosMes)} / objetivo {puntos(desglose.objetivoX)} → tramo <b>{desglose.tramo !== null ? etiquetaTramo(desglose.tramo) : ""}</b>
+              {nombreMes(desglose.mes)} · puntos del mes{" "}
+              {puntos(desglose.puntosMes)} / objetivo{" "}
+              {puntos(desglose.objetivoX)} → tramo{" "}
+              <b>
+                {desglose.tramo !== null ? etiquetaTramo(desglose.tramo) : ""}
+              </b>
             </div>
             <table className="table-premium table-compact">
               <tbody>
@@ -283,22 +550,45 @@ export default function BloqueComisionamiento({ valor, onChange, contexto, mesCi
                           href={`/dashboard/comisiones?plan=${desglose.idPlan}&tab=${PESTANA_DE_CONCEPTO[c.concepto]}`}
                           target="_blank"
                           rel="noreferrer"
-                          style={{ marginLeft: "8px", fontSize: "0.78rem", color: "var(--primary)" }}
+                          style={{
+                            marginLeft: "8px",
+                            fontSize: "0.78rem",
+                            color: "var(--primary)",
+                          }}
                           title={`Abre el plan «${desglose.nombrePlan ?? ""}» en la pestaña donde se define esta regla (en otra pestaña, sin perder lo que estás editando)`}
                         >
                           Ver regla ↗
                         </a>
                       )}
-                      {c.aviso && <div style={{ color: "var(--warning)", fontSize: "0.8rem" }}>⚠️ {c.aviso}</div>}
+                      {c.aviso && (
+                        <div
+                          style={{
+                            color: "var(--warning)",
+                            fontSize: "0.8rem",
+                          }}
+                        >
+                          ⚠️ {c.aviso}
+                        </div>
+                      )}
                     </td>
-                    <td style={{ textAlign: "right" }}>{c.puntos ? `${puntos(c.puntos)} pts` : ""}</td>
-                    <td style={{ textAlign: "right" }}>{c.importe ? euros(c.importe) : ""}</td>
+                    <td style={{ textAlign: "right" }}>
+                      {c.puntos ? `${puntos(c.puntos)} pts` : ""}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      {c.importe ? euros(c.importe) : ""}
+                    </td>
                   </tr>
                 ))}
                 <tr>
-                  <td style={{ fontWeight: 700 }}>Total estimado de este expediente</td>
-                  <td style={{ textAlign: "right", fontWeight: 700 }}>{puntos(desglose.linea.puntos)} pts</td>
-                  <td style={{ textAlign: "right", fontWeight: 700 }}>{euros(desglose.linea.importe)}</td>
+                  <td style={{ fontWeight: 700 }}>
+                    Total estimado de este expediente
+                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 700 }}>
+                    {puntos(desglose.linea.puntos)} pts
+                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 700 }}>
+                    {euros(desglose.linea.importe)}
+                  </td>
                 </tr>
               </tbody>
             </table>

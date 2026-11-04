@@ -8,8 +8,18 @@ import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
-import { columnaClienteExpediente, columnaMatricula, columnasExpediente } from "./columnas-expediente";
-import { TituloPlegable, PanelCartera, PanelComisiones, firmaExpedientes, usePlegable } from "./ComisionesYCartera";
+import {
+  columnaClienteExpediente,
+  columnaMatricula,
+  columnasExpediente,
+} from "./columnas-expediente";
+import {
+  TituloPlegable,
+  PanelCartera,
+  PanelComisiones,
+  firmaExpedientes,
+  usePlegable,
+} from "./ComisionesYCartera";
 
 const MESES = [
   "Enero",
@@ -29,11 +39,22 @@ const MESES = [
 export { MESES };
 
 /** Columnas de la lista que se abre al pulsar una tarjeta del resumen: las mismas 19 de la lista de Expedientes (con sus colores de marca, estado y tipo de pago). */
-const columnasListaResumen: ColumnaTabla<ExpedienteDto>[] = columnasExpediente<ExpedienteDto>((e) => e, {
-  cliente: columnaClienteExpediente,
-  visibles: ["cliente", "clase", "punto", "marca", "modelo", "tipoPago", "estado", "vendedor", "fecha_expediente"],
-  propiasAlFinal: [columnaMatricula<ExpedienteDto>((e) => e.matricula)],
-});
+const columnasListaResumen: ColumnaTabla<ExpedienteDto>[] =
+  columnasExpediente<ExpedienteDto>((e) => e, {
+    cliente: columnaClienteExpediente,
+    visibles: [
+      "cliente",
+      "clase",
+      "punto",
+      "marca",
+      "modelo",
+      "tipoPago",
+      "estado",
+      "vendedor",
+      "fecha_expediente",
+    ],
+    propiasAlFinal: [columnaMatricula<ExpedienteDto>((e) => e.matricula)],
+  });
 
 interface Props {
   expedientes: ExpedienteDto[];
@@ -53,19 +74,93 @@ const enMes = (fecha: string | null, anio: number, mes: number) => {
   return Number(a) === anio && Number(m) === mes;
 };
 
-const estiloTarjeta = { padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0, overflow: "hidden" } as const;
-const estiloEtiqueta = { fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 } as const;
+const estiloTarjeta = {
+  padding: "16px",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  minWidth: 0,
+  overflow: "hidden",
+} as const;
+const estiloEtiqueta = {
+  fontSize: "0.8rem",
+  color: "var(--text-secondary)",
+  fontWeight: 600,
+} as const;
 /** Cifra grande a la izquierda y, a su derecha, el desglose en líneas (nombre a un lado, valor al otro). */
-function CifraConDesglose({ cifra, color, lineas }: { cifra: ReactNode; color: string; lineas: { texto: ReactNode; valor: ReactNode }[] }) {
+function CifraConDesglose({
+  cifra,
+  color,
+  lineas,
+}: {
+  cifra: ReactNode;
+  color: string;
+  lineas: { texto: ReactNode; valor: ReactNode }[];
+}) {
   // Si no cabe todo en una fila (tarjeta estrecha), el desglose baja debajo de la cifra en vez de salirse de la tarjeta
   return (
-    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px 14px", margin: "8px 0", minWidth: 0 }}>
-      <h3 style={{ fontSize: "1.85rem", margin: 0, color, fontWeight: "bold", lineHeight: 1.1, flex: "0 0 auto" }}>{cifra}</h3>
-      <div style={{ flex: "1 1 130px", minWidth: 0, display: "flex", flexDirection: "column", gap: "1px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "6px 14px",
+        margin: "8px 0",
+        minWidth: 0,
+      }}
+    >
+      <h3
+        style={{
+          fontSize: "1.85rem",
+          margin: 0,
+          color,
+          fontWeight: "bold",
+          lineHeight: 1.1,
+          flex: "0 0 auto",
+        }}
+      >
+        {cifra}
+      </h3>
+      <div
+        style={{
+          flex: "1 1 130px",
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: "1px",
+          fontSize: "0.75rem",
+          color: "var(--text-secondary)",
+        }}
+      >
         {lineas.map((l, i) => (
-          <span key={i} style={{ display: "flex", justifyContent: "space-between", gap: "8px", minWidth: 0 }}>
-            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.texto}</span>
-            <strong style={{ color: "var(--text-primary)", flex: "0 0 auto", whiteSpace: "nowrap" }}>{l.valor}</strong>
+          <span
+            key={i}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "8px",
+              minWidth: 0,
+            }}
+          >
+            <span
+              style={{
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {l.texto}
+            </span>
+            <strong
+              style={{
+                color: "var(--text-primary)",
+                flex: "0 0 auto",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {l.valor}
+            </strong>
           </span>
         ))}
       </div>
@@ -73,26 +168,44 @@ function CifraConDesglose({ cifra, color, lineas }: { cifra: ReactNode; color: s
   );
 }
 
-const estiloPie = { display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)" } as const;
+const estiloPie = {
+  display: "flex",
+  justifyContent: "space-between",
+  fontSize: "0.75rem",
+  color: "var(--text-secondary)",
+} as const;
 
 /** Año y mes recordados («AAAA-MM»); si no hay o no valen, el mes actual. */
-function mesGuardado(guardado: string | null, hoy: Date): { anio: number; mes: number } {
+function mesGuardado(
+  guardado: string | null,
+  hoy: Date,
+): { anio: number; mes: number } {
   const partes = (guardado ?? "").split("-");
   const a = Number(partes[0]);
   const m = Number(partes[1]);
-  return partes.length === 2 && a > 1900 && a < 3000 && m >= 1 && m <= 12 ? { anio: a, mes: m } : { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
+  return partes.length === 2 && a > 1900 && a < 3000 && m >= 1 && m <= 12
+    ? { anio: a, mes: m }
+    : { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
 }
 
 /**
  * «Detalle y Resumen Estadístico»: recuentos del mes elegido.
  * Puntos, tramo y comisión estimada salen del motor de comisiones (el mismo que la liquidación).
  */
-export default function ResumenMensual({ expedientes: todos, catalogo, anios, vendedor, esAdministrador, sinCartera }: Props) {
+export default function ResumenMensual({
+  expedientes: todos,
+  catalogo,
+  anios,
+  vendedor,
+  esAdministrador,
+  sinCartera,
+}: Props) {
   const hoy = new Date();
   // El mes elegido se recuerda en este navegador: al volver de otra pantalla sigue el último que se puso
   const [guardado, guardarMes] = usePreferencia("exp-resumen-mes");
   const { anio, mes } = mesGuardado(guardado, hoy);
-  const fijarMes = (a: number, m: number) => guardarMes(`${a}-${String(m).padStart(2, "0")}`);
+  const fijarMes = (a: number, m: number) =>
+    guardarMes(`${a}-${String(m).padStart(2, "0")}`);
   const setMes = (m: number) => fijarMes(anio, m);
   const setAnio = (a: number) => fijarMes(a, mes);
 
@@ -112,29 +225,61 @@ export default function ResumenMensual({ expedientes: todos, catalogo, anios, ve
   // Las estadísticas y las comisiones son del vendedor elegido en el filtro (por defecto, el usuario actual)
   const expedientes = useMemo(() => {
     const nombre = vendedor.toLowerCase().trim();
-    return nombre ? todos.filter((e) => (e.usuario?.nombre?.toLowerCase().trim() ?? "") === nombre) : todos;
+    return nombre
+      ? todos.filter(
+          (e) => (e.usuario?.nombre?.toLowerCase().trim() ?? "") === nombre,
+        )
+      : todos;
   }, [todos, vendedor]);
   // Solo el administrador puede ver las comisiones de otra persona; el resto siempre ve las suyas
-  const idVendedor = esAdministrador ? expedientes.find((e) => e.usuario !== null)?.usuario?.id_usuario : undefined;
+  const idVendedor = esAdministrador
+    ? expedientes.find((e) => e.usuario !== null)?.usuario?.id_usuario
+    : undefined;
   const usuarioQ = vendedor && idVendedor ? `&usuario=${idVendedor}` : "";
   const firma = useMemo(() => firmaExpedientes(expedientes), [expedientes]);
 
   const mesIso = `${anio}-${String(mes).padStart(2, "0")}`;
-  const { datos: motor } = useCarga<ResultadoMes | null>(`/api/comisiones/mes?mes=${mesIso}${usuarioQ}&v=${firma}`, null);
+  const { datos: motor } = useCarga<ResultadoMes | null>(
+    `/api/comisiones/mes?mes=${mesIso}${usuarioQ}&v=${firma}`,
+    null,
+  );
   const m = motor !== null && motor.idPlan !== null ? motor : null;
 
   const r = useMemo(() => {
-    const listas: Record<string, ExpedienteDto[]> = { afectados: [], matriculados: [], financiados: [], pedidos: [] };
-    const total = { afectados: 0, matriculados: 0, mContado: 0, mCredito: 0, mPref: 0, vn: 0, vnFinanciados: 0, pedidos: 0, pContado: 0, pCredito: 0, pPref: 0 };
+    const listas: Record<string, ExpedienteDto[]> = {
+      afectados: [],
+      matriculados: [],
+      financiados: [],
+      pedidos: [],
+    };
+    const total = {
+      afectados: 0,
+      matriculados: 0,
+      mContado: 0,
+      mCredito: 0,
+      mPref: 0,
+      vn: 0,
+      vnFinanciados: 0,
+      pedidos: 0,
+      pContado: 0,
+      pCredito: 0,
+      pPref: 0,
+    };
     for (const e of expedientes) {
       const categoria = e.tipoDeVenta?.categoria ?? "";
       const esContado = categoria === "CONTADO";
       const esPref = categoria === "PREFERENCE";
       const esCredito = categoria === "CREDITO" || categoria === "RENTING";
-      const estado = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() ?? "";
+      const estado =
+        e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() ?? "";
       // Nuevo o usado lo decide la clase del estado (Configuración › Estados): demo, KM0, buyback… son usados
-      const esVn = e.estadoVehiculo ? e.estadoVehiculo.clase === "VN" : estado === "nuevo";
-      const fechaMat = e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion;
+      const esVn = e.estadoVehiculo
+        ? e.estadoVehiculo.clase === "VN"
+        : estado === "nuevo";
+      const fechaMat =
+        e.cobrado_otra_fecha && e.fecha_cobrado
+          ? e.fecha_cobrado
+          : e.fecha_matriculacion;
 
       if (enMes(fechaMat, anio, mes)) {
         total.matriculados++;
@@ -163,14 +308,21 @@ export default function ResumenMensual({ expedientes: todos, catalogo, anios, ve
     return { ...total, listas };
   }, [expedientes, anio, mes]);
 
-  const { abierto: panelAbierto, alternar: alternarPanel } = usePlegable("resumen");
+  const { abierto: panelAbierto, alternar: alternarPanel } =
+    usePlegable("resumen");
   // La tarjeta de detalle abierta se recuerda en este navegador
-  const [abiertoGuardado, guardarAbierto] = usePreferencia("exp-resumen-detalle");
+  const [abiertoGuardado, guardarAbierto] = usePreferencia(
+    "exp-resumen-detalle",
+  );
   const abierto = abiertoGuardado === "" ? null : abiertoGuardado;
-  const alternar = (clave: string) => guardarAbierto(abierto === clave ? "" : clave);
+  const alternar = (clave: string) =>
+    guardarAbierto(abierto === clave ? "" : clave);
 
   const tarjeta = (clave: string) => ({
-    style: { ...estiloTarjeta, outline: abierto === clave ? "2px solid var(--primary)" : "none" },
+    style: {
+      ...estiloTarjeta,
+      outline: abierto === clave ? "2px solid var(--primary)" : "none",
+    },
     role: "button" as const,
     tabIndex: 0,
     "aria-expanded": abierto === clave,
@@ -191,178 +343,473 @@ export default function ResumenMensual({ expedientes: todos, catalogo, anios, ve
     pedidos: "Pedidos del mes (contado, crédito y preference)",
   };
   const lista = abierto ? r.listas[abierto] : undefined;
-  const detalleMotor = abierto === "puntos" || abierto === "tramo" || abierto === "comision";
+  const detalleMotor =
+    abierto === "puntos" || abierto === "tramo" || abierto === "comision";
 
   const esMesActual = anio === hoy.getFullYear() && mes === hoy.getMonth() + 1;
   const efPuntos = efectoPuntos(m?.puntosMes, m?.objetivoX);
   const efTramo = efectoTramo(m?.tramo);
-  const listaAnios = anios.includes(anio) ? anios : [anio, ...anios].sort((a, b) => b - a);
-  const botonMes = { padding: "3px 10px", fontSize: "0.8rem", whiteSpace: "nowrap" } as const;
+  const listaAnios = anios.includes(anio)
+    ? anios
+    : [anio, ...anios].sort((a, b) => b - a);
+  const botonMes = {
+    padding: "3px 10px",
+    fontSize: "0.8rem",
+    whiteSpace: "nowrap",
+  } as const;
 
   return (
     <>
-    <div className="glass-panel" style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-        <div>
-          <TituloPlegable abierto={panelAbierto} alternar={alternarPanel} titulo="Detalle y Resumen Estadístico">📊 Detalle y Resumen Estadístico</TituloPlegable>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", margin: "2px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
-          <div style={{ marginTop: "6px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            {esMesActual ? (
-              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--success)", border: "1px solid var(--success)", borderRadius: "999px", padding: "2px 10px" }} title="Estás viendo el mes en curso">
-                📅 {MESES[mes - 1]} {anio} · mes actual
-              </span>
-            ) : (
-              <>
-                <span style={{ fontSize: "0.82rem", fontWeight: 800, color: "#1a1a1a", background: "var(--warning)", borderRadius: "999px", padding: "3px 12px" }} title={`Los datos de abajo son de ${MESES[mes - 1]} ${anio}, no del mes en curso`}>
-                  ⚠️ Estás viendo otro mes: {MESES[mes - 1]} {anio}
+      <div
+        className="glass-panel"
+        style={{
+          padding: "12px 16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "10px",
+          }}
+        >
+          <div>
+            <TituloPlegable
+              abierto={panelAbierto}
+              alternar={alternarPanel}
+              titulo="Detalle y Resumen Estadístico"
+            >
+              📊 Detalle y Resumen Estadístico
+            </TituloPlegable>
+            <p
+              style={{
+                color: "var(--text-secondary)",
+                fontSize: "0.8rem",
+                margin: "2px 0 0 0",
+              }}
+            >
+              Estadísticas de ventas para el período seleccionado.
+            </p>
+            <div
+              style={{
+                marginTop: "6px",
+                display: "flex",
+                gap: "8px",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              {esMesActual ? (
+                <span
+                  style={{
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    color: "var(--success)",
+                    border: "1px solid var(--success)",
+                    borderRadius: "999px",
+                    padding: "2px 10px",
+                  }}
+                  title="Estás viendo el mes en curso"
+                >
+                  📅 {MESES[mes - 1]} {anio} · mes actual
                 </span>
-                <button type="button" className="btn btn-secondary" style={{ padding: "2px 10px", fontSize: "0.75rem" }} onClick={() => fijarMes(hoy.getFullYear(), hoy.getMonth() + 1)} title={`Vuelve a ${MESES[hoy.getMonth()]} ${hoy.getFullYear()}, el mes en curso`}>
-                  Volver a {MESES[hoy.getMonth()]} {hoy.getFullYear()}
-                </button>
-              </>
-            )}
+              ) : (
+                <>
+                  <span
+                    style={{
+                      fontSize: "0.82rem",
+                      fontWeight: 800,
+                      color: "#1a1a1a",
+                      background: "var(--warning)",
+                      borderRadius: "999px",
+                      padding: "3px 12px",
+                    }}
+                    title={`Los datos de abajo son de ${MESES[mes - 1]} ${anio}, no del mes en curso`}
+                  >
+                    ⚠️ Estás viendo otro mes: {MESES[mes - 1]} {anio}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: "2px 10px", fontSize: "0.75rem" }}
+                    onClick={() =>
+                      fijarMes(hoy.getFullYear(), hoy.getMonth() + 1)
+                    }
+                    title={`Vuelve a ${MESES[hoy.getMonth()]} ${hoy.getFullYear()}, el mes en curso`}
+                  >
+                    Volver a {MESES[hoy.getMonth()]} {hoy.getFullYear()}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+            }}
+          >
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => mover(-1)}
+              style={botonMes}
+            >
+              ⬅ Mes Anterior
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                fijarMes(hoy.getFullYear(), hoy.getMonth() + 1);
+              }}
+              style={botonMes}
+            >
+              Mes Actual
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => mover(1)}
+              style={botonMes}
+            >
+              Mes Siguiente ➡
+            </button>
+            <select
+              className="form-select"
+              value={mes}
+              onChange={(e) => setMes(Number(e.target.value))}
+              style={{
+                padding: "3px 8px",
+                fontSize: "0.8rem",
+                width: "auto",
+                minWidth: "110px",
+              }}
+            >
+              {MESES.map((nombre, i) => (
+                <option key={nombre} value={i + 1}>
+                  {nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className="form-select"
+              value={anio}
+              onChange={(e) => setAnio(Number(e.target.value))}
+              style={{
+                padding: "3px 8px",
+                fontSize: "0.8rem",
+                width: "auto",
+                minWidth: "80px",
+              }}
+            >
+              {listaAnios.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <button type="button" className="btn btn-secondary" onClick={() => mover(-1)} style={botonMes}>
-            ⬅ Mes Anterior
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              fijarMes(hoy.getFullYear(), hoy.getMonth() + 1);
-            }}
-            style={botonMes}
-          >
-            Mes Actual
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={() => mover(1)} style={botonMes}>
-            Mes Siguiente ➡
-          </button>
-          <select className="form-select" value={mes} onChange={(e) => setMes(Number(e.target.value))} style={{ padding: "3px 8px", fontSize: "0.8rem", width: "auto", minWidth: "110px" }}>
-            {MESES.map((nombre, i) => (
-              <option key={nombre} value={i + 1}>
-                {nombre}
-              </option>
-            ))}
-          </select>
-          <select className="form-select" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ padding: "3px 8px", fontSize: "0.8rem", width: "auto", minWidth: "80px" }}>
-            {listaAnios.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
-      {panelAbierto && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "15px", ...(esMesActual ? {} : { outline: "2px dashed var(--warning)", outlineOffset: "6px", borderRadius: "var(--radius-md)" }) }}>
-        <div className="glass-panel-interactive" {...tarjeta("afectados")}>
-          <span style={estiloEtiqueta}>AFECTADOS EN EL MES</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{r.afectados}</h3>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Total de afectaciones en el mes</span>
-        </div>
-        <div className="glass-panel-interactive" {...tarjeta("matriculados")}>
-          <span style={estiloEtiqueta}>MATRICULADOS EN EL MES</span>
-          <CifraConDesglose cifra={r.matriculados} color="var(--success)" lineas={[{ texto: "Contado", valor: r.mContado }, { texto: "Crédito", valor: r.mCredito }, { texto: "Preference", valor: r.mPref }]} />
-        </div>
-        <div className="glass-panel-interactive" {...tarjeta("financiados")}>
-          <span style={estiloEtiqueta}>TASA INT. FINANCIERA</span>
-          <CifraConDesglose
-            cifra={m ? (m.tasaGlobal.porcentaje !== null ? `${m.tasaGlobal.porcentaje.toFixed(1)}%` : "—") : r.vn > 0 ? `${((r.vnFinanciados / r.vn) * 100).toFixed(1)}%` : "0.0%"}
-            color={m && m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)"}
-            lineas={
-              m
-                ? [
-                    { texto: "Global (nuevos)", valor: `${m.tasaGlobal.numerador}/${m.tasaGlobal.denominador}${m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? " ✔" : " ✘") : ""}` },
-                    ...m.tasaIntervencion.map((t) => ({
-                      texto: expedientes.find((e) => e.modelo?.marca?.id_marca === t.idMarca)?.modelo?.marca?.nombre ?? `Marca ${t.idMarca}`,
-                      valor: `${t.numerador}/${t.denominador}${t.porcentaje !== null ? ` (${t.porcentaje.toFixed(1)}%)` : ""} ${t.cumplida ? "✔" : "✘"}`,
-                    })),
-                  ]
-                : [{ texto: "VN Finan/Total", valor: `${r.vnFinanciados}/${r.vn}` }]
-            }
-          />
-        </div>
-        {m && (
-          <div className="glass-panel-interactive" style={estiloTarjeta}>
-            <span style={estiloEtiqueta}>TASA INT. FINANCIERA USADOS</span>
-            <CifraConDesglose
-              cifra={m.tasaVo.porcentaje !== null ? `${m.tasaVo.porcentaje.toFixed(1)}%` : "—"}
-              color={m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? "var(--success)" : "var(--warning)") : "var(--secondary)"}
-              lineas={[{ texto: "VO Finan/Total", valor: `${m.tasaVo.numerador}/${m.tasaVo.denominador}${m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? " ✔" : " ✘") : ""}` }]}
+        {panelAbierto && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+              gap: "15px",
+              ...(esMesActual
+                ? {}
+                : {
+                    outline: "2px dashed var(--warning)",
+                    outlineOffset: "6px",
+                    borderRadius: "var(--radius-md)",
+                  }),
+            }}
+          >
+            <div className="glass-panel-interactive" {...tarjeta("afectados")}>
+              <span style={estiloEtiqueta}>AFECTADOS EN EL MES</span>
+              <h3
+                style={{
+                  fontSize: "1.85rem",
+                  margin: "8px 0",
+                  color: "var(--primary)",
+                  fontWeight: "bold",
+                }}
+              >
+                {r.afectados}
+              </h3>
+              <span
+                style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}
+              >
+                Total de afectaciones en el mes
+              </span>
+            </div>
+            <div
+              className="glass-panel-interactive"
+              {...tarjeta("matriculados")}
+            >
+              <span style={estiloEtiqueta}>MATRICULADOS EN EL MES</span>
+              <CifraConDesglose
+                cifra={r.matriculados}
+                color="var(--success)"
+                lineas={[
+                  { texto: "Contado", valor: r.mContado },
+                  { texto: "Crédito", valor: r.mCredito },
+                  { texto: "Preference", valor: r.mPref },
+                ]}
+              />
+            </div>
+            <div
+              className="glass-panel-interactive"
+              {...tarjeta("financiados")}
+            >
+              <span style={estiloEtiqueta}>TASA INT. FINANCIERA</span>
+              <CifraConDesglose
+                cifra={
+                  m
+                    ? m.tasaGlobal.porcentaje !== null
+                      ? `${m.tasaGlobal.porcentaje.toFixed(1)}%`
+                      : "—"
+                    : r.vn > 0
+                      ? `${((r.vnFinanciados / r.vn) * 100).toFixed(1)}%`
+                      : "0.0%"
+                }
+                color={
+                  m && m.tasaGlobal.conObjetivo
+                    ? m.tasaGlobal.cumplida
+                      ? "var(--success)"
+                      : "var(--warning)"
+                    : "var(--secondary)"
+                }
+                lineas={
+                  m
+                    ? [
+                        {
+                          texto: "Global (nuevos)",
+                          valor: `${m.tasaGlobal.numerador}/${m.tasaGlobal.denominador}${m.tasaGlobal.conObjetivo ? (m.tasaGlobal.cumplida ? " ✔" : " ✘") : ""}`,
+                        },
+                        ...m.tasaIntervencion.map((t) => ({
+                          texto:
+                            expedientes.find(
+                              (e) => e.modelo?.marca?.id_marca === t.idMarca,
+                            )?.modelo?.marca?.nombre ?? `Marca ${t.idMarca}`,
+                          valor: `${t.numerador}/${t.denominador}${t.porcentaje !== null ? ` (${t.porcentaje.toFixed(1)}%)` : ""} ${t.cumplida ? "✔" : "✘"}`,
+                        })),
+                      ]
+                    : [
+                        {
+                          texto: "VN Finan/Total",
+                          valor: `${r.vnFinanciados}/${r.vn}`,
+                        },
+                      ]
+                }
+              />
+            </div>
+            {m && (
+              <div className="glass-panel-interactive" style={estiloTarjeta}>
+                <span style={estiloEtiqueta}>TASA INT. FINANCIERA USADOS</span>
+                <CifraConDesglose
+                  cifra={
+                    m.tasaVo.porcentaje !== null
+                      ? `${m.tasaVo.porcentaje.toFixed(1)}%`
+                      : "—"
+                  }
+                  color={
+                    m.tasaVo.conObjetivo
+                      ? m.tasaVo.cumplida
+                        ? "var(--success)"
+                        : "var(--warning)"
+                      : "var(--secondary)"
+                  }
+                  lineas={[
+                    {
+                      texto: "VO Finan/Total",
+                      valor: `${m.tasaVo.numerador}/${m.tasaVo.denominador}${m.tasaVo.conObjetivo ? (m.tasaVo.cumplida ? " ✔" : " ✘") : ""}`,
+                    },
+                  ]}
+                />
+              </div>
+            )}
+            <div className="glass-panel-interactive" {...tarjeta("pedidos")}>
+              <span style={estiloEtiqueta}>PEDIDOS EN EL MES</span>
+              <CifraConDesglose
+                cifra={r.pedidos}
+                color="var(--warning)"
+                lineas={[
+                  { texto: "Contado", valor: r.pContado },
+                  { texto: "Crédito", valor: r.pCredito },
+                  { texto: "Preference", valor: r.pPref },
+                ]}
+              />
+            </div>
+            <div className="glass-panel-interactive" {...tarjeta("puntos")}>
+              <span style={estiloEtiqueta}>PUNTOS / OBJETIVO</span>
+              <h3
+                style={{
+                  fontSize: "1.85rem",
+                  margin: "8px 0",
+                  color: "var(--primary)",
+                  fontWeight: "bold",
+                }}
+              >
+                {m ? (
+                  <>
+                    <span
+                      className={efPuntos.className}
+                      style={efPuntos.style}
+                      title={efPuntos.titulo}
+                    >
+                      {puntos(m.puntosMes)}
+                    </span>{" "}
+                    / {puntos(m.objetivoX)}
+                  </>
+                ) : (
+                  "—"
+                )}
+              </h3>
+              <span
+                style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}
+              >
+                {m
+                  ? "Puntos del mes frente a tu objetivo X"
+                  : "No hay plan para este mes"}
+              </span>
+            </div>
+            <div className="glass-panel-interactive" {...tarjeta("tramo")}>
+              <span style={estiloEtiqueta}>TRAMO DEL MES</span>
+              <h3
+                style={{
+                  fontSize: "1.85rem",
+                  margin: "8px 0",
+                  color: "var(--secondary)",
+                  fontWeight: "bold",
+                }}
+              >
+                {m ? (
+                  <span
+                    className={efTramo.className}
+                    style={efTramo.style}
+                    title={efTramo.titulo}
+                  >
+                    {etiquetaTramo(m.tramo)}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </h3>
+              <span
+                style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}
+              >
+                Respecto a X, redondeo hacia abajo
+              </span>
+            </div>
+            <div className="glass-panel-interactive" {...tarjeta("comision")}>
+              <span style={estiloEtiqueta}>COMISIÓN ESTIMADA</span>
+              <h3
+                style={{
+                  fontSize: "1.85rem",
+                  margin: "8px 0",
+                  color: "var(--success)",
+                  fontWeight: "bold",
+                }}
+              >
+                {m ? euros(m.neto) : "—"}
+              </h3>
+              <span
+                style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}
+              >
+                {m
+                  ? "Neta; se cobra en la nómina del mes siguiente"
+                  : "Sin plan de comisionamiento"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {panelAbierto && lista && (
+          <div
+            style={{
+              borderTop: "1px solid var(--border-light)",
+              paddingTop: "16px",
+            }}
+          >
+            <h5 style={{ margin: "0 0 10px 0", fontSize: "0.95rem" }}>
+              {TITULOS[abierto ?? ""]} ({lista.length})
+            </h5>
+            <TablaDatos<ExpedienteDto>
+              id={`resumen-${abierto ?? "lista"}`}
+              columnas={columnasListaResumen}
+              filas={lista}
+              clave={(e) => e.id_expediente}
+              compacta
+              placeholder="Buscar por cliente, modelo, matrícula, tipo, comercial…"
+              vacio="No hay expedientes en este período."
+              pie={(fs) => ({
+                cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`,
+              })}
             />
           </div>
         )}
-        <div className="glass-panel-interactive" {...tarjeta("pedidos")}>
-          <span style={estiloEtiqueta}>PEDIDOS EN EL MES</span>
-          <CifraConDesglose cifra={r.pedidos} color="var(--warning)" lineas={[{ texto: "Contado", valor: r.pContado }, { texto: "Crédito", valor: r.pCredito }, { texto: "Preference", valor: r.pPref }]} />
-        </div>
-        <div className="glass-panel-interactive" {...tarjeta("puntos")}>
-          <span style={estiloEtiqueta}>PUNTOS / OBJETIVO</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>
+
+        {panelAbierto && detalleMotor && (
+          <div
+            style={{
+              borderTop: "1px solid var(--border-light)",
+              paddingTop: "16px",
+              fontSize: "0.9rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+            }}
+          >
             {m ? (
               <>
-                <span className={efPuntos.className} style={efPuntos.style} title={efPuntos.titulo}>{puntos(m.puntosMes)}</span> / {puntos(m.objetivoX)}
+                <div>
+                  Puntos del mes: <strong>{puntos(m.puntosMes)}</strong> ·
+                  Objetivo X: <strong>{puntos(m.objetivoX)}</strong> · Tramo:{" "}
+                  <strong>{etiquetaTramo(m.tramo)}</strong>
+                </div>
+                <div>
+                  Comisión bruta: <strong>{euros(m.bruto)}</strong> ·
+                  Penalización: <strong>{euros(m.penalizacion)}</strong> · Neta:{" "}
+                  <strong>{euros(m.neto)}</strong>
+                </div>
+                <div>
+                  Expedientes que cuentan: <strong>{m.lineas.length}</strong>
+                </div>
+                {m.avisos.map((a) => (
+                  <div key={a} style={{ color: "var(--warning)" }}>
+                    ⚠ {a}
+                  </div>
+                ))}
               </>
             ) : (
-              "—"
+              <span style={{ color: "var(--text-secondary)" }}>
+                No hay plan de comisionamiento para este mes.
+              </span>
             )}
-          </h3>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{m ? "Puntos del mes frente a tu objetivo X" : "No hay plan para este mes"}</span>
-        </div>
-        <div className="glass-panel-interactive" {...tarjeta("tramo")}>
-          <span style={estiloEtiqueta}>TRAMO DEL MES</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>
-            {m ? <span className={efTramo.className} style={efTramo.style} title={efTramo.titulo}>{etiquetaTramo(m.tramo)}</span> : "—"}
-          </h3>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Respecto a X, redondeo hacia abajo</span>
-        </div>
-        <div className="glass-panel-interactive" {...tarjeta("comision")}>
-          <span style={estiloEtiqueta}>COMISIÓN ESTIMADA</span>
-          <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{m ? euros(m.neto) : "—"}</h3>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{m ? "Neta; se cobra en la nómina del mes siguiente" : "Sin plan de comisionamiento"}</span>
-        </div>
-      </div>}
-
-      {panelAbierto && lista && (
-        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
-          <h5 style={{ margin: "0 0 10px 0", fontSize: "0.95rem" }}>
-            {TITULOS[abierto ?? ""]} ({lista.length})
-          </h5>
-          <TablaDatos<ExpedienteDto>
-            id={`resumen-${abierto ?? "lista"}`}
-            columnas={columnasListaResumen}
-            filas={lista}
-            clave={(e) => e.id_expediente}
-            compacta
-            placeholder="Buscar por cliente, modelo, matrícula, tipo, comercial…"
-            vacio="No hay expedientes en este período."
-            pie={(fs) => ({ cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}` })}
-          />
-        </div>
+          </div>
+        )}
+      </div>
+      <PanelComisiones
+        anio={anio}
+        mes={mes}
+        expedientes={expedientes}
+        catalogo={catalogo}
+        usuario={vendedor && idVendedor ? idVendedor : undefined}
+      />
+      {!sinCartera && (
+        <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />
       )}
-
-      {panelAbierto && detalleMotor && (
-        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", fontSize: "0.9rem", display: "flex", flexDirection: "column", gap: "6px" }}>
-          {m ? (
-            <>
-              <div>Puntos del mes: <strong>{puntos(m.puntosMes)}</strong> · Objetivo X: <strong>{puntos(m.objetivoX)}</strong> · Tramo: <strong>{etiquetaTramo(m.tramo)}</strong></div>
-              <div>Comisión bruta: <strong>{euros(m.bruto)}</strong> · Penalización: <strong>{euros(m.penalizacion)}</strong> · Neta: <strong>{euros(m.neto)}</strong></div>
-              <div>Expedientes que cuentan: <strong>{m.lineas.length}</strong></div>
-              {m.avisos.map((a) => (
-                <div key={a} style={{ color: "var(--warning)" }}>⚠ {a}</div>
-              ))}
-            </>
-          ) : (
-            <span style={{ color: "var(--text-secondary)" }}>No hay plan de comisionamiento para este mes.</span>
-          )}
-        </div>
-      )}
-    </div>
-    <PanelComisiones anio={anio} mes={mes} expedientes={expedientes} catalogo={catalogo} usuario={vendedor && idVendedor ? idVendedor : undefined} />
-    {!sinCartera && <PanelCartera anio={anio} mes={mes} expedientes={expedientes} />}
     </>
   );
 }

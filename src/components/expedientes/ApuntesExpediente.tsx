@@ -15,36 +15,164 @@ interface Borrador {
   mostrar_etiqueta: boolean;
 }
 
-const vacio = (): Borrador => ({ titulo: "", descripcion: "", etiqueta: "", color: "#3b82f6", mostrar_etiqueta: false });
-const deApunte = (a: ApunteDto): Borrador => ({ titulo: a.titulo, descripcion: a.descripcion, etiqueta: a.etiqueta, color: a.color, mostrar_etiqueta: a.mostrar_etiqueta });
+const vacio = (): Borrador => ({
+  titulo: "",
+  descripcion: "",
+  etiqueta: "",
+  color: "#3b82f6",
+  mostrar_etiqueta: false,
+});
+const deApunte = (a: ApunteDto): Borrador => ({
+  titulo: a.titulo,
+  descripcion: a.descripcion,
+  etiqueta: a.etiqueta,
+  color: a.color,
+  mostrar_etiqueta: a.mostrar_etiqueta,
+});
 
 /** Chip de muestra de cómo saldrá la etiqueta en la lista. */
 function Muestra({ b }: { b: Borrador }) {
-  if (!b.mostrar_etiqueta || b.etiqueta.trim() === "") return <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>No sale en la lista</span>;
-  return <span style={{ background: b.color, color: "#fff", fontSize: "0.62rem", fontWeight: 800, padding: "1px 7px", borderRadius: "999px", textShadow: "0 0 2px rgba(0,0,0,0.35)" }}>{b.etiqueta}</span>;
+  if (!b.mostrar_etiqueta || b.etiqueta.trim() === "")
+    return (
+      <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+        No sale en la lista
+      </span>
+    );
+  return (
+    <span
+      style={{
+        background: b.color,
+        color: "#fff",
+        fontSize: "0.62rem",
+        fontWeight: 800,
+        padding: "1px 7px",
+        borderRadius: "999px",
+        textShadow: "0 0 2px rgba(0,0,0,0.35)",
+      }}
+    >
+      {b.etiqueta}
+    </span>
+  );
 }
 
-function Campos({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador>) => void }) {
+function Campos({
+  b,
+  alCambiar,
+}: {
+  b: Borrador;
+  alCambiar: (c: Partial<Borrador>) => void;
+}) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: "8px", alignItems: "end" }}>
-      <label style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
+        gap: "8px",
+        alignItems: "end",
+      }}
+    >
+      <label
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "3px",
+          fontSize: "0.75rem",
+          color: "var(--text-secondary)",
+        }}
+      >
         Título
-        <input className="form-input" maxLength={80} value={b.titulo} onChange={(e) => alCambiar({ titulo: e.target.value })} placeholder="Ej. Seguro" />
+        <input
+          className="form-input"
+          maxLength={80}
+          value={b.titulo}
+          onChange={(e) => alCambiar({ titulo: e.target.value })}
+          placeholder="Ej. Seguro"
+        />
       </label>
-      <label style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+      <label
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "3px",
+          fontSize: "0.75rem",
+          color: "var(--text-secondary)",
+        }}
+      >
         Texto de la etiqueta
-        <input className="form-input" maxLength={24} value={b.etiqueta} onChange={(e) => alCambiar({ etiqueta: e.target.value })} placeholder="Ej. SEGURO" />
-        <AyudaEmoticonos alInsertar={(emo) => alCambiar({ etiqueta: `${b.etiqueta}${b.etiqueta && !b.etiqueta.endsWith(" ") ? " " : ""}${emo}`.slice(0, 24) })} />
+        <input
+          className="form-input"
+          maxLength={24}
+          value={b.etiqueta}
+          onChange={(e) => alCambiar({ etiqueta: e.target.value })}
+          placeholder="Ej. SEGURO"
+        />
+        <AyudaEmoticonos
+          alInsertar={(emo) =>
+            alCambiar({
+              etiqueta:
+                `${b.etiqueta}${b.etiqueta && !b.etiqueta.endsWith(" ") ? " " : ""}${emo}`.slice(
+                  0,
+                  24,
+                ),
+            })
+          }
+        />
       </label>
-      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8rem" }} title="Si está marcado, el texto de la etiqueta sale junto al icono del cliente en la lista de Expedientes">
-        <input type="checkbox" checked={b.mostrar_etiqueta} onChange={(e) => alCambiar({ mostrar_etiqueta: e.target.checked })} style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }} />
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          fontSize: "0.8rem",
+        }}
+        title="Si está marcado, el texto de la etiqueta sale junto al icono del cliente en la lista de Expedientes"
+      >
+        <input
+          type="checkbox"
+          checked={b.mostrar_etiqueta}
+          onChange={(e) => alCambiar({ mostrar_etiqueta: e.target.checked })}
+          style={{
+            width: "18px",
+            height: "18px",
+            accentColor: "var(--primary)",
+          }}
+        />
         Mostrar en la lista
-        <input type="color" value={b.color} onChange={(e) => alCambiar({ color: e.target.value })} aria-label="Color de la etiqueta" style={{ width: "30px", height: "24px", padding: 0, border: "none", background: "none" }} />
+        <input
+          type="color"
+          value={b.color}
+          onChange={(e) => alCambiar({ color: e.target.value })}
+          aria-label="Color de la etiqueta"
+          style={{
+            width: "30px",
+            height: "24px",
+            padding: 0,
+            border: "none",
+            background: "none",
+          }}
+        />
         <Muestra b={b} />
       </label>
-      <label style={{ display: "flex", flexDirection: "column", gap: "3px", fontSize: "0.75rem", color: "var(--text-secondary)", gridColumn: "1 / -1" }}>
+      <label
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "3px",
+          fontSize: "0.75rem",
+          color: "var(--text-secondary)",
+          gridColumn: "1 / -1",
+        }}
+      >
         Descripción
-        <textarea className="form-input" rows={2} maxLength={2000} value={b.descripcion} onChange={(e) => alCambiar({ descripcion: e.target.value })} placeholder="Detalles del apunte…" style={{ resize: "vertical" }} />
+        <textarea
+          className="form-input"
+          rows={2}
+          maxLength={2000}
+          value={b.descripcion}
+          onChange={(e) => alCambiar({ descripcion: e.target.value })}
+          placeholder="Detalles del apunte…"
+          style={{ resize: "vertical" }}
+        />
       </label>
     </div>
   );
@@ -54,7 +182,11 @@ function Campos({ b, alCambiar }: { b: Borrador; alCambiar: (c: Partial<Borrador
  * Apuntes del expediente (SEGURO, VO de retoma…): líneas con título, descripción y, si se marca, una etiqueta junto al icono del cliente en la lista.
  * Los botones rápidos añaden un predefinido con un clic (solo uno por expediente). Todo se guarda al momento en la base de datos.
  */
-export default function ApuntesExpediente({ idExpediente }: { idExpediente: number }) {
+export default function ApuntesExpediente({
+  idExpediente,
+}: {
+  idExpediente: number;
+}) {
   const { mostrar } = useToast();
   const nombreExp = `Expediente #EXP-${String(idExpediente).padStart(4, "0")}`;
   const [apuntes, setApuntes] = useState<ApunteDto[] | null>(null);
@@ -67,7 +199,10 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
 
   const cargar = useCallback(async () => {
     try {
-      const [a, p] = await Promise.all([llamar<ApunteDto[]>(`/api/expedientes/apuntes?id=${idExpediente}`), llamar<PredefinidoDto[]>("/api/admin/apuntes-predefinidos")]);
+      const [a, p] = await Promise.all([
+        llamar<ApunteDto[]>(`/api/expedientes/apuntes?id=${idExpediente}`),
+        llamar<PredefinidoDto[]>("/api/admin/apuntes-predefinidos"),
+      ]);
       setApuntes(a.data);
       setPredefinidos(p.data);
       setEditados({});
@@ -95,69 +230,180 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
 
   const rapido = (p: PredefinidoDto) =>
     ejecutar(async () => {
-      const { data } = await llamar<{ creado: boolean }>("/api/expedientes/apuntes", { method: "POST", cuerpo: { accion: "rapido", id_expediente: idExpediente, id_predefinido: p.id } });
-      mostrar(data.creado ? `${nombreExp}: apunte «${p.titulo}» añadido.` : `${nombreExp} ya tiene el apunte «${p.titulo}».`);
+      const { data } = await llamar<{ creado: boolean }>(
+        "/api/expedientes/apuntes",
+        {
+          method: "POST",
+          cuerpo: {
+            accion: "rapido",
+            id_expediente: idExpediente,
+            id_predefinido: p.id,
+          },
+        },
+      );
+      mostrar(
+        data.creado
+          ? `${nombreExp}: apunte «${p.titulo}» añadido.`
+          : `${nombreExp} ya tiene el apunte «${p.titulo}».`,
+      );
     });
   const guardarNuevo = () =>
     nuevo &&
     ejecutar(async () => {
-      await llamar("/api/expedientes/apuntes", { method: "POST", cuerpo: { accion: "nuevo", id_expediente: idExpediente, apunte: nuevo } });
+      await llamar("/api/expedientes/apuntes", {
+        method: "POST",
+        cuerpo: { accion: "nuevo", id_expediente: idExpediente, apunte: nuevo },
+      });
       setNuevo(null);
     });
   const guardar = (a: ApunteDto, b: Borrador) =>
     ejecutar(async () => {
-      await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: b });
+      await llamar(`/api/expedientes/apuntes?id=${a.id}`, {
+        method: "PUT",
+        cuerpo: b,
+      });
       mostrar(`${nombreExp}: apunte guardado.`);
     });
   const estado = (a: ApunteDto, i: number) =>
     ejecutar(async () => {
-      await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: i, comentario: comentarios[a.id] ?? a.comentario } });
+      await llamar(`/api/expedientes/apuntes?id=${a.id}`, {
+        method: "PUT",
+        cuerpo: {
+          accion: "estado",
+          estado_semaforo: i,
+          comentario: comentarios[a.id] ?? a.comentario,
+        },
+      });
       mostrar(`${nombreExp} · ${a.titulo}: ${a.estados?.[i]?.texto ?? ""}`);
     });
   const guardarComentario = (a: ApunteDto) =>
     ejecutar(async () => {
-      await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "PUT", cuerpo: { accion: "estado", estado_semaforo: a.estado_semaforo ?? 0, comentario: comentarios[a.id] ?? a.comentario } });
+      await llamar(`/api/expedientes/apuntes?id=${a.id}`, {
+        method: "PUT",
+        cuerpo: {
+          accion: "estado",
+          estado_semaforo: a.estado_semaforo ?? 0,
+          comentario: comentarios[a.id] ?? a.comentario,
+        },
+      });
       mostrar(`${nombreExp}: comentario guardado.`);
     });
   const eliminar = (a: ApunteDto) =>
     ejecutar(async () => {
       await llamar(`/api/expedientes/apuntes?id=${a.id}`, { method: "DELETE" });
-      mostrar(`${nombreExp}: apunte «${a.titulo}» eliminado (está en la Papelera).`);
+      mostrar(
+        `${nombreExp}: apunte «${a.titulo}» eliminado (está en la Papelera).`,
+      );
     });
 
-  const yaTiene = (p: PredefinidoDto) => (apuntes ?? []).some((a) => a.id_predefinido === p.id);
+  const yaTiene = (p: PredefinidoDto) =>
+    (apuntes ?? []).some((a) => a.id_predefinido === p.id);
 
   return (
     <div className="form-group" style={{ marginTop: "16px", marginBottom: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
-        <label className="form-label" style={{ marginBottom: 0 }}>📝 Apuntes del expediente</label>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "8px",
+          flexWrap: "wrap",
+          marginBottom: "8px",
+        }}
+      >
+        <label className="form-label" style={{ marginBottom: 0 }}>
+          📝 Apuntes del expediente
+        </label>
         <span style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap" }}>
           {predefinidos
             .filter((p) => p.rapido)
             .map((p) => (
-              <button key={p.id} type="button" className="btn btn-secondary" disabled={ocupado || yaTiene(p)} onClick={() => void rapido(p)} title={yaTiene(p) ? `Ya tiene el apunte «${p.titulo}»` : `Añade el apunte «${p.titulo}» con un clic`} style={{ padding: "4px 10px", fontSize: "0.78rem" }}>
+              <button
+                key={p.id}
+                type="button"
+                className="btn btn-secondary"
+                disabled={ocupado || yaTiene(p)}
+                onClick={() => void rapido(p)}
+                title={
+                  yaTiene(p)
+                    ? `Ya tiene el apunte «${p.titulo}»`
+                    : `Añade el apunte «${p.titulo}» con un clic`
+                }
+                style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+              >
                 {yaTiene(p) ? `✓ ${p.titulo}` : `＋ ${p.titulo}`}
               </button>
             ))}
-          <button type="button" className="btn btn-secondary" disabled={ocupado || nuevo !== null} onClick={() => setNuevo(vacio())} style={{ padding: "4px 10px", fontSize: "0.78rem" }} title="Añade un apunte en blanco">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={ocupado || nuevo !== null}
+            onClick={() => setNuevo(vacio())}
+            style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+            title="Añade un apunte en blanco"
+          >
             + Añadir apunte
           </button>
         </span>
       </div>
 
-      {apuntes === null && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Cargando…</span>}
-      {apuntes !== null && apuntes.length === 0 && nuevo === null && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sin apuntes. Usa los botones de arriba para añadir uno.</span>}
+      {apuntes === null && (
+        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+          Cargando…
+        </span>
+      )}
+      {apuntes !== null && apuntes.length === 0 && nuevo === null && (
+        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+          Sin apuntes. Usa los botones de arriba para añadir uno.
+        </span>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {(apuntes ?? []).map((a) => {
           const b = editados[a.id] ?? deApunte(a);
-          const sucio = editados[a.id] !== undefined && JSON.stringify(editados[a.id]) !== JSON.stringify(deApunte(a));
+          const sucio =
+            editados[a.id] !== undefined &&
+            JSON.stringify(editados[a.id]) !== JSON.stringify(deApunte(a));
           return (
-            <div key={a.id} style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div
+              key={a.id}
+              style={{
+                border: "1px solid var(--border-light)",
+                borderRadius: "var(--radius-sm)",
+                padding: "10px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
               {a.estados && (
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }} title="Estado de este apunte (semáforo): los colores y su significado se cambian en Configuración › Expedientes › Apuntes">
+                <div
+                  style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
+                  title="Estado de este apunte (semáforo): los colores y su significado se cambian en Configuración › Expedientes › Apuntes"
+                >
                   {a.estados.map((e, i) => (
-                    <button key={i} type="button" disabled={ocupado} onClick={() => void estado(a, i)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 10px", borderRadius: "999px", border: `2px solid ${a.estado_semaforo === i ? e.color : "var(--border-light)"}`, background: a.estado_semaforo === i ? `${e.color}22` : "transparent", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.8rem", fontWeight: a.estado_semaforo === i ? 700 : 500 }}>
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={ocupado}
+                      onClick={() => void estado(a, i)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "5px 10px",
+                        borderRadius: "999px",
+                        border: `2px solid ${a.estado_semaforo === i ? e.color : "var(--border-light)"}`,
+                        background:
+                          a.estado_semaforo === i
+                            ? `${e.color}22`
+                            : "transparent",
+                        color: "var(--text-primary)",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        fontWeight: a.estado_semaforo === i ? 700 : 500,
+                      }}
+                    >
                       <MarcaEstado estado={e} tam={13} />
                       {e.texto}
                     </button>
@@ -165,26 +411,87 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
                 </div>
               )}
               {a.estados && (
-                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                  Comentario del estado <span style={{ fontWeight: 400 }}>(sale al pasar el ratón por la etiqueta)</span>
-                  <span style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-                    <textarea className="form-input" rows={2} maxLength={1000} value={comentarios[a.id] ?? a.comentario} onChange={(e) => setComentarios((x) => ({ ...x, [a.id]: e.target.value }))} placeholder="Ej. Incidencia: falta el DNI del cliente" style={{ flex: 1, resize: "vertical" }} />
-                    {comentarios[a.id] !== undefined && comentarios[a.id].trim() !== a.comentario.trim() && (
-                      <button type="button" className="btn btn-primary" disabled={ocupado} onClick={() => void guardarComentario(a)} style={{ padding: "4px 12px", fontSize: "0.78rem" }}>
-                        Guardar
-                      </button>
-                    )}
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                    fontSize: "0.75rem",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  Comentario del estado{" "}
+                  <span style={{ fontWeight: 400 }}>
+                    (sale al pasar el ratón por la etiqueta)
+                  </span>
+                  <span
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <textarea
+                      className="form-input"
+                      rows={2}
+                      maxLength={1000}
+                      value={comentarios[a.id] ?? a.comentario}
+                      onChange={(e) =>
+                        setComentarios((x) => ({
+                          ...x,
+                          [a.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="Ej. Incidencia: falta el DNI del cliente"
+                      style={{ flex: 1, resize: "vertical" }}
+                    />
+                    {comentarios[a.id] !== undefined &&
+                      comentarios[a.id].trim() !== a.comentario.trim() && (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={ocupado}
+                          onClick={() => void guardarComentario(a)}
+                          style={{ padding: "4px 12px", fontSize: "0.78rem" }}
+                        >
+                          Guardar
+                        </button>
+                      )}
                   </span>
                 </label>
               )}
-              <Campos b={b} alCambiar={(c) => setEditados((x) => ({ ...x, [a.id]: { ...b, ...c } }))} />
-              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <Campos
+                b={b}
+                alCambiar={(c) =>
+                  setEditados((x) => ({ ...x, [a.id]: { ...b, ...c } }))
+                }
+              />
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  justifyContent: "flex-end",
+                }}
+              >
                 {sucio && (
-                  <button type="button" className="btn btn-primary" disabled={ocupado || b.titulo.trim() === ""} onClick={() => void guardar(a, b)} style={{ padding: "4px 12px", fontSize: "0.78rem" }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={ocupado || b.titulo.trim() === ""}
+                    onClick={() => void guardar(a, b)}
+                    style={{ padding: "4px 12px", fontSize: "0.78rem" }}
+                  >
                     Guardar cambios
                   </button>
                 )}
-                <button type="button" className="btn btn-secondary" disabled={ocupado} onClick={() => void eliminar(a)} style={{ padding: "4px 12px", fontSize: "0.78rem" }} title="Lo manda a la Papelera">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={ocupado}
+                  onClick={() => void eliminar(a)}
+                  style={{ padding: "4px 12px", fontSize: "0.78rem" }}
+                  title="Lo manda a la Papelera"
+                >
                   🗑 Eliminar
                 </button>
               </div>
@@ -192,13 +499,40 @@ export default function ApuntesExpediente({ idExpediente }: { idExpediente: numb
           );
         })}
         {nuevo !== null && (
-          <div style={{ border: "1px dashed var(--primary)", borderRadius: "var(--radius-sm)", padding: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div
+            style={{
+              border: "1px dashed var(--primary)",
+              borderRadius: "var(--radius-sm)",
+              padding: "10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
             <Campos b={nuevo} alCambiar={(c) => setNuevo({ ...nuevo, ...c })} />
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-              <button type="button" className="btn btn-primary" disabled={ocupado || nuevo.titulo.trim() === ""} onClick={() => void guardarNuevo()} style={{ padding: "4px 12px", fontSize: "0.78rem" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={ocupado || nuevo.titulo.trim() === ""}
+                onClick={() => void guardarNuevo()}
+                style={{ padding: "4px 12px", fontSize: "0.78rem" }}
+              >
                 Añadir
               </button>
-              <button type="button" className="btn btn-secondary" disabled={ocupado} onClick={() => setNuevo(null)} style={{ padding: "4px 12px", fontSize: "0.78rem" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={ocupado}
+                onClick={() => setNuevo(null)}
+                style={{ padding: "4px 12px", fontSize: "0.78rem" }}
+              >
                 Cancelar
               </button>
             </div>

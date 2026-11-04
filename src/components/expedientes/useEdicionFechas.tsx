@@ -16,13 +16,17 @@ interface Pendiente {
   nombre: string;
 }
 
-type Cambios = Partial<Pick<ExpedienteDto, CampoFecha | "matricula" | "vin">>;
+type Cambios = Partial<
+  Pick<ExpedienteDto, CampoFecha | "matricula" | "vin" | "hora_entrega">
+>;
 
 /**
  * Edición y borrado inline de fechas con sus modales (lápiz y papelera).
  * `alCambiar` recibe los cambios aplicados para actualizar la lista local sin recargar.
  */
-export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => void): {
+export function useEdicionFechas(
+  alCambiar: (id: number, cambios: Cambios) => void,
+): {
   abrirEditar: (exp: ExpedienteDto, campo: CampoFecha, nombre: string) => void;
   abrirBorrar: (exp: ExpedienteDto, campo: CampoFecha, nombre: string) => void;
   modales: ReactNode;
@@ -34,22 +38,38 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
   const [fecha, setFecha] = useState("");
   const [matricula, setMatricula] = useState("");
   const [vin, setVin] = useState("");
+  const [hora, setHora] = useState("");
   /** Fecha RCI que se pide al matricular cuando el tipo de pago la exige y el expediente aún no la tiene. */
   const [fechaRciObligatoria, setFechaRciObligatoria] = useState("");
   const [ocupado, setOcupado] = useState(false);
 
-  const abrirEditar = (expediente: ExpedienteDto, campo: CampoFecha, nombre: string) => {
+  const abrirEditar = (
+    expediente: ExpedienteDto,
+    campo: CampoFecha,
+    nombre: string,
+  ) => {
     // La facturación no se propone con la fecha de hoy (un Enter despistado la dejaría puesta): se parte de la de matriculación o se deja vacía
-    setFecha(expediente[campo] || (campo === "fecha_facturacion" ? (expediente.fecha_matriculacion ?? "") : hoyIsoCliente()));
+    setFecha(
+      expediente[campo] ||
+        (campo === "fecha_facturacion"
+          ? (expediente.fecha_matriculacion ?? "")
+          : hoyIsoCliente()),
+    );
     setMatricula(expediente.matricula || "");
     setVin(expediente.vin || "");
+    setHora(expediente.hora_entrega || "");
     setFechaRciObligatoria("");
     setEditando({ expediente, campo, nombre });
   };
 
-  const exigeRci = (e: ExpedienteDto): boolean => !!e.tipoDeVenta?.requiere_rci_al_matricular && !e.fecha_rci;
+  const exigeRci = (e: ExpedienteDto): boolean =>
+    !!e.tipoDeVenta?.requiere_rci_al_matricular && !e.fecha_rci;
 
-  const abrirBorrar = (expediente: ExpedienteDto, campo: CampoFecha, nombre: string) => {
+  const abrirBorrar = (
+    expediente: ExpedienteDto,
+    campo: CampoFecha,
+    nombre: string,
+  ) => {
     setBorrando({ expediente, campo, nombre });
   };
 
@@ -60,8 +80,13 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id_expediente: id, expediente: cambios }),
     });
-    if (!res.ok) throw new Error(await mensajeDeError(res, "Error al actualizar la fecha"));
-    const r = (await res.json().catch(() => ({}))) as { avisos?: { mensaje: string }[] };
+    if (!res.ok)
+      throw new Error(
+        await mensajeDeError(res, "Error al actualizar la fecha"),
+      );
+    const r = (await res.json().catch(() => ({}))) as {
+      avisos?: { mensaje: string }[];
+    };
     return (r.avisos ?? []).map((a) => a.mensaje);
   }
 
@@ -69,6 +94,8 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
     if (!editando) return;
     const { expediente, campo, nombre } = editando;
     const cambios: Cambios = { [campo]: fecha || null };
+    if (campo === "fecha_entrega")
+      cambios.hora_entrega = fecha ? hora || null : null;
     if (campo === "fecha_afectacion") {
       // El bastidor es opcional: solo se envía si se ha escrito algo distinto
       const nuevo = vin.trim().toUpperCase();
@@ -77,9 +104,16 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
     if (campo === "fecha_matriculacion") {
       cambios.matricula = matricula || null;
       // Los pagos marcados «Requerido al matricular» (crédito, preference...) piden la fecha RCI; si no se indica, se guarda igualmente y se avisa
-      if (fecha && exigeRci(expediente) && fechaRciObligatoria) cambios.fecha_rci = fechaRciObligatoria;
+      if (fecha && exigeRci(expediente) && fechaRciObligatoria)
+        cambios.fecha_rci = fechaRciObligatoria;
     }
-    if (campo === "fecha_facturacion" && fecha && exigeRci(expediente) && fechaRciObligatoria) cambios.fecha_rci = fechaRciObligatoria;
+    if (
+      campo === "fecha_facturacion" &&
+      fecha &&
+      exigeRci(expediente) &&
+      fechaRciObligatoria
+    )
+      cambios.fecha_rci = fechaRciObligatoria;
     setOcupado(true);
     try {
       const avisos = await enviar(expediente.id_expediente, cambios);
@@ -89,7 +123,12 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
       setEditando(null);
       router.refresh();
     } catch (e) {
-      mostrar(e instanceof Error ? e.message : "Ocurrió un error al guardar la fecha.", "error");
+      mostrar(
+        e instanceof Error
+          ? e.message
+          : "Ocurrió un error al guardar la fecha.",
+        "error",
+      );
     } finally {
       setOcupado(false);
     }
@@ -100,13 +139,22 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
     const { expediente, campo, nombre } = borrando;
     setOcupado(true);
     try {
-      await enviar(expediente.id_expediente, { [campo]: null });
-      alCambiar(expediente.id_expediente, { [campo]: null });
+      const quitar: Cambios =
+        campo === "fecha_entrega"
+          ? { fecha_entrega: null, hora_entrega: null }
+          : { [campo]: null };
+      await enviar(expediente.id_expediente, quitar);
+      alCambiar(expediente.id_expediente, quitar);
       mostrar(`Fecha de ${nombre} eliminada correctamente.`);
       setBorrando(null);
       router.refresh();
     } catch (e) {
-      mostrar(e instanceof Error ? e.message : "Ocurrió un error al eliminar la fecha.", "error");
+      mostrar(
+        e instanceof Error
+          ? e.message
+          : "Ocurrió un error al eliminar la fecha.",
+        "error",
+      );
     } finally {
       setOcupado(false);
     }
@@ -120,10 +168,20 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
           ancho="540px"
           pie={
             <>
-              <button type="button" className="btn btn-secondary" onClick={() => setEditando(null)} disabled={ocupado}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setEditando(null)}
+                disabled={ocupado}
+              >
                 Cancelar
               </button>
-              <button type="button" className="btn btn-primary" onClick={guardar} disabled={ocupado}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={guardar}
+                disabled={ocupado}
+              >
                 {ocupado ? "Guardando..." : "Aceptar"}
               </button>
             </>
@@ -133,24 +191,78 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
             <label className="form-label">Selecciona Fecha</label>
             <FechaRapida valor={fecha} alCambiar={setFecha} />
           </div>
+          {editando.campo === "fecha_entrega" && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">
+                Hora de la entrega (opcional)
+              </label>
+              <input
+                type="time"
+                className="form-input"
+                value={hora}
+                onChange={(e) => setHora(e.target.value)}
+                style={{ maxWidth: "160px" }}
+              />
+            </div>
+          )}
           {editando.campo === "fecha_afectacion" && (
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Número de bastidor (VIN) (Opcional)</label>
-              <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} placeholder="17 caracteres, ej. VF1RJA00000000000" maxLength={17} style={{ fontFamily: "monospace" }} />
+              <label className="form-label">
+                Número de bastidor (VIN) (Opcional)
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={vin}
+                onChange={(e) => setVin(e.target.value.toUpperCase())}
+                placeholder="17 caracteres, ej. VF1RJA00000000000"
+                maxLength={17}
+                style={{ fontFamily: "monospace" }}
+              />
             </div>
           )}
           {editando.campo === "fecha_rci" && (
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "12px" }}>
-              <VisorAdjuntos idExpediente={editando.expediente.id_expediente} titulo="📎 Documentos de la financiación (RCI)" />
+            <div
+              style={{
+                borderTop: "1px solid var(--border-light)",
+                paddingTop: "12px",
+              }}
+            >
+              <VisorAdjuntos
+                idExpediente={editando.expediente.id_expediente}
+                titulo="📎 Documentos de la financiación (RCI)"
+              />
             </div>
           )}
-          {(editando.campo === "fecha_matriculacion" || editando.campo === "fecha_facturacion") && exigeRci(editando.expediente) && (
-            <div className="form-group" style={{ marginBottom: 0, padding: "12px", border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)" }}>
-              <label className="form-label">Fecha RCI (la pide el pago «{editando.expediente.tipoDeVenta?.nombre_tipo_venta}»; si no la sabes, se guarda igualmente y se avisa)</label>
-              <FechaRapida valor={fechaRciObligatoria} alCambiar={setFechaRciObligatoria} />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Fecha de contratación de la financiera. Se tiene en cuenta para la tasa de intervención y las comisiones.</span>
-            </div>
-          )}
+          {(editando.campo === "fecha_matriculacion" ||
+            editando.campo === "fecha_facturacion") &&
+            exigeRci(editando.expediente) && (
+              <div
+                className="form-group"
+                style={{
+                  marginBottom: 0,
+                  padding: "12px",
+                  border: "1px solid var(--warning)",
+                  borderRadius: "var(--radius-sm)",
+                }}
+              >
+                <label className="form-label">
+                  Fecha RCI (la pide el pago «
+                  {editando.expediente.tipoDeVenta?.nombre_tipo_venta}»; si no
+                  la sabes, se guarda igualmente y se avisa)
+                </label>
+                <FechaRapida
+                  valor={fechaRciObligatoria}
+                  alCambiar={setFechaRciObligatoria}
+                />
+                <span
+                  style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}
+                >
+                  Fecha de contratación de la financiera. Se tiene en cuenta
+                  para la tasa de intervención y las comisiones.
+                </span>
+              </div>
+            )}
           {editando.campo === "fecha_matriculacion" && (
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Matrícula (Opcional)</label>
@@ -170,7 +282,12 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
           titulo={`¿Eliminar fecha de ${borrando.nombre}?`}
           pie={
             <>
-              <button type="button" className="btn btn-secondary" onClick={() => setBorrando(null)} disabled={ocupado}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setBorrando(null)}
+                disabled={ocupado}
+              >
                 Cancelar
               </button>
               <button
@@ -178,15 +295,25 @@ export function useEdicionFechas(alCambiar: (id: number, cambios: Cambios) => vo
                 className="btn btn-primary"
                 onClick={borrar}
                 disabled={ocupado}
-                style={{ background: "var(--danger)", borderColor: "var(--danger)" }}
+                style={{
+                  background: "var(--danger)",
+                  borderColor: "var(--danger)",
+                }}
               >
                 {ocupado ? "Eliminando..." : "Eliminar"}
               </button>
             </>
           }
         >
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
-            Esta acción borrará la fecha registrada para este expediente. ¿Deseas continuar?
+          <p
+            style={{
+              color: "var(--text-secondary)",
+              fontSize: "0.9rem",
+              margin: 0,
+            }}
+          >
+            Esta acción borrará la fecha registrada para este expediente.
+            ¿Deseas continuar?
           </p>
         </Modal>
       )}

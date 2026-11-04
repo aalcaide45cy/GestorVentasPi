@@ -17,6 +17,8 @@ import {
 } from "@/lib/calendario";
 import { usePreferencia } from "@/lib/preferencias";
 import VistaHoras from "./VistaHoras";
+import GestorAlertas from "@/components/admin/GestorAlertas";
+import type { SugerenciasReglas } from "@/components/admin/GestorReglasColor";
 
 const MESES = [
   "Enero",
@@ -124,7 +126,12 @@ const deEvento = (e: OcurrenciaDto): Borrador => ({
 });
 
 /** «Calendario»: mis notas y eventos (con repetición, recordatorios que salen como alertas y opción de compartir) y, si se quiere, las fechas de mis expedientes. */
-export default function CalendarioClient() {
+export default function CalendarioClient({
+  sugerencias,
+}: {
+  sugerencias: SugerenciasReglas;
+}) {
+  const [verReglas, setVerReglas] = useState(false);
   const { mostrar, confirmar } = useToast();
   const hoy = aIso(new Date());
   // La vista (mes, semana o día) y el día en torno al cual se muestra
@@ -410,6 +417,15 @@ export default function CalendarioClient() {
             />
             ❗ Alertas
           </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setVerReglas(true)}
+            title="Crea reglas que te avisan cuando ocurre algo en un expediente (al instante o unos días antes o después de una fecha)"
+            style={{ padding: "5px 14px", fontSize: "0.85rem" }}
+          >
+            ⚙️ Reglas de aviso
+          </button>
           <button
             type="button"
             className="btn btn-primary"
@@ -716,7 +732,7 @@ export default function CalendarioClient() {
             <span style={{ minWidth: "92px" }}>
               {x.dia === hoy ? "Hoy" : fechaCorta(x.dia)}
             </span>
-            <span>{TIPO_FECHA[x.tipo]}</span>
+            <span>{TIPO_FECHA[x.tipo]}{x.hora ? ` · ${x.hora}` : ""}</span>
             <Link href={`/dashboard/expedientes/editar/${x.id_expediente}`}>
               {x.cliente ?? "Sin cliente"}
               {x.matricula ? ` · ${x.matricula}` : ""}
@@ -1054,6 +1070,23 @@ export default function CalendarioClient() {
               </label>
             </div>
           </fieldset>
+        </Modal>
+      )}
+      {verReglas && (
+        <Modal
+          titulo="⚙️ Reglas de aviso"
+          ancho="min(calc(96 * var(--uvw)), 1000px)"
+          pie={
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setVerReglas(false)}
+            >
+              Cerrar
+            </button>
+          }
+        >
+          <GestorAlertas sugerencias={sugerencias} />
         </Modal>
       )}
     </div>

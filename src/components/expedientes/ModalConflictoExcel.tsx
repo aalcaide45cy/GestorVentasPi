@@ -24,7 +24,14 @@ interface Props {
 const guion = <span style={{ color: "var(--text-muted)" }}>-</span>;
 
 /** Una fila del Excel coincide con varios expedientes del cliente: el usuario elige el correcto. */
-export default function ModalConflictoExcel({ conflicto, indice, total, alElegir, alOmitir, alCancelarTodo }: Props) {
+export default function ModalConflictoExcel({
+  conflicto,
+  indice,
+  total,
+  alElegir,
+  alOmitir,
+  alCancelarTodo,
+}: Props) {
   const d = conflicto.data;
   return (
     <div
@@ -54,7 +61,8 @@ export default function ModalConflictoExcel({ conflicto, indice, total, alElegir
           maxWidth: "850px",
           maxHeight: "calc(90 * var(--uvh))",
           overflowY: "auto",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+          boxShadow:
+            "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
         }}
       >
         <div
@@ -67,28 +75,66 @@ export default function ModalConflictoExcel({ conflicto, indice, total, alElegir
             paddingBottom: "12px",
           }}
         >
-          <h3 style={{ margin: 0, fontSize: "1.25rem", display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "1.25rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
             <span>⚠️ Resolviendo Múltiples Expedientes</span>
-            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: "normal" }}>
+            <span
+              style={{
+                fontSize: "0.85rem",
+                color: "var(--text-secondary)",
+                fontWeight: "normal",
+              }}
+            >
               (Conflicto {indice + 1} de {total})
             </span>
           </h3>
           <button
             type="button"
             onClick={alCancelarTodo}
-            style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: "1.2rem" }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--text-secondary)",
+              cursor: "pointer",
+              fontSize: "1.2rem",
+            }}
           >
             ✕
           </button>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <p style={{ margin: 0, fontSize: "0.95rem", color: "var(--text-secondary)" }}>
-            El cliente <strong style={{ color: "var(--text-primary)" }}>{conflicto.client.nombre}</strong> ({conflicto.client.dni || "Sin NIF"}) tiene
-            múltiples expedientes asignados en la app. Selecciona el expediente correcto para actualizarlo con los datos del Excel.
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.95rem",
+              color: "var(--text-secondary)",
+            }}
+          >
+            El cliente{" "}
+            <strong style={{ color: "var(--text-primary)" }}>
+              {conflicto.client.nombre}
+            </strong>{" "}
+            ({conflicto.client.dni || "Sin NIF"}) tiene múltiples expedientes
+            asignados en la app. Selecciona el expediente correcto para
+            actualizarlo con los datos del Excel.
           </p>
 
-          <div style={{ backgroundColor: "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "16px" }}>
+          <div
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.02)",
+              border: "1px solid var(--border-light)",
+              borderRadius: "var(--radius-sm)",
+              padding: "16px",
+            }}
+          >
             <div
               style={{
                 fontSize: "0.8rem",
@@ -102,22 +148,74 @@ export default function ModalConflictoExcel({ conflicto, indice, total, alElegir
             >
               Datos del Archivo Excel:
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", fontSize: "0.88rem" }}>
-              <div><strong>NIF:</strong> <span style={{ color: "var(--primary)" }}>{d.nif || "-"}</span></div>
-              <div><strong>Email:</strong> <span style={{ color: "var(--primary)" }}>{d.email || "-"}</span></div>
-              <div><strong>Bastidor:</strong> <span style={{ color: "var(--primary)" }}>{d.bastidor || "-"}</span></div>
-              <div><strong>Matrícula:</strong> <span style={{ color: "var(--primary)" }}>{d.matricula || "-"}</span></div>
-              <div><strong>F. Afectación:</strong> <span style={{ color: "var(--primary)" }}>{formatDate(d.f_afect) || "-"}</span></div>
-              <div><strong>F. Matriculación:</strong> <span style={{ color: "var(--primary)" }}>{formatDate(d.f_mat) || "-"}</span></div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "12px",
+                fontSize: "0.88rem",
+              }}
+            >
+              <div>
+                <strong>NIF:</strong>{" "}
+                <span style={{ color: "var(--primary)" }}>{d.nif || "-"}</span>
+              </div>
+              <div>
+                <strong>Email:</strong>{" "}
+                <span style={{ color: "var(--primary)" }}>
+                  {d.email || "-"}
+                </span>
+              </div>
+              <div>
+                <strong>Bastidor:</strong>{" "}
+                <span style={{ color: "var(--primary)" }}>
+                  {d.bastidor || "-"}
+                </span>
+              </div>
+              <div>
+                <strong>Matrícula:</strong>{" "}
+                <span style={{ color: "var(--primary)" }}>
+                  {d.matricula || "-"}
+                </span>
+              </div>
+              <div>
+                <strong>F. Afectación:</strong>{" "}
+                <span style={{ color: "var(--primary)" }}>
+                  {formatDate(d.f_afect) || "-"}
+                </span>
+              </div>
+              <div>
+                <strong>F. Matriculación:</strong>{" "}
+                <span style={{ color: "var(--primary)" }}>
+                  {formatDate(d.f_mat) || "-"}
+                </span>
+              </div>
             </div>
           </div>
 
           <div>
-            <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", marginBottom: "8px" }}>
+            <div
+              style={{
+                fontSize: "0.85rem",
+                color: "var(--text-secondary)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                marginBottom: "8px",
+              }}
+            >
               Expedientes Existentes en la App:
             </div>
-            <div className="table-container" style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
-              <table className="table-premium" style={{ fontSize: "0.85rem", width: "100%" }}>
+            <div
+              className="table-container"
+              style={{
+                border: "1px solid var(--border-light)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              <table
+                className="table-premium"
+                style={{ fontSize: "0.85rem", width: "100%" }}
+              >
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -132,13 +230,29 @@ export default function ModalConflictoExcel({ conflicto, indice, total, alElegir
                 </thead>
                 <tbody>
                   {conflicto.expedientes.map((e) => (
-                    <tr key={e.id_expediente} style={{ cursor: "pointer" }} onClick={() => alElegir(e.id_expediente)}>
+                    <tr
+                      key={e.id_expediente}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => alElegir(e.id_expediente)}
+                    >
                       <td style={{ fontWeight: 600 }}>#{e.id_expediente}</td>
                       <td>
-                        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{e.marca}</span> {e.modelo}
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                          }}
+                        >
+                          {e.marca}
+                        </span>{" "}
+                        {e.modelo}
                       </td>
-                      <td style={{ fontFamily: "monospace" }}>{e.vin || guion}</td>
-                      <td style={{ fontWeight: 600 }}>{e.matricula || guion}</td>
+                      <td style={{ fontFamily: "monospace" }}>
+                        {e.vin || guion}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>
+                        {e.matricula || guion}
+                      </td>
                       <td>{formatDate(e.fecha_afectacion) || guion}</td>
                       <td>{formatDate(e.fecha_matriculacion) || guion}</td>
                       <td>{formatDate(e.fecha_expediente) || guion}</td>
@@ -150,7 +264,11 @@ export default function ModalConflictoExcel({ conflicto, indice, total, alElegir
                             alElegir(e.id_expediente);
                           }}
                           className="btn btn-primary"
-                          style={{ padding: "4px 8px", fontSize: "0.75rem", borderRadius: "var(--radius-sm)" }}
+                          style={{
+                            padding: "4px 8px",
+                            fontSize: "0.75rem",
+                            borderRadius: "var(--radius-sm)",
+                          }}
                         >
                           Seleccionar
                         </button>
@@ -162,8 +280,21 @@ export default function ModalConflictoExcel({ conflicto, indice, total, alElegir
             </div>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
-            <button type="button" onClick={alCancelarTodo} className="btn btn-secondary" style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: "12px",
+              borderTop: "1px solid var(--border-light)",
+              paddingTop: "16px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={alCancelarTodo}
+              className="btn btn-secondary"
+              style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+            >
               Cancelar Todo
             </button>
             <button

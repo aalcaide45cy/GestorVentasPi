@@ -103,6 +103,7 @@ export async function crearExpediente(
         fechaAfectacion: e.fecha_afectacion ?? null,
         fechaMatriculacion: e.fecha_matriculacion ?? null,
         fechaEntrega: e.fecha_entrega ?? null,
+        horaEntrega: e.fecha_entrega ? (e.hora_entrega ?? null) : null,
         fechaRci: e.fecha_rci ?? null,
         // En un VN la facturación es, por defecto, la de matriculación; en un VO, la de la RCI (o el fin de mes del pedido si es de contado)
         fechaFacturacion: e.fecha_facturacion ?? (estadoNuevo?.clase === "VN" ? (e.fecha_matriculacion ?? null) : estadoNuevo?.clase === "VO" ? facturacionPorDefectoVo(e.fecha_rci, e.fecha_expediente ?? hoyIso()) : null),
@@ -244,6 +245,7 @@ export async function actualizarExpedientes(
       fechaRci: e.fecha_rci ?? undefined,
       fechaMatriculacion: e.fecha_matriculacion ?? undefined,
       fechaEntrega: e.fecha_entrega ?? undefined,
+      horaEntrega: e.hora_entrega ?? undefined,
       fechaFacturacion: e.fecha_facturacion ?? undefined,
       deshabilitado: e.deshabilitado,
     });
@@ -276,6 +278,8 @@ export async function actualizarExpedientes(
     fechaAfectacion: e.fecha_afectacion,
     fechaMatriculacion: e.fecha_matriculacion,
     fechaEntrega: e.fecha_entrega,
+    // Sin fecha de entrega no hay hora
+    horaEntrega: e.fecha_entrega === null ? null : e.hora_entrega,
     fechaRci: e.fecha_rci,
     fechaFacturacion: e.fecha_facturacion,
     fechaCobrado: e.fecha_cobrado,

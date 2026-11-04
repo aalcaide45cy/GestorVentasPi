@@ -76,6 +76,8 @@ export interface FechaExpedienteDto {
   id_expediente: number;
   cliente: string | null;
   matricula: string | null;
+  /** Hora de la entrega, si se indicó. */
+  hora?: string;
 }
 
 /** Una alerta mía que se ve en el calendario: las pendientes en el día de hoy y las pospuestas en el día y la hora en que vuelven a saltar. */

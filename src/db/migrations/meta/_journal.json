@@ -533,6 +533,20 @@
       "when": 1793205231866,
       "tag": "0075_notas_vinculos",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1793205231867,
+      "tag": "0076_hora_entrega",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793205231868,
+      "tag": "0077_alertas_vence",
+      "breakpoints": true
     }
   ]
 }

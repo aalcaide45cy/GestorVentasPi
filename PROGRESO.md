@@ -617,6 +617,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.56.0 (04/11/2026)
+- **Reglas de aviso desde el Calendario**: botón «⚙️ Reglas de aviso» (mismo editor que Configuración › Expedientes › Alertas). Cada regla elige **cuándo avisa**: en cuanto el expediente cumple las condiciones, o a una hora concreta N días antes o después de una fecha del expediente (entrega, matriculación, RCI, facturación…). Los avisos con fecha quedan marcados en el calendario ese día (como «pospuestas») y saltan a su hora; si cambia la fecha del expediente se mueven solos, y sin fecha no hay aviso. Columna `alertas.vence_en` (migración 0077). Una regla con fecha puede no tener condiciones (avisa siempre que haya esa fecha).
+- **Fecha de entrega con hora** (`expedientes.hora_entrega`, migración 0076): en el lápiz de la lista, en Editar expediente, en la lista (· 10:30) y en el calendario. Sin fecha no hay hora.
+- Acceso Rápido a Modelos del Dashboard se pliega; menú lateral con el rol como icono.
+
 ## Versión 1.55.0 (04/11/2026)
 - **Flujos ya funciona** (pestaña 🔀 Flujos de Notas), con los mismos grupos, etiquetas, adjuntos, compartir, exportar e importar que las notas:
   - **＋ Diagrama**: lienzo con formas (rectángulo, redondeado, círculo, rombo, nota adhesiva, texto suelto), flechas que se sacan de los puntos azules, texto en formas y flechas (doble clic), colores, flechas punteadas o animadas, tamaño ajustable, zoom, minimapa, copiar/pegar/duplicar y deshacer/rehacer (Ctrl+Z / Ctrl+Y). Usa `@xyflow/react` 12.12.0 (si no gusta, se quita: solo lo usa `LienzoDiagrama.tsx`).

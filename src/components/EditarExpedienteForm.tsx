@@ -2,24 +2,48 @@
 
 import ApuntesExpediente from "./expedientes/ApuntesExpediente";
 import CajaPagoRci from "@/components/pagos-rci/CajaPagoRci";
-import { borrarBorrador, leerBorrador, useGuardarBorrador } from "@/lib/borrador";
+import {
+  borrarBorrador,
+  leerBorrador,
+  useGuardarBorrador,
+} from "@/lib/borrador";
 import ComisionadoExpediente from "@/components/expedientes/ComisionadoExpediente";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import type { ClienteDto, ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
-import ListaContactos, { contactoVacio, emailsDeCliente, telefonosDeCliente, type ContactoEdicion } from "./expedientes/ListaContactos";
-import { BotonLeerDni, vincularAdjuntos } from "./documentos/BotonLeerDocumento";
+import ListaContactos, {
+  contactoVacio,
+  emailsDeCliente,
+  telefonosDeCliente,
+  type ContactoEdicion,
+} from "./expedientes/ListaContactos";
+import {
+  BotonLeerDni,
+  vincularAdjuntos,
+} from "./documentos/BotonLeerDocumento";
 import VisorAdjuntos from "./documentos/VisorAdjuntos";
 import NombreConFoto from "./documentos/FotoCliente";
 import { mensajeDeError } from "./expedientes/comun";
 import { señalarPrimero } from "@/lib/resaltar";
 import { MENSAJE_CAMPO_FALTANTE } from "@/lib/campos-faltantes";
-import ModalPedidoEnExpediente, { type CambiosDelPedido } from "./expedientes/ModalPedidoEnExpediente";
+import ModalPedidoEnExpediente, {
+  type CambiosDelPedido,
+} from "./expedientes/ModalPedidoEnExpediente";
 import type { ResultadoDni, ResultadoPedido } from "@/lib/servicios/documentos";
-import BloqueComisionamiento, { comisionInicial, type ComisionForm } from "./expedientes/BloqueComisionamiento";
+import BloqueComisionamiento, {
+  comisionInicial,
+  type ComisionForm,
+} from "./expedientes/BloqueComisionamiento";
 import { eurosConSigno, nombreMes } from "@/lib/formato";
 
 interface Opcion {
@@ -62,8 +86,11 @@ function FormularioEditarExpediente({
   const { mostrar } = useToast();
   // Lo que había sin guardar si se recargó la página (F5): se recupera al volver
   const claveBorrador = `expediente-${expediente.id_expediente}`;
-  const [borrador] = useState(() => (typeof window === "undefined" ? null : leerBorrador(claveBorrador)));
-  const ini = <T,>(k: string, valor: T): T => (borrador && k in borrador ? (borrador[k] as T) : valor);
+  const [borrador] = useState(() =>
+    typeof window === "undefined" ? null : leerBorrador(claveBorrador),
+  );
+  const ini = <T,>(k: string, valor: T): T =>
+    borrador && k in borrador ? (borrador[k] as T) : valor;
   const [versionAdjuntos, setVersionAdjuntos] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -73,12 +100,19 @@ function FormularioEditarExpediente({
   /** Lo que falta pero no impide guardar: se guarda igualmente, se avisa y se señala el campo con un resplandor. */
   // Al llegar desde «Nuevo expediente» con algo sin rellenar (?falta=fRci,nombre) se avisa y se señala el campo
   const faltaDeLaDireccion = useSearchParams().get("falta");
-  const [advertencias, setAdvertencias] = useState<{ campo: string; mensaje: string }[]>(() =>
-    (faltaDeLaDireccion ? faltaDeLaDireccion.split(",") : []).filter((c) => MENSAJE_CAMPO_FALTANTE[c]).map((c) => ({ campo: c, mensaje: MENSAJE_CAMPO_FALTANTE[c] })),
+  const [advertencias, setAdvertencias] = useState<
+    { campo: string; mensaje: string }[]
+  >(() =>
+    (faltaDeLaDireccion ? faltaDeLaDireccion.split(",") : [])
+      .filter((c) => MENSAJE_CAMPO_FALTANTE[c])
+      .map((c) => ({ campo: c, mensaje: MENSAJE_CAMPO_FALTANTE[c] })),
   );
   useEffect(() => {
     if (!faltaDeLaDireccion) return;
-    const t = setTimeout(() => señalarPrimero(faltaDeLaDireccion.split(",")), 700);
+    const t = setTimeout(
+      () => señalarPrimero(faltaDeLaDireccion.split(",")),
+      700,
+    );
     return () => clearTimeout(t);
   }, [faltaDeLaDireccion]);
   const [saliendo, setSaliendo] = useState(false);
@@ -91,73 +125,179 @@ function FormularioEditarExpediente({
       const ids = idsVisibles ? (JSON.parse(idsVisibles) as number[]) : [];
       const i = ids.indexOf(expediente.id_expediente);
       if (i === -1) return { anteriorId: null, siguienteId: null };
-      return { anteriorId: i > 0 ? ids[i - 1] : null, siguienteId: i < ids.length - 1 ? ids[i + 1] : null };
+      return {
+        anteriorId: i > 0 ? ids[i - 1] : null,
+        siguienteId: i < ids.length - 1 ? ids[i + 1] : null,
+      };
     } catch {
       return { anteriorId: null, siguienteId: null }; // sin orden guardado: sin navegación
     }
   }, [idsVisibles, expediente.id_expediente]);
 
   // Cliente
-  const [asignado, setAsignado] = useState<ClienteDto | null>(ini("asignado", expediente.cliente));
+  const [asignado, setAsignado] = useState<ClienteDto | null>(
+    ini("asignado", expediente.cliente),
+  );
   // Foto del cliente (recortada de su DNI): se enseña al dejar el ratón sobre su nombre; se actualiza al leer un DNI nuevo
   const [fotoNueva, setFotoNueva] = useState<number | null>(null);
   const [dni, setDni] = useState(ini("dni", expediente.cliente?.dni ?? ""));
-  const [nombre, setNombre] = useState(ini("nombre", expediente.cliente?.nombre ?? ""));
-  const [fechaNacimiento, setFechaNacimiento] = useState(ini("fechaNacimiento", expediente.cliente?.fecha_de_nacimiento ?? ""));
-  const [tiendaId, setTiendaId] = useState(ini("tiendaId", cadena(expediente.id_tienda)));
-  const [emails, setEmails] = useState<ContactoEdicion[]>(ini("emails", emailsDeCliente(expediente.cliente)));
-  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(ini("telefonos", telefonosDeCliente(expediente.cliente)));
+  const [nombre, setNombre] = useState(
+    ini("nombre", expediente.cliente?.nombre ?? ""),
+  );
+  const [fechaNacimiento, setFechaNacimiento] = useState(
+    ini("fechaNacimiento", expediente.cliente?.fecha_de_nacimiento ?? ""),
+  );
+  const [tiendaId, setTiendaId] = useState(
+    ini("tiendaId", cadena(expediente.id_tienda)),
+  );
+  const [emails, setEmails] = useState<ContactoEdicion[]>(
+    ini("emails", emailsDeCliente(expediente.cliente)),
+  );
+  const [telefonos, setTelefonos] = useState<ContactoEdicion[]>(
+    ini("telefonos", telefonosDeCliente(expediente.cliente)),
+  );
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ClienteDto[]>([]);
   const [buscando, setBuscando] = useState(false);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Vehículo y expediente
-  const [marca, setMarca] = useState<number | "">(ini("marca", expediente.modelo?.marca_id ?? ""));
-  const [modelo, setModelo] = useState<number | "">(ini("modelo", expediente.id_modelo ?? ""));
-  const [tipoVenta, setTipoVenta] = useState<number | "">(ini("tipoVenta", expediente.id_tipo_de_venta ?? ""));
-  const [estado, setEstado] = useState<number | "">(ini("estado", expediente.id_estado_vehiculo ?? ""));
-  const [vendedor, setVendedor] = useState(ini("vendedor", cadena(expediente.id_usuario)));
-  const [fExp, setFExp] = useState(ini("fExp", expediente.fecha_expediente ?? ""));
-  const [fAfect, setFAfect] = useState(ini("fAfect", expediente.fecha_afectacion ?? ""));
+  const [marca, setMarca] = useState<number | "">(
+    ini("marca", expediente.modelo?.marca_id ?? ""),
+  );
+  const [modelo, setModelo] = useState<number | "">(
+    ini("modelo", expediente.id_modelo ?? ""),
+  );
+  const [tipoVenta, setTipoVenta] = useState<number | "">(
+    ini("tipoVenta", expediente.id_tipo_de_venta ?? ""),
+  );
+  const [estado, setEstado] = useState<number | "">(
+    ini("estado", expediente.id_estado_vehiculo ?? ""),
+  );
+  const [vendedor, setVendedor] = useState(
+    ini("vendedor", cadena(expediente.id_usuario)),
+  );
+  const [fExp, setFExp] = useState(
+    ini("fExp", expediente.fecha_expediente ?? ""),
+  );
+  const [fAfect, setFAfect] = useState(
+    ini("fAfect", expediente.fecha_afectacion ?? ""),
+  );
   const [fRci, setFRci] = useState(ini("fRci", expediente.fecha_rci ?? ""));
-  const [fMat, setFMat] = useState(ini("fMat", expediente.fecha_matriculacion ?? ""));
-  const [fFact, setFFact] = useState(ini("fFact", expediente.fecha_facturacion ?? ""));
-  const [fEntrega, setFEntrega] = useState(ini("fEntrega", expediente.fecha_entrega ?? ""));
-  const [matricula, setMatricula] = useState(ini("matricula", expediente.matricula ?? ""));
+  const [fMat, setFMat] = useState(
+    ini("fMat", expediente.fecha_matriculacion ?? ""),
+  );
+  const [fFact, setFFact] = useState(
+    ini("fFact", expediente.fecha_facturacion ?? ""),
+  );
+  const [fEntrega, setFEntrega] = useState(
+    ini("fEntrega", expediente.fecha_entrega ?? ""),
+  );
+  const [hEntrega, setHEntrega] = useState(
+    ini("hEntrega", expediente.hora_entrega ?? ""),
+  );
+  const [matricula, setMatricula] = useState(
+    ini("matricula", expediente.matricula ?? ""),
+  );
   const [vin, setVin] = useState(ini("vin", expediente.vin ?? ""));
-  const [comentarios, setComentarios] = useState(ini("comentarios", expediente.comentarios ?? ""));
-  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(ini("cobradoOtraFecha", expediente.cobrado_otra_fecha));
-  const [deshabilitado, setDeshabilitado] = useState(ini("deshabilitado", expediente.deshabilitado));
-  const [fCobrado, setFCobrado] = useState(ini("fCobrado", expediente.fecha_cobrado ?? ""));
+  const [comentarios, setComentarios] = useState(
+    ini("comentarios", expediente.comentarios ?? ""),
+  );
+  const [cobradoOtraFecha, setCobradoOtraFecha] = useState(
+    ini("cobradoOtraFecha", expediente.cobrado_otra_fecha),
+  );
+  const [deshabilitado, setDeshabilitado] = useState(
+    ini("deshabilitado", expediente.deshabilitado),
+  );
+  const [fCobrado, setFCobrado] = useState(
+    ini("fCobrado", expediente.fecha_cobrado ?? ""),
+  );
 
-  const [com, setCom] = useState<ComisionForm>(ini("com", comisionInicial(expediente)));
-  const comOriginal = useMemo(() => JSON.stringify(comisionInicial(expediente)), [expediente]);
+  const [com, setCom] = useState<ComisionForm>(
+    ini("com", comisionInicial(expediente)),
+  );
+  const comOriginal = useMemo(
+    () => JSON.stringify(comisionInicial(expediente)),
+    [expediente],
+  );
 
   const modelosDisponibles = marca !== "" ? (modelosPorMarca[marca] ?? []) : [];
 
-  const rellenos = (lista: ContactoEdicion[]) => lista.filter((c) => c.valor.trim() !== "");
-  const mismosContactos = (actual: ContactoEdicion[], original: ContactoEdicion[]) =>
-    actual.length === original.length && actual.every((c, i) => c.valor === original[i].valor && (c.tipo || "Principal") === (original[i].tipo || "Principal"));
+  const rellenos = (lista: ContactoEdicion[]) =>
+    lista.filter((c) => c.valor.trim() !== "");
+  const mismosContactos = (
+    actual: ContactoEdicion[],
+    original: ContactoEdicion[],
+  ) =>
+    actual.length === original.length &&
+    actual.every(
+      (c, i) =>
+        c.valor === original[i].valor &&
+        (c.tipo || "Principal") === (original[i].tipo || "Principal"),
+    );
 
   const clienteModificado = (): boolean => {
     if (!asignado) return false;
-    if (dni !== (asignado.dni ?? "") || nombre !== (asignado.nombre ?? "") || fechaNacimiento !== (asignado.fecha_de_nacimiento ?? "")) return true;
+    if (
+      dni !== (asignado.dni ?? "") ||
+      nombre !== (asignado.nombre ?? "") ||
+      fechaNacimiento !== (asignado.fecha_de_nacimiento ?? "")
+    )
+      return true;
     if (tiendaId !== cadena(asignado.tienda_id)) return true;
     return (
-      !mismosContactos(rellenos(emails), asignado.emails.map((e) => ({ valor: e.email, tipo: e.tipo_email || "Principal" }))) ||
-      !mismosContactos(rellenos(telefonos), asignado.telefonos.map((t) => ({ valor: t.telefono, tipo: t.tipo_telefono || "Principal" })))
+      !mismosContactos(
+        rellenos(emails),
+        asignado.emails.map((e) => ({
+          valor: e.email,
+          tipo: e.tipo_email || "Principal",
+        })),
+      ) ||
+      !mismosContactos(
+        rellenos(telefonos),
+        asignado.telefonos.map((t) => ({
+          valor: t.telefono,
+          tipo: t.tipo_telefono || "Principal",
+        })),
+      )
     );
   };
 
   const hayCambios = (): boolean => {
     if (exito) return false;
     const c = expediente.cliente;
-    if (dni !== (c?.dni ?? "") || nombre !== (c?.nombre ?? "") || fechaNacimiento !== (c?.fecha_de_nacimiento ?? "")) return true;
-    if (tiendaId !== cadena(expediente.id_tienda) || vendedor !== cadena(expediente.id_usuario)) return true;
+    if (
+      dni !== (c?.dni ?? "") ||
+      nombre !== (c?.nombre ?? "") ||
+      fechaNacimiento !== (c?.fecha_de_nacimiento ?? "")
+    )
+      return true;
+    if (
+      tiendaId !== cadena(expediente.id_tienda) ||
+      vendedor !== cadena(expediente.id_usuario)
+    )
+      return true;
     if (asignado?.id !== c?.id) return true;
-    if (!mismosContactos(rellenos(emails), (c?.emails ?? []).map((e) => ({ valor: e.email, tipo: e.tipo_email || "Principal" })))) return true;
-    if (!mismosContactos(rellenos(telefonos), (c?.telefonos ?? []).map((t) => ({ valor: t.telefono, tipo: t.tipo_telefono || "Principal" })))) return true;
+    if (
+      !mismosContactos(
+        rellenos(emails),
+        (c?.emails ?? []).map((e) => ({
+          valor: e.email,
+          tipo: e.tipo_email || "Principal",
+        })),
+      )
+    )
+      return true;
+    if (
+      !mismosContactos(
+        rellenos(telefonos),
+        (c?.telefonos ?? []).map((t) => ({
+          valor: t.telefono,
+          tipo: t.tipo_telefono || "Principal",
+        })),
+      )
+    )
+      return true;
     return (
       marca !== (expediente.modelo?.marca_id ?? "") ||
       modelo !== (expediente.id_modelo ?? "") ||
@@ -169,6 +309,7 @@ function FormularioEditarExpediente({
       fMat !== (expediente.fecha_matriculacion ?? "") ||
       fFact !== (expediente.fecha_facturacion ?? "") ||
       fEntrega !== (expediente.fecha_entrega ?? "") ||
+      hEntrega !== (expediente.hora_entrega ?? "") ||
       cobradoOtraFecha !== expediente.cobrado_otra_fecha ||
       fCobrado !== (expediente.fecha_cobrado ?? "") ||
       matricula !== (expediente.matricula ?? "") ||
@@ -198,8 +339,13 @@ function FormularioEditarExpediente({
     temporizador.current = setTimeout(async () => {
       setBuscando(true);
       try {
-        const res = await fetch(`/api/clientes/buscar?q=${encodeURIComponent(valor)}`);
-        if (res.ok) setResultados(((await res.json()) as { data?: ClienteDto[] }).data ?? []);
+        const res = await fetch(
+          `/api/clientes/buscar?q=${encodeURIComponent(valor)}`,
+        );
+        if (res.ok)
+          setResultados(
+            ((await res.json()) as { data?: ClienteDto[] }).data ?? [],
+          );
       } finally {
         setBuscando(false);
       }
@@ -225,20 +371,46 @@ function FormularioEditarExpediente({
   const juntarDni = (r: ResultadoDni) =>
     setDniLeido((previo) =>
       previo
-        ? { ...r, datos: { ...r.datos, dni: r.datos.dni ?? previo.datos.dni, nombre: r.datos.nombre ?? previo.datos.nombre, apellidos: r.datos.apellidos ?? previo.datos.apellidos, nombreCompleto: r.datos.nombreCompleto ?? previo.datos.nombreCompleto, fechaNacimiento: r.datos.fechaNacimiento ?? previo.datos.fechaNacimiento }, fotoId: r.fotoId ?? previo.fotoId }
+        ? {
+            ...r,
+            datos: {
+              ...r.datos,
+              dni: r.datos.dni ?? previo.datos.dni,
+              nombre: r.datos.nombre ?? previo.datos.nombre,
+              apellidos: r.datos.apellidos ?? previo.datos.apellidos,
+              nombreCompleto:
+                r.datos.nombreCompleto ?? previo.datos.nombreCompleto,
+              fechaNacimiento:
+                r.datos.fechaNacimiento ?? previo.datos.fechaNacimiento,
+            },
+            fotoId: r.fotoId ?? previo.fotoId,
+          }
         : r,
     );
   // DNI suelto en cualquiera de las casillas: se guarda como documento del expediente y de él sale la foto del cliente
   const alLeerDniSuelto = async (r: ResultadoDni) => {
     try {
-      await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+      await vincularAdjuntos(
+        r.adjuntos.map((a) => a.id),
+        {
+          idExpediente: expediente.id_expediente,
+          idCliente: expediente.id_cliente,
+        },
+      );
       setVersionAdjuntos((v) => v + 1);
       if (r.fotoId) setFotoNueva(r.fotoId);
     } catch (e) {
-      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
+      mostrar(
+        e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.",
+        "error",
+      );
     }
     juntarDni(r);
-    mostrar(r.fotoId ? "DNI guardado y foto del cliente detectada." : "DNI guardado. No se ha podido detectar la foto del cliente.");
+    mostrar(
+      r.fotoId
+        ? "DNI guardado y foto del cliente detectada."
+        : "DNI guardado. No se ha podido detectar la foto del cliente.",
+    );
   };
   // «Aplicar» en el modal del pedido guarda el expediente con su cliente: se envía el formulario cuando ya tiene los datos nuevos
   const formularioRef = useRef<HTMLFormElement>(null);
@@ -246,13 +418,16 @@ function FormularioEditarExpediente({
     if (id === "") return "";
     for (const [idMarca, lista] of Object.entries(modelosPorMarca)) {
       const m = lista.find((x) => x.id === id);
-      if (m) return `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim();
+      if (m)
+        return `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim();
     }
     return "";
   };
   const aplicarPedido = async (c: CambiosDelPedido, r: ResultadoPedido) => {
     if (c.idModelo) {
-      const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) => lista.some((m) => m.id === c.idModelo));
+      const marcaDe = Object.entries(modelosPorMarca).find(([, lista]) =>
+        lista.some((m) => m.id === c.idModelo),
+      );
       if (marcaDe) {
         setMarca(Number(marcaDe[0]));
         setModelo(c.idModelo);
@@ -265,36 +440,70 @@ function FormularioEditarExpediente({
     if (c.fEntrega) setFEntrega(c.fEntrega);
     if (c.fMat) setFMat(c.fMat);
     const dc = c.datosCliente;
-    if (dc.fechaNacimiento && c.cliente.modo !== "existente") setFechaNacimiento(dc.fechaNacimiento);
-    const conPrincipal = (lista: ContactoEdicion[], valor: string): ContactoEdicion[] => {
+    if (dc.fechaNacimiento && c.cliente.modo !== "existente")
+      setFechaNacimiento(dc.fechaNacimiento);
+    const conPrincipal = (
+      lista: ContactoEdicion[],
+      valor: string,
+    ): ContactoEdicion[] => {
       const rellenos = lista.filter((x) => x.valor.trim() !== "");
-      if (rellenos.some((x) => x.valor.trim().toLowerCase() === valor.trim().toLowerCase())) return lista;
-      return [...rellenos, { valor, tipo: rellenos.length === 0 ? "Principal" : "Otro" }];
+      if (
+        rellenos.some(
+          (x) => x.valor.trim().toLowerCase() === valor.trim().toLowerCase(),
+        )
+      )
+        return lista;
+      return [
+        ...rellenos,
+        { valor, tipo: rellenos.length === 0 ? "Principal" : "Otro" },
+      ];
     };
     if (c.cliente.modo === "existente") {
       const id = c.cliente.id;
       const buscar = r.datos.dni || r.datos.cliente || "";
-      const encontrados = buscar ? await fetch(`/api/clientes/buscar?q=${encodeURIComponent(buscar)}`).then((x) => (x.ok ? (x.json() as Promise<{ data?: ClienteDto[] }>) : null)).catch(() => null) : null;
+      const encontrados = buscar
+        ? await fetch(`/api/clientes/buscar?q=${encodeURIComponent(buscar)}`)
+            .then((x) =>
+              x.ok ? (x.json() as Promise<{ data?: ClienteDto[] }>) : null,
+            )
+            .catch(() => null)
+        : null;
       const elegido = encontrados?.data?.find((x) => x.id === id);
-      if (!elegido) throw new Error("No se ha podido cargar el cliente elegido. Búscalo a mano en el cuadro de clientes.");
+      if (!elegido)
+        throw new Error(
+          "No se ha podido cargar el cliente elegido. Búscalo a mano en el cuadro de clientes.",
+        );
       elegirCliente(elegido);
     } else if (c.cliente.modo === "nuevo") {
       desasignar();
       setDni(dc.dni ?? "");
       setNombre(dc.nombre ?? "");
-      setEmails(dc.email ? [{ valor: dc.email, tipo: "Principal" }] : [contactoVacio()]);
-      setTelefonos(dc.telefono ? [{ valor: dc.telefono, tipo: "Principal" }] : [contactoVacio()]);
+      setEmails(
+        dc.email ? [{ valor: dc.email, tipo: "Principal" }] : [contactoVacio()],
+      );
+      setTelefonos(
+        dc.telefono
+          ? [{ valor: dc.telefono, tipo: "Principal" }]
+          : [contactoVacio()],
+      );
     } else if (c.cliente.modo === "mantener") {
       if (dc.dni) setDni(dc.dni);
       if (dc.nombre) setNombre(dc.nombre);
       if (dc.email) setEmails((l) => conPrincipal(l, dc.email as string));
-      if (dc.telefono) setTelefonos((l) => conPrincipal(l, dc.telefono as string));
+      if (dc.telefono)
+        setTelefonos((l) => conPrincipal(l, dc.telefono as string));
     }
     try {
-      await vincularAdjuntos([r.adjunto.id], { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+      await vincularAdjuntos([r.adjunto.id], {
+        idExpediente: expediente.id_expediente,
+        idCliente: expediente.id_cliente,
+      });
       setVersionAdjuntos((v) => v + 1);
     } catch (e) {
-      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.", "error");
+      mostrar(
+        e instanceof Error ? e.message : "No se ha podido adjuntar el pedido.",
+        "error",
+      );
     }
     setPedidoLeido(null);
     setTimeout(() => formularioRef.current?.requestSubmit(), 150);
@@ -315,8 +524,14 @@ function FormularioEditarExpediente({
     nombre: nombre.trim(),
     fecha_de_nacimiento: fechaNacimiento || null,
     tienda_id: tiendaId ? Number(tiendaId) : null,
-    emails: rellenos(emails).map((e) => ({ email: e.valor.trim(), tipo: e.tipo })),
-    telefonos: rellenos(telefonos).map((t) => ({ telefono: t.valor.trim(), tipo: t.tipo })),
+    emails: rellenos(emails).map((e) => ({
+      email: e.valor.trim(),
+      tipo: e.tipo,
+    })),
+    telefonos: rellenos(telefonos).map((t) => ({
+      telefono: t.valor.trim(),
+      tipo: t.tipo,
+    })),
   });
 
   const clienteActualizado = (c: ClienteDto): ClienteDto => ({
@@ -325,21 +540,54 @@ function FormularioEditarExpediente({
     nombre: nombre.trim(),
     fecha_de_nacimiento: fechaNacimiento || null,
     tienda_id: tiendaId ? Number(tiendaId) : null,
-    emails: rellenos(emails).map((e) => ({ email: e.valor.trim(), tipo_email: e.tipo })),
-    telefonos: rellenos(telefonos).map((t) => ({ telefono: t.valor.trim(), tipo_telefono: t.tipo })),
+    emails: rellenos(emails).map((e) => ({
+      email: e.valor.trim(),
+      tipo_email: e.tipo,
+    })),
+    telefonos: rellenos(telefonos).map((t) => ({
+      telefono: t.valor.trim(),
+      tipo_telefono: t.tipo,
+    })),
   });
 
   /**
    * Datos del cliente que viajan con el expediente en el mismo guardado (null si no hay cliente ni nada que crear). Si falta el nombre
    * no se guarda el cliente (no puede existir sin nombre), pero el expediente sí: se devuelve una advertencia.
    */
-  const clienteParaGuardar = (): { advertencia?: { campo: string; mensaje: string }; cliente: Record<string, unknown> | null } => {
-    const hayDatos = dni.trim() !== "" || fechaNacimiento !== "" || rellenos(emails).length > 0 || rellenos(telefonos).length > 0;
+  const clienteParaGuardar = (): {
+    advertencia?: { campo: string; mensaje: string };
+    cliente: Record<string, unknown> | null;
+  } => {
+    const hayDatos =
+      dni.trim() !== "" ||
+      fechaNacimiento !== "" ||
+      rellenos(emails).length > 0 ||
+      rellenos(telefonos).length > 0;
     if (asignado) {
-      if (nombre.trim() === "") return { advertencia: { campo: "nombre", mensaje: "Falta el nombre del cliente: se ha guardado el expediente, pero no los cambios en los datos del cliente." }, cliente: null };
-      return { cliente: clienteModificado() ? cuerpoCliente(asignado.id) : null };
+      if (nombre.trim() === "")
+        return {
+          advertencia: {
+            campo: "nombre",
+            mensaje:
+              "Falta el nombre del cliente: se ha guardado el expediente, pero no los cambios en los datos del cliente.",
+          },
+          cliente: null,
+        };
+      return {
+        cliente: clienteModificado() ? cuerpoCliente(asignado.id) : null,
+      };
     }
-    if (nombre.trim() === "") return hayDatos ? { advertencia: { campo: "nombre", mensaje: "Falta el nombre del cliente: se ha guardado el expediente, pero no los datos del cliente (un cliente necesita al menos su nombre)." }, cliente: null } : { cliente: null };
+    if (nombre.trim() === "")
+      return hayDatos
+        ? {
+            advertencia: {
+              campo: "nombre",
+              mensaje:
+                "Falta el nombre del cliente: se ha guardado el expediente, pero no los datos del cliente (un cliente necesita al menos su nombre).",
+            },
+            cliente: null,
+          }
+        : { cliente: null };
     const { id: _sinId, ...nuevo } = cuerpoCliente(0);
     void _sinId;
     return { cliente: nuevo };
@@ -354,7 +602,12 @@ function FormularioEditarExpediente({
     const faltaRci = rciObligatoria();
     if (faltaRci) pendientes.push({ campo: "fRci", mensaje: faltaRci });
     if (datosCliente.advertencia) pendientes.push(datosCliente.advertencia);
-    if (cobradoOtraFecha && !fCobrado) pendientes.push({ campo: "fCobrado", mensaje: "Has marcado que se cobró en otra fecha pero falta esa fecha: el expediente se ha guardado sin ella." });
+    if (cobradoOtraFecha && !fCobrado)
+      pendientes.push({
+        campo: "fCobrado",
+        mensaje:
+          "Has marcado que se cobró en otra fecha pero falta esa fecha: el expediente se ha guardado sin ella.",
+      });
     try {
       const cuerpo: Record<string, unknown> = {
         id_modelo: modelo || null,
@@ -367,6 +620,7 @@ function FormularioEditarExpediente({
         fecha_matriculacion: fMat || null,
         fecha_facturacion: fFact || null,
         fecha_entrega: fEntrega || null,
+        hora_entrega: fEntrega ? hEntrega || null : null,
         matricula: matricula || null,
         vin: vin || null,
         comentarios: comentarios.trim() || null,
@@ -376,36 +630,65 @@ function FormularioEditarExpediente({
         id_promocion: com.id_promocion,
         comision_coche_manual: com.comision_coche_manual,
         comision_financiacion_manual: com.comision_financiacion_manual,
-        conceptos_especiales: com.conceptos.filter((c) => c.titulo.trim() !== ""),
+        conceptos_especiales: com.conceptos.filter(
+          (c) => c.titulo.trim() !== "",
+        ),
         bonus_manuales: com.bonus_manuales,
         deshabilitado,
       };
       // El vendedor solo se envía si ha cambiado: el servidor decide quién puede reasignarlo
-      if (vendedor !== cadena(expediente.id_usuario)) cuerpo.id_usuario = vendedor ? Number(vendedor) : null;
+      if (vendedor !== cadena(expediente.id_usuario))
+        cuerpo.id_usuario = vendedor ? Number(vendedor) : null;
 
       const res = await fetch("/api/expedientes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         // Cliente y expediente viajan juntos y el servidor los guarda en una sola operación: o se guarda todo o no se guarda nada
-        body: JSON.stringify({ id_expediente: expediente.id_expediente, id_cliente: asignado ? asignado.id : null, ...(datosCliente.cliente ? { cliente: datosCliente.cliente } : {}), expediente: cuerpo }),
+        body: JSON.stringify({
+          id_expediente: expediente.id_expediente,
+          id_cliente: asignado ? asignado.id : null,
+          ...(datosCliente.cliente ? { cliente: datosCliente.cliente } : {}),
+          expediente: cuerpo,
+        }),
       });
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al guardar."));
+      if (!res.ok)
+        throw new Error(await mensajeDeError(res, "Error al guardar."));
       const r = (await res.json().catch(() => ({}))) as {
-        impactos?: { mes: string; netoAnterior: number; netoNuevo: number; diferencia: number }[];
-        cliente?: { id: number; accion: "actualizado" | "creado" | "asociado_existente" } | null;
+        impactos?: {
+          mes: string;
+          netoAnterior: number;
+          netoNuevo: number;
+          diferencia: number;
+        }[];
+        cliente?: {
+          id: number;
+          accion: "actualizado" | "creado" | "asociado_existente";
+        } | null;
         avisos?: { campo: string; mensaje: string }[];
       };
       // Lo que añade el servidor (sin repetir lo que ya se ha detectado aquí)
-      const delServidor = (r.avisos ?? []).map((x) => ({ campo: x.campo === "fecha_rci" ? "fRci" : x.campo, mensaje: x.mensaje })).filter((x) => !pendientes.some((p) => p.campo === x.campo));
+      const delServidor = (r.avisos ?? [])
+        .map((x) => ({
+          campo: x.campo === "fecha_rci" ? "fRci" : x.campo,
+          mensaje: x.mensaje,
+        }))
+        .filter((x) => !pendientes.some((p) => p.campo === x.campo));
       const todas = [...pendientes, ...delServidor];
       setAdvertencias(todas);
-      if (todas.length > 0) setTimeout(() => señalarPrimero(todas.map((x) => x.campo)), 250);
+      if (todas.length > 0)
+        setTimeout(() => señalarPrimero(todas.map((x) => x.campo)), 250);
       let avisoGuardado: string | null = null;
       if (r.cliente?.accion === "actualizado" && asignado) {
         setAsignado(clienteActualizado(asignado));
       } else if (r.cliente) {
         // Cliente nuevo (o ya existente con ese DNI): se carga tal como ha quedado en la base de datos
-        const sigue = await fetch(`/api/expedientes?id=${expediente.id_expediente}`).then((x) => (x.ok ? (x.json() as Promise<{ data?: ExpedienteDto }>) : null)).catch(() => null);
+        const sigue = await fetch(
+          `/api/expedientes?id=${expediente.id_expediente}`,
+        )
+          .then((x) =>
+            x.ok ? (x.json() as Promise<{ data?: ExpedienteDto }>) : null,
+          )
+          .catch(() => null);
         const c = sigue?.data?.cliente;
         if (c) {
           setAsignado(c);
@@ -415,10 +698,13 @@ function FormularioEditarExpediente({
           setEmails(emailsDeCliente(c));
           setTelefonos(telefonosDeCliente(c));
         }
-        if (r.cliente.accion === "asociado_existente") avisoGuardado = "Ya existía un cliente con ese DNI: se ha asociado a este expediente (sus datos no se han cambiado).";
+        if (r.cliente.accion === "asociado_existente")
+          avisoGuardado =
+            "Ya existía un cliente con ese DNI: se ha asociado a este expediente (sus datos no se han cambiado).";
       }
       const impactos = r.impactos ?? [];
-      if (impactos.length > 0) avisoGuardado = `Este cambio ha modificado meses ya cerrados: ${impactos.map((i) => `${nombreMes(i.mes)} ${eurosConSigno(i.diferencia)}`).join(", ")}. Se guardó la versión anterior.`;
+      if (impactos.length > 0)
+        avisoGuardado = `Este cambio ha modificado meses ya cerrados: ${impactos.map((i) => `${nombreMes(i.mes)} ${eurosConSigno(i.diferencia)}`).join(", ")}. Se guardó la versión anterior.`;
       if (avisoGuardado) {
         setAviso(avisoGuardado);
         setTimeout(() => setAviso(null), 8000);
@@ -427,7 +713,9 @@ function FormularioEditarExpediente({
       setExito(true);
       return true;
     } catch (e) {
-      setError(`No se ha guardado nada, ni el cliente ni el expediente. Motivo: ${e instanceof Error ? e.message : "error inesperado."}`);
+      setError(
+        `No se ha guardado nada, ni el cliente ni el expediente. Motivo: ${e instanceof Error ? e.message : "error inesperado."}`,
+      );
       return false;
     }
   };
@@ -447,7 +735,6 @@ function FormularioEditarExpediente({
       router.refresh();
     }
   };
-
 
   /* ---- Salida con cambios sin guardar ---- */
   const navegar = (url: string) => {
@@ -473,7 +760,38 @@ function FormularioEditarExpediente({
     }
   };
 
-  useGuardarBorrador(claveBorrador, () => ({ asignado, dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marca, modelo, tipoVenta, estado, vendedor, fExp, fAfect, fRci, fMat, fFact, fEntrega, matricula, vin, comentarios, cobradoOtraFecha, fCobrado, deshabilitado, com }), hayCambios());
+  useGuardarBorrador(
+    claveBorrador,
+    () => ({
+      asignado,
+      dni,
+      nombre,
+      fechaNacimiento,
+      tiendaId,
+      emails,
+      telefonos,
+      marca,
+      modelo,
+      tipoVenta,
+      estado,
+      vendedor,
+      fExp,
+      fAfect,
+      fRci,
+      fMat,
+      fFact,
+      fEntrega,
+      hEntrega,
+      matricula,
+      vin,
+      comentarios,
+      cobradoOtraFecha,
+      fCobrado,
+      deshabilitado,
+      com,
+    }),
+    hayCambios(),
+  );
   const cambiosRef = useRef(hayCambios);
   useEffect(() => {
     cambiosRef.current = hayCambios;
@@ -487,7 +805,12 @@ function FormularioEditarExpediente({
     };
     const alPulsarEnlace = (ev: MouseEvent) => {
       const ancla = (ev.target as HTMLElement).closest("a");
-      if (ancla && ancla.href && ancla.host === window.location.host && cambiosRef.current()) {
+      if (
+        ancla &&
+        ancla.href &&
+        ancla.host === window.location.host &&
+        cambiosRef.current()
+      ) {
         ev.preventDefault();
         ev.stopPropagation();
         setDestino(ancla.pathname + ancla.search);
@@ -503,9 +826,16 @@ function FormularioEditarExpediente({
   }, []);
 
   /** Columnas (de 12) que ocupa cada campo y su etiqueta corta; la explicación larga va en el icono de ayuda. */
-  const DISENO: Record<string, { cols: number; etiqueta?: string; ayuda?: string; clave?: string }> = {
+  const DISENO: Record<
+    string,
+    { cols: number; etiqueta?: string; ayuda?: string; clave?: string }
+  > = {
     "DNI / NIE": { cols: 2, clave: "dni" },
-    "Nombre Completo *": { cols: 5, etiqueta: "Nombre completo *", clave: "nombre" },
+    "Nombre Completo *": {
+      cols: 5,
+      etiqueta: "Nombre completo *",
+      clave: "nombre",
+    },
     "Fecha de Nacimiento": { cols: 2, etiqueta: "F. nacimiento" },
     Tienda: { cols: 3 },
     Marca: { cols: 3 },
@@ -513,23 +843,47 @@ function FormularioEditarExpediente({
     "Tipo de Venta": { cols: 2, etiqueta: "Tipo de venta" },
     "Estado de Vehículo": { cols: 2, etiqueta: "Estado" },
     "Vendedor Asignado": { cols: 2, etiqueta: "Vendedor" },
-    "Matrícula": { cols: 2, clave: "matricula" },
+    Matrícula: { cols: 2, clave: "matricula" },
     "Número de Bastidor (VIN)": { cols: 4, etiqueta: "Bastidor (VIN)" },
     "Fecha Expediente": { cols: 2, etiqueta: "F. expediente" },
     "Fecha Afectación": { cols: 2, etiqueta: "F. afectación" },
-    "Fecha RCI (Financiación)": { cols: 2, clave: "fRci", etiqueta: "F. RCI", ayuda: "Fecha de contratación de la financiera. En crédito y preference hace falta para matricular o facturar; si falta, se guarda igualmente y se avisa." },
+    "Fecha RCI (Financiación)": {
+      cols: 2,
+      clave: "fRci",
+      etiqueta: "F. RCI",
+      ayuda:
+        "Fecha de contratación de la financiera. En crédito y preference hace falta para matricular o facturar; si falta, se guarda igualmente y se avisa.",
+    },
     "Fecha Matriculación": { cols: 2, etiqueta: "F. matriculación" },
-    "Fecha Facturación": { cols: 2, etiqueta: "F. facturación", ayuda: "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI." },
+    "Fecha Facturación": {
+      cols: 2,
+      etiqueta: "F. facturación",
+      ayuda:
+        "En un VN acompaña a la matriculación mientras no la cambies a mano; si la cambias, manda ella para comisionar. En crédito y preference exige antes la F. RCI.",
+    },
     "Fecha Entrega": { cols: 2, etiqueta: "F. entrega" },
   };
   const campo = (etiqueta: string, control: React.ReactNode) => {
     const d = DISENO[etiqueta] ?? { cols: 3 };
     return (
-      <div className={`form-group c${d.cols}`} style={{ marginBottom: 0 }} data-campo={d.clave}>
+      <div
+        className={`form-group c${d.cols}`}
+        style={{ marginBottom: 0 }}
+        data-campo={d.clave}
+      >
         <label className="form-label" style={{ marginBottom: "4px" }}>
           {d.etiqueta ?? etiqueta}
           {d.ayuda && (
-            <span title={d.ayuda} aria-label={d.ayuda} style={{ marginLeft: "6px", cursor: "help", color: "var(--text-muted)", fontWeight: 700 }}>
+            <span
+              title={d.ayuda}
+              aria-label={d.ayuda}
+              style={{
+                marginLeft: "6px",
+                cursor: "help",
+                color: "var(--text-muted)",
+                fontWeight: 700,
+              }}
+            >
               ⓘ
             </span>
           )}
@@ -540,42 +894,117 @@ function FormularioEditarExpediente({
   };
   /** En un VN la facturación acompaña a la matriculación mientras esté vacía o igual a ella (si se cambia a mano, se respeta). */
   const cambiarMatriculacion = (v: string) => {
-    const esVn = estadosVehiculo.find((x) => x.id === Number(estado))?.clase === "VN";
+    const esVn =
+      estadosVehiculo.find((x) => x.id === Number(estado))?.clase === "VN";
     if (esVn && (fFact === "" || fFact === fMat)) setFFact(v);
     setFMat(v);
   };
   const rciObligatoria = (): string | null => {
     const t = tiposVenta.find((x) => x.id === Number(tipoVenta));
     // La facturación solo se comprueba si se toca ella, la RCI o el tipo de pago (los expedientes antiguos que ya incumplían la regla se pueden seguir editando)
-    const factTocada = fFact !== (expediente.fecha_facturacion ?? "") || fRci !== (expediente.fecha_rci ?? "") || Number(tipoVenta) !== expediente.id_tipo_de_venta;
-    if (!fRci && t?.requiereRci && (fMat || (fFact && factTocada))) return `Falta la fecha RCI (contratación de la financiera): los pagos «${t.nombre}» la piden para poder ${fMat ? "matricular" : "facturar"}. Puedes guardar igualmente, pero faltará ese dato.`;
+    const factTocada =
+      fFact !== (expediente.fecha_facturacion ?? "") ||
+      fRci !== (expediente.fecha_rci ?? "") ||
+      Number(tipoVenta) !== expediente.id_tipo_de_venta;
+    if (!fRci && t?.requiereRci && (fMat || (fFact && factTocada)))
+      return `Falta la fecha RCI (contratación de la financiera): los pagos «${t.nombre}» la piden para poder ${fMat ? "matricular" : "facturar"}. Puedes guardar igualmente, pero faltará ese dato.`;
     return null;
   };
-  const fecha = (valor: string, fijar: (v: string) => void) => <input type="date" className="form-input" value={valor} onChange={(e) => fijar(e.target.value)} />;
+  const fecha = (valor: string, fijar: (v: string) => void) => (
+    <input
+      type="date"
+      className="form-input"
+      value={valor}
+      onChange={(e) => fijar(e.target.value)}
+    />
+  );
   const titulo = (color: string, icono: React.ReactNode, texto: string) => (
-    <h2 style={{ fontSize: "1.05rem", marginBottom: "10px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <h2
+      style={{
+        fontSize: "1.05rem",
+        marginBottom: "10px",
+        color: "var(--text-primary)",
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+      }}
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         {icono}
       </svg>
       {texto}
     </h2>
   );
   const flecha = (puntos: string) => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points={puntos} />
     </svg>
   );
-  const botonNavegacion: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", width: "36px", height: "36px", padding: 0, borderRadius: "var(--radius-sm)" };
+  const botonNavegacion: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "36px",
+    height: "36px",
+    padding: 0,
+    borderRadius: "var(--radius-sm)",
+  };
   const iconoGuardar = (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
       <polyline points="17 21 17 13 7 13 7 21" />
       <polyline points="7 3 7 8 15 8" />
     </svg>
   );
   const volver = (
-    <button type="button" className="btn btn-secondary" onClick={() => navegar("/dashboard/expedientes")} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px" }}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <button
+      type="button"
+      className="btn btn-secondary"
+      onClick={() => navegar("/dashboard/expedientes")}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "8px 16px",
+      }}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <line x1="19" y1="12" x2="5" y2="12" />
         <polyline points="12 19 5 12 12 5" />
       </svg>
@@ -587,23 +1016,65 @@ function FormularioEditarExpediente({
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {exito && (
         <div
-          style={{ position: "fixed", top: "24px", right: "24px", background: "rgba(16, 185, 129, 0.15)", backdropFilter: "blur(12px)", border: "1px solid rgba(16, 185, 129, 0.3)", color: "var(--success)", padding: "16px 24px", borderRadius: "var(--radius-md)", boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)", zIndex: 9999, display: "flex", alignItems: "center", gap: "12px" }}
+          style={{
+            position: "fixed",
+            top: "24px",
+            right: "24px",
+            background: "rgba(16, 185, 129, 0.15)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(16, 185, 129, 0.3)",
+            color: "var(--success)",
+            padding: "16px 24px",
+            borderRadius: "var(--radius-md)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <span style={{ fontWeight: 600 }}>¡Expediente guardado correctamente!</span>
+          <span style={{ fontWeight: 600 }}>
+            ¡Expediente guardado correctamente!
+          </span>
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", position: "sticky", top: 0, zIndex: 30, background: "var(--bg-app)", padding: "8px 0" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
+          position: "sticky",
+          top: 0,
+          zIndex: 30,
+          background: "var(--bg-app)",
+          padding: "8px 0",
+        }}
+      >
         {volver}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ display: "flex", gap: "6px" }}>
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => anteriorId !== null && navegar(`/dashboard/expedientes/editar/${anteriorId}`)}
+              onClick={() =>
+                anteriorId !== null &&
+                navegar(`/dashboard/expedientes/editar/${anteriorId}`)
+              }
               disabled={anteriorId === null || cargando}
               style={botonNavegacion}
               title="Expediente anterior (encima)"
@@ -613,7 +1084,10 @@ function FormularioEditarExpediente({
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => siguienteId !== null && navegar(`/dashboard/expedientes/editar/${siguienteId}`)}
+              onClick={() =>
+                siguienteId !== null &&
+                navegar(`/dashboard/expedientes/editar/${siguienteId}`)
+              }
               disabled={siguienteId === null || cargando}
               style={botonNavegacion}
               title="Expediente siguiente (debajo)"
@@ -621,7 +1095,13 @@ function FormularioEditarExpediente({
               {flecha("9 18 15 12 9 6")}
             </button>
           </div>
-          <button type="button" className="btn btn-primary" onClick={() => void enviar()} disabled={cargando} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void enviar()}
+            disabled={cargando}
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
+          >
             {cargando ? "Guardando..." : "Guardar Cambios"}
             {!cargando && iconoGuardar}
           </button>
@@ -629,48 +1109,148 @@ function FormularioEditarExpediente({
       </div>
 
       {borrador && (
-        <div role="status" style={{ padding: "10px 14px", borderLeft: "4px solid var(--info)", background: "var(--bg-card)", borderRadius: "var(--radius-sm)", fontSize: "0.88rem", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          ♻️ Se han recuperado los cambios que tenías sin guardar (la página se recargó). Revísalos y guarda.
-          <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => { borrarBorrador(claveBorrador); window.location.reload(); }}>
+        <div
+          role="status"
+          style={{
+            padding: "10px 14px",
+            borderLeft: "4px solid var(--info)",
+            background: "var(--bg-card)",
+            borderRadius: "var(--radius-sm)",
+            fontSize: "0.88rem",
+            display: "flex",
+            gap: "12px",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          ♻️ Se han recuperado los cambios que tenías sin guardar (la página se
+          recargó). Revísalos y guarda.
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: "3px 10px", fontSize: "0.8rem" }}
+            onClick={() => {
+              borrarBorrador(claveBorrador);
+              window.location.reload();
+            }}
+          >
             Descartarlos y volver a lo guardado
           </button>
         </div>
       )}
-      <form ref={formularioRef} onSubmit={enviar} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <form
+        ref={formularioRef}
+        onSubmit={enviar}
+        style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+      >
         {aviso && (
-          <div className="glass-panel" style={{ padding: "16px 20px", backgroundColor: "rgba(16, 185, 129, 0.1)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontWeight: 600, fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div
+            className="glass-panel"
+            style={{
+              padding: "16px 20px",
+              backgroundColor: "rgba(16, 185, 129, 0.1)",
+              borderLeft: "4px solid var(--success)",
+              color: "var(--success)",
+              fontWeight: 600,
+              fontSize: "0.95rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span>✅</span>
               <span>{aviso}</span>
             </div>
-            <button type="button" onClick={() => setAviso(null)} style={{ background: "none", border: "none", color: "var(--success)", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
+            <button
+              type="button"
+              onClick={() => setAviso(null)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--success)",
+                cursor: "pointer",
+                fontSize: "1rem",
+                fontWeight: "bold",
+              }}
+            >
               ✕
             </button>
           </div>
         )}
         {advertencias.length > 0 && (
-          <div className="glass-panel" role="alert" style={{ padding: "14px 18px", backgroundColor: "rgba(245, 158, 11, 0.1)", borderLeft: "4px solid var(--warning)", color: "var(--warning)", fontSize: "0.9rem", display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div
+            className="glass-panel"
+            role="alert"
+            style={{
+              padding: "14px 18px",
+              backgroundColor: "rgba(245, 158, 11, 0.1)",
+              borderLeft: "4px solid var(--warning)",
+              color: "var(--warning)",
+              fontSize: "0.9rem",
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              alignItems: "flex-start",
+            }}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+            >
               <strong>⚠️ Guardado, pero revisa esto:</strong>
               {advertencias.map((a) => (
-                <button key={a.campo} type="button" onClick={() => señalarPrimero([a.campo])} title="Pulsa para ir al campo" style={{ all: "unset", cursor: "pointer", textDecoration: "underline dotted" }}>
+                <button
+                  key={a.campo}
+                  type="button"
+                  onClick={() => señalarPrimero([a.campo])}
+                  title="Pulsa para ir al campo"
+                  style={{
+                    all: "unset",
+                    cursor: "pointer",
+                    textDecoration: "underline dotted",
+                  }}
+                >
                   {a.mensaje}
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setAdvertencias([])} style={{ background: "none", border: "none", color: "var(--warning)", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
+            <button
+              type="button"
+              onClick={() => setAdvertencias([])}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--warning)",
+                cursor: "pointer",
+                fontSize: "1rem",
+                fontWeight: "bold",
+              }}
+            >
               ✕
             </button>
           </div>
         )}
         {error && (
-          <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
-            <strong style={{ display: "block", marginBottom: "4px" }}>Error:</strong>
+          <div
+            className="glass-panel"
+            style={{
+              padding: "16px",
+              color: "var(--danger)",
+              borderLeft: "4px solid var(--danger)",
+              background: "rgba(239, 68, 68, 0.05)",
+            }}
+          >
+            <strong style={{ display: "block", marginBottom: "4px" }}>
+              Error:
+            </strong>
             {error}
           </div>
         )}
 
-        <div className="rejilla-propia" style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
+        <div
+          className="rejilla-propia"
+          style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}
+        >
           {/* DATOS DEL CLIENTE */}
           <div className="glass-panel" style={{ padding: "16px 20px" }}>
             {titulo(
@@ -685,40 +1265,130 @@ function FormularioEditarExpediente({
             {asignado ? (
               <div
                 className="glass-panel"
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", marginBottom: "24px", background: "rgba(6, 182, 212, 0.05)", borderLeft: "4px solid var(--secondary)", flexWrap: "wrap", gap: "12px" }}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "16px 20px",
+                  marginBottom: "24px",
+                  background: "rgba(6, 182, 212, 0.05)",
+                  borderLeft: "4px solid var(--secondary)",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                >
                   <span style={{ fontSize: "1.5rem" }}>👤</span>
                   <div>
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>Cliente Asociado: <NombreConFoto fotoId={fotoNueva ?? asignado.foto_id}>{asignado.nombre}</NombreConFoto></div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>DNI / NIE: {asignado.dni}</div>
+                    <div
+                      style={{ fontWeight: 700, color: "var(--text-primary)" }}
+                    >
+                      Cliente Asociado:{" "}
+                      <NombreConFoto fotoId={fotoNueva ?? asignado.foto_id}>
+                        {asignado.nombre}
+                      </NombreConFoto>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.8rem",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      DNI / NIE: {asignado.dni}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                  <button type="button" className="btn btn-secondary" onClick={desasignar} style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}>
+                <div
+                  style={{ display: "flex", gap: "12px", alignItems: "center" }}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={desasignar}
+                    style={{
+                      padding: "6px 12px",
+                      fontSize: "0.8rem",
+                      color: "var(--danger)",
+                    }}
+                  >
                     ❌ Desasignar Cliente
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="form-group" style={{ position: "relative", marginBottom: "24px" }}>
-                <label className="form-label">🔍 Buscar Cliente Existente (DNI o Nombre)</label>
-                <input type="text" className="form-input" placeholder="Escribe DNI o Nombre... (Ej. Juan)" value={busqueda} onChange={(e) => buscarCliente(e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.preventDefault()} />
-                {buscando && <div style={{ position: "absolute", right: "16px", bottom: "12px", fontSize: "0.8rem", color: "var(--text-muted)" }}>Buscando...</div>}
+              <div
+                className="form-group"
+                style={{ position: "relative", marginBottom: "24px" }}
+              >
+                <label className="form-label">
+                  🔍 Buscar Cliente Existente (DNI o Nombre)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Escribe DNI o Nombre... (Ej. Juan)"
+                  value={busqueda}
+                  onChange={(e) => buscarCliente(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+                />
+                {buscando && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: "16px",
+                      bottom: "12px",
+                      fontSize: "0.8rem",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    Buscando...
+                  </div>
+                )}
                 {resultados.length > 0 && (
                   <div
                     className="glass-panel"
-                    style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-surface)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-lg)", zIndex: 99, maxHeight: "220px", overflowY: "auto", marginTop: "4px" }}
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border-light)",
+                      borderRadius: "var(--radius-sm)",
+                      boxShadow: "var(--shadow-lg)",
+                      zIndex: 99,
+                      maxHeight: "220px",
+                      overflowY: "auto",
+                      marginTop: "4px",
+                    }}
                   >
                     {resultados.map((c) => (
                       <div
                         key={c.id}
                         onClick={() => elegirCliente(c)}
                         className="glass-panel-interactive"
-                        style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-light)", borderRadius: 0, fontSize: "0.9rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                        style={{
+                          padding: "12px 16px",
+                          borderBottom: "1px solid var(--border-light)",
+                          borderRadius: 0,
+                          fontSize: "0.9rem",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
                       >
                         <span style={{ fontWeight: 600 }}>{c.nombre}</span>
-                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "monospace" }}>{c.dni}</span>
+                        <span
+                          style={{
+                            fontSize: "0.8rem",
+                            color: "var(--text-muted)",
+                            fontFamily: "monospace",
+                          }}
+                        >
+                          {c.dni}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -726,18 +1396,61 @@ function FormularioEditarExpediente({
               </div>
             )}
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <BotonLeerDni compacta disabled={cargando} alLeer={alLeerDniSuelto} alLeerPedido={async (r) => setPedidoLeido(r)} />
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Arrastra el DNI o el pedido (o los dos a la vez), da igual en qué casilla: se reconoce solo. El DNI se guarda y de él sale la foto del cliente; del pedido verás una vista previa con sus datos.</span>
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                alignItems: "center",
+                flexWrap: "wrap",
+                marginBottom: "14px",
+              }}
+            >
+              <BotonLeerDni
+                compacta
+                disabled={cargando}
+                alLeer={alLeerDniSuelto}
+                alLeerPedido={async (r) => setPedidoLeido(r)}
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                Arrastra el DNI o el pedido (o los dos a la vez), da igual en
+                qué casilla: se reconoce solo. El DNI se guarda y de él sale la
+                foto del cliente; del pedido verás una vista previa con sus
+                datos.
+              </span>
             </div>
 
             <div className="rejilla-ficha">
-              {campo("DNI / NIE", <input type="text" className="form-input" value={dni} onChange={(e) => setDni(e.target.value)} placeholder="Ej. 12345678Z" />)}
-              {campo("Nombre Completo *", <input type="text" className="form-input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" />)}
-              {campo("Fecha de Nacimiento", fecha(fechaNacimiento, setFechaNacimiento))}
+              {campo(
+                "DNI / NIE",
+                <input
+                  type="text"
+                  className="form-input"
+                  value={dni}
+                  onChange={(e) => setDni(e.target.value)}
+                  placeholder="Ej. 12345678Z"
+                />,
+              )}
+              {campo(
+                "Nombre Completo *",
+                <input
+                  type="text"
+                  className="form-input"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej. Juan Pérez Gómez"
+                />,
+              )}
+              {campo(
+                "Fecha de Nacimiento",
+                fecha(fechaNacimiento, setFechaNacimiento),
+              )}
               {campo(
                 "Tienda",
-                <select className="form-select" value={tiendaId} onChange={(e) => setTiendaId(e.target.value)}>
+                <select
+                  className="form-select"
+                  value={tiendaId}
+                  onChange={(e) => setTiendaId(e.target.value)}
+                >
                   <option value="">Selecciona Tienda</option>
                   {tiendas.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -748,9 +1461,24 @@ function FormularioEditarExpediente({
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px", marginTop: "14px" }}>
-              <ListaContactos clase="email" contactos={emails} alCambiar={setEmails} />
-              <ListaContactos clase="telefono" contactos={telefonos} alCambiar={setTelefonos} />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "20px",
+                marginTop: "14px",
+              }}
+            >
+              <ListaContactos
+                clase="email"
+                contactos={emails}
+                alCambiar={setEmails}
+              />
+              <ListaContactos
+                clase="telefono"
+                contactos={telefonos}
+                alCambiar={setTelefonos}
+              />
             </div>
           </div>
 
@@ -765,22 +1493,74 @@ function FormularioEditarExpediente({
               "Detalles de la Venta y Vehículo",
             )}
 
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" }}>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Para rellenar estos datos desde el pedido, suéltalo arriba, en «Leer DNI o pedido» (vale el pedido o el DNI, da igual cuál).</span>
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                alignItems: "center",
+                flexWrap: "wrap",
+                marginBottom: "14px",
+              }}
+            >
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                Para rellenar estos datos desde el pedido, suéltalo arriba, en
+                «Leer DNI o pedido» (vale el pedido o el DNI, da igual cuál).
+              </span>
               {pedidoLeido && (
                 <ModalPedidoEnExpediente
                   pedido={pedidoLeido}
-                  actuales={{ idModelo: modelo, modelo: etiquetaModelo(modelo), idTipoVenta: tipoVenta, tipoVenta: tiposVenta.find((t) => t.id === Number(tipoVenta))?.nombre ?? "", vin, matricula, fExp, fEntrega, fMat, idCliente: asignado ? asignado.id : null, dni, nombre, fNac: fechaNacimiento, telefono: telefonos.find((t) => t.valor.trim() !== "")?.valor ?? "", email: emails.find((m) => m.valor.trim() !== "")?.valor ?? "" }}
-                  opcionesModelo={Object.entries(modelosPorMarca).flatMap(([idMarca, lista]) => lista.map((m) => ({ id: m.id, etiqueta: `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim() })))}
-                  opcionesTipoVenta={tiposVenta.map((t) => ({ id: t.id, etiqueta: t.nombre }))}
+                  actuales={{
+                    idModelo: modelo,
+                    modelo: etiquetaModelo(modelo),
+                    idTipoVenta: tipoVenta,
+                    tipoVenta:
+                      tiposVenta.find((t) => t.id === Number(tipoVenta))
+                        ?.nombre ?? "",
+                    vin,
+                    matricula,
+                    fExp,
+                    fEntrega,
+                    fMat,
+                    idCliente: asignado ? asignado.id : null,
+                    dni,
+                    nombre,
+                    fNac: fechaNacimiento,
+                    telefono:
+                      telefonos.find((t) => t.valor.trim() !== "")?.valor ?? "",
+                    email:
+                      emails.find((m) => m.valor.trim() !== "")?.valor ?? "",
+                  }}
+                  opcionesModelo={Object.entries(modelosPorMarca).flatMap(
+                    ([idMarca, lista]) =>
+                      lista.map((m) => ({
+                        id: m.id,
+                        etiqueta:
+                          `${marcas.find((x) => x.id === Number(idMarca))?.nombre ?? ""} ${m.nombre}`.trim(),
+                      })),
+                  )}
+                  opcionesTipoVenta={tiposVenta.map((t) => ({
+                    id: t.id,
+                    etiqueta: t.nombre,
+                  }))}
                   dni={dniLeido}
                   alLeerDni={async (r) => {
                     try {
-                      await vincularAdjuntos(r.adjuntos.map((a) => a.id), { idExpediente: expediente.id_expediente, idCliente: expediente.id_cliente });
+                      await vincularAdjuntos(
+                        r.adjuntos.map((a) => a.id),
+                        {
+                          idExpediente: expediente.id_expediente,
+                          idCliente: expediente.id_cliente,
+                        },
+                      );
                       setVersionAdjuntos((v) => v + 1);
                       if (r.fotoId) setFotoNueva(r.fotoId);
                     } catch (e) {
-                      mostrar(e instanceof Error ? e.message : "No se ha podido adjuntar el DNI.", "error");
+                      mostrar(
+                        e instanceof Error
+                          ? e.message
+                          : "No se ha podido adjuntar el DNI.",
+                        "error",
+                      );
                     }
                     juntarDni(r);
                   }}
@@ -788,7 +1568,11 @@ function FormularioEditarExpediente({
                   alCancelar={() => setPedidoLeido(null)}
                 />
               )}
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>De un pedido leído verás una vista previa para marcar qué datos aplicar (cliente incluido). Se guarda al pulsar «Guardar Cambios».</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                De un pedido leído verás una vista previa para marcar qué datos
+                aplicar (cliente incluido). Se guarda al pulsar «Guardar
+                Cambios».
+              </span>
             </div>
 
             <div className="rejilla-ficha">
@@ -812,7 +1596,14 @@ function FormularioEditarExpediente({
               )}
               {campo(
                 "Modelo",
-                <select className="form-select" value={modelo} onChange={(e) => setModelo(e.target.value ? Number(e.target.value) : "")} disabled={!marca}>
+                <select
+                  className="form-select"
+                  value={modelo}
+                  onChange={(e) =>
+                    setModelo(e.target.value ? Number(e.target.value) : "")
+                  }
+                  disabled={!marca}
+                >
                   <option value="">Selecciona Modelo</option>
                   {modelosDisponibles.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -823,7 +1614,13 @@ function FormularioEditarExpediente({
               )}
               {campo(
                 "Tipo de Venta",
-                <select className="form-select" value={tipoVenta} onChange={(e) => setTipoVenta(e.target.value ? Number(e.target.value) : "")}>
+                <select
+                  className="form-select"
+                  value={tipoVenta}
+                  onChange={(e) =>
+                    setTipoVenta(e.target.value ? Number(e.target.value) : "")
+                  }
+                >
                   <option value="">Selecciona Tipo</option>
                   {tiposVenta.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -834,7 +1631,13 @@ function FormularioEditarExpediente({
               )}
               {campo(
                 "Estado de Vehículo",
-                <select className="form-select" value={estado} onChange={(e) => setEstado(e.target.value ? Number(e.target.value) : "")}>
+                <select
+                  className="form-select"
+                  value={estado}
+                  onChange={(e) =>
+                    setEstado(e.target.value ? Number(e.target.value) : "")
+                  }
+                >
                   <option value="">Selecciona Estado</option>
                   {estadosVehiculo.map((ev) => (
                     <option key={ev.id} value={ev.id}>
@@ -845,7 +1648,11 @@ function FormularioEditarExpediente({
               )}
               {campo(
                 "Vendedor Asignado",
-                <select className="form-select" value={vendedor} onChange={(e) => setVendedor(e.target.value)}>
+                <select
+                  className="form-select"
+                  value={vendedor}
+                  onChange={(e) => setVendedor(e.target.value)}
+                >
                   <option value="">Selecciona Vendedor</option>
                   {usuarios.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -854,19 +1661,79 @@ function FormularioEditarExpediente({
                   ))}
                 </select>,
               )}
-              {campo("Matrícula", <input type="text" className="form-input" value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />)}
-              {campo("Número de Bastidor (VIN)", <input type="text" className="form-input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="Ej. WBA..." />)}
+              {campo(
+                "Matrícula",
+                <input
+                  type="text"
+                  className="form-input"
+                  value={matricula}
+                  onChange={(e) => setMatricula(e.target.value)}
+                  placeholder="Ej. 1234BBB"
+                />,
+              )}
+              {campo(
+                "Número de Bastidor (VIN)",
+                <input
+                  type="text"
+                  className="form-input"
+                  value={vin}
+                  onChange={(e) => setVin(e.target.value)}
+                  placeholder="Ej. WBA..."
+                />,
+              )}
             </div>
-            <label style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginTop: "16px", padding: "10px 12px", border: `1px solid ${deshabilitado ? "var(--warning)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)", cursor: "pointer" }} title="Un expediente deshabilitado sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones">
-              <input type="checkbox" checked={deshabilitado} onChange={(e) => setDeshabilitado(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--warning)", marginTop: "2px" }} />
-              <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                <strong style={{ fontSize: "0.9rem" }}>⏸ Deshabilitar este expediente</strong>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones mientras esté marcado.</span>
+            <label
+              style={{
+                display: "flex",
+                gap: "10px",
+                alignItems: "flex-start",
+                marginTop: "16px",
+                padding: "10px 12px",
+                border: `1px solid ${deshabilitado ? "var(--warning)" : "var(--border-light)"}`,
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+              }}
+              title="Un expediente deshabilitado sigue en la lista, pero no cuenta en las comisiones, la tasa ni las liquidaciones"
+            >
+              <input
+                type="checkbox"
+                checked={deshabilitado}
+                onChange={(e) => setDeshabilitado(e.target.checked)}
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  accentColor: "var(--warning)",
+                  marginTop: "2px",
+                }}
+              />
+              <span
+                style={{ display: "flex", flexDirection: "column", gap: "2px" }}
+              >
+                <strong style={{ fontSize: "0.9rem" }}>
+                  ⏸ Deshabilitar este expediente
+                </strong>
+                <span
+                  style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}
+                >
+                  Sigue en la lista, pero no cuenta en las comisiones, la tasa
+                  ni las liquidaciones mientras esté marcado.
+                </span>
               </span>
             </label>
-            <div className="form-group" style={{ marginTop: "16px", marginBottom: 0 }}>
+            <div
+              className="form-group"
+              style={{ marginTop: "16px", marginBottom: 0 }}
+            >
               <label className="form-label">Comentarios del expediente</label>
-              <textarea className="form-input" rows={3} maxLength={5000} value={comentarios} onChange={(e) => setComentarios(e.target.value)} placeholder="Notas internas sobre este expediente…" style={{ resize: "vertical", minHeight: "80px" }} />
+              <textarea
+                className="form-input"
+                rows={3}
+                maxLength={5000}
+                value={comentarios}
+                onChange={(e) => setComentarios(e.target.value)}
+                placeholder="Notas internas sobre este expediente…"
+                style={{ resize: "vertical", minHeight: "80px" }}
+              />
             </div>
             <ApuntesExpediente idExpediente={expediente.id_expediente} />
           </div>
@@ -887,50 +1754,162 @@ function FormularioEditarExpediente({
               {campo("Fecha Expediente", fecha(fExp, setFExp))}
               {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
               {campo("Fecha RCI (Financiación)", fecha(fRci, setFRci))}
-              <CajaPagoRci idExpediente={expediente.id_expediente} alAplicado={(f) => setFRci(f)} />
+              <CajaPagoRci
+                idExpediente={expediente.id_expediente}
+                alAplicado={(f) => setFRci(f)}
+              />
               {campo("Fecha Matriculación", fecha(fMat, cambiarMatriculacion))}
               {campo("Fecha Facturación", fecha(fFact, setFFact))}
-              {campo("Fecha Entrega", fecha(fEntrega, setFEntrega))}
-
-              {estadosVehiculo.find((x) => x.id === Number(estado))?.clase !== "VO" && (
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.02)", padding: "8px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", justifySelf: "start", gridColumn: "1 / -1" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {campo(
+                "Fecha Entrega",
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {fecha(fEntrega, setFEntrega)}
                   <input
-                    type="checkbox"
-                    id="cobradoOtraFecha"
-                    checked={cobradoOtraFecha}
-                    onChange={(e) => {
-                      setCobradoOtraFecha(e.target.checked);
-                      if (!e.target.checked) setFCobrado("");
-                    }}
-                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                    type="time"
+                    className="form-input"
+                    value={hEntrega}
+                    onChange={(e) => setHEntrega(e.target.value)}
+                    aria-label="Hora de la entrega"
+                    title="Hora de la entrega (opcional)"
+                    style={{ maxWidth: "130px" }}
                   />
-                  <label htmlFor="cobradoOtraFecha" style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", userSelect: "none" }}>
-                    Expediente cobrado en otra fecha
-                  </label>
-                </div>
-                {cobradoOtraFecha && (
-                  <div className="form-group" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-                    <label className="form-label" style={{ fontSize: "0.78rem", marginBottom: 0, whiteSpace: "nowrap" }}>Fecha de Cobrado</label>
-                    <input type="date" className="form-input" value={fCobrado} onChange={(e) => setFCobrado(e.target.value)} data-campo="fCobrado" />
+                </div>,
+              )}
+
+              {estadosVehiculo.find((x) => x.id === Number(estado))?.clase !==
+                "VO" && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    flexWrap: "wrap",
+                    background: "rgba(255, 255, 255, 0.02)",
+                    padding: "8px 14px",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border-light)",
+                    justifySelf: "start",
+                    gridColumn: "1 / -1",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      id="cobradoOtraFecha"
+                      checked={cobradoOtraFecha}
+                      onChange={(e) => {
+                        setCobradoOtraFecha(e.target.checked);
+                        if (!e.target.checked) setFCobrado("");
+                      }}
+                      style={{
+                        width: "16px",
+                        height: "16px",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <label
+                      htmlFor="cobradoOtraFecha"
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "var(--text-primary)",
+                        cursor: "pointer",
+                        userSelect: "none",
+                      }}
+                    >
+                      Expediente cobrado en otra fecha
+                    </label>
                   </div>
-                )}
+                  {cobradoOtraFecha && (
+                    <div
+                      className="form-group"
+                      style={{
+                        marginBottom: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <label
+                        className="form-label"
+                        style={{
+                          fontSize: "0.78rem",
+                          marginBottom: 0,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Fecha de Cobrado
+                      </label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={fCobrado}
+                        onChange={(e) => setFCobrado(e.target.value)}
+                        data-campo="fCobrado"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
               {rciObligatoria() && (
-                <div role="alert" style={{ gridColumn: "1 / -1", padding: "8px 12px", borderLeft: "4px solid var(--warning)", background: "rgba(245, 158, 11, 0.08)", color: "var(--warning)", fontSize: "0.85rem", fontWeight: 600 }}>
+                <div
+                  role="alert"
+                  style={{
+                    gridColumn: "1 / -1",
+                    padding: "8px 12px",
+                    borderLeft: "4px solid var(--warning)",
+                    background: "rgba(245, 158, 11, 0.08)",
+                    color: "var(--warning)",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                  }}
+                >
                   ⚠️ {rciObligatoria()}
                 </div>
               )}
-              <div style={{ gridColumn: "1 / -1", fontSize: "0.78rem", color: "var(--text-muted)" }}>En un VN la fecha de facturación acompaña a la de matriculación; si la cambias, manda ella para comisionar.</div>
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  fontSize: "0.78rem",
+                  color: "var(--text-muted)",
+                }}
+              >
+                En un VN la fecha de facturación acompaña a la de matriculación;
+                si la cambias, manda ella para comisionar.
+              </div>
 
               {mismoMesPedidoMatricula() && (
                 <div
                   className="glass-panel"
-                  style={{ gridColumn: "1 / -1", padding: "10px 16px", background: "rgba(16, 185, 129, 0.08)", borderLeft: "4px solid var(--success)", color: "var(--success)", fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}
+                  style={{
+                    gridColumn: "1 / -1",
+                    padding: "10px 16px",
+                    background: "rgba(16, 185, 129, 0.08)",
+                    borderLeft: "4px solid var(--success)",
+                    color: "var(--success)",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginTop: "8px",
+                  }}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                     <polyline points="22 4 12 14.01 9 11.01" />
                   </svg>
@@ -941,7 +1920,11 @@ function FormularioEditarExpediente({
           </div>
           {/* DOCUMENTOS DEL EXPEDIENTE */}
           <div className="glass-panel" style={{ padding: "16px 20px" }}>
-            <VisorAdjuntos key={versionAdjuntos} idExpediente={expediente.id_expediente} titulo="📎 Documentos del expediente (DNI, pedido, PDF…)" />
+            <VisorAdjuntos
+              key={versionAdjuntos}
+              idExpediente={expediente.id_expediente}
+              titulo="📎 Documentos del expediente (DNI, pedido, PDF…)"
+            />
           </div>
         </div>
 
@@ -950,7 +1933,15 @@ function FormularioEditarExpediente({
         <BloqueComisionamiento
           valor={com}
           onChange={setCom}
-          mesCierre={fFact ? fFact.slice(0, 7) : fMat ? fMat.slice(0, 7) : fExp ? fExp.slice(0, 7) : null}
+          mesCierre={
+            fFact
+              ? fFact.slice(0, 7)
+              : fMat
+                ? fMat.slice(0, 7)
+                : fExp
+                  ? fExp.slice(0, 7)
+                  : null
+          }
           contexto={{
             id_expediente: expediente.id_expediente,
             id_usuario: vendedor ? Number(vendedor) : null,
@@ -968,12 +1959,30 @@ function FormularioEditarExpediente({
           }}
         />
 
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "16px", marginTop: "8px", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: "16px",
+            marginTop: "8px",
+            flexWrap: "wrap",
+          }}
+        >
           <div style={{ display: "flex", gap: "16px" }}>
-            <button type="button" className="btn btn-secondary" onClick={() => navegar("BACK")} disabled={cargando}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => navegar("BACK")}
+              disabled={cargando}
+            >
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" disabled={cargando}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={cargando}
+            >
               {cargando ? "Guardando..." : "Guardar Cambios"}
               {!cargando && iconoGuardar}
             </button>
@@ -988,11 +1997,28 @@ function FormularioEditarExpediente({
           tamanoTitulo="1.25rem"
           pie={undefined}
         >
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", margin: 0, textAlign: "center" }}>
-            Tienes cambios sin guardar en este expediente. ¿Qué deseas hacer antes de salir?
+          <p
+            style={{
+              color: "var(--text-secondary)",
+              fontSize: "0.95rem",
+              lineHeight: "1.6",
+              margin: 0,
+              textAlign: "center",
+            }}
+          >
+            Tienes cambios sin guardar en este expediente. ¿Qué deseas hacer
+            antes de salir?
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <button type="button" className="btn btn-primary" onClick={() => void guardarYSalir()} disabled={guardando} style={{ width: "100%", justifyContent: "center" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void guardarYSalir()}
+              disabled={guardando}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
               {guardando ? "Guardando..." : "💾 Guardar y Salir"}
             </button>
             <button
@@ -1005,7 +2031,13 @@ function FormularioEditarExpediente({
                 setTimeout(() => irA(destino), 100);
               }}
               disabled={guardando}
-              style={{ width: "100%", justifyContent: "center", backgroundColor: "rgba(239, 68, 68, 0.1)", color: "var(--danger)", border: "1px solid rgba(239, 68, 68, 0.2)" }}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                color: "var(--danger)",
+                border: "1px solid rgba(239, 68, 68, 0.2)",
+              }}
             >
               🚪 Salir sin Guardar
             </button>
@@ -1038,6 +2070,7 @@ export default function EditarExpedienteForm(props: Props) {
     () => true,
     () => false,
   );
-  if (!enNavegador) return <p style={{ color: "var(--text-secondary)" }}>Cargando…</p>;
+  if (!enNavegador)
+    return <p style={{ color: "var(--text-secondary)" }}>Cargando…</p>;
   return <FormularioEditarExpediente {...props} />;
 }

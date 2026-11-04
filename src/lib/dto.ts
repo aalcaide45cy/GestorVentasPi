@@ -103,6 +103,8 @@ export interface ExpedienteDto {
   fecha_afectacion: string | null;
   fecha_matriculacion: string | null;
   fecha_entrega: string | null;
+  /** Hora de la entrega (HH:MM), si se indicó. */
+  hora_entrega?: string | null;
   fecha_rci: string | null;
   fecha_facturacion: string | null;
   matricula: string | null;

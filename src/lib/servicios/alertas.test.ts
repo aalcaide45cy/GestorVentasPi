@@ -4,9 +4,26 @@ import { db } from "@/db";
 import { esquemaReglaAlerta } from "@/lib/alertas";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { fijarEstadoSemaforo, listarApuntes } from "./apuntes";
-import { actualizarReglaAlerta, crearReglaAlerta, eliminarAlerta, evaluarAlertas, misAlertas, posponerAlerta, reabrirAlerta, reevaluarTodas, resolverAlerta, vaciarResueltas } from "./alertas";
-import { esquemaActualizarExpediente, esquemaCrearExpediente } from "./expedientes";
-import { actualizarExpedientes, crearExpediente } from "./expedientes-escritura";
+import {
+  actualizarReglaAlerta,
+  crearReglaAlerta,
+  eliminarAlerta,
+  evaluarAlertas,
+  misAlertas,
+  posponerAlerta,
+  reabrirAlerta,
+  reevaluarTodas,
+  resolverAlerta,
+  vaciarResueltas,
+} from "./alertas";
+import {
+  esquemaActualizarExpediente,
+  esquemaCrearExpediente,
+} from "./expedientes";
+import {
+  actualizarExpedientes,
+  crearExpediente,
+} from "./expedientes-escritura";
 
 beforeEach(reiniciarBd);
 
@@ -14,14 +31,44 @@ async function escenario() {
   const admin = await crearUsuarioPrueba("administrador", "Admin");
   const ana = await crearUsuarioPrueba("vendedor", "Ana");
   const otra = await crearUsuarioPrueba("vendedor", "Otra");
-  const exp = await crearExpediente(db, ana, esquemaCrearExpediente.parse({ cliente: { nombre: "Cliente Uno", dni: "33333333P" }, expediente: {} }));
+  const exp = await crearExpediente(
+    db,
+    ana,
+    esquemaCrearExpediente.parse({
+      cliente: { nombre: "Cliente Uno", dni: "33333333P" },
+      expediente: {},
+    }),
+  );
   return { admin, ana, otra, id: exp.id_expediente };
 }
-const guardar = (u: Awaited<ReturnType<typeof crearUsuarioPrueba>>, id: number, expediente: Record<string, unknown>) => actualizarExpedientes(db, u, esquemaActualizarExpediente.parse({ modo: "uno", id_expediente: id, expediente }));
+const guardar = (
+  u: Awaited<ReturnType<typeof crearUsuarioPrueba>>,
+  id: number,
+  expediente: Record<string, unknown>,
+) =>
+  actualizarExpedientes(
+    db,
+    u,
+    esquemaActualizarExpediente.parse({
+      modo: "uno",
+      id_expediente: id,
+      expediente,
+    }),
+  );
 const reglaSeguro = esquemaReglaAlerta.parse({
   nombre: "Contratar el seguro",
   mensaje: "Contrata el seguro de {cliente} ({matricula})",
-  definicion: { combinar: "todas", condiciones: [{ campo: "matricula", operador: "no_vacio", valor: "" }, { campo: "estado_semaforo", operador: "es", valor: "Seguro: Seguro aún no solicitado" }] },
+  definicion: {
+    combinar: "todas",
+    condiciones: [
+      { campo: "matricula", operador: "no_vacio", valor: "" },
+      {
+        campo: "estado_semaforo",
+        operador: "es",
+        valor: "Seguro: Seguro aún no solicitado",
+      },
+    ],
+  },
 });
 
 describe("alertas", () => {
@@ -33,7 +80,12 @@ describe("alertas", () => {
     await guardar(ana, id, { matricula: "1234ABC" });
     const { pendientes } = await misAlertas(db, ana);
     expect(pendientes).toHaveLength(1);
-    expect(pendientes[0]).toMatchObject({ mensaje: "Contrata el seguro de Cliente Uno (1234ABC)", cliente: "Cliente Uno", id_expediente: id, regla: "Contratar el seguro" });
+    expect(pendientes[0]).toMatchObject({
+      mensaje: "Contrata el seguro de Cliente Uno (1234ABC)",
+      cliente: "Cliente Uno",
+      id_expediente: id,
+      regla: "Contratar el seguro",
+    });
     expect((await misAlertas(db, otra)).pendientes).toHaveLength(0);
     // Guardar otra vez no la duplica
     await guardar(ana, id, { comentarios: "x" });
@@ -58,13 +110,19 @@ describe("alertas", () => {
     let r = await misAlertas(db, ana);
     expect(r.pendientes).toHaveLength(0);
     expect(r.pospuestas).toHaveLength(1);
-    await expect(posponerAlerta(db, ana, a.id, new Date(Date.now() - 1000))).rejects.toThrow(/no válida/);
+    await expect(
+      posponerAlerta(db, ana, a.id, new Date(Date.now() - 1000)),
+    ).rejects.toThrow(/no válida/);
     // Día y hora a elegir: hasta un año
-    await expect(posponerAlerta(db, ana, a.id, new Date(Date.now() + 400 * 86_400_000))).rejects.toThrow(/no válida/);
+    await expect(
+      posponerAlerta(db, ana, a.id, new Date(Date.now() + 400 * 86_400_000)),
+    ).rejects.toThrow(/no válida/);
     await posponerAlerta(db, ana, a.id, new Date(Date.now() + 40 * 86_400_000));
     expect((await misAlertas(db, ana)).pospuestas).toHaveLength(1);
     // Llega su hora
-    await db.execute(sql`update alertas set pospuesta_hasta = now() - interval '1 minute'`);
+    await db.execute(
+      sql`update alertas set pospuesta_hasta = now() - interval '1 minute'`,
+    );
     r = await misAlertas(db, ana);
     expect(r.pendientes).toHaveLength(1);
     await resolverAlerta(db, ana, a.id);
@@ -81,7 +139,9 @@ describe("alertas", () => {
     await crearReglaAlerta(db, admin, reglaSeguro);
     await guardar(ana, id, { matricula: "1234ABC" });
     expect((await misAlertas(db, ana)).pendientes).toHaveLength(1);
-    await db.execute(sql`update expedientes set estado_intranet = 'Anulado' where id_expediente = ${id}`);
+    await db.execute(
+      sql`update expedientes set estado_intranet = 'Anulado' where id_expediente = ${id}`,
+    );
     await guardar(ana, id, { comentarios: "x" });
     const r = await misAlertas(db, ana);
     expect(r.pendientes).toHaveLength(0);
@@ -96,7 +156,9 @@ describe("alertas", () => {
     const [a] = (await misAlertas(db, ana)).pendientes;
     await expect(eliminarAlerta(db, ana, a.id)).rejects.toThrow(/resueltas/);
     await resolverAlerta(db, ana, a.id);
-    await expect(eliminarAlerta(db, otra, a.id)).rejects.toThrow(/no encontrada/);
+    await expect(eliminarAlerta(db, otra, a.id)).rejects.toThrow(
+      /no encontrada/,
+    );
     await eliminarAlerta(db, ana, a.id);
     expect((await misAlertas(db, ana)).resueltas).toHaveLength(0);
     // Vaciar: solo las resueltas propias
@@ -109,18 +171,70 @@ describe("alertas", () => {
 
   it("puede avisar también al administrador, solo el administrador cambia las reglas y se puede revisar todo", async () => {
     const { admin, ana, otra, id } = await escenario();
-    await expect(crearReglaAlerta(db, ana, reglaSeguro)).rejects.toThrow(/administrador/);
-    const regla = await crearReglaAlerta(db, admin, { ...reglaSeguro, avisar_admin: true });
+    await expect(crearReglaAlerta(db, ana, reglaSeguro)).rejects.toThrow(
+      /administrador/,
+    );
+    const regla = await crearReglaAlerta(db, admin, {
+      ...reglaSeguro,
+      avisar_admin: true,
+    });
     await guardar(ana, id, { matricula: "1234ABC" });
     expect((await misAlertas(db, admin)).pendientes).toHaveLength(1);
-    await expect(resolverAlerta(db, otra, (await misAlertas(db, ana)).pendientes[0].id)).rejects.toThrow(/no encontrada/);
+    await expect(
+      resolverAlerta(db, otra, (await misAlertas(db, ana)).pendientes[0].id),
+    ).rejects.toThrow(/no encontrada/);
     // Apagar la regla resuelve lo abierto
-    await actualizarReglaAlerta(db, admin, regla.id, { ...reglaSeguro, activa: false, avisar_admin: true });
+    await actualizarReglaAlerta(db, admin, regla.id, {
+      ...reglaSeguro,
+      activa: false,
+      avisar_admin: true,
+    });
     await evaluarAlertas(db, [id]);
     expect((await misAlertas(db, ana)).pendientes).toHaveLength(0);
     // «Revisar ahora» crea las que falten en los expedientes que ya existen
-    await actualizarReglaAlerta(db, admin, regla.id, { ...reglaSeguro, activa: true, avisar_admin: false });
+    await actualizarReglaAlerta(db, admin, regla.id, {
+      ...reglaSeguro,
+      activa: true,
+      avisar_admin: false,
+    });
     expect(await reevaluarTodas(db, admin)).toBe(1);
     expect((await misAlertas(db, ana)).pendientes).toHaveLength(1);
+  });
+
+  it("«N días antes de una fecha»: queda pospuesta hasta ese día y hora, se mueve si cambia la fecha y no salta sin fecha", async () => {
+    const { admin, ana, id } = await escenario();
+    await crearReglaAlerta(
+      db,
+      admin,
+      esquemaReglaAlerta.parse({
+        nombre: "Entrega",
+        mensaje: "{expediente} de {cliente} se entrega pronto",
+        definicion: {
+          combinar: "todas",
+          condiciones: [],
+          cuando: { campo: "fecha_entrega", dias: -2, hora: "09:30" },
+        },
+      }),
+    );
+    expect((await misAlertas(db, ana)).pospuestas).toHaveLength(0);
+    const en = (dias: number) =>
+      new Date(Date.now() + dias * 86_400_000).toISOString().slice(0, 10);
+    await guardar(ana, id, { fecha_entrega: en(10), hora_entrega: "11:00" });
+    let r = await misAlertas(db, ana);
+    expect(r.pendientes).toHaveLength(0);
+    expect(r.pospuestas).toHaveLength(1);
+    const primera = r.pospuestas[0].pospuesta_hasta;
+    // Cambia la fecha: el aviso se mueve
+    await guardar(ana, id, { fecha_entrega: en(20) });
+    r = await misAlertas(db, ana);
+    expect(r.pospuestas).toHaveLength(1);
+    expect(r.pospuestas[0].pospuesta_hasta).not.toBe(primera);
+    // Una fecha ya pasada salta enseguida
+    await guardar(ana, id, { fecha_entrega: en(1) });
+    expect((await misAlertas(db, ana)).pendientes).toHaveLength(1);
+    // Sin fecha de entrega no hay aviso (y se quita la hora)
+    await guardar(ana, id, { fecha_entrega: null });
+    r = await misAlertas(db, ana);
+    expect(r.pendientes).toHaveLength(0);
   });
 });
