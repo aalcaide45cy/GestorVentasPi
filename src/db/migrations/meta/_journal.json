@@ -505,6 +505,13 @@
       "when": 1793205231862,
       "tag": "0071_calendario",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1793205231863,
+      "tag": "0072_notas_y_flujos",
+      "breakpoints": true
     }
   ]
 }

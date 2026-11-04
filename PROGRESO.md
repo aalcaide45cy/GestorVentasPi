@@ -617,6 +617,14 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.52.0 (04/11/2026)
+
+- **Pestaña 📝 Notas** (menú lateral, `/dashboard/notas`) con dos secciones: **Notas** (esta versión) y **Flujos** (diagramas y tableros: llegan en las siguientes). Copia previa en GitHub: rama `copia/antes-de-notas-y-flujos`.
+- **Notas**: lista con buscador, grupos de un nivel con color, etiquetas, fijadas, color por nota, papelera (recuperar o borrar para siempre) y vínculo a un expediente (o cliente, en datos). **Editor completo** (Tiptap 3.32.0: títulos, negrita/cursiva/subrayado/tachado, color y resaltado, listas, casillas de tareas, citas, código, alineación, enlaces, tablas, imágenes). Guardado automático; si otra persona la cambió a la vez, avisa en lugar de pisarla.
+- **Adjuntos** de cualquier tipo hasta 500 MB (cifrados en la base de datos, con miniatura de las imágenes, subida con progreso; las imágenes también se pegan o arrastran al texto). Con Cloudflare (enlace público) el límite real por subida es el del túnel (unos 100 MB).
+- **Compartir** con personas concretas o con todo el equipo, solo para leer o también para editar. **Exportar/Importar** todo en un archivo JSON con adjuntos (importar crea copias nuevas, nunca pisa). **Duplicar**.
+- Datos: tablas `notas` (notas y flujos en la misma tabla, por `tipo`), `notas_grupos`, `notas_compartidos`, `notas_ficheros` y `notas_ficheros_datos` (migración 0072). Las notas **no** entran en el historial de deshacer (se usa la papelera de notas), porque guardarían una copia del texto por cada guardado automático.
+
 ## Versión 1.51.0 (30/10/2026)
 
 - **Calendario: vistas de Mes, Semana y Día** (selector junto a «Hoy»; se recuerda la última: preferencia `exp-calendario-vista`). Semana y Día llevan una fila «Todo el día» y una rejilla por horas (de las 7 a las 21, ampliada si hay notas fuera de ese tramo): las notas con hora van a su hora, las de todo el día, las alertas pendientes y las fechas de expedientes, arriba. Pulsar una hora vacía añade una nota a esa hora; pulsar la cabecera de un día lo abre en la vista de Día. Las flechas avanzan un mes, una semana o un día.

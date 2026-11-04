@@ -1371,3 +1371,96 @@ export const calendarioAvisos = pgTable(
   },
   (t) => [primaryKey({ columns: [t.idUsuario, t.clave] })],
 );
+
+/* ------------------------------------------------------------------ */
+/* Notas y flujos                                                      */
+/* ------------------------------------------------------------------ */
+
+/** Grupos (carpetas, un solo nivel) para ordenar las notas o los flujos de cada persona. */
+export const notasGrupos = pgTable(
+  "notas_grupos",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    /** notas o flujos. */
+    ambito: varchar("ambito", { length: 8 }).notNull(),
+    nombre: varchar("nombre", { length: 80 }).notNull(),
+    color: varchar("color", { length: 7 }).notNull().default("#3b82f6"),
+    orden: integer("orden").notNull().default(0),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("notas_grupos_usuario_idx").on(t.idUsuario, t.ambito)],
+);
+
+/**
+ * Notas y flujos de trabajo (diagramas y tableros). Todo vive en la misma tabla, distinguido por `tipo`: «nota» (texto con formato), «diagrama» (lienzo con formas y flechas)
+ * o «tablero» (columnas y tarjetas). El contenido es JSON (el documento del editor, el lienzo o el tablero); `texto` es el texto plano para buscar.
+ */
+export const notas = pgTable(
+  "notas",
+  {
+    id: serial("id").primaryKey(),
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    tipo: varchar("tipo", { length: 10 }).notNull(),
+    idGrupo: integer("id_grupo").references(() => notasGrupos.id, { onDelete: "set null" }),
+    titulo: varchar("titulo", { length: 200 }).notNull().default(""),
+    contenido: jsonb("contenido").$type<unknown>().notNull().default(sql`'{}'::jsonb`),
+    texto: text("texto").notNull().default(""),
+    color: varchar("color", { length: 7 }),
+    fijada: boolean("fijada").notNull().default(false),
+    etiquetas: jsonb("etiquetas").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
+    idCliente: integer("id_cliente").references(() => clientes.id, { onDelete: "set null" }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+    /** En la papelera de notas desde esta fecha (se puede recuperar). */
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
+  },
+  (t) => [index("notas_usuario_tipo_idx").on(t.idUsuario, t.tipo), index("notas_expediente_idx").on(t.idExpediente)],
+);
+
+/** Con quién se comparte una nota o un flujo: con una persona o, sin usuario, con todo el equipo; solo para leer o también para editar. */
+export const notasCompartidos = pgTable(
+  "notas_compartidos",
+  {
+    id: serial("id").primaryKey(),
+    idNota: integer("id_nota")
+      .notNull()
+      .references(() => notas.id, { onDelete: "cascade" }),
+    idUsuario: integer("id_usuario").references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    /** lectura o edicion. */
+    permiso: varchar("permiso", { length: 8 }).notNull().default("lectura"),
+  },
+  (t) => [uniqueIndex("notas_compartidos_uq").on(t.idNota, sql`coalesce(${t.idUsuario}, 0)`), index("notas_compartidos_usuario_idx").on(t.idUsuario)],
+);
+
+/** Archivos adjuntos a una nota o flujo (cualquier tipo, hasta 500 MB). El contenido va aparte, cifrado, en `notas_ficheros_datos`. */
+export const notasFicheros = pgTable(
+  "notas_ficheros",
+  {
+    id: serial("id").primaryKey(),
+    idNota: integer("id_nota")
+      .notNull()
+      .references(() => notas.id, { onDelete: "cascade" }),
+    nombre: text("nombre").notNull(),
+    mime: varchar("mime", { length: 120 }).notNull(),
+    tamano: integer("tamano").notNull(),
+    tieneMiniatura: boolean("tiene_miniatura").notNull().default(false),
+    creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("notas_ficheros_nota_idx").on(t.idNota)],
+);
+
+export const notasFicherosDatos = pgTable("notas_ficheros_datos", {
+  idFichero: integer("id_fichero")
+    .primaryKey()
+    .references(() => notasFicheros.id, { onDelete: "cascade" }),
+  /** Contenido cifrado con AES-256-GCM (clave derivada de APP_SECRET). */
+  datos: bytea("datos").notNull(),
+  miniatura: bytea("miniatura"),
+});

@@ -752,3 +752,45 @@ tr.fila-aviso > td:last-child {
 }
 /* La copia fija de la cabecera de la tabla de Expedientes (se ve al bajar la página): mismo aspecto que la cabecera de la tabla. */
 .cabecera-flotante thead th { background: var(--bg-card); box-shadow: 0 1px 0 var(--border-light); }
+
+/* Notas y flujos: tres columnas en pantallas anchas (grupos, lista, nota) y una sola cosa cada vez en las estrechas. */
+.notas-rejilla { display: grid; grid-template-columns: 230px 320px minmax(0, 1fr); gap: 12px; height: calc(100 * var(--uvh) - 210px); min-height: 520px; }
+.notas-rejilla > * { min-height: 0; }
+.notas-volver { display: none; }
+@media (max-width: 1000px) {
+  .notas-rejilla { grid-template-columns: 1fr; height: auto; min-height: 0; }
+  .notas-volver { display: inline-flex; }
+  .notas-rejilla[data-pantalla="grupos"] .notas-lista, .notas-rejilla[data-pantalla="grupos"] .notas-detalle,
+  .notas-rejilla[data-pantalla="lista"] .notas-lateral, .notas-rejilla[data-pantalla="lista"] .notas-detalle,
+  .notas-rejilla[data-pantalla="nota"] .notas-lateral, .notas-rejilla[data-pantalla="nota"] .notas-lista { display: none !important; }
+  .notas-rejilla .notas-editor { min-height: 70vh; }
+}
+/* El texto de las notas (editor Tiptap) */
+.notas-contenido .ProseMirror { outline: none; min-height: 160px; line-height: 1.55; font-size: 0.95rem; }
+.notas-contenido .ProseMirror > * + * { margin-top: 0.6em; }
+.notas-contenido .ProseMirror h1 { font-size: 1.6rem; font-weight: 800; margin-top: 0.8em; }
+.notas-contenido .ProseMirror h2 { font-size: 1.3rem; font-weight: 700; margin-top: 0.8em; }
+.notas-contenido .ProseMirror h3 { font-size: 1.1rem; font-weight: 700; margin-top: 0.8em; }
+.notas-contenido .ProseMirror ul, .notas-contenido .ProseMirror ol { padding-left: 1.5em; }
+.notas-contenido .ProseMirror ul { list-style: disc; }
+.notas-contenido .ProseMirror ol { list-style: decimal; }
+.notas-contenido .ProseMirror ul[data-type="taskList"] { list-style: none; padding-left: 0.2em; }
+.notas-contenido .ProseMirror ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: flex-start; }
+.notas-contenido .ProseMirror ul[data-type="taskList"] li > label { flex: 0 0 auto; margin-top: 0.25em; }
+.notas-contenido .ProseMirror ul[data-type="taskList"] li > div { flex: 1; }
+.notas-contenido .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.6; }
+.notas-contenido .ProseMirror blockquote { border-left: 3px solid var(--primary); padding-left: 12px; color: var(--text-secondary); }
+.notas-contenido .ProseMirror code { background: rgba(127, 127, 127, 0.18); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+.notas-contenido .ProseMirror pre { background: rgba(127, 127, 127, 0.15); padding: 10px 12px; border-radius: var(--radius-sm); overflow-x: auto; }
+.notas-contenido .ProseMirror pre code { background: none; padding: 0; }
+.notas-contenido .ProseMirror hr { border: none; border-top: 1px solid var(--border-light); margin: 1em 0; }
+.notas-contenido .ProseMirror a { color: var(--primary); text-decoration: underline; cursor: pointer; }
+.notas-contenido .ProseMirror img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
+.notas-contenido .ProseMirror img.ProseMirror-selectednode { outline: 2px solid var(--primary); }
+.notas-contenido .ProseMirror table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 0.6em 0; }
+.notas-contenido .ProseMirror th, .notas-contenido .ProseMirror td { border: 1px solid var(--border-light); padding: 5px 8px; vertical-align: top; position: relative; min-width: 60px; }
+.notas-contenido .ProseMirror th { background: rgba(127, 127, 127, 0.12); font-weight: 700; text-align: left; }
+.notas-contenido .ProseMirror .selectedCell { background: rgba(var(--primary-rgb), 0.2); }
+.notas-contenido .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--primary); pointer-events: none; }
+.notas-contenido .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--text-muted); float: left; height: 0; pointer-events: none; }
+.notas-contenido .ProseMirror mark { border-radius: 3px; padding: 0 2px; color: #111; }

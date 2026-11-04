@@ -35,6 +35,7 @@ const ETIQUETAS: { ruta: RegExp; metodo?: RegExp; texto: string }[] = [
   { ruta: /^\/api\/admin\/alertas-reglas/, texto: "Cambiar reglas de alerta" },
   { ruta: /^\/api\/alertas/, texto: "Cambiar alertas" },
   { ruta: /^\/api\/calendario/, texto: "Cambiar el calendario" },
+  { ruta: /^\/api\/notas/, texto: "Cambiar notas y flujos" },
   { ruta: /^\/api\/expedientes\/duplicar/, texto: "Duplicar expedientes" },
   { ruta: /^\/api\/expedientes\/completar/, texto: "Completar datos de expedientes" },
   { ruta: /^\/api\/expedientes\/(importar-excel|import)/, texto: "Importar expedientes" },

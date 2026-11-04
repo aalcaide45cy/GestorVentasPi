@@ -90,6 +90,17 @@ export const GUIAS: Record<string, Guia> = {
     ],
     ojo: ["Las rejillas leídas se revisan antes de guardarse: corrige lo mal leído a mano.", "El motor de lectura (OCR) se puede cambiar en «Mi mes», bajo el botón de subir la hoja."],
   },
+  "menu.notas": {
+    titulo: "Notas",
+    queEs: "Tus notas con texto con formato y archivos adjuntos, y tus flujos de trabajo, ordenados en grupos y con etiquetas.",
+    pasos: [
+      "Pulsa «＋ Nueva» para crear una nota: título, texto con formato (títulos, listas, casillas de tareas, tablas, colores, imágenes) y adjuntos de hasta 500 MB. Se guarda sola.",
+      "Ordena con grupos (un nivel, con color) y etiquetas, fija las importantes arriba y busca por título, texto o etiqueta.",
+      "Pulsa «👥 Compartir» para que otra persona, o todo el equipo, la lea o la edite. Puedes vincular una nota a un expediente escribiendo su número.",
+      "«⬇ Exportar» y «⬆ Importar» pasan todo (con adjuntos) a un archivo y de un equipo a otro; importar crea copias nuevas y no pisa nada.",
+    ],
+    ojo: ["Lo que borras va a la papelera de notas, desde donde se recupera; solo se borra de verdad desde ahí.", "Si dos personas editan a la vez una nota compartida, la segunda recibe un aviso para no pisar el trabajo de la primera."],
+  },
   "menu.calendario": {
     titulo: "Calendario",
     queEs: "Tus notas y eventos, con avisos que salen como alertas, y opcionalmente las fechas de tus expedientes.",
