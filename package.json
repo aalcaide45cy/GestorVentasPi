@@ -1,6 +1,6 @@
 {
   "name": "gestor-ventas-pi",
-  "version": "1.54.1",
+  "version": "1.55.0",
   "private": true,
   "scripts": {
     "predev": "tsx src/db/migrar.ts",
@@ -33,6 +33,7 @@
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",
     "@tiptap/starter-kit": "3.32.0",
+    "@xyflow/react": "12.12.0",
     "drizzle-orm": "^0.45.4",
     "next": "^16.2.6",
     "onnxruntime-node": "^1.22.0",

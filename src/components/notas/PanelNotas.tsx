@@ -229,12 +229,12 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
     }
   };
 
-  const nueva = async () => {
+  const nueva = async (tipoNuevo: TipoNota = tipos[0]) => {
     try {
       const { data } = await llamar<NotaDto>("/api/notas", {
         method: "POST",
         cuerpo: {
-          tipo: tipos[0],
+          tipo: tipoNuevo,
           titulo: "",
           id_grupo: vista.clase === "grupo" ? vista.id : null,
         },
@@ -837,14 +837,37 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
               aria-label="Buscar"
               style={{ flex: 1, padding: "5px 10px" }}
             />
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void nueva()}
-              style={{ padding: "4px 12px", fontSize: "0.85rem" }}
-            >
-              ＋ Nueva
-            </button>
+            {tipos.includes("diagrama") ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => void nueva("diagrama")}
+                  title="Nuevo diagrama con formas y flechas"
+                  style={{ padding: "4px 10px", fontSize: "0.85rem" }}
+                >
+                  ＋ Diagrama
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => void nueva("tablero")}
+                  title="Nuevo tablero de columnas y tarjetas"
+                  style={{ padding: "4px 10px", fontSize: "0.85rem" }}
+                >
+                  ＋ Tablero
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void nueva()}
+                style={{ padding: "4px 12px", fontSize: "0.85rem" }}
+              >
+                ＋ Nueva
+              </button>
+            )}
           </div>
           {(coloresNota.length > 0 ||
             coloresEtiqueta.length > 0 ||
@@ -1048,6 +1071,11 @@ export default function PanelNotas({ tipos }: { tipos: TipoNota[] }) {
                         }}
                       >
                         {n.fijada ? "📌 " : ""}
+                        {n.tipo === "diagrama"
+                          ? "🔀 "
+                          : n.tipo === "tablero"
+                            ? "🗂️ "
+                            : ""}
                         {n.titulo || "Sin título"}
                       </strong>
                       <span

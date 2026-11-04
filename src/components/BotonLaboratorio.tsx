@@ -15,7 +15,7 @@ export default function BotonLaboratorio() {
       onClick={() => fijarAbierto(activo ? "false" : "true")}
       aria-pressed={activo}
       title="Laboratorio de comisiones: toca reglas y mira cómo se mueven los puntos, el tramo y la comisión sin guardar nada"
-      style={{ padding: "5px 10px", border: `1px solid ${activo ? "var(--primary)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)", background: activo ? "rgba(59,130,246,0.18)" : "var(--bg-card)", color: "var(--text-primary)", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1 }}
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "36px", height: "36px", flexShrink: 0, border: `1px solid ${activo ? "var(--primary)" : "var(--border-light)"}`, borderRadius: "var(--radius-sm)", background: activo ? "rgba(59,130,246,0.18)" : "var(--bg-card)", color: "var(--text-primary)", cursor: "pointer", fontSize: "1.05rem" }}
     >
       🧪
     </button>

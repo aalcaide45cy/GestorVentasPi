@@ -64,16 +64,7 @@ export default function NotasClient() {
       {seccion === "notas" ? (
         <PanelNotas key="notas" tipos={["nota"]} />
       ) : (
-        <div
-          className="glass-panel"
-          style={{
-            padding: "30px",
-            color: "var(--text-secondary)",
-            textAlign: "center",
-          }}
-        >
-          🔀 Los flujos (diagramas y tableros) llegan en la siguiente versión.
-        </div>
+        <PanelNotas key="flujos" tipos={["diagrama", "tablero"]} />
       )}
     </div>
   );

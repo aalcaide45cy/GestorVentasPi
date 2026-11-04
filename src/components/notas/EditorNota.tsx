@@ -35,6 +35,8 @@ import BarraEditor from "./BarraEditor";
 import { ImagenAjustable } from "./ImagenAjustable";
 import ModalCompartir from "./ModalCompartir";
 import ModalVersiones from "./ModalVersiones";
+import LienzoDiagrama from "./LienzoDiagrama";
+import TableroKanban from "./TableroKanban";
 import ModalVincular from "./ModalVincular";
 import ChipVinculo from "./ChipVinculo";
 
@@ -215,12 +217,23 @@ export default function EditorNota({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [nota.id],
   );
+  const cambiarContenido = useCallback(
+    (c: Record<string, unknown>) => {
+      pendiente.current.contenido = c;
+      setEstado("pendiente");
+      programar();
+    },
+    [programar],
+  );
   const refEditor = useRef<ReturnType<typeof useEditor>>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
     editable: !soloLeer,
-    content: nota.contenido as Record<string, unknown>,
+    content:
+      nota.tipo === "nota"
+        ? (nota.contenido as Record<string, unknown>)
+        : undefined,
     extensions: [
       StarterKit.configure({
         // Ctrl+Z / Ctrl+Y (o Ctrl+Mayús+Z) deshacen y rehacen letras, palabras o fragmentos: hasta 500 pasos
@@ -556,15 +569,17 @@ export default function EditorNota({
           />
         ))}
         <span style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setVerVersiones(true)}
-            title="Ver y recuperar versiones anteriores del texto"
-            style={{ padding: "2px 8px", fontSize: "0.8rem" }}
-          >
-            🕘 Versiones
-          </button>
+          {nota.tipo === "nota" && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setVerVersiones(true)}
+              title="Ver y recuperar versiones anteriores del texto"
+              style={{ padding: "2px 8px", fontSize: "0.8rem" }}
+            >
+              🕘 Versiones
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-secondary"
@@ -652,25 +667,41 @@ export default function EditorNota({
         </datalist>
       </div>
 
-      {editor && !soloLeer && (
+      {nota.tipo === "diagrama" && (
+        <LienzoDiagrama
+          contenido={nota.contenido as Record<string, unknown>}
+          soloLeer={soloLeer}
+          alCambiar={cambiarContenido}
+        />
+      )}
+      {nota.tipo === "tablero" && (
+        <TableroKanban
+          contenido={nota.contenido as Record<string, unknown>}
+          soloLeer={soloLeer}
+          alCambiar={cambiarContenido}
+        />
+      )}
+      {nota.tipo === "nota" && editor && !soloLeer && (
         <BarraEditor
           editor={editor}
           deshabilitada={false}
           alSubirImagen={(l) => void subirYInsertar(l, true, editor as never)}
         />
       )}
-      <div
-        className="notas-contenido"
-        style={{
-          flex: 1,
-          minHeight: "200px",
-          overflowY: "auto",
-          padding: "10px 16px",
-        }}
-        onClick={() => editor?.commands.focus()}
-      >
-        <EditorContent editor={editor} />
-      </div>
+      {nota.tipo === "nota" && (
+        <div
+          className="notas-contenido"
+          style={{
+            flex: 1,
+            minHeight: "200px",
+            overflowY: "auto",
+            padding: "10px 16px",
+          }}
+          onClick={() => editor?.commands.focus()}
+        >
+          <EditorContent editor={editor} />
+        </div>
+      )}
 
       <div
         style={{

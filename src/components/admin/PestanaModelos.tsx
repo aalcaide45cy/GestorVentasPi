@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import BotonNotasDe from "@/components/notas/BotonNotasDe";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { ModeloDto } from "@/lib/dto";
@@ -8,7 +9,15 @@ import type { MarcaConModelos } from "./PestanaMarcas";
 import { guardarPreferencia } from "@/lib/preferencias";
 import { Plegable } from "./estructura";
 import { CeldaUsos, useUsosCatalogo } from "./UsosCatalogo";
-import { Cabecera, comparar, estiloBotonPeligro, estiloCheck, estiloEtiquetaCheck, useOrden, usePeticion } from "./utilidades";
+import {
+  Cabecera,
+  comparar,
+  estiloBotonPeligro,
+  estiloCheck,
+  estiloEtiquetaCheck,
+  useOrden,
+  usePeticion,
+} from "./utilidades";
 
 interface Props {
   marcas: MarcaConModelos[];
@@ -34,19 +43,34 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
   const [accesoRapido, setAccesoRapido] = useState(false);
   const [ordenNuevo, setOrdenNuevo] = useState(0);
   const [filtro, setFiltro] = useState("");
-  const [ordenesTemporales, setOrdenesTemporales] = useState<Record<number, number>>({});
+  const [ordenesTemporales, setOrdenesTemporales] = useState<
+    Record<number, number>
+  >({});
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState("");
 
   const filas: FilaModelo[] = marcas.flatMap((m) =>
-    m.modelos.map((modelo) => ({ modelo, idMarca: m.id_marca, nombreMarca: m.nombre, sistemaComisiones: m.sistema_comisiones })),
+    m.modelos.map((modelo) => ({
+      modelo,
+      idMarca: m.id_marca,
+      nombreMarca: m.nombre,
+      sistemaComisiones: m.sistema_comisiones,
+    })),
   );
   const q = filtro.toLowerCase();
-  const filtradas = filas.filter((f) => !q || f.modelo.nombre_modelo.toLowerCase().includes(q) || f.nombreMarca.toLowerCase().includes(q));
+  const filtradas = filas.filter(
+    (f) =>
+      !q ||
+      f.modelo.nombre_modelo.toLowerCase().includes(q) ||
+      f.nombreMarca.toLowerCase().includes(q),
+  );
 
   const ordenadas = [...filtradas].sort((a, b) => {
     const porMarca = a.nombreMarca.localeCompare(b.nombreMarca, "es");
-    const porNombre = a.modelo.nombre_modelo.localeCompare(b.modelo.nombre_modelo, "es");
+    const porNombre = a.modelo.nombre_modelo.localeCompare(
+      b.modelo.nombre_modelo,
+      "es",
+    );
     let r: number;
     switch (orden.campo) {
       case "nombre":
@@ -56,10 +80,14 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
         r = Number(!!a.modelo.acceso_rapido) - Number(!!b.modelo.acceso_rapido);
         break;
       case "orden_acceso_rapido":
-        r = (a.modelo.orden_acceso_rapido ?? 0) - (b.modelo.orden_acceso_rapido ?? 0);
+        r =
+          (a.modelo.orden_acceso_rapido ?? 0) -
+          (b.modelo.orden_acceso_rapido ?? 0);
         break;
       case "usos":
-        r = (usos?.modelos[a.modelo.id_modelo]?.activos ?? 0) - (usos?.modelos[b.modelo.id_modelo]?.activos ?? 0);
+        r =
+          (usos?.modelos[a.modelo.id_modelo]?.activos ?? 0) -
+          (usos?.modelos[b.modelo.id_modelo]?.activos ?? 0);
         break;
       default:
         r = porMarca || porNombre;
@@ -74,10 +102,20 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
       const n = await llamar<ModeloDto>(
         "/api/admin/catalogos",
         "POST",
-        { tipo: "modelo", marca_id: marcaNueva, nombre_modelo: nombre, acceso_rapido: accesoRapido, orden_acceso_rapido: accesoRapido ? ordenNuevo : 0 },
+        {
+          tipo: "modelo",
+          marca_id: marcaNueva,
+          nombre_modelo: nombre,
+          acceso_rapido: accesoRapido,
+          orden_acceso_rapido: accesoRapido ? ordenNuevo : 0,
+        },
         "Error al crear el modelo",
       );
-      setMarcas((prev) => prev.map((m) => (m.id_marca === marcaNueva ? { ...m, modelos: [...m.modelos, n] } : m)));
+      setMarcas((prev) =>
+        prev.map((m) =>
+          m.id_marca === marcaNueva ? { ...m, modelos: [...m.modelos, n] } : m,
+        ),
+      );
     }, "Modelo creado con éxito");
     if (ok) {
       setNombre("");
@@ -86,38 +124,92 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
     }
   };
 
-  const actualizar = (f: FilaModelo, cambios: { nombre_modelo?: string; acceso_rapido?: boolean; orden_acceso_rapido?: number }, exito: string) =>
+  const actualizar = (
+    f: FilaModelo,
+    cambios: {
+      nombre_modelo?: string;
+      acceso_rapido?: boolean;
+      orden_acceso_rapido?: number;
+    },
+    exito: string,
+  ) =>
     ejecutar(async () => {
       const m = f.modelo;
       const nuevo = {
         nombre_modelo: cambios.nombre_modelo ?? m.nombre_modelo,
         acceso_rapido: cambios.acceso_rapido ?? !!m.acceso_rapido,
-        orden_acceso_rapido: cambios.orden_acceso_rapido ?? m.orden_acceso_rapido ?? 0,
+        orden_acceso_rapido:
+          cambios.orden_acceso_rapido ?? m.orden_acceso_rapido ?? 0,
       };
-      await llamar("/api/admin/catalogos", "PUT", { tipo: "modelo", id: m.id_modelo, ...nuevo }, "Error al actualizar el modelo");
+      await llamar(
+        "/api/admin/catalogos",
+        "PUT",
+        { tipo: "modelo", id: m.id_modelo, ...nuevo },
+        "Error al actualizar el modelo",
+      );
       setMarcas((prev) =>
-        prev.map((x) => (x.id_marca === f.idMarca ? { ...x, modelos: x.modelos.map((y) => (y.id_modelo === m.id_modelo ? { ...y, ...nuevo } : y)) } : x)),
+        prev.map((x) =>
+          x.id_marca === f.idMarca
+            ? {
+                ...x,
+                modelos: x.modelos.map((y) =>
+                  y.id_modelo === m.id_modelo ? { ...y, ...nuevo } : y,
+                ),
+              }
+            : x,
+        ),
       );
     }, exito);
 
   const guardarNombre = async (ev: FormEvent, f: FilaModelo) => {
     ev.preventDefault();
-    if (await actualizar(f, { nombre_modelo: nombreEdicion }, "Modelo actualizado correctamente")) setEditando(null);
+    if (
+      await actualizar(
+        f,
+        { nombre_modelo: nombreEdicion },
+        "Modelo actualizado correctamente",
+      )
+    )
+      setEditando(null);
   };
 
   const guardarOrdenes = async (lista: FilaModelo[]) => {
-    const cambios = lista.filter((f) => ordenesTemporales[f.modelo.id_modelo] !== undefined && ordenesTemporales[f.modelo.id_modelo] !== f.modelo.orden_acceso_rapido);
+    const cambios = lista.filter(
+      (f) =>
+        ordenesTemporales[f.modelo.id_modelo] !== undefined &&
+        ordenesTemporales[f.modelo.id_modelo] !== f.modelo.orden_acceso_rapido,
+    );
     const ok = await ejecutar(async () => {
       for (const f of cambios) {
         const nuevo = ordenesTemporales[f.modelo.id_modelo];
         // Poner un número de orden a un modelo que aún no está en el acceso rápido (p. ej. uno creado al leer un pedido) lo añade
         const activa = !!f.modelo.acceso_rapido || nuevo > 0;
-        await llamar("/api/admin/catalogos", "PUT", { tipo: "modelo", id: f.modelo.id_modelo, nombre_modelo: f.modelo.nombre_modelo, acceso_rapido: activa, orden_acceso_rapido: nuevo }, "Error al guardar el orden");
+        await llamar(
+          "/api/admin/catalogos",
+          "PUT",
+          {
+            tipo: "modelo",
+            id: f.modelo.id_modelo,
+            nombre_modelo: f.modelo.nombre_modelo,
+            acceso_rapido: activa,
+            orden_acceso_rapido: nuevo,
+          },
+          "Error al guardar el orden",
+        );
       }
       setMarcas((prev) =>
         prev.map((x) => ({
           ...x,
-          modelos: x.modelos.map((y) => (ordenesTemporales[y.id_modelo] !== undefined ? { ...y, orden_acceso_rapido: ordenesTemporales[y.id_modelo], acceso_rapido: !!y.acceso_rapido || ordenesTemporales[y.id_modelo] > 0 } : y)),
+          modelos: x.modelos.map((y) =>
+            ordenesTemporales[y.id_modelo] !== undefined
+              ? {
+                  ...y,
+                  orden_acceso_rapido: ordenesTemporales[y.id_modelo],
+                  acceso_rapido:
+                    !!y.acceso_rapido || ordenesTemporales[y.id_modelo] > 0,
+                }
+              : y,
+          ),
         })),
       );
     }, "Orden de modelos guardado correctamente");
@@ -125,33 +217,75 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
   };
 
   // Eliminar un modelo que usan expedientes: se pregunta a qué modelo pasan (uno que ya existe, uno nuevo o ninguno)
-  const [reasignando, setReasignando] = useState<{ fila: FilaModelo; usos: number } | null>(null);
+  const [reasignando, setReasignando] = useState<{
+    fila: FilaModelo;
+    usos: number;
+  } | null>(null);
   const [destino, setDestino] = useState<string>("");
   const [nombreNuevoDestino, setNombreNuevoDestino] = useState("");
 
-  const quitarDeLista = (f: FilaModelo) => setMarcas((prev) => prev.map((x) => (x.id_marca === f.idMarca ? { ...x, modelos: x.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) } : x)));
+  const quitarDeLista = (f: FilaModelo) =>
+    setMarcas((prev) =>
+      prev.map((x) =>
+        x.id_marca === f.idMarca
+          ? {
+              ...x,
+              modelos: x.modelos.filter(
+                (y) => y.id_modelo !== f.modelo.id_modelo,
+              ),
+            }
+          : x,
+      ),
+    );
 
   const eliminar = async (f: FilaModelo) => {
     let usos = 0;
     try {
-      const res = await fetch(`/api/admin/catalogos?usos_modelo=${f.modelo.id_modelo}`, { method: "PATCH" });
-      if (res.ok) usos = ((await res.json()) as { data: { expedientes: number } }).data.expedientes;
+      const res = await fetch(
+        `/api/admin/catalogos?usos_modelo=${f.modelo.id_modelo}`,
+        { method: "PATCH" },
+      );
+      if (res.ok)
+        usos = ((await res.json()) as { data: { expedientes: number } }).data
+          .expedientes;
     } catch {
       /* sin el dato se pregunta igual por si el servidor lo exige */
     }
     if (usos > 0) {
       // Por defecto, otro modelo de la misma marca (el que más se le parece por nombre, p. ej. Sandero para Sandero Stepway)
-      const mismos = marcas.find((m) => m.id_marca === f.idMarca)?.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) ?? [];
+      const mismos =
+        marcas
+          .find((m) => m.id_marca === f.idMarca)
+          ?.modelos.filter((y) => y.id_modelo !== f.modelo.id_modelo) ?? [];
       const base = f.modelo.nombre_modelo.toLowerCase();
-      const parecido = [...mismos].sort((a, b) => b.nombre_modelo.length - a.nombre_modelo.length).find((y) => base.startsWith(y.nombre_modelo.toLowerCase()));
-      setDestino(parecido ? String(parecido.id_modelo) : mismos[0] ? String(mismos[0].id_modelo) : "nuevo");
+      const parecido = [...mismos]
+        .sort((a, b) => b.nombre_modelo.length - a.nombre_modelo.length)
+        .find((y) => base.startsWith(y.nombre_modelo.toLowerCase()));
+      setDestino(
+        parecido
+          ? String(parecido.id_modelo)
+          : mismos[0]
+            ? String(mismos[0].id_modelo)
+            : "nuevo",
+      );
       setNombreNuevoDestino("");
       setReasignando({ fila: f, usos });
       return;
     }
-    if (!(await confirmar({ texto: `¿Eliminar el modelo «${f.modelo.nombre_modelo}»? Se borrará del catálogo (no hay expedientes que lo usen).`, peligro: true }))) return;
+    if (
+      !(await confirmar({
+        texto: `¿Eliminar el modelo «${f.modelo.nombre_modelo}»? Se borrará del catálogo (no hay expedientes que lo usen).`,
+        peligro: true,
+      }))
+    )
+      return;
     void ejecutar(async () => {
-      await llamar("/api/admin/catalogos", "DELETE", { tipo: "modelo", id: f.modelo.id_modelo }, "Error al eliminar modelo");
+      await llamar(
+        "/api/admin/catalogos",
+        "DELETE",
+        { tipo: "modelo", id: f.modelo.id_modelo },
+        "Error al eliminar modelo",
+      );
       quitarDeLista(f);
     }, "Modelo eliminado");
   };
@@ -159,14 +293,29 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
   const confirmarReasignacion = async () => {
     if (!reasignando) return;
     const { fila, usos } = reasignando;
-    const cuerpo: Record<string, unknown> = { tipo: "modelo", id: fila.modelo.id_modelo };
-    if (destino === "nuevo") cuerpo.crear_modelo = { marca_id: fila.idMarca, nombre: nombreNuevoDestino };
+    const cuerpo: Record<string, unknown> = {
+      tipo: "modelo",
+      id: fila.modelo.id_modelo,
+    };
+    if (destino === "nuevo")
+      cuerpo.crear_modelo = {
+        marca_id: fila.idMarca,
+        nombre: nombreNuevoDestino,
+      };
     else if (destino === "ninguno") cuerpo.sin_modelo = true;
     else cuerpo.reasignar_a = Number(destino);
-    const ok = await ejecutar(async () => {
-      await llamar("/api/admin/catalogos", "DELETE", cuerpo, "Error al eliminar modelo");
-      quitarDeLista(fila);
-    }, `Modelo eliminado: ${usos} expediente${usos === 1 ? "" : "s"} cambiado${usos === 1 ? "" : "s"} de modelo`);
+    const ok = await ejecutar(
+      async () => {
+        await llamar(
+          "/api/admin/catalogos",
+          "DELETE",
+          cuerpo,
+          "Error al eliminar modelo",
+        );
+        quitarDeLista(fila);
+      },
+      `Modelo eliminado: ${usos} expediente${usos === 1 ? "" : "s"} cambiado${usos === 1 ? "" : "s"} de modelo`,
+    );
     if (ok) {
       setReasignando(null);
       // El modelo nuevo aparece al recargar la lista
@@ -181,8 +330,16 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
           <tr>
             <Cabecera etiqueta="Marca" campo="marca" orden={orden} />
             <Cabecera etiqueta="Nombre Modelo" campo="nombre" orden={orden} />
-            <Cabecera etiqueta="Acceso Rápido" campo="acceso_rapido" orden={orden} />
-            <Cabecera etiqueta="Orden Dashboard" campo="orden_acceso_rapido" orden={orden} />
+            <Cabecera
+              etiqueta="Acceso Rápido"
+              campo="acceso_rapido"
+              orden={orden}
+            />
+            <Cabecera
+              etiqueta="Orden Dashboard"
+              campo="orden_acceso_rapido"
+              orden={orden}
+            />
             <Cabecera etiqueta="Expedientes" campo="usos" orden={orden} />
             <th>Acciones</th>
           </tr>
@@ -193,26 +350,76 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
             return (
               <tr key={m.id_modelo}>
                 <td>
-                  <span style={{ fontSize: "0.85rem", color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase" }}>{f.nombreMarca}</span>
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "var(--primary)",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {f.nombreMarca}
+                  </span>
                 </td>
                 <td>
                   {editando === m.id_modelo ? (
-                    <form onSubmit={(ev) => void guardarNombre(ev, f)} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                      <input type="text" className="form-input" value={nombreEdicion} onChange={(e) => setNombreEdicion(e.target.value)} style={{ padding: "4px 8px", fontSize: "0.85rem" }} required autoFocus />
-                      <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px" }} disabled={cargando}>✓</button>
-                      <button type="button" className="btn btn-secondary" onClick={() => setEditando(null)} style={{ padding: "4px 8px" }}>✗</button>
+                    <form
+                      onSubmit={(ev) => void guardarNombre(ev, f)}
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={nombreEdicion}
+                        onChange={(e) => setNombreEdicion(e.target.value)}
+                        style={{ padding: "4px 8px", fontSize: "0.85rem" }}
+                        required
+                        autoFocus
+                      />
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        style={{ padding: "4px 8px" }}
+                        disabled={cargando}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setEditando(null)}
+                        style={{ padding: "4px 8px" }}
+                      >
+                        ✗
+                      </button>
                     </form>
                   ) : (
-                    <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>{m.nombre_modelo}</span>
+                    <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>
+                      {m.nombre_modelo}
+                    </span>
                   )}
                 </td>
                 <td>
                   <button
                     type="button"
                     className={`badge ${m.acceso_rapido ? "badge-tienda" : "badge-admin"}`}
-                    onClick={() => void actualizar(f, { acceso_rapido: !m.acceso_rapido }, "Acceso rápido del modelo actualizado")}
+                    onClick={() =>
+                      void actualizar(
+                        f,
+                        { acceso_rapido: !m.acceso_rapido },
+                        "Acceso rápido del modelo actualizado",
+                      )
+                    }
                     disabled={cargando}
-                    style={{ border: "none", cursor: "pointer", fontSize: "0.75rem" }}
+                    style={{
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                    }}
                     title="Alternar Acceso Rápido"
                   >
                     {m.acceso_rapido ? "⭐ Sí" : "✖ No"}
@@ -223,16 +430,62 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
                     type="number"
                     min={0}
                     className="form-input"
-                    value={ordenesTemporales[m.id_modelo] ?? m.orden_acceso_rapido ?? 0}
-                    onChange={(e) => setOrdenesTemporales({ ...ordenesTemporales, [m.id_modelo]: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
-                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                    style={{ width: "70px", padding: "4px 8px", fontSize: "0.85rem", textAlign: "center", opacity: m.acceso_rapido || (ordenesTemporales[m.id_modelo] ?? 0) > 0 ? 1 : 0.55 }}
-                    title={m.acceso_rapido ? "Posición en el acceso rápido del Dashboard" : "Este modelo no está en el acceso rápido: si le pones un número mayor que 0 se añade"}
+                    value={
+                      ordenesTemporales[m.id_modelo] ??
+                      m.orden_acceso_rapido ??
+                      0
+                    }
+                    onChange={(e) =>
+                      setOrdenesTemporales({
+                        ...ordenesTemporales,
+                        [m.id_modelo]: Math.max(
+                          0,
+                          Math.trunc(Number(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && (e.target as HTMLInputElement).blur()
+                    }
+                    style={{
+                      width: "70px",
+                      padding: "4px 8px",
+                      fontSize: "0.85rem",
+                      textAlign: "center",
+                      opacity:
+                        m.acceso_rapido ||
+                        (ordenesTemporales[m.id_modelo] ?? 0) > 0
+                          ? 1
+                          : 0.55,
+                    }}
+                    title={
+                      m.acceso_rapido
+                        ? "Posición en el acceso rápido del Dashboard"
+                        : "Este modelo no está en el acceso rápido: si le pones un número mayor que 0 se añade"
+                    }
                     disabled={cargando}
                   />
                 </td>
                 <td>
-                  <CeldaUsos tipo="modelo" id={m.id_modelo} nombre={`${f.nombreMarca} ${m.nombre_modelo}`} usos={usos?.modelos[m.id_modelo]} />
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      gap: "6px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <CeldaUsos
+                      tipo="modelo"
+                      id={m.id_modelo}
+                      nombre={`${f.nombreMarca} ${m.nombre_modelo}`}
+                      usos={usos?.modelos[m.id_modelo]}
+                    />
+                    <BotonNotasDe
+                      tipo="modelo"
+                      id={m.id_modelo}
+                      nombre={`${f.nombreMarca} ${m.nombre_modelo}`}
+                    />
+                  </span>
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: "10px" }}>
@@ -247,7 +500,12 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
                     >
                       ✏️ Editar
                     </button>
-                    <button type="button" className="btn btn-secondary" onClick={() => void eliminar(f)} style={estiloBotonPeligro}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => void eliminar(f)}
+                      style={estiloBotonPeligro}
+                    >
                       🗑️ Eliminar
                     </button>
                   </div>
@@ -257,7 +515,14 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
           })}
           {lista.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
+              <td
+                colSpan={6}
+                style={{
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                  padding: "15px",
+                }}
+              >
                 {vacio}
               </td>
             </tr>
@@ -268,31 +533,81 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
   );
 
   const hayCambiosDeOrden = (lista: FilaModelo[]) =>
-    lista.some((f) => ordenesTemporales[f.modelo.id_modelo] !== undefined && ordenesTemporales[f.modelo.id_modelo] !== f.modelo.orden_acceso_rapido);
+    lista.some(
+      (f) =>
+        ordenesTemporales[f.modelo.id_modelo] !== undefined &&
+        ordenesTemporales[f.modelo.id_modelo] !== f.modelo.orden_acceso_rapido,
+    );
 
   /** Botón «Guardar orden» (si hay cambios) para la cabecera de cada marca. */
   const accionesBloque = (lista: FilaModelo[]) =>
     hayCambiosDeOrden(lista) ? (
-      <button type="button" className="btn btn-primary" onClick={() => void guardarOrdenes(lista)} style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }} disabled={cargando}>
+      <button
+        type="button"
+        className="btn btn-primary"
+        onClick={() => void guardarOrdenes(lista)}
+        style={{
+          padding: "4px 10px",
+          fontSize: "0.75rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+        }}
+        disabled={cargando}
+      >
         💾 Guardar Orden
       </button>
     ) : null;
 
   /** Despliega o pliega de golpe todas las marcas. */
-  const plegarTodas = (abrir: boolean) => marcas.forEach((m) => guardarPreferencia(`plegable-modelos-marca-${m.id_marca}`, abrir ? "abierto" : "cerrado"));
+  const plegarTodas = (abrir: boolean) =>
+    marcas.forEach((m) =>
+      guardarPreferencia(
+        `plegable-modelos-marca-${m.id_marca}`,
+        abrir ? "abierto" : "cerrado",
+      ),
+    );
 
   // Primero las marcas con sistema de comisiones, después el resto, cada una en su bloque plegable
-  const marcasOrdenadas = [...marcas].sort((a, b) => Number(b.sistema_comisiones) - Number(a.sistema_comisiones) || a.nombre.localeCompare(b.nombre, "es"));
+  const marcasOrdenadas = [...marcas].sort(
+    (a, b) =>
+      Number(b.sistema_comisiones) - Number(a.sistema_comisiones) ||
+      a.nombre.localeCompare(b.nombre, "es"),
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
-        <h3 style={{ fontSize: "1.15rem", margin: 0 }}>🚙 Gestión de modelos</h3>
-        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{filas.length} modelo(s) en {marcas.length} marca(s)</span>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <h3 style={{ fontSize: "1.15rem", margin: 0 }}>
+          🚙 Gestión de modelos
+        </h3>
+        <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+          {filas.length} modelo(s) en {marcas.length} marca(s)
+        </span>
       </div>
 
-      <Plegable id="modelos-crear" titulo="➕ Crear un modelo nuevo" abiertoPorDefecto={false}>
-        <form onSubmit={crear} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+      <Plegable
+        id="modelos-crear"
+        titulo="➕ Crear un modelo nuevo"
+        abiertoPorDefecto={false}
+      >
+        <form
+          onSubmit={crear}
+          style={{
+            display: "flex",
+            gap: "10px",
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
           <select
             className="form-select"
             value={marcaNueva}
@@ -307,40 +622,124 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
             style={{ flex: 1, minWidth: "160px" }}
           >
             <option value="">Selecciona Marca</option>
-            {marcas.filter((m) => m.activo).map((m) => (
-              <option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>
-            ))}
+            {marcas
+              .filter((m) => m.activo)
+              .map((m) => (
+                <option key={m.id_marca} value={m.id_marca}>
+                  {m.nombre}
+                </option>
+              ))}
           </select>
-          <input type="text" className="form-input" placeholder="Nombre de modelo... (Ej. Qashqai)" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={cargando || !marcaNueva} required style={{ flex: 2, minWidth: "200px" }} />
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Nombre de modelo... (Ej. Qashqai)"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            disabled={cargando || !marcaNueva}
+            required
+            style={{ flex: 2, minWidth: "200px" }}
+          />
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <input type="checkbox" id="chkModeloAccesoRapido" checked={accesoRapido} onChange={(e) => setAccesoRapido(e.target.checked)} style={estiloCheck} />
-            <label htmlFor="chkModeloAccesoRapido" style={estiloEtiquetaCheck}>Acceso Rápido</label>
+            <input
+              type="checkbox"
+              id="chkModeloAccesoRapido"
+              checked={accesoRapido}
+              onChange={(e) => setAccesoRapido(e.target.checked)}
+              style={estiloCheck}
+            />
+            <label htmlFor="chkModeloAccesoRapido" style={estiloEtiquetaCheck}>
+              Acceso Rápido
+            </label>
           </div>
           {accesoRapido && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>Orden:</span>
-              <input type="number" className="form-input" value={ordenNuevo} onChange={(e) => setOrdenNuevo(Number(e.target.value))} disabled={cargando} style={{ width: "80px", padding: "8px", textAlign: "center" }} min={0} />
+              <span
+                style={{
+                  fontSize: "0.9rem",
+                  color: "var(--text-secondary)",
+                  fontWeight: 500,
+                }}
+              >
+                Orden:
+              </span>
+              <input
+                type="number"
+                className="form-input"
+                value={ordenNuevo}
+                onChange={(e) => setOrdenNuevo(Number(e.target.value))}
+                disabled={cargando}
+                style={{ width: "80px", padding: "8px", textAlign: "center" }}
+                min={0}
+              />
             </div>
           )}
-          <button type="submit" className="btn btn-primary" disabled={cargando || !marcaNueva}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={cargando || !marcaNueva}
+          >
             + Crear Modelo
           </button>
         </form>
       </Plegable>
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", background: "rgba(255, 255, 255, 0.03)", padding: "10px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
-        <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Filtrar modelos:</span>
-        <input type="text" className="form-input" placeholder="Buscar por modelo o marca..." value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ maxWidth: "300px", padding: "6px 12px" }} />
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          alignItems: "center",
+          flexWrap: "wrap",
+          background: "rgba(255, 255, 255, 0.03)",
+          padding: "10px 16px",
+          borderRadius: "8px",
+          border: "1px solid var(--border-light)",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            color: "var(--text-secondary)",
+          }}
+        >
+          🔎 Filtrar modelos:
+        </span>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Buscar por modelo o marca..."
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          style={{ maxWidth: "300px", padding: "6px 12px" }}
+        />
         {filtro && (
-          <button type="button" className="btn btn-secondary" onClick={() => setFiltro("")} style={{ padding: "4px 10px", fontSize: "0.8rem" }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setFiltro("")}
+            style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+          >
             Limpiar
           </button>
         )}
         <span style={{ flex: 1 }} />
-        <button type="button" className="btn btn-secondary" onClick={() => plegarTodas(true)} style={{ padding: "4px 10px", fontSize: "0.8rem" }} title="Despliega todas las marcas">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => plegarTodas(true)}
+          style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+          title="Despliega todas las marcas"
+        >
           ▾ Desplegar todas
         </button>
-        <button type="button" className="btn btn-secondary" onClick={() => plegarTodas(false)} style={{ padding: "4px 10px", fontSize: "0.8rem" }} title="Pliega todas las marcas">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => plegarTodas(false)}
+          style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+          title="Pliega todas las marcas"
+        >
           ▸ Plegar todas
         </button>
       </div>
@@ -354,12 +753,50 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
             key={marca.id_marca}
             id={`modelos-marca-${marca.id_marca}`}
             abiertoPorDefecto={marca.sistema_comisiones}
-            borde={marca.sistema_comisiones ? "1px solid rgba(59, 130, 246, 0.25)" : undefined}
+            borde={
+              marca.sistema_comisiones
+                ? "1px solid rgba(59, 130, 246, 0.25)"
+                : undefined
+            }
             titulo={
               <>
-                <span style={{ color: marca.sistema_comisiones ? "var(--primary)" : undefined }}>{marca.sistema_comisiones ? "📦" : "💼"} {marca.nombre}</span>
-                {marca.sistema_comisiones && <span style={{ fontSize: "0.72rem", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Comisiones Activo</span>}
-                {!marca.activo && <span style={{ fontSize: "0.72rem", background: "var(--bg-surface-tint)", color: "var(--text-muted)", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>Inactiva</span>}
+                <span
+                  style={{
+                    color: marca.sistema_comisiones
+                      ? "var(--primary)"
+                      : undefined,
+                  }}
+                >
+                  {marca.sistema_comisiones ? "📦" : "💼"} {marca.nombre}
+                </span>
+                {marca.sistema_comisiones && (
+                  <span
+                    style={{
+                      fontSize: "0.72rem",
+                      background: "rgba(59, 130, 246, 0.15)",
+                      color: "#3b82f6",
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Comisiones Activo
+                  </span>
+                )}
+                {!marca.activo && (
+                  <span
+                    style={{
+                      fontSize: "0.72rem",
+                      background: "var(--bg-surface-tint)",
+                      color: "var(--text-muted)",
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Inactiva
+                  </span>
+                )}
               </>
             }
             resumen={`${lista.length} modelo(s)`}
@@ -377,22 +814,44 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
           peligro
           pie={
             <>
-              <button type="button" className="btn btn-secondary" onClick={() => setReasignando(null)} disabled={cargando}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setReasignando(null)}
+                disabled={cargando}
+              >
                 Cancelar
               </button>
-              <button type="button" className="btn btn-primary" onClick={() => void confirmarReasignacion()} disabled={cargando || (destino === "nuevo" && !nombreNuevoDestino.trim())}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void confirmarReasignacion()}
+                disabled={
+                  cargando ||
+                  (destino === "nuevo" && !nombreNuevoDestino.trim())
+                }
+              >
                 {cargando ? "Cambiando…" : "Cambiar y eliminar"}
               </button>
             </>
           }
         >
           <p style={{ margin: 0, lineHeight: 1.5 }}>
-            Hay <b>{reasignando.usos}</b> expediente{reasignando.usos === 1 ? "" : "s"} con este modelo. Elige a qué modelo {reasignando.usos === 1 ? "pasa" : "pasan"} antes de eliminarlo:
+            Hay <b>{reasignando.usos}</b> expediente
+            {reasignando.usos === 1 ? "" : "s"} con este modelo. Elige a qué
+            modelo {reasignando.usos === 1 ? "pasa" : "pasan"} antes de
+            eliminarlo:
           </p>
           <div className="form-group">
-            <select className="form-input" value={destino} onChange={(e) => setDestino(e.target.value)}>
+            <select
+              className="form-input"
+              value={destino}
+              onChange={(e) => setDestino(e.target.value)}
+            >
               {marcas.map((m) => {
-                const otros = m.modelos.filter((y) => y.id_modelo !== reasignando.fila.modelo.id_modelo);
+                const otros = m.modelos.filter(
+                  (y) => y.id_modelo !== reasignando.fila.modelo.id_modelo,
+                );
                 return otros.length === 0 ? null : (
                   <optgroup key={m.id_marca} label={m.nombre}>
                     {otros.map((y) => (
@@ -403,14 +862,22 @@ export default function PestanaModelos({ marcas, setMarcas }: Props) {
                   </optgroup>
                 );
               })}
-              <option value="nuevo">➕ Un modelo nuevo de {reasignando.fila.nombreMarca}…</option>
+              <option value="nuevo">
+                ➕ Un modelo nuevo de {reasignando.fila.nombreMarca}…
+              </option>
               <option value="ninguno">Dejarlos sin modelo</option>
             </select>
           </div>
           {destino === "nuevo" && (
             <div className="form-group">
               <label className="form-label">Nombre del modelo nuevo</label>
-              <input className="form-input" value={nombreNuevoDestino} onChange={(e) => setNombreNuevoDestino(e.target.value)} placeholder="Por ejemplo: Sandero" autoFocus />
+              <input
+                className="form-input"
+                value={nombreNuevoDestino}
+                onChange={(e) => setNombreNuevoDestino(e.target.value)}
+                placeholder="Por ejemplo: Sandero"
+                autoFocus
+              />
             </div>
           )}
         </Modal>
