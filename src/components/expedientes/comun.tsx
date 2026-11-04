@@ -3,6 +3,8 @@
 import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { CLAVE_CORREO_BOTONES } from "@/lib/correo";
+import { usePreferencia } from "@/lib/preferencias";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { IconoCliente } from "../Enlaces";
@@ -317,6 +319,8 @@ export function CeldaFecha({
 }: CeldaFechaProps) {
   const valor = exp[campo];
   const [escribiendo, setEscribiendo] = useState(false);
+  const [botones] = usePreferencia(CLAVE_CORREO_BOTONES);
+  const conSobre = (botones ?? "fecha_entrega").split(",").includes(campo);
   const cobradaOtraFecha =
     detalleMatricula &&
     campo === "fecha_matriculacion" &&
@@ -380,7 +384,7 @@ export function CeldaFecha({
             >
               ✏️
             </button>
-            {valor && (
+            {valor && conSobre && (
               <button
                 type="button"
                 onClick={() => setEscribiendo(true)}
@@ -399,7 +403,20 @@ export function CeldaFecha({
                 title={`Enviar un correo con la fecha de ${nombre}`}
                 className="glass-panel-interactive"
               >
-                ✉️
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="m22 7-10 6L2 7" />
+                </svg>
               </button>
             )}
             {valor && (

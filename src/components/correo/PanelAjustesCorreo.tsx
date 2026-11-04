@@ -3,11 +3,18 @@
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
-import type { AjustesCorreoDto } from "@/lib/correo";
+import {
+  CLAVE_CORREO_BOTONES,
+  FECHAS_CON_SOBRE,
+  type AjustesCorreoDto,
+} from "@/lib/correo";
+import { usePreferencia } from "@/lib/preferencias";
 
 /** Envío automático: los correos nuevos de las reglas salen solos, uno tras otro con una pausa; si no, esperan a que los revises. */
 export default function PanelAjustesCorreo({ esAdmin }: { esAdmin: boolean }) {
   const { mostrar } = useToast();
+  const [botones, fijarBotones] = usePreferencia(CLAVE_CORREO_BOTONES);
+  const activos = (botones ?? "fecha_entrega").split(",").filter(Boolean);
   const [a, setA] = useState<AjustesCorreoDto | null>(null);
   useEffect(() => {
     llamar<AjustesCorreoDto>("/api/correo/ajustes")

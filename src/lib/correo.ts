@@ -240,3 +240,13 @@ export function separarDirecciones(texto: string): string[] {
 }
 export const direccionValida = (d: string): boolean =>
   /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/.test(d);
+
+/** Preferencia (sincronizada) con las fechas que llevan el botón ✉️ en las listas, separadas por comas. Sin valor: solo la de entrega. */
+export const CLAVE_CORREO_BOTONES = "exp-correo-botones";
+export const FECHAS_CON_SOBRE = [
+  { id: "fecha_afectacion", nombre: "F. Afectación" },
+  { id: "fecha_rci", nombre: "F. RCI" },
+  { id: "fecha_matriculacion", nombre: "F. Matriculación" },
+  { id: "fecha_facturacion", nombre: "F. Facturación" },
+  { id: "fecha_entrega", nombre: "F. Entrega" },
+] as const;
