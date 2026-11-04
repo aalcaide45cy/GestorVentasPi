@@ -339,14 +339,16 @@ export function CeldaFecha({
         <div
           style={{
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: "8px",
+            gap: "3px",
           }}
         >
           <span
             style={{
               fontSize: "0.85rem",
+              whiteSpace: "nowrap",
               color: valor ? "var(--text-primary)" : "var(--text-muted)",
               fontWeight: valor ? 500 : 400,
               textDecoration: cobradaOtraFecha ? "underline" : "none",
@@ -363,7 +365,9 @@ export function CeldaFecha({
               ? ` · ${exp.hora_entrega}`
               : ""}
           </span>
-          <div style={{ display: "flex", gap: "4px" }}>
+          <div
+            style={{ display: "flex", gap: "3px", justifyContent: "center" }}
+          >
             <button
               type="button"
               onClick={() => alEditar(exp, campo, nombre)}
@@ -371,8 +375,8 @@ export function CeldaFecha({
                 border: "none",
                 background: "rgba(255, 255, 255, 0.05)",
                 cursor: "pointer",
-                fontSize: "0.8rem",
-                padding: "4px 6px",
+                fontSize: "0.72rem",
+                padding: "3px 5px",
                 borderRadius: "4px",
                 display: "flex",
                 alignItems: "center",
@@ -392,8 +396,8 @@ export function CeldaFecha({
                   border: "none",
                   background: "rgba(59, 130, 246, 0.08)",
                   cursor: "pointer",
-                  fontSize: "0.8rem",
-                  padding: "4px 6px",
+                  fontSize: "0.72rem",
+                  padding: "3px 5px",
                   borderRadius: "4px",
                   display: "flex",
                   alignItems: "center",
@@ -427,8 +431,8 @@ export function CeldaFecha({
                   border: "none",
                   background: "rgba(239, 68, 68, 0.05)",
                   cursor: "pointer",
-                  fontSize: "0.8rem",
-                  padding: "4px 6px",
+                  fontSize: "0.72rem",
+                  padding: "3px 5px",
                   borderRadius: "4px",
                   display: "flex",
                   alignItems: "center",

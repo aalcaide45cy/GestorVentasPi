@@ -17,7 +17,11 @@ import {
   usuariosTiendas,
 } from "@/db/schema";
 import type { UsuarioActual } from "@/lib/auth/sesion";
-import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
+import {
+  limpiarMatricula,
+  limpiarTelefono,
+  parseFechaFlexible,
+} from "@/lib/fechas-import";
 import { aDto, relacionesExpediente } from "./expedientes";
 import { aplicarReglasSemaforo } from "./reglas-semaforo";
 import { elegirModeloExistente } from "@/lib/documentos/modelos";
@@ -68,7 +72,12 @@ export type EntradaImportacionCsv = z.infer<typeof esquemaImportacionCsv>;
 
 export const esquemaVerificarExcel = z.object({
   rows: z
-    .array(z.object({ rowIdx: z.number().int(), cliente: z.string().nullable().optional() }))
+    .array(
+      z.object({
+        rowIdx: z.number().int(),
+        cliente: z.string().nullable().optional(),
+      }),
+    )
     .max(20000),
 });
 
@@ -108,20 +117,39 @@ function pares(cadena: string): { valor: string; tipo: string }[] {
     .split("|")
     .map((p) => {
       const [valor, tipo] = p.split(":");
-      return { valor: (valor ?? "").trim(), tipo: tipo ? tipo.trim() : "Principal" };
+      return {
+        valor: (valor ?? "").trim(),
+        tipo: tipo ? tipo.trim() : "Principal",
+      };
     })
     .filter((p) => p.valor.length > 0);
 }
 
-async function tiendaUnica(ej: Ejecutor, idUsuario: number): Promise<number | null> {
-  const filas = await ej.select().from(usuariosTiendas).where(eq(usuariosTiendas.idUsuario, idUsuario));
+async function tiendaUnica(
+  ej: Ejecutor,
+  idUsuario: number,
+): Promise<number | null> {
+  const filas = await ej
+    .select()
+    .from(usuariosTiendas)
+    .where(eq(usuariosTiendas.idUsuario, idUsuario));
   return filas.length === 1 ? filas[0].idTienda : null;
 }
 
-async function crearBloque(ej: Ejecutor, usuario: UsuarioActual, nombre: string, tipo: "CSV" | "Excel") {
+async function crearBloque(
+  ej: Ejecutor,
+  usuario: UsuarioActual,
+  nombre: string,
+  tipo: "CSV" | "Excel",
+) {
   const [bloque] = await ej
     .insert(importacionesBloques)
-    .values({ fecha: new Date().toISOString(), nombreArchivo: nombre, tipoArchivo: tipo, usuarioId: usuario.idUsuario })
+    .values({
+      fecha: new Date().toISOString(),
+      nombreArchivo: nombre,
+      tipoArchivo: tipo,
+      usuarioId: usuario.idUsuario,
+    })
     .returning();
   return bloque;
 }
@@ -130,15 +158,37 @@ async function crearBloque(ej: Ejecutor, usuario: UsuarioActual, nombre: string,
 /* Importación CSV de expedientes                                      */
 /* ------------------------------------------------------------------ */
 
-async function resolverCliente(ej: Ejecutor, item: EntradaImportacionCsv["items"][number]): Promise<number | null> {
+async function resolverCliente(
+  ej: Ejecutor,
+  item: EntradaImportacionCsv["items"][number],
+): Promise<number | null> {
   const nombre = limpio(item.cliente_nombre);
   if (!nombre) return null;
   const dni = limpio(item.cliente_dni);
   const nacimiento = parseFechaFlexible(limpio(item.cliente_fecha_nacimiento));
 
-  let existente = dni ? (await ej.select().from(clientes).where(and(isNull(clientes.eliminadoEn), eq(clientes.dni, dni))).limit(1))[0] : undefined;
+  let existente = dni
+    ? (
+        await ej
+          .select()
+          .from(clientes)
+          .where(and(isNull(clientes.eliminadoEn), eq(clientes.dni, dni)))
+          .limit(1)
+      )[0]
+    : undefined;
   if (!existente) {
-    existente = (await ej.select().from(clientes).where(and(isNull(clientes.eliminadoEn), ilike(clientes.nombre, escaparLike(nombre)))).limit(1))[0];
+    existente = (
+      await ej
+        .select()
+        .from(clientes)
+        .where(
+          and(
+            isNull(clientes.eliminadoEn),
+            ilike(clientes.nombre, escaparLike(nombre)),
+          ),
+        )
+        .limit(1)
+    )[0];
   }
 
   let idCliente: number;
@@ -146,29 +196,52 @@ async function resolverCliente(ej: Ejecutor, item: EntradaImportacionCsv["items"
     idCliente = existente.id;
     const cambios: Partial<typeof clientes.$inferInsert> = {};
     if (dni && existente.dni !== dni) cambios.dni = dni;
-    if (nacimiento && existente.fechaDeNacimiento !== nacimiento) cambios.fechaDeNacimiento = nacimiento;
-    if (Object.keys(cambios).length > 0) await ej.update(clientes).set(cambios).where(eq(clientes.id, idCliente));
+    if (nacimiento && existente.fechaDeNacimiento !== nacimiento)
+      cambios.fechaDeNacimiento = nacimiento;
+    if (Object.keys(cambios).length > 0)
+      await ej.update(clientes).set(cambios).where(eq(clientes.id, idCliente));
   } else {
     const [nuevo] = await ej
       .insert(clientes)
-      .values({ clienteId: crypto.randomUUID(), dni: dni || null, nombre, fechaDeNacimiento: nacimiento })
+      .values({
+        clienteId: crypto.randomUUID(),
+        dni: dni || null,
+        nombre,
+        fechaDeNacimiento: nacimiento,
+      })
       .returning();
     idCliente = nuevo.id;
   }
 
   // Los correos y teléfonos del archivo sustituyen a los existentes (como la aplicación original).
   if (item.cliente_emails !== undefined && item.cliente_emails !== null) {
-    await ej.delete(emailsClientes).where(eq(emailsClientes.idCliente, idCliente));
+    await ej
+      .delete(emailsClientes)
+      .where(eq(emailsClientes.idCliente, idCliente));
     const lista = pares(item.cliente_emails);
     if (lista.length > 0) {
-      await ej.insert(emailsClientes).values(lista.map((p) => ({ idCliente, email: p.valor, tipoEmail: p.tipo })));
+      await ej
+        .insert(emailsClientes)
+        .values(
+          lista.map((p) => ({ idCliente, email: p.valor, tipoEmail: p.tipo })),
+        );
     }
   }
   if (item.cliente_telefonos !== undefined && item.cliente_telefonos !== null) {
-    await ej.delete(telefonosClientes).where(eq(telefonosClientes.idCliente, idCliente));
+    await ej
+      .delete(telefonosClientes)
+      .where(eq(telefonosClientes.idCliente, idCliente));
     const lista = pares(item.cliente_telefonos);
     if (lista.length > 0) {
-      await ej.insert(telefonosClientes).values(lista.map((p) => ({ idCliente, telefono: p.valor, tipoTelefono: p.tipo })));
+      await ej
+        .insert(telefonosClientes)
+        .values(
+          lista.map((p) => ({
+            idCliente,
+            telefono: p.valor,
+            tipoTelefono: p.tipo,
+          })),
+        );
     }
   }
   return idCliente;
@@ -178,41 +251,83 @@ async function resolverCliente(ej: Ejecutor, item: EntradaImportacionCsv["items"
  * Enlaza con la marca y el modelo que YA existen (sin distinguir mayúsculas). Nunca crea ni modifica marcas ni modelos: lo que no
  * se reconoce deja el expediente sin modelo, para que se elija a mano.
  */
-async function resolverModelo(ej: Ejecutor, item: EntradaImportacionCsv["items"][number]): Promise<number | null> {
+async function resolverModelo(
+  ej: Ejecutor,
+  item: EntradaImportacionCsv["items"][number],
+): Promise<number | null> {
   const nombreModelo = limpio(item.modelo_nombre);
   if (!nombreModelo) return null;
   const nombreMarca = limpio(item.marca_nombre);
   let idMarca: number | null = null;
   if (nombreMarca) {
-    const [m] = await ej.select().from(marcas).where(and(ilike(marcas.nombre, escaparLike(nombreMarca)), isNull(marcas.eliminadoEn))).limit(1);
+    const [m] = await ej
+      .select()
+      .from(marcas)
+      .where(
+        and(
+          ilike(marcas.nombre, escaparLike(nombreMarca)),
+          isNull(marcas.eliminadoEn),
+        ),
+      )
+      .limit(1);
     if (!m) return null;
     idMarca = m.idMarca;
   }
   const existentes = await ej
     .select({ idModelo: modelos.idModelo, nombre: modelos.nombreModelo })
     .from(modelos)
-    .where(and(isNull(modelos.eliminadoEn), idMarca ? eq(modelos.marcaId, idMarca) : undefined));
+    .where(
+      and(
+        isNull(modelos.eliminadoEn),
+        idMarca ? eq(modelos.marcaId, idMarca) : undefined,
+      ),
+    );
   // «Nuevo Espace» es Espace, «Clio CL6» es Clio…: solo cuenta el modelo base, y nunca se crea uno nuevo
-  const exacto = existentes.find((m) => m.nombre.trim().toLowerCase() === nombreModelo.toLowerCase());
-  return (exacto ?? elegirModeloExistente(nombreModelo, existentes))?.idModelo ?? null;
+  const exacto = existentes.find(
+    (m) => m.nombre.trim().toLowerCase() === nombreModelo.toLowerCase(),
+  );
+  return (
+    (exacto ?? elegirModeloExistente(nombreModelo, existentes))?.idModelo ??
+    null
+  );
 }
 
 /** Enlaza con el tipo de venta que ya existe; no crea ni cambia ninguno. */
-async function resolverTipoVenta(ej: Ejecutor, item: EntradaImportacionCsv["items"][number]): Promise<number | null> {
+async function resolverTipoVenta(
+  ej: Ejecutor,
+  item: EntradaImportacionCsv["items"][number],
+): Promise<number | null> {
   const nombre = limpio(item.tipo_venta_nombre);
   if (!nombre) return null;
-  const [existente] = await ej.select().from(tipoDeVenta).where(and(ilike(tipoDeVenta.nombreTipoVenta, escaparLike(nombre)), isNull(tipoDeVenta.eliminadoEn))).limit(1);
+  const [existente] = await ej
+    .select()
+    .from(tipoDeVenta)
+    .where(
+      and(
+        ilike(tipoDeVenta.nombreTipoVenta, escaparLike(nombre)),
+        isNull(tipoDeVenta.eliminadoEn),
+      ),
+    )
+    .limit(1);
   return existente?.idTipoDeVenta ?? null;
 }
 
 /** Enlaza con el estado de vehículo que ya existe; no crea ni cambia ninguno. */
-async function resolverEstado(ej: Ejecutor, item: EntradaImportacionCsv["items"][number]): Promise<number | null> {
+async function resolverEstado(
+  ej: Ejecutor,
+  item: EntradaImportacionCsv["items"][number],
+): Promise<number | null> {
   const nombre = limpio(item.estado_vehiculo_nombre);
   if (!nombre) return null;
   const [existente] = await ej
     .select()
     .from(estadoVehiculo)
-    .where(and(ilike(estadoVehiculo.nombreEstadoVehiculo, escaparLike(nombre)), isNull(estadoVehiculo.eliminadoEn)))
+    .where(
+      and(
+        ilike(estadoVehiculo.nombreEstadoVehiculo, escaparLike(nombre)),
+        isNull(estadoVehiculo.eliminadoEn),
+      ),
+    )
     .limit(1);
   return existente?.idEstadoVehiculo ?? null;
 }
@@ -235,7 +350,12 @@ export async function importarExpedientesCsv(
 ): Promise<ResultadoImportacion> {
   return ej.transaction(async (tx) => {
     const idTienda = await tiendaUnica(tx, usuario.idUsuario);
-    const bloque = await crearBloque(tx, usuario, entrada.filename || "archivo_importacion.csv", "CSV");
+    const bloque = await crearBloque(
+      tx,
+      usuario,
+      entrada.filename || "archivo_importacion.csv",
+      "CSV",
+    );
     let importados = 0;
     let omitidos = 0;
 
@@ -245,9 +365,31 @@ export async function importarExpedientesCsv(
       const nombreCliente = limpio(item.cliente_nombre) || "Desconocido";
 
       let duplicado = false;
-      if (vin && !entrada.permitir_duplicados) duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, vin))).limit(1)).length > 0;
+      if (vin && !entrada.permitir_duplicados)
+        duplicado =
+          (
+            await tx
+              .select({ id: expedientes.idExpediente })
+              .from(expedientes)
+              .where(
+                and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, vin)),
+              )
+              .limit(1)
+          ).length > 0;
       if (!duplicado && matricula && !entrada.permitir_duplicados) {
-        duplicado = (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.matricula, matricula))).limit(1)).length > 0;
+        duplicado =
+          (
+            await tx
+              .select({ id: expedientes.idExpediente })
+              .from(expedientes)
+              .where(
+                and(
+                  isNull(expedientes.eliminadoEn),
+                  eq(expedientes.matricula, matricula),
+                ),
+              )
+              .limit(1)
+          ).length > 0;
       }
       if (duplicado) {
         omitidos++;
@@ -277,7 +419,8 @@ export async function importarExpedientesCsv(
               idTienda,
               idTipoDeVenta,
               idEstadoVehiculo,
-              fechaExpediente: parseFechaFlexible(item.fecha_expediente) ?? hoyIso(),
+              fechaExpediente:
+                parseFechaFlexible(item.fecha_expediente) ?? hoyIso(),
               fechaAfectacion: parseFechaFlexible(item.fecha_afectacion),
               fechaMatriculacion: parseFechaFlexible(item.fecha_matriculacion),
               fechaEntrega: parseFechaFlexible(item.fecha_entrega),
@@ -312,7 +455,10 @@ export async function importarExpedientesCsv(
       }
     }
 
-    await tx.update(importacionesBloques).set({ creados: importados, omitidos }).where(eq(importacionesBloques.id, bloque.id));
+    await tx
+      .update(importacionesBloques)
+      .set({ creados: importados, omitidos })
+      .where(eq(importacionesBloques.id, bloque.id));
     return {
       importados,
       omitidos,
@@ -366,7 +512,15 @@ export async function verificarFilasExcel(
       resultados.push({ rowIdx: fila.rowIdx, status: "no_match" });
       continue;
     }
-    const coincidentes = await ej.select().from(clientes).where(and(isNull(clientes.eliminadoEn), ilike(clientes.nombre, escaparLike(nombre))));
+    const coincidentes = await ej
+      .select()
+      .from(clientes)
+      .where(
+        and(
+          isNull(clientes.eliminadoEn),
+          ilike(clientes.nombre, escaparLike(nombre)),
+        ),
+      );
     if (coincidentes.length === 0) {
       resultados.push({ rowIdx: fila.rowIdx, status: "no_match" });
       continue;
@@ -407,7 +561,13 @@ export async function verificarFilasExcel(
           expediente: candidato(exps[0]),
         });
       } else {
-        resultados.push({ rowIdx: fila.rowIdx, status: "multiple", id_cliente: cliente.id, client, expedientes: exps.map(candidato) });
+        resultados.push({
+          rowIdx: fila.rowIdx,
+          status: "multiple",
+          id_cliente: cliente.id,
+          client,
+          expedientes: exps.map(candidato),
+        });
       }
     }
   }
@@ -420,10 +580,23 @@ export async function procesarActualizacionesExcel(
   usuario: UsuarioActual,
   entrada: EntradaProcesarExcel,
   /** Para el avance de la tarea en segundo plano; si `cancelada()` es true se deshace todo (es una sola transacción). */
-  seguimiento?: { avance: (hecho: number, total: number) => void; cancelada: () => boolean },
-): Promise<{ procesados: number; modificados: number; omitidos: number; mensaje: string }> {
+  seguimiento?: {
+    avance: (hecho: number, total: number) => void;
+    cancelada: () => boolean;
+  },
+): Promise<{
+  procesados: number;
+  modificados: number;
+  omitidos: number;
+  mensaje: string;
+}> {
   return ej.transaction(async (tx) => {
-    const bloque = await crearBloque(tx, usuario, entrada.filename || "archivo_excel.xlsx", "Excel");
+    const bloque = await crearBloque(
+      tx,
+      usuario,
+      entrada.filename || "archivo_excel.xlsx",
+      "Excel",
+    );
     let procesados = 0;
     let modificados = 0;
     let omitidos = 0;
@@ -431,7 +604,10 @@ export async function procesarActualizacionesExcel(
 
     for (const u of entrada.updates) {
       if (seguimiento) {
-        if (seguimiento.cancelada()) throw new TareaCancelada("Importación cancelada: no se ha cambiado nada");
+        if (seguimiento.cancelada())
+          throw new TareaCancelada(
+            "Importación cancelada: no se ha cambiado nada",
+          );
         seguimiento.avance(visto++, entrada.updates.length);
       }
       if (!u.id_cliente || !u.id_expediente) {
@@ -440,7 +616,10 @@ export async function procesarActualizacionesExcel(
       }
       const idCliente = u.id_cliente;
       const idExpediente = u.id_expediente;
-      const exp = await tx.query.expedientes.findFirst({ where: eq(expedientes.idExpediente, idExpediente), with: { cliente: true } });
+      const exp = await tx.query.expedientes.findFirst({
+        where: eq(expedientes.idExpediente, idExpediente),
+        with: { cliente: true },
+      });
       if (!exp) {
         omitidos++;
         continue;
@@ -452,11 +631,40 @@ export async function procesarActualizacionesExcel(
       let duplicado = false;
       if (bastidor && bastidor !== exp.vin && !entrada.permitir_duplicados) {
         duplicado =
-          (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.vin, bastidor), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
+          (
+            await tx
+              .select({ id: expedientes.idExpediente })
+              .from(expedientes)
+              .where(
+                and(
+                  isNull(expedientes.eliminadoEn),
+                  eq(expedientes.vin, bastidor),
+                  ne(expedientes.idExpediente, idExpediente),
+                ),
+              )
+              .limit(1)
+          ).length > 0;
       }
-      if (!duplicado && matricula && matricula !== exp.matricula && !entrada.permitir_duplicados) {
+      if (
+        !duplicado &&
+        matricula &&
+        matricula !== exp.matricula &&
+        !entrada.permitir_duplicados
+      ) {
         duplicado =
-          (await tx.select({ id: expedientes.idExpediente }).from(expedientes).where(and(isNull(expedientes.eliminadoEn), eq(expedientes.matricula, matricula), ne(expedientes.idExpediente, idExpediente))).limit(1)).length > 0;
+          (
+            await tx
+              .select({ id: expedientes.idExpediente })
+              .from(expedientes)
+              .where(
+                and(
+                  isNull(expedientes.eliminadoEn),
+                  eq(expedientes.matricula, matricula),
+                  ne(expedientes.idExpediente, idExpediente),
+                ),
+              )
+              .limit(1)
+          ).length > 0;
       }
       if (duplicado) {
         omitidos++;
@@ -467,13 +675,18 @@ export async function procesarActualizacionesExcel(
           clienteNombre: nombreCliente,
           matricula: matricula || exp.matricula || "",
           bastidor: bastidor || exp.vin || "",
-          cambios: "Omitido para evitar duplicidad de bastidor o matrícula en otro expediente.",
+          cambios:
+            "Omitido para evitar duplicidad de bastidor o matrícula en otro expediente.",
         });
         continue;
       }
 
       const cambios: Record<string, { old: string; new: string }> = {};
-      const anotar = (campo: string, antes: string | null | undefined, despues: string) => {
+      const anotar = (
+        campo: string,
+        antes: string | null | undefined,
+        despues: string,
+      ) => {
         cambios[campo] = { old: antes ? antes : "(Vacío)", new: despues };
       };
 
@@ -490,7 +703,12 @@ export async function procesarActualizacionesExcel(
         const [ya] = await tx
           .select()
           .from(emailsClientes)
-          .where(and(eq(emailsClientes.idCliente, idCliente), ilike(emailsClientes.email, escaparLike(correo))))
+          .where(
+            and(
+              eq(emailsClientes.idCliente, idCliente),
+              ilike(emailsClientes.email, escaparLike(correo)),
+            ),
+          )
           .limit(1);
         if (!ya) {
           correoNuevo = true;
@@ -504,7 +722,12 @@ export async function procesarActualizacionesExcel(
         const [ya] = await tx
           .select()
           .from(telefonosClientes)
-          .where(and(eq(telefonosClientes.idCliente, idCliente), eq(telefonosClientes.telefono, telefono)))
+          .where(
+            and(
+              eq(telefonosClientes.idCliente, idCliente),
+              eq(telefonosClientes.telefono, telefono),
+            ),
+          )
           .limit(1);
         if (!ya) {
           telefonoNuevo = true;
@@ -521,9 +744,19 @@ export async function procesarActualizacionesExcel(
         cambiosExp.matricula = matricula;
         anotar("Matrícula", exp.matricula, matricula);
       }
-      const fechas: [string | null | undefined, keyof typeof cambiosExp, string | null, string][] = [
+      const fechas: [
+        string | null | undefined,
+        keyof typeof cambiosExp,
+        string | null,
+        string,
+      ][] = [
         [u.f_afect, "fechaAfectacion", exp.fechaAfectacion, "Fecha Afectación"],
-        [u.f_mat, "fechaMatriculacion", exp.fechaMatriculacion, "Fecha Matriculación"],
+        [
+          u.f_mat,
+          "fechaMatriculacion",
+          exp.fechaMatriculacion,
+          "Fecha Matriculación",
+        ],
         [u.f_exp, "fechaExpediente", exp.fechaExpediente, "Fecha Expediente"],
         [u.f_entrega, "fechaEntrega", exp.fechaEntrega, "Fecha Entrega"],
       ];
@@ -531,6 +764,8 @@ export async function procesarActualizacionesExcel(
         const nueva = valor ? parseFechaFlexible(valor) : null;
         if (nueva && nueva !== actual) {
           (cambiosExp as Record<string, string>)[campo] = nueva;
+          // Si cambia la fecha de entrega, la hora que tuviera ya no vale
+          if (campo === "fechaEntrega") cambiosExp.horaEntrega = null;
           anotar(etiqueta, actual, nueva);
         }
       }
@@ -541,11 +776,24 @@ export async function procesarActualizacionesExcel(
         continue;
       }
 
-      if (Object.keys(cambiosCliente).length > 0) await tx.update(clientes).set(cambiosCliente).where(eq(clientes.id, idCliente));
-      if (correoNuevo) await tx.insert(emailsClientes).values({ idCliente, email: correo, tipoEmail: "Principal" });
-      if (telefonoNuevo) await tx.insert(telefonosClientes).values({ idCliente, telefono, tipoTelefono: "Principal" });
+      if (Object.keys(cambiosCliente).length > 0)
+        await tx
+          .update(clientes)
+          .set(cambiosCliente)
+          .where(eq(clientes.id, idCliente));
+      if (correoNuevo)
+        await tx
+          .insert(emailsClientes)
+          .values({ idCliente, email: correo, tipoEmail: "Principal" });
+      if (telefonoNuevo)
+        await tx
+          .insert(telefonosClientes)
+          .values({ idCliente, telefono, tipoTelefono: "Principal" });
       if (Object.keys(cambiosExp).length > 0) {
-        await tx.update(expedientes).set(cambiosExp).where(eq(expedientes.idExpediente, idExpediente));
+        await tx
+          .update(expedientes)
+          .set(cambiosExp)
+          .where(eq(expedientes.idExpediente, idExpediente));
         await aplicarReglasSemaforo(tx, [idExpediente]);
       }
 
@@ -562,7 +810,10 @@ export async function procesarActualizacionesExcel(
       });
     }
 
-    await tx.update(importacionesBloques).set({ creados: 0, modificados, omitidos }).where(eq(importacionesBloques.id, bloque.id));
+    await tx
+      .update(importacionesBloques)
+      .set({ creados: 0, modificados, omitidos })
+      .where(eq(importacionesBloques.id, bloque.id));
     return {
       procesados,
       modificados,
@@ -608,40 +859,98 @@ export async function importarClientesCsv(
       const nacimiento = parseFechaFlexible(limpio(item.fecha_de_nacimiento));
       let idTienda: number | null = null;
       if (limpio(item.tienda_nombre)) {
-        const [t] = await tx.select().from(tiendas).where(ilike(tiendas.nombre, escaparLike(limpio(item.tienda_nombre)))).limit(1);
+        const [t] = await tx
+          .select()
+          .from(tiendas)
+          .where(ilike(tiendas.nombre, escaparLike(limpio(item.tienda_nombre))))
+          .limit(1);
         idTienda = t?.idTienda ?? null;
       }
 
-      let existente = dni ? (await tx.select().from(clientes).where(and(isNull(clientes.eliminadoEn), eq(clientes.dni, dni))).limit(1))[0] : undefined;
-      if (!existente) existente = (await tx.select().from(clientes).where(and(isNull(clientes.eliminadoEn), ilike(clientes.nombre, escaparLike(nombre)))).limit(1))[0];
+      let existente = dni
+        ? (
+            await tx
+              .select()
+              .from(clientes)
+              .where(and(isNull(clientes.eliminadoEn), eq(clientes.dni, dni)))
+              .limit(1)
+          )[0]
+        : undefined;
+      if (!existente)
+        existente = (
+          await tx
+            .select()
+            .from(clientes)
+            .where(
+              and(
+                isNull(clientes.eliminadoEn),
+                ilike(clientes.nombre, escaparLike(nombre)),
+              ),
+            )
+            .limit(1)
+        )[0];
 
       let idCliente: number;
       if (existente) {
         idCliente = existente.id;
         const cambios: Partial<typeof clientes.$inferInsert> = {};
         if (dni && existente.dni !== dni) cambios.dni = dni;
-        if (nacimiento && existente.fechaDeNacimiento !== nacimiento) cambios.fechaDeNacimiento = nacimiento;
-        if (idTienda !== null && existente.tiendaId !== idTienda) cambios.tiendaId = idTienda;
-        if (Object.keys(cambios).length > 0) await tx.update(clientes).set(cambios).where(eq(clientes.id, idCliente));
+        if (nacimiento && existente.fechaDeNacimiento !== nacimiento)
+          cambios.fechaDeNacimiento = nacimiento;
+        if (idTienda !== null && existente.tiendaId !== idTienda)
+          cambios.tiendaId = idTienda;
+        if (Object.keys(cambios).length > 0)
+          await tx
+            .update(clientes)
+            .set(cambios)
+            .where(eq(clientes.id, idCliente));
         actualizados++;
       } else {
         const [nuevo] = await tx
           .insert(clientes)
-          .values({ clienteId: crypto.randomUUID(), dni: dni || null, nombre, fechaDeNacimiento: nacimiento, tiendaId: idTienda })
+          .values({
+            clienteId: crypto.randomUUID(),
+            dni: dni || null,
+            nombre,
+            fechaDeNacimiento: nacimiento,
+            tiendaId: idTienda,
+          })
           .returning();
         idCliente = nuevo.id;
         nuevos++;
       }
 
       if (limpio(item.emails)) {
-        await tx.delete(emailsClientes).where(eq(emailsClientes.idCliente, idCliente));
+        await tx
+          .delete(emailsClientes)
+          .where(eq(emailsClientes.idCliente, idCliente));
         const lista = pares(limpio(item.emails));
-        if (lista.length > 0) await tx.insert(emailsClientes).values(lista.map((p) => ({ idCliente, email: p.valor, tipoEmail: p.tipo })));
+        if (lista.length > 0)
+          await tx
+            .insert(emailsClientes)
+            .values(
+              lista.map((p) => ({
+                idCliente,
+                email: p.valor,
+                tipoEmail: p.tipo,
+              })),
+            );
       }
       if (limpio(item.telefonos)) {
-        await tx.delete(telefonosClientes).where(eq(telefonosClientes.idCliente, idCliente));
+        await tx
+          .delete(telefonosClientes)
+          .where(eq(telefonosClientes.idCliente, idCliente));
         const lista = pares(limpio(item.telefonos));
-        if (lista.length > 0) await tx.insert(telefonosClientes).values(lista.map((p) => ({ idCliente, telefono: p.valor, tipoTelefono: p.tipo })));
+        if (lista.length > 0)
+          await tx
+            .insert(telefonosClientes)
+            .values(
+              lista.map((p) => ({
+                idCliente,
+                telefono: p.valor,
+                tipoTelefono: p.tipo,
+              })),
+            );
       }
     }
     return {
@@ -677,13 +986,26 @@ export interface BloqueImportacionDto {
   }[];
 }
 
-export async function listarBloques(ej: Ejecutor): Promise<BloqueImportacionDto[]> {
+export async function listarBloques(
+  ej: Ejecutor,
+): Promise<BloqueImportacionDto[]> {
   const filas = await ej.query.importacionesBloques.findMany({
     orderBy: [desc(importacionesBloques.id)],
     with: { registros: true, usuario: { columns: { nombre: true } } },
   });
-  const idsExp = [...new Set(filas.flatMap((b) => b.registros.map((r) => r.idExpediente)).filter((i): i is number => i !== null))];
-  const exps = idsExp.length ? await ej.query.expedientes.findMany({ where: inArray(expedientes.idExpediente, idsExp), with: relacionesExpediente }) : [];
+  const idsExp = [
+    ...new Set(
+      filas
+        .flatMap((b) => b.registros.map((r) => r.idExpediente))
+        .filter((i): i is number => i !== null),
+    ),
+  ];
+  const exps = idsExp.length
+    ? await ej.query.expedientes.findMany({
+        where: inArray(expedientes.idExpediente, idsExp),
+        with: relacionesExpediente,
+      })
+    : [];
   const mapa = new Map(exps.map((e) => [e.idExpediente, aDto(e)]));
   return filas.map((b) => ({
     id: b.id,
@@ -709,7 +1031,13 @@ export async function listarBloques(ej: Ejecutor): Promise<BloqueImportacionDto[
   }));
 }
 
-export async function eliminarBloques(ej: Ejecutor, ids: number[]): Promise<number> {
-  const borrados = await ej.delete(importacionesBloques).where(inArray(importacionesBloques.id, ids)).returning({ id: importacionesBloques.id });
+export async function eliminarBloques(
+  ej: Ejecutor,
+  ids: number[],
+): Promise<number> {
+  const borrados = await ej
+    .delete(importacionesBloques)
+    .where(inArray(importacionesBloques.id, ids))
+    .returning({ id: importacionesBloques.id });
   return borrados.length;
 }
