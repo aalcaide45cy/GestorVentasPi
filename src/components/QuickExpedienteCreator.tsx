@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePreferencia } from "@/lib/preferencias";
 import { useRouter } from "next/navigation";
 import { Plegable } from "@/components/admin/estructura";
 import { useToast } from "@/components/Toast";
@@ -50,10 +51,22 @@ const estiloTituloMarca = {
 } as const;
 
 /** Acceso rápido: un clic crea un expediente con ese modelo y tipo de venta. */
-export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVenta, vendedores, currentUserId }: Props) {
+export default function QuickExpedienteCreator({
+  marcas,
+  marcasCatalogo,
+  tiposVenta,
+  vendedores,
+  currentUserId,
+}: Props) {
   const router = useRouter();
+  const [guardadoPlegado, fijarPlegado] = usePreferencia(
+    "plegable-dash-acceso-rapido",
+  );
+  const plegado = guardadoPlegado === "cerrado";
   const { mostrar } = useToast();
-  const [cargandoModelo, setCargandoModelo] = useState<number | "VO" | null>(null);
+  const [cargandoModelo, setCargandoModelo] = useState<number | "VO" | null>(
+    null,
+  );
   const [cargandoTipo, setCargandoTipo] = useState<number | null>(null);
 
   const [vendedorId, setVendedorId] = useState<number>(currentUserId);
@@ -66,7 +79,8 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
   useEffect(() => {
     if (!desplegado) return;
     const alPulsarFuera = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest(".vendor-dropdown-container")) setDesplegado(false);
+      if (!(e.target as HTMLElement).closest(".vendor-dropdown-container"))
+        setDesplegado(false);
     };
     document.addEventListener("click", alPulsarFuera);
     return () => document.removeEventListener("click", alPulsarFuera);
@@ -93,11 +107,21 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
           },
         }),
       });
-      if (!res.ok) throw new Error(await mensajeDeError(res, "Error al crear el expediente rápido"));
-      mostrar(`¡Expediente rápido creado con éxito para ${nombreModelo} (${tipo.nombre_tipo_venta})!`);
+      if (!res.ok)
+        throw new Error(
+          await mensajeDeError(res, "Error al crear el expediente rápido"),
+        );
+      mostrar(
+        `¡Expediente rápido creado con éxito para ${nombreModelo} (${tipo.nombre_tipo_venta})!`,
+      );
       router.refresh();
     } catch (e) {
-      mostrar(e instanceof Error ? e.message : "Ocurrió un error inesperado al crear el expediente.", "error");
+      mostrar(
+        e instanceof Error
+          ? e.message
+          : "Ocurrió un error inesperado al crear el expediente.",
+        "error",
+      );
     } finally {
       setCargandoModelo(null);
       setCargandoTipo(null);
@@ -111,12 +135,20 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
   };
 
   const marcasConModelos = marcas.filter((m) => m.modelos.length > 0);
-  const vendedoresFiltrados = vendedores.filter((v) => v.nombre.toLowerCase().includes(busqueda.toLowerCase()));
+  const vendedoresFiltrados = vendedores.filter((v) =>
+    v.nombre.toLowerCase().includes(busqueda.toLowerCase()),
+  );
 
-  const botonesTipo = (idModelo: number | null, nombreModelo: string, estadoNombre?: string) => (
+  const botonesTipo = (
+    idModelo: number | null,
+    nombreModelo: string,
+    estadoNombre?: string,
+  ) => (
     <div style={{ display: "flex", gap: "8px", width: "100%" }}>
       {tiposVenta.map((tv) => {
-        const esteCargando = cargandoModelo === (idModelo ?? "VO") && cargandoTipo === tv.id_tipo_de_venta;
+        const esteCargando =
+          cargandoModelo === (idModelo ?? "VO") &&
+          cargandoTipo === tv.id_tipo_de_venta;
         return (
           <button
             key={tv.id_tipo_de_venta}
@@ -129,7 +161,12 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
             onDragLeave={() => setSobre(null)}
             onDrop={(e) => {
               e.preventDefault();
-              void soltarPedido(Array.from(e.dataTransfer.files), { idModelo, nombreModelo, tipo: tv, estadoNombre });
+              void soltarPedido(Array.from(e.dataTransfer.files), {
+                idModelo,
+                nombreModelo,
+                tipo: tv,
+                estadoNombre,
+              });
             }}
             disabled={cargandoModelo !== null || leyendoPedido}
             style={{
@@ -141,8 +178,13 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
               alignItems: "center",
               justifyContent: "center",
               gap: "4px",
-              background: esteCargando ? "rgba(255, 255, 255, 0.2)" : tv.color || "#3b82f6",
-              outline: sobre === `${idModelo ?? "VO"}-${tv.id_tipo_de_venta}` ? "3px solid var(--text-primary)" : "none",
+              background: esteCargando
+                ? "rgba(255, 255, 255, 0.2)"
+                : tv.color || "#3b82f6",
+              outline:
+                sobre === `${idModelo ?? "VO"}-${tv.id_tipo_de_venta}`
+                  ? "3px solid var(--text-primary)"
+                  : "none",
               outlineOffset: "2px",
               color: "#ffffff",
               border: "1px solid rgba(255, 255, 255, 0.15)",
@@ -170,7 +212,9 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
                 }}
               />
             )}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{tv.nombre_tipo_venta}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+              {tv.nombre_tipo_venta}
+            </span>
           </button>
         );
       })}
@@ -178,17 +222,73 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
   );
 
   return (
-    <div className="glass-panel" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+    <div
+      className="glass-panel"
+      style={{
+        padding: "16px 20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "16px",
+        }}
+      >
         <div>
-          <h3 style={{ fontSize: "1.05rem", marginBottom: "2px" }}>Acceso Rápido a Modelos</h3>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-            Crea expedientes de venta de forma instantánea pulsando en el método de pago bajo cada modelo, o arrastrando el pedido del cliente sobre el modelo y pago que quieras.
+          <button
+            type="button"
+            onClick={() => fijarPlegado(plegado ? "abierto" : "cerrado")}
+            aria-expanded={!plegado}
+            title={plegado ? "Desplegar" : "Plegar"}
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "2px",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{ color: "var(--text-secondary)", width: "1em" }}
+            >
+              {plegado ? "▸" : "▾"}
+            </span>
+            <h3 style={{ fontSize: "1.05rem", margin: 0 }}>
+              Acceso Rápido a Modelos
+            </h3>
+          </button>
+          <p
+            style={{
+              color: "var(--text-secondary)",
+              fontSize: "0.85rem",
+              margin: 0,
+              display: plegado ? "none" : undefined,
+            }}
+          >
+            Crea expedientes de venta de forma instantánea pulsando en el método
+            de pago bajo cada modelo, o arrastrando el pedido del cliente sobre
+            el modelo y pago que quieras.
           </p>
         </div>
 
         {/* Selector de comercial con buscador */}
-        <div className="vendor-dropdown-container" style={{ display: "flex", alignItems: "center", gap: "8px", position: "relative" }}>
+        <div
+          className="vendor-dropdown-container"
+          style={{
+            display: plegado ? "none" : "flex",
+            alignItems: "center",
+            gap: "8px",
+            position: "relative",
+          }}
+        >
           <div style={{ position: "relative" }}>
             <button
               onClick={() => setDesplegado(!desplegado)}
@@ -210,10 +310,29 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
                 textAlign: "left",
               }}
             >
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                👤 {vendedores.find((v) => v.id_usuario === vendedorId)?.nombre || "Seleccionar comercial"}
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                👤{" "}
+                {vendedores.find((v) => v.id_usuario === vendedorId)?.nombre ||
+                  "Seleccionar comercial"}
               </span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: desplegado ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                style={{
+                  transform: desplegado ? "rotate(180deg)" : "none",
+                  transition: "transform 0.2s",
+                }}
+              >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
@@ -255,7 +374,15 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
                   }}
                   autoFocus
                 />
-                <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px", maxHeight: "200px" }}>
+                <div
+                  style={{
+                    overflowY: "auto",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "2px",
+                    maxHeight: "200px",
+                  }}
+                >
                   {vendedoresFiltrados.map((v) => (
                     <button
                       key={v.id_usuario}
@@ -269,10 +396,16 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
                         width: "100%",
                         textAlign: "left",
                         padding: "8px 12px",
-                        background: v.id_usuario === vendedorId ? "rgba(59, 130, 246, 0.15)" : "transparent",
+                        background:
+                          v.id_usuario === vendedorId
+                            ? "rgba(59, 130, 246, 0.15)"
+                            : "transparent",
                         border: "none",
                         borderRadius: "4px",
-                        color: v.id_usuario === vendedorId ? "var(--primary)" : "var(--text-primary)",
+                        color:
+                          v.id_usuario === vendedorId
+                            ? "var(--primary)"
+                            : "var(--text-primary)",
                         fontSize: "0.8rem",
                         cursor: "pointer",
                         fontWeight: v.id_usuario === vendedorId ? 600 : 400,
@@ -282,7 +415,14 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
                     </button>
                   ))}
                   {vendedoresFiltrados.length === 0 && (
-                    <div style={{ padding: "8px", fontSize: "0.8rem", color: "var(--text-muted)", textAlign: "center" }}>
+                    <div
+                      style={{
+                        padding: "8px",
+                        fontSize: "0.8rem",
+                        color: "var(--text-muted)",
+                        textAlign: "center",
+                      }}
+                    >
                       No se encontraron resultados
                     </div>
                   )}
@@ -312,7 +452,14 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
               cursor: "pointer",
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
             </svg>
           </button>
@@ -321,21 +468,110 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
 
       {/* Cada zona se pliega y se despliega con su botón (se recuerda en este navegador): el panel entero era demasiado para verlo de golpe */}
       {/* La cola de pedidos leídos está en el bloque «Pedidos y pagos» del Dashboard (y en Herramientas) */}
-      <Plegable id="dash-modelos" titulo="⚡ Crear un expediente con un clic" resumen="Elige modelo y forma de pago, o arrastra aquí el pedido de un cliente">
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", justifyContent: "center", width: "100%" }}>
-        {marcasConModelos.map((marca) => (
-          <div key={marca.id_marca} style={estiloTarjetaMarca}>
-            <h4 style={estiloTituloMarca}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-                <line x1="7" y1="7" x2="7.01" y2="7" />
-              </svg>
-              {marca.nombre}
-            </h4>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", width: "100%" }}>
-              {marca.modelos.map((modelo) => (
+      {!plegado && (
+        <Plegable
+          id="dash-modelos"
+          titulo="⚡ Crear un expediente con un clic"
+          resumen="Elige modelo y forma de pago, o arrastra aquí el pedido de un cliente"
+        >
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "24px",
+              justifyContent: "center",
+              width: "100%",
+            }}
+          >
+            {marcasConModelos.map((marca) => (
+              <div key={marca.id_marca} style={estiloTarjetaMarca}>
+                <h4 style={estiloTituloMarca}>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                    <line x1="7" y1="7" x2="7.01" y2="7" />
+                  </svg>
+                  {marca.nombre}
+                </h4>
                 <div
-                  key={modelo.id_modelo}
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "8px",
+                    width: "100%",
+                  }}
+                >
+                  {marca.modelos.map((modelo) => (
+                    <div
+                      key={modelo.id_modelo}
+                      className="glass-panel-interactive"
+                      style={{
+                        padding: "8px 10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        background: "rgba(255, 255, 255, 0.02)",
+                        border: "1px solid var(--border-light)",
+                        flex: "1 1 175px",
+                        minWidth: "175px",
+                        maxWidth: "100%",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: "0.85rem",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        {modelo.nombre_modelo}
+                      </div>
+                      {botonesTipo(modelo.id_modelo, modelo.nombre_modelo)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Tarjeta VO */}
+            <div style={estiloTarjetaMarca}>
+              <h4 style={estiloTituloMarca}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                VO
+              </h4>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "var(--text-secondary)",
+                    lineHeight: "1.4",
+                  }}
+                >
+                  Crea un expediente rápido para un vehículo usado (sin
+                  marca/modelo preasignados).
+                </div>
+                <div
                   className="glass-panel-interactive"
                   style={{
                     padding: "8px 10px",
@@ -344,54 +580,27 @@ export default function QuickExpedienteCreator({ marcas, marcasCatalogo, tiposVe
                     gap: "6px",
                     background: "rgba(255, 255, 255, 0.02)",
                     border: "1px solid var(--border-light)",
-                    flex: "1 1 175px",
-                    minWidth: "175px",
-                    maxWidth: "100%",
+                    width: "100%",
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>{modelo.nombre_modelo}</div>
-                  {botonesTipo(modelo.id_modelo, modelo.nombre_modelo)}
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "0.85rem",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    Vehículo Usado (VO)
+                  </div>
+                  {botonesTipo(null, "Vehículo Usado (VO)", "usado")}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
-        ))}
-
-        {/* Tarjeta VO */}
-        <div style={estiloTarjetaMarca}>
-          <h4 style={estiloTituloMarca}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            VO
-          </h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4" }}>
-              Crea un expediente rápido para un vehículo usado (sin marca/modelo preasignados).
-            </div>
-            <div
-              className="glass-panel-interactive"
-              style={{
-                padding: "8px 10px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "6px",
-                background: "rgba(255, 255, 255, 0.02)",
-                border: "1px solid var(--border-light)",
-                width: "100%",
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>Vehículo Usado (VO)</div>
-              {botonesTipo(null, "Vehículo Usado (VO)", "usado")}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      </Plegable>
+        </Plegable>
+      )}
 
       <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-
     </div>
   );
 }
