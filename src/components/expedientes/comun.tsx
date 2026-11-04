@@ -306,6 +306,23 @@ interface CeldaFechaProps {
   alBorrar: (exp: ExpedienteDto, campo: CampoFecha, nombre: string) => void;
 }
 
+/** Botón diminuto de la celda de fecha (poca altura, para que las filas no crezcan). */
+const estiloIcono = (fondo: string): CSSProperties => ({
+  border: "none",
+  background: fondo,
+  cursor: "pointer",
+  fontSize: "0.62rem",
+  lineHeight: 1,
+  padding: "0 5px",
+  height: "17px",
+  minWidth: "22px",
+  borderRadius: "4px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  transition: "all 0.2s",
+});
+
 /** Fecha centrada con lápiz (editar) y papelera (borrar, solo si hay fecha). */
 export function CeldaFecha({
   exp,
@@ -378,146 +395,116 @@ export function CeldaFecha({
     campo === "fecha_matriculacion" &&
     exp.cobrado_otra_fecha;
   return (
-    <td style={{ textAlign: "center", backgroundColor: fondo }}>
+    <td
+      style={{
+        textAlign: "center",
+        backgroundColor: fondo,
+        height: "62px",
+        padding: "4px 6px",
+        verticalAlign: "middle",
+      }}
+    >
       <div
         style={{
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: "4px",
+          gap: "2px",
+          lineHeight: 1.15,
         }}
       >
-        <div
+        <span
           style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "3px",
+            fontSize: "0.85rem",
+            whiteSpace: "nowrap",
+            color: valor ? "var(--text-primary)" : "var(--text-muted)",
+            fontWeight: valor ? 500 : 400,
+            textDecoration: cobradaOtraFecha ? "underline" : "none",
+            cursor: cobradaOtraFecha ? "help" : "default",
           }}
+          title={
+            cobradaOtraFecha && exp.fecha_cobrado
+              ? `Fecha Cobrado: ${formatear(exp.fecha_cobrado)}`
+              : undefined
+          }
         >
-          <span
-            style={{
-              fontSize: "0.85rem",
-              whiteSpace: "nowrap",
-              color: valor ? "var(--text-primary)" : "var(--text-muted)",
-              fontWeight: valor ? 500 : 400,
-              textDecoration: cobradaOtraFecha ? "underline" : "none",
-              cursor: cobradaOtraFecha ? "help" : "default",
-            }}
-            title={
-              cobradaOtraFecha && exp.fecha_cobrado
-                ? `Fecha Cobrado: ${formatear(exp.fecha_cobrado)}`
-                : undefined
-            }
-          >
-            {formatear(valor)}
-            {campo === "fecha_entrega" && valor && exp.hora_entrega
-              ? ` · ${exp.hora_entrega}`
-              : ""}
-          </span>
-          <div
-            style={{ display: "flex", gap: "3px", justifyContent: "center" }}
-          >
-            <button
-              type="button"
-              onClick={() => alEditar(exp, campo, nombre)}
-              style={{
-                border: "none",
-                background: "rgba(255, 255, 255, 0.05)",
-                cursor: "pointer",
-                fontSize: "0.72rem",
-                padding: "3px 5px",
-                borderRadius: "4px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all 0.2s",
-              }}
-              title={`Modificar fecha de ${nombre}`}
-              className="glass-panel-interactive"
-            >
-              ✏️
-            </button>
-            {valor && conSobre && (
-              <button
-                type="button"
-                onClick={() => void pulsarSobre()}
-                style={{
-                  border: "none",
-                  background: "rgba(59, 130, 246, 0.08)",
-                  cursor: "pointer",
-                  fontSize: "0.72rem",
-                  padding: "3px 5px",
-                  borderRadius: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.2s",
-                }}
-                title={`Enviar un correo con la fecha de ${nombre}`}
-                className="glass-panel-interactive"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="m22 7-10 6L2 7" />
-                </svg>
-              </button>
-            )}
-            {valor && (
-              <button
-                type="button"
-                onClick={() => alBorrar(exp, campo, nombre)}
-                style={{
-                  border: "none",
-                  background: "rgba(239, 68, 68, 0.05)",
-                  cursor: "pointer",
-                  fontSize: "0.72rem",
-                  padding: "3px 5px",
-                  borderRadius: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.2s",
-                }}
-                title={`Eliminar fecha de ${nombre}`}
-                className="glass-panel-interactive"
-              >
-                🗑️
-              </button>
-            )}
-          </div>
-        </div>
+          {formatear(valor)}
+          {campo === "fecha_entrega" && valor && exp.hora_entrega
+            ? ` · ${exp.hora_entrega}`
+            : ""}
+        </span>
         {detalleMatricula &&
           campo === "fecha_matriculacion" &&
           exp.matricula && (
-            <div
+            <span
               style={{
-                fontSize: "0.75rem",
+                fontSize: "0.68rem",
                 fontWeight: 600,
                 color: "var(--text-secondary)",
                 background: "rgba(255, 255, 255, 0.05)",
-                padding: "2px 6px",
+                padding: "0 5px",
                 borderRadius: "4px",
                 border: "1px solid var(--border-light)",
-                marginTop: "2px",
-                display: "inline-block",
+                whiteSpace: "nowrap",
               }}
             >
               🚗 {exp.matricula}
-            </div>
+            </span>
           )}
+        <div
+          style={{
+            display: "flex",
+            gap: "3px",
+            justifyContent: "center",
+            marginTop: "1px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => alEditar(exp, campo, nombre)}
+            style={estiloIcono("rgba(255, 255, 255, 0.05)")}
+            title={`Modificar fecha de ${nombre}`}
+            className="glass-panel-interactive"
+          >
+            ✏️
+          </button>
+          {valor && conSobre && (
+            <button
+              type="button"
+              onClick={() => void pulsarSobre()}
+              style={estiloIcono("rgba(59, 130, 246, 0.08)")}
+              title={`Enviar un correo con la fecha de ${nombre}`}
+              className="glass-panel-interactive"
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-10 6L2 7" />
+              </svg>
+            </button>
+          )}
+          {valor && (
+            <button
+              type="button"
+              onClick={() => alBorrar(exp, campo, nombre)}
+              style={estiloIcono("rgba(239, 68, 68, 0.05)")}
+              title={`Eliminar fecha de ${nombre}`}
+              className="glass-panel-interactive"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
       </div>
       {escribiendo && (
         <ModalCorreo
