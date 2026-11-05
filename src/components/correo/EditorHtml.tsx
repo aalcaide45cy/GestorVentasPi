@@ -1,23 +1,68 @@
 "use client";
 
+import Image from "@tiptap/extension-image";
+import {
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@tiptap/extension-table";
+import { Color, TextStyle } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CAMPOS_CORREO } from "@/lib/correo";
 
-/** Editor sencillo de texto con formato para el cuerpo de un correo o de una plantilla (opcionalmente con un selector de campos). */
+/** Reduce una imagen subida a un máximo de ancho y la devuelve como dato en línea (para que viaje dentro del correo). */
+async function imagenEnLinea(archivo: File, anchoMax = 600): Promise<string> {
+  const url = URL.createObjectURL(archivo);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, mal) => {
+      const i = new window.Image();
+      i.onload = () => ok(i);
+      i.onerror = () => mal(new Error("No se pudo leer la imagen"));
+      i.src = url;
+    });
+    const escala = Math.min(1, anchoMax / img.naturalWidth);
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * escala);
+    c.height = Math.round(img.naturalHeight * escala);
+    c.getContext("2d")?.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL(
+      archivo.type === "image/jpeg" ? "image/jpeg" : "image/png",
+      0.9,
+    );
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Editor sencillo de texto con formato para el cuerpo de un correo, una plantilla o una firma (con selector de campos o con imágenes y tablas). */
 export default function EditorHtml({
   valor,
   alCambiar,
   conCampos,
+  conImagenes,
 }: {
   valor: string;
   alCambiar: (html: string) => void;
   conCampos?: boolean;
+  conImagenes?: boolean;
 }) {
   const editor = useEditor({
     immediatelyRender: false,
     content: valor,
     extensions: [
+      ...(conImagenes
+        ? [
+            Image.configure({ inline: true, allowBase64: true }),
+            Table.configure({ resizable: false }),
+            TableRow,
+            TableHeader,
+            TableCell,
+            TextStyle,
+            Color,
+          ]
+        : []),
       StarterKit.configure({
         link: {
           openOnClick: false,
@@ -98,6 +143,46 @@ export default function EditorHtml({
               .setLink({ href: url.trim() })
               .run();
         })}
+        {conImagenes && (
+          <>
+            {b("🖼️ Subir", "Insertar una imagen de tu ordenador", false, () => {
+              const i = document.createElement("input");
+              i.type = "file";
+              i.accept = "image/png,image/jpeg,image/gif,image/webp";
+              i.onchange = async () => {
+                const f = i.files?.[0];
+                if (!f) return;
+                try {
+                  editor
+                    .chain()
+                    .focus()
+                    .setImage({ src: await imagenEnLinea(f) })
+                    .run();
+                } catch (e) {
+                  window.alert(
+                    e instanceof Error
+                      ? e.message
+                      : "No se pudo insertar la imagen",
+                  );
+                }
+              };
+              i.click();
+            })}
+            {b(
+              "🖼️ Enlace",
+              "Insertar una imagen desde una dirección web",
+              false,
+              () => {
+                const url = window.prompt(
+                  "Dirección de la imagen (https://…):",
+                  "https://",
+                );
+                if (url && /^https?:\/\//i.test(url.trim()))
+                  editor.chain().focus().setImage({ src: url.trim() }).run();
+              },
+            )}
+          </>
+        )}
         {b("↶", "Deshacer", false, () => editor.chain().focus().undo().run())}
         {b("↷", "Rehacer", false, () => editor.chain().focus().redo().run())}
         {conCampos && (

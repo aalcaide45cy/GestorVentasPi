@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
+import EditorHtml from "./EditorHtml";
 import { PROVEEDORES, type CuentaDto, type Proveedor } from "@/lib/correo";
 
 interface Borrador {
@@ -21,6 +22,15 @@ interface Borrador {
   activa: boolean;
   con_password: boolean;
 }
+/** Las firmas antiguas eran texto plano: se pasan a párrafos para el editor. */
+const deTextoAHtml = (t: string): string =>
+  t && !/<[a-z][\s\S]*>/i.test(t)
+    ? t
+        .split(/\r?\n/)
+        .map((l) => `<p>${l.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</p>`)
+        .join("")
+    : t;
+
 const nueva = (): Borrador => ({
   id: null,
   nombre: "",
@@ -353,17 +363,19 @@ export default function PanelCuentas() {
               </label>
             </div>
           )}
-          <label
-            style={{ display: "flex", flexDirection: "column", gap: "4px" }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             Firma (sale con el campo {"{firma}"} de las plantillas)
-            <textarea
-              className="form-input"
-              rows={3}
-              value={b.firma}
-              onChange={(e) => setB({ ...b, firma: e.target.value })}
+            <EditorHtml
+              valor={deTextoAHtml(b.firma)}
+              alCambiar={(h) => setB((x) => (x ? { ...x, firma: h } : x))}
+              conImagenes
             />
-          </label>
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+              Copia tu firma de Gmail (o de Outlook) y pégala aquí: se conservan
+              el formato, los colores, los enlaces, las tablas y las imágenes.
+              También puedes subir una imagen o poner su dirección web.
+            </span>
+          </div>
           <div
             style={{
               display: "flex",

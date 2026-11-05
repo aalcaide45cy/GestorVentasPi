@@ -14,6 +14,7 @@ import {
   cancelarCorreo,
   crearCorreo,
   enviarCorreo,
+  extraerImagenesEnLinea,
   fijarTransporteDePrueba,
   guardarAjustesCorreo,
   guardarCuenta,
@@ -317,5 +318,32 @@ describe("correo", () => {
     expect(
       (await listarCorreos(db, ana, { estados: ["programado"] }))[0],
     ).toMatchObject({ para: "dos@ejemplo.test" });
+  });
+
+  it("las imágenes en línea (firma) pasan a imágenes incrustadas del correo y la firma se añade sola a las plantillas que no la llevan", async () => {
+    const { ana, id, cuenta } = await escenario();
+    const png =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const r = extraerImagenesEnLinea(
+      `<p>Hola</p><img src="data:image/png;base64,${png}" width="50"><img src="https://ejemplo.test/a.png">`,
+    );
+    expect(r.incrustadas).toHaveLength(1);
+    expect(r.incrustadas[0]).toMatchObject({ contentType: "image/png" });
+    expect(r.html).toContain(`src="cid:${r.incrustadas[0].cid}"`);
+    expect(r.html).toContain("https://ejemplo.test/a.png");
+    expect(r.html).not.toContain("base64");
+    // Una plantilla sin {firma} lleva la de la cuenta al final
+    const p = await guardarPlantilla(db, ana, null, {
+      nombre: "Sin firma",
+      asunto: "Hola",
+      cuerpo: "<p>Texto</p>",
+    });
+    const c = await crearCorreo(db, ana, {
+      id_plantilla: p.id,
+      id_expediente: id,
+      id_cuenta: cuenta.id,
+    });
+    expect(c.cuerpo).toContain("Texto");
+    expect(c.cuerpo).toContain("Alfonso");
   });
 });

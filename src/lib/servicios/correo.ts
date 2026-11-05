@@ -483,7 +483,11 @@ export async function crearCorreoOpcional(
       .where(eq(correoPlantillas.id, e.id_plantilla));
     if (!p) throw new HttpError(404, "Plantilla no encontrada");
     if (!asunto) asunto = p.asunto;
-    if (!cuerpo) cuerpo = p.cuerpo;
+    if (!cuerpo)
+      cuerpo =
+        p.cuerpo.includes("{firma}") || !cuenta?.firma
+          ? p.cuerpo
+          : `${p.cuerpo}<p></p>{firma}`;
   }
   if (e.rellenar || e.id_plantilla) {
     asunto = rellenarPlantilla(asunto, datos, false);
@@ -700,6 +704,38 @@ function validarParaEnviar(c: typeof correoCola.$inferSelect): string[] {
   return dir;
 }
 
+/** Cambia las imágenes en línea (data:image/…) del HTML por imágenes incrustadas del correo (cid:), que es lo que entienden Gmail y Outlook. */
+export function extraerImagenesEnLinea(html: string): {
+  html: string;
+  incrustadas: {
+    filename: string;
+    content: Buffer;
+    cid: string;
+    contentType: string;
+  }[];
+} {
+  const incrustadas: {
+    filename: string;
+    content: Buffer;
+    cid: string;
+    contentType: string;
+  }[] = [];
+  const nuevo = html.replace(
+    /(<img\b[^>]*?\bsrc=")data:(image\/(?:png|jpe?g|gif|webp));base64,([^"]+)(")/gi,
+    (_m, ini: string, mime: string, b64: string, fin: string) => {
+      const cid = `img${incrustadas.length + 1}-${Date.now().toString(36)}@gestorventas`;
+      incrustadas.push({
+        filename: `imagen${incrustadas.length + 1}.${mime.split("/")[1].replace("jpeg", "jpg")}`,
+        content: Buffer.from(b64, "base64"),
+        cid,
+        contentType: mime,
+      });
+      return `${ini}cid:${cid}${fin}`;
+    },
+  );
+  return { html: nuevo, incrustadas };
+}
+
 const textoPlano = (html: string): string =>
   html
     .replace(/<br\s*\/?>/gi, "\n")
@@ -782,13 +818,15 @@ async function enviarFila(
           contentType: a.mime,
         });
     }
+    // Las imágenes pegadas en el texto (la firma incluida) viajan dentro del correo como imágenes incrustadas
+    const { html, incrustadas } = extraerImagenesEnLinea(c.cuerpo);
     await transporteDe(cuenta).sendMail({
       from: `"${cuenta.nombre.replace(/"/g, "")}" <${cuenta.email}>`,
       to: dir,
       subject: c.asunto,
-      html: c.cuerpo,
-      text: textoPlano(c.cuerpo),
-      attachments: adj,
+      html,
+      text: textoPlano(html),
+      attachments: [...adj, ...incrustadas],
     });
   } catch (e) {
     return falla(motivoDeError(e));
