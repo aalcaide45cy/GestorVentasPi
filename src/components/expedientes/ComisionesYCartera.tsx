@@ -11,6 +11,7 @@ import type {
 import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
+import { contarPedidos, type PedidosDelMes } from "@/lib/pedidos-mes";
 import { usePreferencia } from "@/lib/preferencias";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
 import AvisoComision from "./AvisoComision";
@@ -115,6 +116,8 @@ export function TituloPlegable({
 interface TarjetaProps {
   /** Identifica el desglose para recordar si está abierto (anterior / elegido). */
   clave: string;
+  /** Pedidos del mes de la tarjeta (del vendedor elegido). */
+  pedidos: PedidosDelMes;
   titulo: string;
   mesTexto: string;
   pagoTexto: string;
@@ -370,12 +373,50 @@ const columnasBase: ColumnaTabla<FilaDesglose>[] =
   });
 
 /** Cápsula con el borde amarillo punteado, igual que la de las filas con la financiación en otro mes. */
-const capsulaAviso: CSSProperties = {
+export const capsulaAviso: CSSProperties = {
   display: "inline-block",
   border: "2px dashed var(--warning)",
   borderRadius: "999px",
   background: "rgba(245, 158, 11, 0.08)",
 };
+
+/** Texto bajo una tabla que explica el recuadro punteado de las filas con la financiación en otro mes. */
+export function NotaFilaAviso({
+  adelantadas,
+  anteriores,
+  fin = "Pasa el ratón por la columna «Cuenta» para ver el detalle.",
+}: {
+  adelantadas: number;
+  anteriores: number;
+  fin?: string;
+}) {
+  return (
+    <p
+      style={{
+        margin: 0,
+        fontSize: "0.8rem",
+        color: "var(--text-secondary)",
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          ...capsulaAviso,
+          flex: "0 0 auto",
+          width: "44px",
+          height: "16px",
+        }}
+      />
+      <span>
+        Fila con la financiación en otro mes: {adelantadas} adelantada(s) y{" "}
+        {anteriores} contratada(s) el mes anterior. {fin}
+      </span>
+    </p>
+  );
+}
 
 /** Línea pequeña bajo la tasa: cuántas financiaciones son de otro mes (ya incluidas en la cifra, o excluidas por ser del mes anterior). */
 function NotaFueraDeMes({
@@ -860,6 +901,76 @@ interface PropsFichaTasa {
 }
 
 /** Una tasa de intervención financiera de un vistazo: porcentaje, fracción, barra con la marca del objetivo y si se cumple. */
+/** «Pedidos del mes» (por fecha de pedido), con el reparto en contado, crédito y preference, junto a las tasas. */
+function FichaPedidos({ pedidos }: { pedidos: PedidosDelMes }) {
+  return (
+    <div
+      title="Expedientes con fecha de pedido en este mes: contado, crédito y preference"
+      style={{
+        border: "1px solid var(--border-light)",
+        borderRadius: "var(--radius-sm)",
+        padding: "8px 10px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "4px",
+        minWidth: 0,
+        background: "rgba(255, 255, 255, 0.02)",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.72rem",
+          color: "var(--text-secondary)",
+          fontWeight: 600,
+          textTransform: "uppercase",
+        }}
+      >
+        Pedidos del mes
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <span
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: "bold",
+            color: "var(--warning)",
+            lineHeight: 1,
+          }}
+        >
+          {pedidos.total}
+        </span>
+        <span
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            fontSize: "0.72rem",
+            color: "var(--text-secondary)",
+            lineHeight: 1.25,
+            flex: 1,
+          }}
+        >
+          {[
+            ["Contado", pedidos.contado],
+            ["Crédito", pedidos.credito],
+            ["Preference", pedidos.preference],
+          ].map(([t, v]) => (
+            <span
+              key={t}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "8px",
+              }}
+            >
+              <span>{t}</span>
+              <b style={{ color: "var(--text-primary)" }}>{v}</b>
+            </span>
+          ))}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function FichaTasa({
   titulo,
   numerador,
@@ -1010,6 +1121,7 @@ function TarjetaComision({
   porId,
   pagoAyuda,
   fueraDeMes,
+  pedidos: pedidosDelMes,
 }: TarjetaProps) {
   const [desgloseGuardado, guardarDesglose] = usePreferencia(
     `desglose-${clave}`,
@@ -1354,6 +1466,7 @@ function TarjetaComision({
                         alAbrir={() => alternarDetalle("tasa")}
                       />
                     ))}
+                    <FichaPedidos pedidos={pedidosDelMes} />
                     {tasaV && tasaV.denominador > 0 && (
                       <FichaTasa
                         titulo="Usados (VO)"
@@ -1438,42 +1551,17 @@ function TarjetaComision({
                 })}
               />
               {finFuera.size > 0 && (
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.8rem",
-                    color: "var(--text-secondary)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      ...capsulaAviso,
-                      flex: "0 0 auto",
-                      width: "44px",
-                      height: "16px",
-                    }}
-                  />
-                  <span>
-                    Fila con la financiación en otro mes:{" "}
-                    {
-                      [...finFuera.values()].filter(
-                        (f) => f.tipo === "adelantada",
-                      ).length
-                    }{" "}
-                    adelantada(s) y{" "}
-                    {
-                      [...finFuera.values()].filter(
-                        (f) => f.tipo === "anterior",
-                      ).length
-                    }{" "}
-                    contratada(s) el mes anterior. Pasa el ratón por la columna
-                    «Cuenta» para ver el detalle.
-                  </span>
-                </p>
+                <NotaFilaAviso
+                  adelantadas={
+                    [...finFuera.values()].filter(
+                      (f) => f.tipo === "adelantada",
+                    ).length
+                  }
+                  anteriores={
+                    [...finFuera.values()].filter((f) => f.tipo === "anterior")
+                      .length
+                  }
+                />
               )}
               <div
                 style={{ display: "flex", flexDirection: "column", gap: "4px" }}
@@ -1640,6 +1728,11 @@ export function PanelComisiones({
           {verAnterior && (
             <TarjetaComision
               clave="anterior"
+              pedidos={contarPedidos(
+                expedientes,
+                previoReal.anio,
+                previoReal.mes,
+              )}
               titulo="Mes anterior (se cobra ahora)"
               mesTexto={etiquetaMes(previoReal.anio, previoReal.mes)}
               pagoTexto={`Nómina ${etiquetaMesCorta(pagoAnterior.anio, pagoAnterior.mes)}`}
@@ -1652,6 +1745,7 @@ export function PanelComisiones({
           )}
           <TarjetaComision
             clave="elegido"
+            pedidos={contarPedidos(expedientes, anio, mes)}
             titulo={
               esMesActual
                 ? "Mes elegido (llevas generado)"

@@ -336,6 +336,9 @@ select, select option {
 :where(tbody) > tr:nth-child(odd) { background-color: var(--fila-impar); }
 :where(tbody) > tr:nth-child(even) { background-color: var(--fila-par); }
 
+/* Tarjetas del resumen del mes: cuatro por fila, todas del mismo alto, y la última fila se reparte todo el ancho sin dejar huecos. */
+.resumen-tarjetas { display: flex; flex-wrap: wrap; gap: 15px; align-items: stretch; }
+.resumen-tarjetas > * { flex: 1 1 calc(25% - 12px); min-width: 210px; box-sizing: border-box; }
 .tabla-scroll { max-height: var(--alto-tabla, calc(68 * var(--uvh))); overflow: auto; padding: 0 2px 2px 2px; }
 /* Tabla que se desplaza con la página (sin barra vertical propia): solo tiene barra horizontal si las columnas no caben. Las cabeceras de los filtros se quedan arriba. */
 .tabla-pagina { max-height: none; overflow-x: auto; overflow-y: hidden; padding: 0 2px 2px 2px; }

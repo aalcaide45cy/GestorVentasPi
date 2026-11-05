@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.59.0 (05/11/2026)
+- **«Pedidos del mes»** (contado, crédito, preference) también dentro del grupo «Tasa de intervención financiera» de las tarjetas de Comisiones (mes anterior y mes elegido); se queda además en Detalle y resumen. Cuenta por fecha de pedido, del vendedor elegido (`lib/pedidos-mes.ts`).
+- **Detalle y Resumen Estadístico**: las tarjetas van cuatro por fila, del mismo alto y sin huecos (la última fila se reparte el ancho, `.resumen-tarjetas`); la tabla de abajo sale completa, sin scroll propio (`alto="none"`); la fila con la financiación en otro mes se rodea con línea de puntos y debajo sale el texto explicativo con su recuadro (`NotaFilaAviso`, compartido con Comisiones).
+
 ## Versión 1.58.0 (04/11/2026)
 - **Botón ✉️ de las fechas, configurable** en Correo → Ajustes: por cada fecha de la lista (afectación, RCI, matriculación, facturación, entrega) se activa o no y se deja predefinido el correo: plantilla (con su firma), cuenta, destinatario (el cliente o una dirección fija) y qué pasa al pulsar (abrir el correo para revisarlo, dejarlo directamente en la cola o enviarlo sin preguntar). Preferencia sincronizada `exp-correo-botones` (JSON; entiende el formato antiguo).
 - Celdas de fecha: la fecha arriba y debajo los botones pequeños (lápiz, sobre, papelera); el Excel quita la hora de entrega si cambia la fecha.

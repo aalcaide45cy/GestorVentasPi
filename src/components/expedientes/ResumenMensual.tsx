@@ -19,6 +19,7 @@ import {
   PanelComisiones,
   firmaExpedientes,
   usePlegable,
+  NotaFilaAviso,
 } from "./ComisionesYCartera";
 
 const MESES = [
@@ -343,6 +344,10 @@ export default function ResumenMensual({
     pedidos: "Pedidos del mes (contado, crédito y preference)",
   };
   const lista = abierto ? r.listas[abierto] : undefined;
+  // Expedientes con la financiación en otro mes (adelantada o del mes anterior): su fila se rodea con línea de puntos, como en Comisiones
+  const fueraDeMes = new Map(
+    (m?.financiacionesFueraDeMes ?? []).map((f) => [f.idExpediente, f.tipo]),
+  );
   const detalleMotor =
     abierto === "puntos" || abierto === "tramo" || abierto === "comision";
 
@@ -522,10 +527,8 @@ export default function ResumenMensual({
 
         {panelAbierto && (
           <div
+            className="resumen-tarjetas"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-              gap: "15px",
               ...(esMesActual
                 ? {}
                 : {
@@ -748,6 +751,10 @@ export default function ResumenMensual({
             <TablaDatos<ExpedienteDto>
               id={`resumen-${abierto ?? "lista"}`}
               columnas={columnasListaResumen}
+              alto="none"
+              claseFila={(e) =>
+                fueraDeMes.has(e.id_expediente) ? "fila-aviso" : ""
+              }
               filas={lista}
               clave={(e) => e.id_expediente}
               compacta
@@ -757,6 +764,21 @@ export default function ResumenMensual({
                 cliente: `${fs.length} expediente${fs.length === 1 ? "" : "s"}`,
               })}
             />
+            {lista.some((e) => fueraDeMes.has(e.id_expediente)) && (
+              <NotaFilaAviso
+                adelantadas={
+                  lista.filter(
+                    (e) => fueraDeMes.get(e.id_expediente) === "adelantada",
+                  ).length
+                }
+                anteriores={
+                  lista.filter(
+                    (e) => fueraDeMes.get(e.id_expediente) === "anterior",
+                  ).length
+                }
+                fin="El detalle de cada una está en la tabla de comisiones, en la columna «Cuenta»."
+              />
+            )}
           </div>
         )}
 
