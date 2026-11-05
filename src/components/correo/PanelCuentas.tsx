@@ -236,6 +236,7 @@ export default function PanelCuentas() {
             </>
           }
         >
+          <span data-sin-enter hidden />
           <label
             style={{ display: "flex", flexDirection: "column", gap: "4px" }}
           >
