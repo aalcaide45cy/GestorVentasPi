@@ -263,6 +263,9 @@ export default function PanelCola({
                       sin destinatario
                     </em>
                   )}
+                  {c.cc ? ` · CC: ${c.cc}` : ""}
+                  {c.cco ? ` · CCO: ${c.cco}` : ""}
+                  {c.adjuntos.length > 0 ? ` · 📎 ${c.adjuntos.length}` : ""}
                   {c.cliente ? ` · ${c.cliente}` : ""}
                   {c.id_expediente
                     ? ` · #EXP-${String(c.id_expediente).padStart(4, "0")}`
