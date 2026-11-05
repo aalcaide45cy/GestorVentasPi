@@ -48,6 +48,10 @@ export default function PanelPlantillas() {
           nombre: b.nombre,
           asunto: b.asunto,
           para: b.para,
+          cc: b.cc,
+          cco: b.cco,
+          id_cuenta: b.id_cuenta,
+          con_firma: b.con_firma,
           cuerpo: b.cuerpo,
         },
       });
