@@ -74,13 +74,16 @@ export interface CuentaDto {
 export const esquemaPlantilla = z.object({
   nombre: z.string().trim().min(1, "Falta el nombre").max(80),
   asunto: z.string().trim().max(300).default(""),
+  /** Destinatarios opcionales (varios separados por comas; admiten campos como {email_cliente}). */
+  para: z.string().trim().max(1000).default(""),
   cuerpo: z.string().max(200_000).default(""),
 });
-export type EntradaPlantilla = z.infer<typeof esquemaPlantilla>;
+export type EntradaPlantilla = z.input<typeof esquemaPlantilla>;
 export interface PlantillaDto {
   id: number;
   nombre: string;
   asunto: string;
+  para: string;
   cuerpo: string;
 }
 

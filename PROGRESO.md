@@ -617,6 +617,9 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.60.0 (05/11/2026)
+- **Plantillas con destinatarios opcionales** (`correo_plantillas.para`, migración 0079): varias direcciones separadas por comas, con campos como `{email_cliente}`. Al crear un correo con la plantilla manda lo pedido expresamente (regla, botón, escrito a mano), luego los de la plantilla y, si no tiene, el correo del cliente; el correo del cliente marcado como «no enviar» nunca se pone. Arreglos de 1.59.2 a 1.59.7: firma con imágenes (se bajan al pegar, límite de tamaño, prueba con firma) y Enter que ya no guarda en editores con formato.
+
 ## Versión 1.59.1 (05/11/2026)
 - **Firma del correo con formato e imágenes**: el campo de la firma (Correo → Cuentas) es ahora un editor al que se pega la firma de Gmail u Outlook conservando formato, enlaces, tablas e imágenes (también «🖼️ Subir» y «🖼️ Enlace»). Las firmas antiguas en texto plano se convierten solas. Al enviar, las imágenes en línea pasan a imágenes incrustadas del correo (`cid:`), que es lo que entienden Gmail y Outlook. Las plantillas que no llevan `{firma}` la reciben al final al crear el correo.
 

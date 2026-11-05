@@ -348,4 +348,58 @@ describe("correo", () => {
     expect(c.cuerpo).toContain("Texto");
     expect(c.cuerpo).toContain("Alfonso");
   });
+
+  it("las plantillas pueden llevar destinatarios: mandan sobre el correo del cliente, admiten campos y se respeta «no enviar»", async () => {
+    const { ana, id, cuenta } = await escenario();
+    const fija = await guardarPlantilla(db, ana, null, {
+      nombre: "A jefe",
+      asunto: "Aviso",
+      para: "jefe@ejemplo.test, otro@ejemplo.test",
+      cuerpo: "<p>x</p>",
+    });
+    expect(
+      (
+        await crearCorreo(db, ana, {
+          id_plantilla: fija.id,
+          id_expediente: id,
+          id_cuenta: cuenta.id,
+        })
+      )?.para,
+    ).toBe("jefe@ejemplo.test, otro@ejemplo.test");
+    const mixta = await guardarPlantilla(db, ana, null, {
+      nombre: "Mixta",
+      asunto: "Aviso 2",
+      para: "{email_cliente}, jefe@ejemplo.test",
+      cuerpo: "<p>x</p>",
+    });
+    expect(
+      (
+        await crearCorreo(db, ana, {
+          id_plantilla: mixta.id,
+          id_expediente: id,
+          id_cuenta: cuenta.id,
+        })
+      )?.para,
+    ).toBe("cliente@ejemplo.test, jefe@ejemplo.test");
+    // Lo pedido expresamente manda sobre la plantilla
+    expect(
+      (
+        await crearCorreo(db, ana, {
+          id_plantilla: mixta.id,
+          id_expediente: id,
+          id_cuenta: cuenta.id,
+          para: "otra@ejemplo.test",
+        })
+      )?.para,
+    ).toBe("otra@ejemplo.test");
+    // Cliente marcado como «no enviar»: su dirección no se pone, la fija sí
+    await db.execute(`update clientes set no_enviar_correos = true` as never);
+    const c = await crearCorreo(db, ana, {
+      id_plantilla: mixta.id,
+      id_expediente: id,
+      id_cuenta: cuenta.id,
+    });
+    expect(c.para).toBe("jefe@ejemplo.test");
+    expect(c.error).toMatch(/no enviar correos/);
+  });
 });

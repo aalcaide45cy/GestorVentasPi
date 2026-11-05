@@ -284,6 +284,7 @@ export default function ModalCorreo({
                   const p = plantillas.find((x) => x.id === id);
                   if (p) {
                     setAsunto(p.asunto);
+                    if (p.para && !p.para.includes("{")) setPara(p.para);
                     setCuerpo(p.cuerpo);
                     setClaveEditor((k) => k + 1);
                   }

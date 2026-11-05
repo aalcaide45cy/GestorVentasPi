@@ -15,6 +15,7 @@ export default function PanelPlantillas() {
     id: number | null;
     nombre: string;
     asunto: string;
+    para: string;
     cuerpo: string;
   } | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -33,7 +34,12 @@ export default function PanelPlantillas() {
     try {
       await llamar(`/api/correo/plantillas${b.id ? `?id=${b.id}` : ""}`, {
         method: b.id ? "PUT" : "POST",
-        cuerpo: { nombre: b.nombre, asunto: b.asunto, cuerpo: b.cuerpo },
+        cuerpo: {
+          nombre: b.nombre,
+          asunto: b.asunto,
+          para: b.para,
+          cuerpo: b.cuerpo,
+        },
       });
       setB(null);
       cargar();
@@ -60,7 +66,9 @@ export default function PanelPlantillas() {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => setB({ id: null, nombre: "", asunto: "", cuerpo: "" })}
+          onClick={() =>
+            setB({ id: null, nombre: "", asunto: "", para: "", cuerpo: "" })
+          }
         >
           ＋ Nueva plantilla
         </button>
@@ -84,6 +92,7 @@ export default function PanelPlantillas() {
             <strong>{p.nombre}</strong>
             <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
               Asunto: {p.asunto || "(sin asunto)"}
+              {p.para ? ` · Para: ${p.para}` : ""}
             </div>
           </div>
           <button
@@ -94,6 +103,7 @@ export default function PanelPlantillas() {
                 id: p.id,
                 nombre: p.nombre,
                 asunto: p.asunto,
+                para: p.para,
                 cuerpo: p.cuerpo,
               })
             }
@@ -170,6 +180,22 @@ export default function PanelPlantillas() {
               onChange={(e) => setB({ ...b, asunto: e.target.value })}
               placeholder="Ej. Entrega de su {marca} {modelo}"
             />
+          </label>
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+          >
+            Destinatarios (opcional)
+            <input
+              className="form-input"
+              value={b.para}
+              onChange={(e) => setB({ ...b, para: e.target.value })}
+              placeholder="Ej. {email_cliente}, jefe@ejemplo.com"
+            />
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+              Varias direcciones separadas por comas; puedes usar campos como{" "}
+              {"{email_cliente}"}. Si lo dejas vacío, se envía al correo del
+              cliente del expediente. Al crear el correo se puede cambiar.
+            </span>
           </label>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             Cuerpo

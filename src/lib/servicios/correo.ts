@@ -243,6 +243,7 @@ const aPlantilla = (p: typeof correoPlantillas.$inferSelect): PlantillaDto => ({
   id: p.id,
   nombre: p.nombre,
   asunto: p.asunto,
+  para: p.para,
   cuerpo: p.cuerpo,
 });
 export async function listarPlantillas(ej: Ejecutor): Promise<PlantillaDto[]> {
@@ -481,6 +482,7 @@ export async function crearCorreoOpcional(
   let para = e.para.trim();
   let idCliente = e.id_cliente ?? null;
   let aviso: string | null = null;
+  let paraPlantilla = "";
   const datos = await datosDeExpediente(ej, e.id_expediente ?? null, cuenta);
   if (e.id_plantilla) {
     const [p] = await ej
@@ -489,6 +491,7 @@ export async function crearCorreoOpcional(
       .where(eq(correoPlantillas.id, e.id_plantilla));
     if (!p) throw new HttpError(404, "Plantilla no encontrada");
     if (!asunto) asunto = p.asunto;
+    paraPlantilla = p.para;
     if (!cuerpo)
       cuerpo =
         p.cuerpo.includes("{firma}") || !cuenta?.firma
@@ -507,16 +510,25 @@ export async function crearCorreoOpcional(
           .from(expedientes)
           .where(eq(expedientes.idExpediente, e.id_expediente))
       )[0]?.c ?? null;
-  if (!para && datos.email_cliente) {
-    // El correo del cliente, salvo que esté marcado como «no enviar correos»
-    const marcado = idCliente
-      ? (
-          await ej
-            .select({ n: clientes.noEnviarCorreos })
-            .from(clientes)
-            .where(eq(clientes.id, idCliente))
-        )[0]?.n
-      : false;
+  // Destinatarios: lo que se pida expresamente; si no, los de la plantilla (admiten {email_cliente}); si no, el correo del cliente.
+  // El correo del cliente nunca se pone si está marcado como «no enviar correos».
+  const marcado = idCliente
+    ? ((
+        await ej
+          .select({ n: clientes.noEnviarCorreos })
+          .from(clientes)
+          .where(eq(clientes.id, idCliente))
+      )[0]?.n ?? false)
+    : false;
+  const datosPara = marcado ? { ...datos, email_cliente: "" } : datos;
+  if (!para && paraPlantilla.trim()) {
+    para = separarDirecciones(
+      rellenarPlantilla(paraPlantilla, datosPara, false),
+    ).join(", ");
+    if (marcado && paraPlantilla.includes("{email_cliente}"))
+      aviso =
+        "El cliente está marcado como «no enviar correos»: no se ha puesto su dirección.";
+  } else if (!para && datos.email_cliente) {
     if (marcado)
       aviso =
         "El cliente está marcado como «no enviar correos»: no se ha puesto su dirección.";
