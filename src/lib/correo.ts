@@ -46,7 +46,7 @@ export const esquemaCuenta = z.object({
   usuario_smtp: z.string().trim().min(1, "Falta el usuario").max(255),
   /** Vacía al editar = se conserva la que ya había. */
   password: z.string().max(500).default(""),
-  firma: z.string().max(5000).default(""),
+  firma: z.string().max(3_000_000).default(""),
   limite_diario: z.number().int().min(0).max(100000).default(200),
   activa: z.boolean().default(true),
 });
@@ -101,7 +101,7 @@ export const esquemaCorreo = z.object({
   id_cliente: z.number().int().positive().nullable().optional(),
   para: z.string().max(1000).default(""),
   asunto: z.string().max(300).default(""),
-  cuerpo: z.string().max(500_000).default(""),
+  cuerpo: z.string().max(5_000_000).default(""),
   adjuntos: z.array(z.number().int().positive()).max(20).default([]),
   /** Si se pide una plantilla, se rellena con los datos del expediente (y lo escrito aquí la sustituye). */
   rellenar: z.boolean().default(false),
@@ -113,7 +113,7 @@ export const esquemaCambioCorreo = z.object({
   id_cuenta: z.number().int().positive().nullable().optional(),
   para: z.string().max(1000).optional(),
   asunto: z.string().max(300).optional(),
-  cuerpo: z.string().max(500_000).optional(),
+  cuerpo: z.string().max(5_000_000).optional(),
   adjuntos: z.array(z.number().int().positive()).max(20).optional(),
 });
 export type EntradaCambioCorreo = z.infer<typeof esquemaCambioCorreo>;
