@@ -8,7 +8,8 @@ import {
   TableRow,
 } from "@tiptap/extension-table";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { useEffect, useRef } from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { CAMPOS_CORREO } from "@/lib/correo";
 
@@ -36,6 +37,47 @@ async function imagenEnLinea(archivo: File, anchoMax = 600): Promise<string> {
   }
 }
 
+/** Baja las imágenes de internet que hay en el editor y las deja como datos en línea; las que no se pueden bajar se avisan. */
+async function guardarImagenesRemotas(editor: Editor | null): Promise<void> {
+  if (!editor || editor.isDestroyed) return;
+  const urls: string[] = [];
+  editor.state.doc.descendants((n) => {
+    if (
+      n.type.name === "image" &&
+      typeof n.attrs.src === "string" &&
+      /^https?:/i.test(n.attrs.src)
+    )
+      urls.push(n.attrs.src as string);
+  });
+  if (urls.length === 0) return;
+  let datos: Record<string, string> = {};
+  try {
+    const r = await fetch("/api/correo/imagen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urls }),
+    });
+    datos = ((await r.json()) as { data?: Record<string, string> }).data ?? {};
+  } catch {
+    /* se avisa abajo */
+  }
+  const { tr } = editor.state;
+  let cambios = 0;
+  editor.state.doc.descendants((n, pos) => {
+    const src = n.attrs.src as string | undefined;
+    if (n.type.name === "image" && src && datos[src]) {
+      tr.setNodeMarkup(pos, undefined, { ...n.attrs, src: datos[src] });
+      cambios++;
+    }
+  });
+  if (cambios > 0) editor.view.dispatch(tr);
+  const sin = urls.filter((u) => !datos[u]).length;
+  if (sin > 0)
+    window.alert(
+      `${sin} imagen(es) no se han podido descargar (por ejemplo, las que solo se ven con tu sesión de Gmail). Bórralas y súbelas con «🖼️ Subir».`,
+    );
+}
+
 /** Editor sencillo de texto con formato para el cuerpo de un correo, una plantilla o una firma (con selector de campos o con imágenes y tablas). */
 export default function EditorHtml({
   valor,
@@ -48,13 +90,18 @@ export default function EditorHtml({
   conCampos?: boolean;
   conImagenes?: boolean;
 }) {
+  const refEditor = useRef<Editor | null>(null);
   const editor = useEditor({
     immediatelyRender: false,
     content: valor,
     extensions: [
       ...(conImagenes
         ? [
-            Image.configure({ inline: true, allowBase64: true }),
+            Image.configure({
+              inline: true,
+              allowBase64: true,
+              HTMLAttributes: { referrerpolicy: "no-referrer" },
+            }),
             Table.configure({ resizable: false }),
             TableRow,
             TableHeader,
@@ -72,8 +119,23 @@ export default function EditorHtml({
         undoRedo: { depth: 200 },
       }),
     ],
+    editorProps: conImagenes
+      ? {
+          // Tras pegar (por ejemplo, la firma de Gmail) se bajan las imágenes de internet y se guardan dentro del texto
+          handlePaste: () => {
+            setTimeout(
+              () => void guardarImagenesRemotas(refEditor.current),
+              400,
+            );
+            return false;
+          },
+        }
+      : undefined,
     onUpdate: ({ editor: e }) => alCambiar(e.isEmpty ? "" : e.getHTML()),
   });
+  useEffect(() => {
+    refEditor.current = editor;
+  }, [editor]);
   if (!editor)
     return <div className="form-input" style={{ minHeight: "180px" }} />;
   const b = (txt: string, titulo: string, activo: boolean, f: () => void) => (
