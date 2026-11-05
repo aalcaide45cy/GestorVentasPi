@@ -142,7 +142,7 @@ export default function EditorHtml({
             return false;
           },
         }
-      : undefined,
+      : {},
     onUpdate: ({ editor: e }) => alCambiar(e.isEmpty ? "" : e.getHTML()),
   });
   useEffect(() => {
