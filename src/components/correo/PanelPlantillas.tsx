@@ -16,6 +16,7 @@ export default function PanelPlantillas() {
     nombre: string;
     asunto: string;
     para: string;
+    con_firma: boolean;
     cuerpo: string;
   } | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -67,7 +68,14 @@ export default function PanelPlantillas() {
           type="button"
           className="btn btn-primary"
           onClick={() =>
-            setB({ id: null, nombre: "", asunto: "", para: "", cuerpo: "" })
+            setB({
+              id: null,
+              nombre: "",
+              asunto: "",
+              para: "",
+              con_firma: true,
+              cuerpo: "",
+            })
           }
         >
           ＋ Nueva plantilla
@@ -104,6 +112,7 @@ export default function PanelPlantillas() {
                 nombre: p.nombre,
                 asunto: p.asunto,
                 para: p.para,
+                con_firma: p.con_firma,
                 cuerpo: p.cuerpo,
               })
             }
@@ -205,6 +214,22 @@ export default function PanelPlantillas() {
               conCampos
             />
           </div>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "0.9rem",
+            }}
+            title="Pone al final del correo la firma de la cuenta desde la que se envía (se cambia en Cuentas). Si ya escribes {firma} en el texto, sale ahí."
+          >
+            <input
+              type="checkbox"
+              checked={b.con_firma}
+              onChange={(e) => setB({ ...b, con_firma: e.target.checked })}
+            />
+            Incluir al final la firma de la cuenta con la que se envía
+          </label>
         </Modal>
       )}
     </div>

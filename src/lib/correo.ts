@@ -76,6 +76,8 @@ export const esquemaPlantilla = z.object({
   asunto: z.string().trim().max(300).default(""),
   /** Destinatarios opcionales (varios separados por comas; admiten campos como {email_cliente}). */
   para: z.string().trim().max(1000).default(""),
+  /** Añade al final la firma de la cuenta desde la que se envía. */
+  con_firma: z.boolean().default(true),
   cuerpo: z.string().max(200_000).default(""),
 });
 export type EntradaPlantilla = z.input<typeof esquemaPlantilla>;
@@ -84,6 +86,7 @@ export interface PlantillaDto {
   nombre: string;
   asunto: string;
   para: string;
+  con_firma: boolean;
   cuerpo: string;
 }
 

@@ -244,6 +244,7 @@ const aPlantilla = (p: typeof correoPlantillas.$inferSelect): PlantillaDto => ({
   nombre: p.nombre,
   asunto: p.asunto,
   para: p.para,
+  con_firma: p.conFirma,
   cuerpo: p.cuerpo,
 });
 export async function listarPlantillas(ej: Ejecutor): Promise<PlantillaDto[]> {
@@ -258,8 +259,13 @@ export async function guardarPlantilla(
   ej: Ejecutor,
   u: UsuarioActual,
   id: number | null,
-  e: EntradaPlantilla,
+  entrada: EntradaPlantilla,
 ): Promise<PlantillaDto> {
+  const { con_firma, ...resto } = entrada;
+  const e = {
+    ...resto,
+    ...(con_firma !== undefined ? { conFirma: con_firma } : {}),
+  };
   if (id === null)
     return aPlantilla(
       (
@@ -492,11 +498,12 @@ export async function crearCorreoOpcional(
     if (!p) throw new HttpError(404, "Plantilla no encontrada");
     if (!asunto) asunto = p.asunto;
     paraPlantilla = p.para;
-    if (!cuerpo)
-      cuerpo =
-        p.cuerpo.includes("{firma}") || !cuenta?.firma
-          ? p.cuerpo
-          : `${p.cuerpo}<p></p>{firma}`;
+    // El cuerpo es el escrito o el de la plantilla; la firma de la cuenta se añade al final si la plantilla lo pide y el texto no lleva ya {firma}
+    const base = cuerpo || p.cuerpo;
+    cuerpo =
+      p.conFirma && cuenta?.firma && !base.includes("{firma}")
+        ? `${base}<p></p>{firma}`
+        : base;
   }
   if (e.rellenar || e.id_plantilla) {
     asunto = rellenarPlantilla(asunto, datos, false);

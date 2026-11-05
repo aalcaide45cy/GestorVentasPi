@@ -402,4 +402,48 @@ describe("correo", () => {
     expect(c.para).toBe("jefe@ejemplo.test");
     expect(c.error).toMatch(/no enviar correos/);
   });
+
+  it("la firma de la cuenta es opcional en cada plantilla", async () => {
+    const { ana, id, cuenta } = await escenario();
+    const con = await guardarPlantilla(db, ana, null, {
+      nombre: "Con",
+      asunto: "A",
+      cuerpo: "<p>Texto</p>",
+    });
+    const sin = await guardarPlantilla(db, ana, null, {
+      nombre: "Sin",
+      asunto: "B",
+      con_firma: false,
+      cuerpo: "<p>Texto</p>",
+    });
+    expect(
+      (
+        await crearCorreo(db, ana, {
+          id_plantilla: con.id,
+          id_expediente: id,
+          id_cuenta: cuenta.id,
+        })
+      ).cuerpo,
+    ).toContain("Alfonso");
+    expect(
+      (
+        await crearCorreo(db, ana, {
+          id_plantilla: sin.id,
+          id_expediente: id,
+          id_cuenta: cuenta.id,
+        })
+      ).cuerpo,
+    ).not.toContain("Alfonso");
+    // Aunque el cuerpo venga ya escrito (el que se ve al elegir la plantilla), la firma se añade
+    expect(
+      (
+        await crearCorreo(db, ana, {
+          id_plantilla: con.id,
+          id_expediente: id,
+          id_cuenta: cuenta.id,
+          cuerpo: "<p>Texto</p>",
+        })
+      ).cuerpo,
+    ).toContain("Alfonso");
+  });
 });

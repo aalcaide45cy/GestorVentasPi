@@ -1551,6 +1551,8 @@ export const correoPlantillas = pgTable("correo_plantillas", {
   asunto: varchar("asunto", { length: 300 }).notNull().default(""),
   /** Destinatarios de la plantilla (opcional; admite campos como {email_cliente}). Vacío = el correo del cliente. */
   para: text("para").notNull().default(""),
+  /** Añade al final la firma de la cuenta desde la que se envía (si el cuerpo no lleva ya el campo {firma}). */
+  conFirma: boolean("con_firma").notNull().default(true),
   /** HTML del cuerpo. */
   cuerpo: text("cuerpo").notNull().default(""),
   creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
