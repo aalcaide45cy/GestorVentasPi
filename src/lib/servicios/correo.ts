@@ -9,6 +9,7 @@ import {
   correoCola,
   correoCuentas,
   correoPlantillas,
+  emailsClientes,
   expedientes,
 } from "@/db/schema";
 import { cifrar, descifrar } from "@/lib/auth/cifrado";
@@ -244,6 +245,8 @@ const aPlantilla = (p: typeof correoPlantillas.$inferSelect): PlantillaDto => ({
   nombre: p.nombre,
   asunto: p.asunto,
   para: p.para,
+  cc: p.cc,
+  cco: p.cco,
   con_firma: p.conFirma,
   cuerpo: p.cuerpo,
 });
@@ -430,6 +433,8 @@ async function aCorreos(
     id_cliente: x.idCliente,
     cliente: x.idCliente ? (cli.get(x.idCliente) ?? null) : null,
     para: x.para,
+    cc: x.cc,
+    cco: x.cco,
     asunto: x.asunto,
     cuerpo: x.cuerpo,
     adjuntos: x.adjuntos,
@@ -486,9 +491,13 @@ export async function crearCorreoOpcional(
   let asunto = e.asunto;
   let cuerpo = e.cuerpo;
   let para = e.para.trim();
+  let cc = (e.cc ?? "").trim();
+  let cco = (e.cco ?? "").trim();
   let idCliente = e.id_cliente ?? null;
   let aviso: string | null = null;
   let paraPlantilla = "";
+  let ccPlantilla = "";
+  let ccoPlantilla = "";
   const datos = await datosDeExpediente(ej, e.id_expediente ?? null, cuenta);
   if (e.id_plantilla) {
     const [p] = await ej
@@ -498,6 +507,8 @@ export async function crearCorreoOpcional(
     if (!p) throw new HttpError(404, "Plantilla no encontrada");
     if (!asunto) asunto = p.asunto;
     paraPlantilla = p.para;
+    ccPlantilla = p.cc;
+    ccoPlantilla = p.cco;
     // El cuerpo es el escrito o el de la plantilla; la firma de la cuenta se añade al final si la plantilla lo pide y el texto no lleva ya {firma}
     const base = cuerpo || p.cuerpo;
     cuerpo =
@@ -528,19 +539,22 @@ export async function crearCorreoOpcional(
       )[0]?.n ?? false)
     : false;
   const datosPara = marcado ? { ...datos, email_cliente: "" } : datos;
+  const lista = (t: string) =>
+    separarDirecciones(rellenarPlantilla(t, datosPara, false)).join(", ");
+  const AVISO_NO_ENVIAR =
+    "El cliente está marcado como «no enviar correos»: no se ha puesto su dirección. Si quieres enviárselo, pulsa «Enviar al cliente igualmente».";
+  if (!cc && ccPlantilla.trim()) cc = lista(ccPlantilla);
+  if (!cco && ccoPlantilla.trim()) cco = lista(ccoPlantilla);
+  const usaCliente = [paraPlantilla, ccPlantilla, ccoPlantilla].some((t) =>
+    t.includes("{email_cliente}"),
+  );
   if (!para && paraPlantilla.trim()) {
-    para = separarDirecciones(
-      rellenarPlantilla(paraPlantilla, datosPara, false),
-    ).join(", ");
-    if (marcado && paraPlantilla.includes("{email_cliente}"))
-      aviso =
-        "El cliente está marcado como «no enviar correos»: no se ha puesto su dirección.";
+    para = lista(paraPlantilla);
+    if (marcado && usaCliente) aviso = AVISO_NO_ENVIAR;
   } else if (!para && datos.email_cliente) {
-    if (marcado)
-      aviso =
-        "El cliente está marcado como «no enviar correos»: no se ha puesto su dirección.";
+    if (marcado) aviso = AVISO_NO_ENVIAR;
     else para = datos.email_cliente;
-  }
+  } else if (marcado && usaCliente) aviso = AVISO_NO_ENVIAR;
   const auto = op.respetarAutomatico
     ? (await leerAjustesCorreo(ej)).envio_automatico
     : false;
@@ -554,6 +568,8 @@ export async function crearCorreoOpcional(
       idExpediente: e.id_expediente ?? null,
       idCliente,
       para,
+      cc,
+      cco,
       asunto,
       cuerpo,
       adjuntos: e.adjuntos,
@@ -564,6 +580,13 @@ export async function crearCorreoOpcional(
     })
     .onConflictDoNothing()
     .returning();
+  // Si el cliente no quiere correos, se avisa en las notificaciones (y el correo queda en la cola para forzarlo si hace falta)
+  if (fila && aviso === AVISO_NO_ENVIAR)
+    await ej.insert(alertas).values({
+      idUsuario: u.idUsuario,
+      idExpediente: fila.idExpediente,
+      mensaje: `✉️ El correo «${asunto || "(sin asunto)"}» no lleva la dirección del cliente porque está marcado como «no enviar correos». Si quieres enviárselo, ábrelo en Correo y pulsa «Enviar al cliente igualmente».`,
+    });
   // Una regla no repite el correo para el mismo expediente (índice único): en ese caso no se crea otro
   return fila ? (await aCorreos(ej, [fila]))[0] : null;
 }
@@ -615,7 +638,7 @@ export async function listarCorreos(
 
 async function correoPropio(
   ej: Ejecutor,
-  u: UsuarioActual,
+  u: Pick<UsuarioActual, "idUsuario">,
   id: number,
 ): Promise<typeof correoCola.$inferSelect> {
   const [c] = await ej
@@ -645,6 +668,8 @@ export async function cambiarCorreo(
     .set({
       ...(e.id_cuenta !== undefined ? { idCuenta: e.id_cuenta } : {}),
       ...(e.para !== undefined ? { para: e.para.trim() } : {}),
+      ...(e.cc !== undefined ? { cc: e.cc.trim() } : {}),
+      ...(e.cco !== undefined ? { cco: e.cco.trim() } : {}),
       ...(e.asunto !== undefined ? { asunto: e.asunto } : {}),
       ...(e.cuerpo !== undefined ? { cuerpo: e.cuerpo } : {}),
       ...(e.adjuntos !== undefined ? { adjuntos: e.adjuntos } : {}),
@@ -704,6 +729,40 @@ export async function programarCorreos(
   }
   return n;
 }
+/** Pone la dirección del cliente en un correo aunque esté marcado como «no enviar correos» (el usuario lo decide a mano). */
+export async function ponerCorreoDelCliente(
+  ej: Ejecutor,
+  u: Pick<UsuarioActual, "idUsuario">,
+  id: number,
+): Promise<CorreoDto> {
+  const c = await correoPropio(ej, u, id);
+  if (c.estado === "enviado" || c.estado === "enviando")
+    throw new HttpError(409, "Este correo ya se envió");
+  const datos = await datosDeExpediente(ej, c.idExpediente, null);
+  let dir = datos.email_cliente;
+  if (!dir && c.idCliente)
+    dir =
+      (
+        await ej
+          .select({ e: emailsClientes.email })
+          .from(emailsClientes)
+          .where(eq(emailsClientes.idCliente, c.idCliente))
+          .limit(1)
+      )[0]?.e ?? "";
+  if (!dir) throw new HttpError(400, "El cliente no tiene correo");
+  const para = [...new Set([...separarDirecciones(c.para), dir])].join(", ");
+  const [x] = await ej
+    .update(correoCola)
+    .set({
+      para,
+      error: null,
+      estado: c.estado === "error" ? "borrador" : c.estado,
+    })
+    .where(eq(correoCola.id, id))
+    .returning();
+  return (await aCorreos(ej, [x]))[0];
+}
+
 /** Vuelve a dejar un programado como borrador (para revisarlo otra vez). */
 export async function pausarCorreo(
   ej: Ejecutor,
@@ -725,6 +784,9 @@ function validarParaEnviar(c: typeof correoCola.$inferSelect): string[] {
   if (mal) throw new HttpError(400, `La dirección «${mal}» no es válida`);
   if (!c.idCuenta)
     throw new HttpError(400, "Elige la cuenta desde la que se envía");
+  for (const d of [...separarDirecciones(c.cc), ...separarDirecciones(c.cco)])
+    if (!direccionValida(d))
+      throw new HttpError(400, `La dirección «${d}» no es válida`);
   if (!c.asunto.trim()) throw new HttpError(400, "Falta el asunto");
   return dir;
 }
@@ -848,6 +910,8 @@ async function enviarFila(
     await transporteDe(cuenta).sendMail({
       from: `"${cuenta.nombre.replace(/"/g, "")}" <${cuenta.email}>`,
       to: dir,
+      cc: separarDirecciones(c.cc),
+      bcc: separarDirecciones(c.cco),
       subject: c.asunto,
       html,
       text: textoPlano(html),

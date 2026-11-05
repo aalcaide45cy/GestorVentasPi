@@ -76,6 +76,8 @@ export const esquemaPlantilla = z.object({
   asunto: z.string().trim().max(300).default(""),
   /** Destinatarios opcionales (varios separados por comas; admiten campos como {email_cliente}). */
   para: z.string().trim().max(1000).default(""),
+  cc: z.string().trim().max(1000).default(""),
+  cco: z.string().trim().max(1000).default(""),
   /** Añade al final la firma de la cuenta desde la que se envía. */
   con_firma: z.boolean().default(true),
   cuerpo: z.string().max(200_000).default(""),
@@ -86,6 +88,8 @@ export interface PlantillaDto {
   nombre: string;
   asunto: string;
   para: string;
+  cc: string;
+  cco: string;
   con_firma: boolean;
   cuerpo: string;
 }
@@ -106,6 +110,8 @@ export const esquemaCorreo = z.object({
   id_expediente: z.number().int().positive().nullable().optional(),
   id_cliente: z.number().int().positive().nullable().optional(),
   para: z.string().max(1000).default(""),
+  cc: z.string().max(1000).default(""),
+  cco: z.string().max(1000).default(""),
   asunto: z.string().max(300).default(""),
   cuerpo: z.string().max(5_000_000).default(""),
   adjuntos: z.array(z.number().int().positive()).max(20).default([]),
@@ -118,6 +124,8 @@ export type EntradaCorreo = z.input<typeof esquemaCorreo>;
 export const esquemaCambioCorreo = z.object({
   id_cuenta: z.number().int().positive().nullable().optional(),
   para: z.string().max(1000).optional(),
+  cc: z.string().max(1000).optional(),
+  cco: z.string().max(1000).optional(),
   asunto: z.string().max(300).optional(),
   cuerpo: z.string().max(5_000_000).optional(),
   adjuntos: z.array(z.number().int().positive()).max(20).optional(),
@@ -134,6 +142,8 @@ export interface CorreoDto {
   id_cliente: number | null;
   cliente: string | null;
   para: string;
+  cc: string;
+  cco: string;
   asunto: string;
   cuerpo: string;
   adjuntos: number[];

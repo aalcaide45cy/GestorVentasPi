@@ -16,6 +16,7 @@ import {
   enviarCorreo,
   listarCorreos,
   pausarCorreo,
+  ponerCorreoDelCliente,
   programarCorreos,
 } from "@/lib/servicios/correo";
 
@@ -71,7 +72,14 @@ export const PUT = manejar(async (req: Request) => {
 
 const esquemaAccion = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(500),
-  accion: z.enum(["enviar", "programar", "pausar", "cancelar", "borrar"]),
+  accion: z.enum([
+    "enviar",
+    "programar",
+    "pausar",
+    "cancelar",
+    "borrar",
+    "cliente",
+  ]),
 });
 /** Acciones sobre uno o varios correos: enviar ya, programar (uno tras otro), pausar, cancelar o quitar del histórico. */
 export const PATCH = manejar(async (req: Request) => {
@@ -88,6 +96,7 @@ export const PATCH = manejar(async (req: Request) => {
     try {
       if (accion === "enviar") await enviarCorreo(db, u, id);
       else if (accion === "pausar") await pausarCorreo(db, u, id);
+      else if (accion === "cliente") await ponerCorreoDelCliente(db, u, id);
       else if (accion === "cancelar") await cancelarCorreo(db, u, id);
       else await borrarCorreo(db, u, id);
       hechos++;

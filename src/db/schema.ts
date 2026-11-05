@@ -1551,6 +1551,9 @@ export const correoPlantillas = pgTable("correo_plantillas", {
   asunto: varchar("asunto", { length: 300 }).notNull().default(""),
   /** Destinatarios de la plantilla (opcional; admite campos como {email_cliente}). Vacío = el correo del cliente. */
   para: text("para").notNull().default(""),
+  /** Copia (CC) y copia oculta (CCO) de la plantilla; admiten campos como {email_cliente}. */
+  cc: text("cc").notNull().default(""),
+  cco: text("cco").notNull().default(""),
   /** Añade al final la firma de la cuenta desde la que se envía (si el cuerpo no lleva ya el campo {firma}). */
   conFirma: boolean("con_firma").notNull().default(true),
   /** HTML del cuerpo. */
@@ -1574,6 +1577,8 @@ export const correoCola = pgTable(
     idCliente: integer("id_cliente").references(() => clientes.id, { onDelete: "set null" }),
     /** Destinatarios separados por comas; vacío = «sin destinatario». */
     para: text("para").notNull().default(""),
+    cc: text("cc").notNull().default(""),
+    cco: text("cco").notNull().default(""),
     asunto: varchar("asunto", { length: 300 }).notNull().default(""),
     cuerpo: text("cuerpo").notNull().default(""),
     /** Documentos del expediente que se adjuntan: ids de `adjuntos`. */

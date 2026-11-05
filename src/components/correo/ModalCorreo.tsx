@@ -75,6 +75,8 @@ export default function ModalCorreo({
         : "",
   );
   const [para, setPara] = useState(correo?.para ?? recordado?.para ?? "");
+  const [cc, setCc] = useState(correo?.cc ?? "");
+  const [cco, setCco] = useState(correo?.cco ?? "");
   const [asunto, setAsunto] = useState(correo?.asunto ?? "");
   const [cuerpo, setCuerpo] = useState(correo?.cuerpo ?? "");
   const [claveEditor, setClaveEditor] = useState(0);
@@ -124,7 +126,15 @@ export default function ModalCorreo({
       if (correo) {
         await llamar(`/api/correo/cola?id=${correo.id}`, {
           method: "PUT",
-          cuerpo: { id_cuenta: idCuenta, para, asunto, cuerpo, adjuntos },
+          cuerpo: {
+            id_cuenta: idCuenta,
+            para,
+            cc,
+            cco,
+            asunto,
+            cuerpo,
+            adjuntos,
+          },
         });
       } else {
         const r = await llamar<CorreoDto>("/api/correo/cola", {
@@ -134,6 +144,8 @@ export default function ModalCorreo({
             id_plantilla: idPlantilla,
             id_expediente: idExp,
             para,
+            cc,
+            cco,
             asunto,
             cuerpo,
             adjuntos,
@@ -216,6 +228,35 @@ export default function ModalCorreo({
           }}
         >
           ⚠️ {correo.error}
+          {correo.error.includes("no enviar correos") && !soloLectura && (
+            <div style={{ marginTop: "6px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={ocupado}
+                style={{ padding: "3px 10px", fontSize: "0.82rem" }}
+                onClick={async () => {
+                  setOcupado(true);
+                  try {
+                    await llamar("/api/correo/cola", {
+                      method: "PATCH",
+                      cuerpo: { ids: [correo.id], accion: "cliente" },
+                    });
+                    mostrar(
+                      "Se ha puesto la dirección del cliente en el correo",
+                    );
+                    alGuardar();
+                  } catch (e) {
+                    mostrar(textoError(e), "error");
+                  } finally {
+                    setOcupado(false);
+                  }
+                }}
+              >
+                ✉️ Poner la dirección del cliente igualmente
+              </button>
+            </div>
+          )}
         </div>
       )}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -285,6 +326,8 @@ export default function ModalCorreo({
                   if (p) {
                     setAsunto(p.asunto);
                     if (p.para && !p.para.includes("{")) setPara(p.para);
+                    if (p.cc && !p.cc.includes("{")) setCc(p.cc);
+                    if (p.cco && !p.cco.includes("{")) setCco(p.cco);
                     setCuerpo(p.cuerpo);
                     setClaveEditor((k) => k + 1);
                   }
@@ -316,6 +359,42 @@ export default function ModalCorreo({
           }
         />
       </label>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+            flex: 1,
+            minWidth: "220px",
+          }}
+        >
+          CC (copia)
+          <input
+            className="form-input"
+            value={cc}
+            readOnly={soloLectura}
+            onChange={(e) => setCc(e.target.value)}
+          />
+        </label>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+            flex: 1,
+            minWidth: "220px",
+          }}
+        >
+          CCO (copia oculta)
+          <input
+            className="form-input"
+            value={cco}
+            readOnly={soloLectura}
+            onChange={(e) => setCco(e.target.value)}
+          />
+        </label>
+      </div>
       <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
         Asunto
         <input

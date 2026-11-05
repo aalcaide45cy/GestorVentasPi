@@ -63,7 +63,7 @@ export default function PanelCola({
 
   const accion = async (
     ids: number[],
-    a: "enviar" | "programar" | "pausar" | "cancelar" | "borrar",
+    a: "enviar" | "programar" | "pausar" | "cancelar" | "borrar" | "cliente",
   ) => {
     if (ids.length === 0) return;
     if (
@@ -268,6 +268,34 @@ export default function PanelCola({
                 {c.error && (
                   <div style={{ fontSize: "0.8rem", color: "var(--danger)" }}>
                     ⚠️ {c.error}
+                    {c.error.includes("no enviar correos") &&
+                      modo !== "historico" && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={ocupado}
+                          style={{
+                            marginLeft: "8px",
+                            padding: "1px 8px",
+                            fontSize: "0.75rem",
+                          }}
+                          title="Pone la dirección del cliente aunque esté marcado como «no enviar correos»"
+                          onClick={async () => {
+                            if (
+                              !(await confirmar({
+                                titulo: "Enviar al cliente igualmente",
+                                texto:
+                                  "El cliente está marcado como «no enviar correos». ¿Pongo su dirección en este correo? Después lo revisas y lo envías.",
+                                aceptar: "Poner su dirección",
+                              }))
+                            )
+                              return;
+                            await accion([c.id], "cliente");
+                          }}
+                        >
+                          ✉️ Enviar al cliente igualmente
+                        </button>
+                      )}
                   </div>
                 )}
               </div>

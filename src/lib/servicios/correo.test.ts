@@ -15,6 +15,7 @@ import {
   crearCorreo,
   enviarCorreo,
   extraerImagenesEnLinea,
+  ponerCorreoDelCliente,
   fijarTransporteDePrueba,
   guardarAjustesCorreo,
   guardarCuenta,
@@ -445,5 +446,57 @@ describe("correo", () => {
         })
       ).cuerpo,
     ).toContain("Alfonso");
+  });
+
+  it("las plantillas llevan CC y CCO, el envío los usa y, si el cliente no quiere correos, se avisa y se puede forzar", async () => {
+    const { ana, id, cuenta } = await escenario();
+    const p = await guardarPlantilla(db, ana, null, {
+      nombre: "Con copias",
+      asunto: "Aviso",
+      para: "{email_cliente}",
+      cc: "cc@ejemplo.test",
+      cco: "yo@ejemplo.test, {email_cliente}",
+      cuerpo: "<p>x</p>",
+    });
+    const c = await crearCorreo(db, ana, {
+      id_plantilla: p.id,
+      id_expediente: id,
+      id_cuenta: cuenta.id,
+    });
+    expect(c).toMatchObject({
+      para: "cliente@ejemplo.test",
+      cc: "cc@ejemplo.test",
+      cco: "yo@ejemplo.test, cliente@ejemplo.test",
+    });
+    await enviarCorreo(db, ana, c.id);
+    expect(enviados.at(-1)).toMatchObject({
+      to: ["cliente@ejemplo.test"],
+      cc: ["cc@ejemplo.test"],
+      bcc: ["yo@ejemplo.test", "cliente@ejemplo.test"],
+    });
+    // Cliente que no quiere correos: no se pone su dirección en ningún sitio, avisa y se puede forzar
+    await db.execute(`update clientes set no_enviar_correos = true` as never);
+    const m = await crearCorreo(db, ana, {
+      id_plantilla: p.id,
+      id_expediente: id,
+      id_cuenta: cuenta.id,
+    });
+    expect(m).toMatchObject({
+      para: "",
+      cc: "cc@ejemplo.test",
+      cco: "yo@ejemplo.test",
+    });
+    expect(m.error).toMatch(/Enviar al cliente igualmente/);
+    expect(
+      (await misAlertas(db, ana)).pendientes.some((a) =>
+        /no enviar correos/.test(a.mensaje),
+      ),
+    ).toBe(true);
+    const forzado = await ponerCorreoDelCliente(db, ana, m.id);
+    expect(forzado).toMatchObject({
+      para: "cliente@ejemplo.test",
+      error: null,
+    });
+    expect((await enviarCorreo(db, ana, m.id)).estado).toBe("enviado");
   });
 });

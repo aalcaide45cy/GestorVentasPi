@@ -16,6 +16,8 @@ export default function PanelPlantillas() {
     nombre: string;
     asunto: string;
     para: string;
+    cc: string;
+    cco: string;
     con_firma: boolean;
     cuerpo: string;
   } | null>(null);
@@ -73,6 +75,8 @@ export default function PanelPlantillas() {
               nombre: "",
               asunto: "",
               para: "",
+              cc: "",
+              cco: "",
               con_firma: true,
               cuerpo: "",
             })
@@ -101,6 +105,8 @@ export default function PanelPlantillas() {
             <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
               Asunto: {p.asunto || "(sin asunto)"}
               {p.para ? ` · Para: ${p.para}` : ""}
+              {p.cc ? ` · CC: ${p.cc}` : ""}
+              {p.cco ? ` · CCO: ${p.cco}` : ""}
             </div>
           </div>
           <button
@@ -112,6 +118,8 @@ export default function PanelPlantillas() {
                 nombre: p.nombre,
                 asunto: p.asunto,
                 para: p.para,
+                cc: p.cc,
+                cco: p.cco,
                 con_firma: p.con_firma,
                 cuerpo: p.cuerpo,
               })
@@ -206,6 +214,42 @@ export default function PanelPlantillas() {
               cliente del expediente. Al crear el correo se puede cambiar.
             </span>
           </label>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                flex: 1,
+                minWidth: "220px",
+              }}
+            >
+              CC (copia, opcional)
+              <input
+                className="form-input"
+                value={b.cc}
+                onChange={(e) => setB({ ...b, cc: e.target.value })}
+                placeholder="Ej. compañero@ejemplo.com"
+              />
+            </label>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                flex: 1,
+                minWidth: "220px",
+              }}
+            >
+              CCO (copia oculta, opcional)
+              <input
+                className="form-input"
+                value={b.cco}
+                onChange={(e) => setB({ ...b, cco: e.target.value })}
+                placeholder="Ej. yo@ejemplo.com"
+              />
+            </label>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             Cuerpo
             <EditorHtml
