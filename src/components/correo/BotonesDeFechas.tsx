@@ -17,13 +17,9 @@ export default function BotonesDeFechas() {
   const [guardado, fijar] = usePreferencia(CLAVE_CORREO_BOTONES);
   const botones = leerBotonesFecha(guardado);
   const [plantillas, setPlantillas] = useState<PlantillaDto[]>([]);
-  const [cuentas, setCuentas] = useState<CuentaDto[]>([]);
   useEffect(() => {
     llamar<PlantillaDto[]>("/api/correo/plantillas")
       .then((r) => setPlantillas(r.data))
-      .catch(() => undefined);
-    llamar<CuentaDto[]>("/api/correo/cuentas")
-      .then((r) => setCuentas(r.data))
       .catch(() => undefined);
   }, []);
   const cambiar = (id: string, c: Partial<BotonFecha>) =>
@@ -96,50 +92,6 @@ export default function BotonesDeFechas() {
                     </option>
                   ))}
                 </select>
-                desde
-                <select
-                  className="form-input"
-                  value={b.id_cuenta ?? ""}
-                  onChange={(e) =>
-                    cambiar(f.id, {
-                      id_cuenta: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
-                  style={{ width: "auto" }}
-                >
-                  <option value="">— Mi primera cuenta —</option>
-                  {cuentas.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-                para
-                <select
-                  className="form-input"
-                  value={b.para}
-                  onChange={(e) =>
-                    cambiar(f.id, {
-                      para: e.target.value === "fijo" ? "fijo" : "cliente",
-                    })
-                  }
-                  style={{ width: "auto" }}
-                >
-                  <option value="cliente">el cliente del expediente</option>
-                  <option value="fijo">esta dirección</option>
-                </select>
-                {b.para === "fijo" && (
-                  <input
-                    className="form-input"
-                    value={b.para_fijo}
-                    onChange={(e) =>
-                      cambiar(f.id, { para_fijo: e.target.value })
-                    }
-                    placeholder="correo@ejemplo.com"
-                    style={{ width: "210px" }}
-                  />
-                )}
-                <span style={{ flexBasis: "100%" }} />
                 Al pulsar el sobre
                 <select
                   className="form-input"

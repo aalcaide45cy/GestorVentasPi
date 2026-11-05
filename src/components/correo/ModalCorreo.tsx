@@ -5,6 +5,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { CorreoDto, CuentaDto, PlantillaDto } from "@/lib/correo";
+import { marcarCorreoEnviado } from "@/lib/correo-enviados";
 import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
 import EditorHtml from "./EditorHtml";
 
@@ -114,11 +115,16 @@ export default function ModalCorreo({
     if (p) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAsunto(p.asunto);
+      if (p.para && !p.para.includes("{")) setPara(p.para);
+      if (p.cc && !p.cc.includes("{")) setCc(p.cc);
+      if (p.cco && !p.cco.includes("{")) setCco(p.cco);
+      if (p.id_cuenta && cuentas.some((c) => c.id === p.id_cuenta))
+        setIdCuenta(p.id_cuenta);
       setCuerpo(p.cuerpo);
       setClaveEditor((k) => k + 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plantillas]);
+  }, [plantillas, cuentas]);
 
   const guardar = async (enviarYa = false) => {
     setOcupado(true);
@@ -143,6 +149,7 @@ export default function ModalCorreo({
             id_cuenta: idCuenta,
             id_plantilla: idPlantilla,
             id_expediente: idExp,
+            campo: inicial?.clave ?? null,
             para,
             cc,
             cco,
@@ -162,6 +169,8 @@ export default function ModalCorreo({
             { method: "PATCH", cuerpo: { ids: [r.data.id], accion: "enviar" } },
           );
           if (e.data.fallos?.length) throw new Error(e.data.fallos[0]);
+          if (inicial)
+            marcarCorreoEnviado(inicial.clave, inicial.id_expediente);
           mostrar("Correo enviado");
         } else mostrar("Correo añadido a la cola de Correo");
       }
@@ -328,6 +337,11 @@ export default function ModalCorreo({
                     if (p.para && !p.para.includes("{")) setPara(p.para);
                     if (p.cc && !p.cc.includes("{")) setCc(p.cc);
                     if (p.cco && !p.cco.includes("{")) setCco(p.cco);
+                    if (
+                      p.id_cuenta &&
+                      cuentas.some((c) => c.id === p.id_cuenta)
+                    )
+                      setIdCuenta(p.id_cuenta);
                     setCuerpo(p.cuerpo);
                     setClaveEditor((k) => k + 1);
                   }

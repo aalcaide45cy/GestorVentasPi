@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
-import type { PlantillaDto } from "@/lib/correo";
+import type { CuentaDto, PlantillaDto } from "@/lib/correo";
 import EditorHtml from "./EditorHtml";
 
 /** Plantillas de correo: asunto y cuerpo con campos del cliente, el expediente y las fechas entre llaves. */
@@ -18,9 +18,16 @@ export default function PanelPlantillas() {
     para: string;
     cc: string;
     cco: string;
+    id_cuenta: number | null;
     con_firma: boolean;
     cuerpo: string;
   } | null>(null);
+  const [cuentas, setCuentas] = useState<CuentaDto[]>([]);
+  useEffect(() => {
+    llamar<CuentaDto[]>("/api/correo/cuentas")
+      .then((r) => setCuentas(r.data))
+      .catch(() => undefined);
+  }, []);
   const [ocupado, setOcupado] = useState(false);
   const cargar = useCallback(() => {
     llamar<PlantillaDto[]>("/api/correo/plantillas")
@@ -77,6 +84,7 @@ export default function PanelPlantillas() {
               para: "",
               cc: "",
               cco: "",
+              id_cuenta: null,
               con_firma: true,
               cuerpo: "",
             })
@@ -120,6 +128,7 @@ export default function PanelPlantillas() {
                 para: p.para,
                 cc: p.cc,
                 cco: p.cco,
+                id_cuenta: p.id_cuenta,
                 con_firma: p.con_firma,
                 cuerpo: p.cuerpo,
               })
@@ -197,6 +206,28 @@ export default function PanelPlantillas() {
               onChange={(e) => setB({ ...b, asunto: e.target.value })}
               placeholder="Ej. Entrega de su {marca} {modelo}"
             />
+          </label>
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+          >
+            Enviar desde la cuenta (opcional)
+            <select
+              className="form-input"
+              value={b.id_cuenta ?? ""}
+              onChange={(e) =>
+                setB({
+                  ...b,
+                  id_cuenta: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+            >
+              <option value="">— La primera cuenta de quien la use —</option>
+              {cuentas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} ({c.email})
+                </option>
+              ))}
+            </select>
           </label>
           <label
             style={{ display: "flex", flexDirection: "column", gap: "4px" }}

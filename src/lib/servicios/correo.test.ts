@@ -14,6 +14,7 @@ import {
   cancelarCorreo,
   crearCorreo,
   enviarCorreo,
+  expedientesConCorreoEnviado,
   extraerImagenesEnLinea,
   ponerCorreoDelCliente,
   fijarTransporteDePrueba,
@@ -498,5 +499,40 @@ describe("correo", () => {
       error: null,
     });
     expect((await enviarCorreo(db, ana, m.id)).estado).toBe("enviado");
+  });
+
+  it("la cuenta de la plantilla manda, y el correo del botón de una fecha marca ese expediente como enviado (sobre verde)", async () => {
+    const { ana, id, cuenta } = await escenario();
+    const otraCuenta = await guardarCuenta(
+      db,
+      ana,
+      null,
+      esquemaCuenta.parse({
+        ...cuentaEntrada,
+        nombre: "Segunda",
+        email: "dos@ejemplo.test",
+        usuario_smtp: "dos@ejemplo.test",
+      }),
+    );
+    const p = await guardarPlantilla(db, ana, null, {
+      nombre: "Entrega",
+      asunto: "Entrega",
+      id_cuenta: otraCuenta.id,
+      cuerpo: "<p>x</p>",
+    });
+    const c = await crearCorreo(db, ana, {
+      id_plantilla: p.id,
+      id_expediente: id,
+      campo: "fecha_entrega",
+    });
+    expect(c).toMatchObject({ id_cuenta: otraCuenta.id, origen: "boton" });
+    expect(cuenta.id).not.toBe(otraCuenta.id);
+    expect(await expedientesConCorreoEnviado(db, "fecha_entrega")).toHaveLength(
+      0,
+    );
+    await enviarCorreo(db, ana, c.id);
+    const enviados2 = await expedientesConCorreoEnviado(db, "fecha_entrega");
+    expect(enviados2.map((e) => e.id)).toEqual([id]);
+    expect(await expedientesConCorreoEnviado(db, "fecha_rci")).toHaveLength(0);
   });
 });

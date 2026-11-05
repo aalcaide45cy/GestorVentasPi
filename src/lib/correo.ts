@@ -78,6 +78,8 @@ export const esquemaPlantilla = z.object({
   para: z.string().trim().max(1000).default(""),
   cc: z.string().trim().max(1000).default(""),
   cco: z.string().trim().max(1000).default(""),
+  /** Cuenta desde la que se envía por defecto (vacío = la primera cuenta de quien la use). */
+  id_cuenta: z.number().int().positive().nullable().optional(),
   /** Añade al final la firma de la cuenta desde la que se envía. */
   con_firma: z.boolean().default(true),
   cuerpo: z.string().max(200_000).default(""),
@@ -90,6 +92,7 @@ export interface PlantillaDto {
   para: string;
   cc: string;
   cco: string;
+  id_cuenta: number | null;
   con_firma: boolean;
   cuerpo: string;
 }
@@ -115,6 +118,17 @@ export const esquemaCorreo = z.object({
   asunto: z.string().max(300).default(""),
   cuerpo: z.string().max(5_000_000).default(""),
   adjuntos: z.array(z.number().int().positive()).max(20).default([]),
+  /** Botón ✉️ de una fecha de la lista (cuál): sirve para pintar el sobre en verde cuando el correo se envía. */
+  campo: z
+    .enum([
+      "fecha_afectacion",
+      "fecha_rci",
+      "fecha_matriculacion",
+      "fecha_facturacion",
+      "fecha_entrega",
+    ])
+    .nullable()
+    .optional(),
   /** Si se pide una plantilla, se rellena con los datos del expediente (y lo escrito aquí la sustituye). */
   rellenar: z.boolean().default(false),
 });

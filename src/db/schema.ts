@@ -1554,6 +1554,8 @@ export const correoPlantillas = pgTable("correo_plantillas", {
   /** Copia (CC) y copia oculta (CCO) de la plantilla; admiten campos como {email_cliente}. */
   cc: text("cc").notNull().default(""),
   cco: text("cco").notNull().default(""),
+  /** Cuenta desde la que se envía por defecto (si es del usuario que la usa; si no, su primera cuenta). */
+  idCuenta: integer("id_cuenta").references(() => correoCuentas.id, { onDelete: "set null" }),
   /** Añade al final la firma de la cuenta desde la que se envía (si el cuerpo no lleva ya el campo {firma}). */
   conFirma: boolean("con_firma").notNull().default(true),
   /** HTML del cuerpo. */
@@ -1587,6 +1589,8 @@ export const correoCola = pgTable(
     estado: varchar("estado", { length: 12 }).notNull().default("borrador"),
     /** De dónde viene: manual, boton (el botón de las fechas) o regla. */
     origen: varchar("origen", { length: 12 }).notNull().default("manual"),
+    /** Con el botón ✉️ de una fecha: cuál (fecha_entrega…), para pintar el sobre en verde cuando se ha enviado. */
+    campo: varchar("campo", { length: 24 }),
     idRegla: integer("id_regla").references(() => alertasReglas.id, { onDelete: "set null" }),
     error: text("error"),
     intentos: integer("intentos").notNull().default(0),

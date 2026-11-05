@@ -247,6 +247,7 @@ const aPlantilla = (p: typeof correoPlantillas.$inferSelect): PlantillaDto => ({
   para: p.para,
   cc: p.cc,
   cco: p.cco,
+  id_cuenta: p.idCuenta,
   con_firma: p.conFirma,
   cuerpo: p.cuerpo,
 });
@@ -264,10 +265,11 @@ export async function guardarPlantilla(
   id: number | null,
   entrada: EntradaPlantilla,
 ): Promise<PlantillaDto> {
-  const { con_firma, ...resto } = entrada;
+  const { con_firma, id_cuenta, ...resto } = entrada;
   const e = {
     ...resto,
     ...(con_firma !== undefined ? { conFirma: con_firma } : {}),
+    ...(id_cuenta !== undefined ? { idCuenta: id_cuenta } : {}),
   };
   if (id === null)
     return aPlantilla(
@@ -464,6 +466,26 @@ export async function crearCorreoOpcional(
 ): Promise<CorreoDto | null> {
   const e = esquemaCorreo.parse(entrada);
   let idCuenta = e.id_cuenta ?? null;
+  // Sin cuenta pedida, la de la plantilla (si es de quien la usa)
+  if (!idCuenta && e.id_plantilla) {
+    const [pl] = await ej
+      .select({ c: correoPlantillas.idCuenta })
+      .from(correoPlantillas)
+      .where(eq(correoPlantillas.id, e.id_plantilla));
+    if (pl?.c) {
+      const [propia] = await ej
+        .select({ id: correoCuentas.id })
+        .from(correoCuentas)
+        .where(
+          and(
+            eq(correoCuentas.id, pl.c),
+            eq(correoCuentas.idUsuario, u.idUsuario),
+            eq(correoCuentas.activa, true),
+          ),
+        );
+      idCuenta = propia?.id ?? null;
+    }
+  }
   if (idCuenta) await cuentaPropia(ej, u, idCuenta);
   else
     idCuenta =
@@ -574,7 +596,8 @@ export async function crearCorreoOpcional(
       cuerpo,
       adjuntos: e.adjuntos,
       estado: auto && listo ? "programado" : "borrador",
-      origen: op.origen ?? "manual",
+      origen: op.origen ?? (e.campo ? "boton" : "manual"),
+      campo: e.campo ?? null,
       idRegla: op.idRegla ?? null,
       error: aviso,
     })
@@ -1079,4 +1102,28 @@ export async function fijarNoEnviar(
     .update(clientes)
     .set({ noEnviarCorreos: valor })
     .where(eq(clientes.id, idCliente));
+}
+
+/** Los expedientes con un correo enviado desde el botón ✉️ de una fecha (para pintar ese sobre en verde). */
+export async function expedientesConCorreoEnviado(
+  ej: Ejecutor,
+  campo: string,
+): Promise<{ id: number; enviado_en: string }[]> {
+  const filas = await ej
+    .select({
+      id: correoCola.idExpediente,
+      en: sql<Date>`max(${correoCola.enviadoEn})`,
+    })
+    .from(correoCola)
+    .where(
+      and(
+        eq(correoCola.estado, "enviado"),
+        eq(correoCola.campo, campo),
+        sql`${correoCola.idExpediente} is not null`,
+      ),
+    )
+    .groupBy(correoCola.idExpediente);
+  return filas
+    .filter((f): f is { id: number; en: Date } => f.id !== null)
+    .map((f) => ({ id: f.id, enviado_en: new Date(f.en).toISOString() }));
 }

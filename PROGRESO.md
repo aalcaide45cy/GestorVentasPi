@@ -617,6 +617,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **«🔎 Detectar duplicados» en Expedientes**: busca en todos los expedientes los que comparten bastidor, matrícula, o cliente y modelo (misma fecha de pedido, o distinta fecha como «a revisar») y los enseña agrupados en una tabla ordenable, con buscador y columnas a elegir, con enlace a cada #EXP. Solo lee. No cuenta las copias hechas con «Duplicar» ni los eliminados (`servicios/duplicados.ts`, `GET /api/expedientes/duplicados`).
 - **Expedientes de un cliente**: la ventana es mucho más ancha y la tabla trae más datos (bastidor, fechas de afectación, RCI, matriculación, facturación y entrega, vendedor; intranet y comentarios ocultos), con el número de expedientes en el título y marca en rojo los que parecen repetidos entre los suyos.
 
+## Versión 1.62.0 (05/11/2026)
+- **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
+- **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
+
 ## Versión 1.61.0 (05/11/2026)
 - **CC y CCO** en las plantillas y en cada correo (`cc`, `cco` en `correo_plantillas` y `correo_cola`, migración 0081); admiten varias direcciones y campos como `{email_cliente}`; se usan al enviar. La firma de la cuenta es opcional por plantilla (1.60.1).
 - **Clientes que no quieren correos**: su dirección no se pone nunca (ni en Para, ni en CC/CCO con `{email_cliente}`); el correo queda en la cola con el aviso, sale una notificación en las alertas y hay un botón «Enviar al cliente igualmente» (en la cola y en la ventana del correo) que pone su dirección para que se envíe a mano.

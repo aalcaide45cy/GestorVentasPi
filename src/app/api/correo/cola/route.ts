@@ -48,9 +48,7 @@ export const POST = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
   return NextResponse.json({
     success: true,
-    data: await crearCorreo(db, u, await leerJson(req, esquemaCorreo), {
-      origen: "manual",
-    }),
+    data: await crearCorreo(db, u, await leerJson(req, esquemaCorreo)),
   });
 });
 

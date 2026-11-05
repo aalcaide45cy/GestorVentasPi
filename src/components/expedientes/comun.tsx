@@ -4,6 +4,7 @@ import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { CLAVE_CORREO_BOTONES, leerBotonesFecha } from "@/lib/correo";
+import { marcarCorreoEnviado, useCorreoEnviado } from "@/lib/correo-enviados";
 import { usePreferencia } from "@/lib/preferencias";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
@@ -340,8 +341,13 @@ export function CeldaFecha({
   const [botones] = usePreferencia(CLAVE_CORREO_BOTONES);
   const cfg = leerBotonesFecha(botones)[campo];
   const conSobre = cfg?.activo ?? false;
+  const enviadoEn = useCorreoEnviado(
+    campo,
+    exp.id_expediente,
+    conSobre && !!valor,
+  );
   const pulsarSobre = async () => {
-    if (!cfg || cfg.modo === "revisar" || !cfg.id_plantilla || !cfg.id_cuenta)
+    if (!cfg || cfg.modo === "revisar" || !cfg.id_plantilla)
       return setEscribiendo(true);
     const cabecera = { "Content-Type": "application/json" };
     try {
@@ -349,10 +355,9 @@ export function CeldaFecha({
         method: "POST",
         headers: cabecera,
         body: JSON.stringify({
-          id_cuenta: cfg.id_cuenta,
           id_plantilla: cfg.id_plantilla,
           id_expediente: exp.id_expediente,
-          para: cfg.para === "fijo" ? cfg.para_fijo : "",
+          campo,
         }),
       });
       const j = (await r.json()) as {
@@ -375,6 +380,7 @@ export function CeldaFecha({
           throw new Error(
             ej.data?.fallos?.[0] ?? ej.message ?? "No se pudo enviar",
           );
+        marcarCorreoEnviado(campo, exp.id_expediente);
         mostrarAviso("Correo enviado");
       } else
         mostrarAviso(
@@ -473,8 +479,16 @@ export function CeldaFecha({
             <button
               type="button"
               onClick={() => void pulsarSobre()}
-              style={estiloIcono("rgba(59, 130, 246, 0.08)")}
-              title={`Enviar un correo con la fecha de ${nombre}`}
+              style={estiloIcono(
+                enviadoEn
+                  ? "rgba(34, 197, 94, 0.2)"
+                  : "rgba(59, 130, 246, 0.08)",
+              )}
+              title={
+                enviadoEn
+                  ? `Correo enviado el ${new Date(enviadoEn).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}. Pulsa para enviar otro.`
+                  : `Enviar un correo con la fecha de ${nombre}`
+              }
               className="glass-panel-interactive"
             >
               <svg
@@ -482,7 +496,7 @@ export function CeldaFecha({
                 height="11"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#3b82f6"
+                stroke={enviadoEn ? "#16a34a" : "#3b82f6"}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -515,8 +529,8 @@ export function CeldaFecha({
             predefinido: cfg
               ? {
                   plantilla: cfg.id_plantilla,
-                  cuenta: cfg.id_cuenta,
-                  para: cfg.para === "fijo" ? cfg.para_fijo : "",
+                  cuenta: null,
+                  para: "",
                 }
               : undefined,
           }}
