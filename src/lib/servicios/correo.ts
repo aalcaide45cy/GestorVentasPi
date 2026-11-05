@@ -442,6 +442,7 @@ async function aCorreos(
     adjuntos: x.adjuntos,
     estado: x.estado as EstadoCorreo,
     origen: x.origen,
+    campo: x.campo,
     regla: x.idRegla ? (reglas.get(x.idRegla) ?? null) : null,
     error: x.error,
     intentos: x.intentos,

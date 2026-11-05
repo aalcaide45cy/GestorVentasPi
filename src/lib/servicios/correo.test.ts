@@ -14,6 +14,7 @@ import {
   cancelarCorreo,
   crearCorreo,
   enviarCorreo,
+  borrarCorreo,
   expedientesConCorreoEnviado,
   extraerImagenesEnLinea,
   ponerCorreoDelCliente,
@@ -534,5 +535,22 @@ describe("correo", () => {
     const enviados2 = await expedientesConCorreoEnviado(db, "fecha_entrega");
     expect(enviados2.map((e) => e.id)).toEqual([id]);
     expect(await expedientesConCorreoEnviado(db, "fecha_rci")).toHaveLength(0);
+    // El informe queda en el expediente; si se quita, el sobre vuelve a su estado y se puede repetir
+    expect(
+      await listarCorreos(db, ana, { idExpediente: id, estados: ["enviado"] }),
+    ).toHaveLength(1);
+    await borrarCorreo(db, ana, c.id);
+    expect(await expedientesConCorreoEnviado(db, "fecha_entrega")).toHaveLength(
+      0,
+    );
+    const otra = await crearCorreo(db, ana, {
+      id_plantilla: p.id,
+      id_expediente: id,
+      campo: "fecha_entrega",
+    });
+    expect((await enviarCorreo(db, ana, otra.id)).estado).toBe("enviado");
+    expect(await expedientesConCorreoEnviado(db, "fecha_entrega")).toHaveLength(
+      1,
+    );
   });
 });

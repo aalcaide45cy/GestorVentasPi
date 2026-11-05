@@ -57,3 +57,8 @@ export function marcarCorreoEnviado(campo: string, idExpediente: number): void {
   datos.set(campo, m);
   avisar();
 }
+
+/** Vuelve a pedir lo enviado (por ejemplo, tras quitar un informe): los sobres recuperan su color. */
+export function refrescarCorreosEnviados(): void {
+  pedidas.forEach((c) => void pedir(c));
+}

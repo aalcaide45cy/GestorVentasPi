@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
+import { refrescarCorreosEnviados } from "@/lib/correo-enviados";
 import type { CorreoDto, EstadoCorreo } from "@/lib/correo";
 import ModalCorreo from "./ModalCorreo";
 
@@ -13,6 +14,13 @@ const ESTILO_ESTADO: Record<EstadoCorreo, { texto: string; color: string }> = {
   enviado: { texto: "✅ Enviado", color: "var(--success)" },
   error: { texto: "❌ Con error", color: "var(--danger)" },
   cancelado: { texto: "🚫 Cancelado", color: "var(--text-muted)" },
+};
+const ETIQUETA_CAMPO: Record<string, string> = {
+  fecha_afectacion: "F. Afectación",
+  fecha_rci: "F. RCI",
+  fecha_matriculacion: "F. Matriculación",
+  fecha_facturacion: "F. Facturación",
+  fecha_entrega: "F. Entrega",
 };
 const cuando = (iso: string): string =>
   new Date(iso).toLocaleString("es-ES", {
@@ -80,7 +88,7 @@ export default function PanelCola({
       a === "borrar" &&
       !(await confirmar({
         titulo: "Quitar del histórico",
-        texto: `¿Quitar ${ids.length} correo(s)? No se puede deshacer.`,
+        texto: `¿Quitar ${ids.length} correo(s)? No se puede deshacer. Si salieron del botón ✉️ de una fecha, el sobre de ese expediente vuelve a su color y se podrá enviar otra vez.`,
         aceptar: "Quitar",
         peligro: true,
       }))
@@ -102,6 +110,7 @@ export default function PanelCola({
               : "Hecho",
         );
       setMarcados(new Set());
+      if (a === "borrar") refrescarCorreosEnviados();
     } catch (e) {
       mostrar(textoError(e), "error", 8000);
     } finally {
@@ -262,7 +271,7 @@ export default function PanelCola({
                   {c.regla
                     ? ` · regla «${c.regla}»`
                     : c.origen === "boton"
-                      ? " · botón de fecha"
+                      ? ` · botón del sobre${c.campo ? ` de ${ETIQUETA_CAMPO[c.campo] ?? c.campo}` : ""}`
                       : ""}
                 </div>
                 {c.error && (
@@ -338,6 +347,19 @@ export default function PanelCola({
                       {c.estado === "error" ? "↻ Reintentar" : "📤 Enviar"}
                     </button>
                   </span>
+                )}
+              {modo === "ficha" &&
+                ["enviado", "cancelado", "error"].includes(c.estado) && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={btn}
+                    disabled={ocupado}
+                    title="Quita este informe del expediente. Si fue el envío del sobre de una fecha, el sobre vuelve a su color y podrás repetirlo."
+                    onClick={() => void accion([c.id], "borrar")}
+                  >
+                    🗑️ Quitar informe
+                  </button>
                 )}
               {modo === "historico" && c.estado === "error" && (
                 <button

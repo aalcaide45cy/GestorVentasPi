@@ -26,7 +26,7 @@ export default function CorreosDeFicha({
     <Plegable
       id={idExpediente ? "ficha-correos-exp" : "ficha-correos-cli"}
       titulo="✉️ Correos"
-      abiertoPorDefecto={false}
+      abiertoPorDefecto={!!idExpediente}
     >
       {noEnviar !== null && idCliente && (
         <label

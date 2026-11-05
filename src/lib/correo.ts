@@ -163,6 +163,8 @@ export interface CorreoDto {
   adjuntos: number[];
   estado: EstadoCorreo;
   origen: string;
+  /** Si salió del botón ✉️ de una fecha: cuál (fecha_entrega…). */
+  campo: string | null;
   regla: string | null;
   error: string | null;
   intentos: number;
