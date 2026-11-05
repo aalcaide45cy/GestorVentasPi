@@ -98,6 +98,8 @@ describe("correo", () => {
     );
     expect(await probarCuenta(db, ana, cuenta.id)).toMatch(/yo@ejemplo.test/);
     expect(enviados).toHaveLength(1);
+    // La prueba lleva la firma de la cuenta
+    expect(String(enviados[0].html)).toContain("Alfonso");
     // Otra persona no la ve
     const otra = await crearUsuarioPrueba("vendedor", "Berta");
     expect(await listarCuentas(db, otra)).toHaveLength(0);

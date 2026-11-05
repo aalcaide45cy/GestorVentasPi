@@ -219,11 +219,17 @@ export async function probarCuenta(
   if (!direccionValida(para))
     throw new HttpError(400, "La dirección no es válida");
   try {
+    // La prueba lleva la firma de la cuenta, para ver cómo queda de verdad
+    const { html, incrustadas } = extraerImagenesEnLinea(
+      `<p>Este es un correo de prueba de GestorVentas. Si lo lees, la cuenta funciona.</p>${c.firma ? `<p></p>${c.firma}` : ""}`,
+    );
     await transporteDe(c).sendMail({
       from: `"${c.nombre.replace(/"/g, "")}" <${c.email}>`,
       to: para,
       subject: "Prueba de GestorVentas",
-      text: "Este es un correo de prueba de GestorVentas. Si lo lees, la cuenta funciona.",
+      html,
+      text: textoPlano(html),
+      attachments: incrustadas,
     });
   } catch (e) {
     throw new HttpError(400, motivoDeError(e));
