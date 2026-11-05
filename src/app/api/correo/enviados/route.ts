@@ -7,6 +7,7 @@ import { expedientesConCorreoEnviado } from "@/lib/servicios/correo";
 export const dynamic = "force-dynamic";
 
 const CAMPOS = [
+  "fecha_expediente",
   "fecha_afectacion",
   "fecha_rci",
   "fecha_matriculacion",

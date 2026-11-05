@@ -295,9 +295,14 @@ export function CeldaCliente({ exp, alAsignar }: CeldaClienteProps) {
   );
 }
 
+/** Las fechas que pueden llevar el sobre ✉️: las editables y la del pedido. */
+export type CampoFechaSobre = CampoFecha | "fecha_expediente";
+
 interface CeldaFechaProps {
   exp: ExpedienteDto;
-  campo: CampoFecha;
+  campo: CampoFechaSobre;
+  /** Solo la fecha y, si se activa, el sobre ✉️ (sin lápiz ni papelera): la fecha del pedido no se edita desde la lista. */
+  soloSobre?: boolean;
   nombre: string;
   fondo?: string;
   formatear: (v: string | null) => string;
@@ -332,6 +337,7 @@ export function CeldaFecha({
   fondo,
   formatear,
   detalleMatricula = false,
+  soloSobre = false,
   alEditar,
   alBorrar,
 }: CeldaFechaProps) {
@@ -466,15 +472,17 @@ export function CeldaFecha({
             marginTop: "1px",
           }}
         >
-          <button
-            type="button"
-            onClick={() => alEditar(exp, campo, nombre)}
-            style={estiloIcono("rgba(255, 255, 255, 0.05)")}
-            title={`Modificar fecha de ${nombre}`}
-            className="glass-panel-interactive"
-          >
-            ✏️
-          </button>
+          {!soloSobre && campo !== "fecha_expediente" && (
+            <button
+              type="button"
+              onClick={() => alEditar(exp, campo, nombre)}
+              style={estiloIcono("rgba(255, 255, 255, 0.05)")}
+              title={`Modificar fecha de ${nombre}`}
+              className="glass-panel-interactive"
+            >
+              ✏️
+            </button>
+          )}
           {valor && conSobre && (
             <button
               type="button"
@@ -507,7 +515,7 @@ export function CeldaFecha({
               </svg>
             </button>
           )}
-          {valor && (
+          {valor && !soloSobre && campo !== "fecha_expediente" && (
             <button
               type="button"
               onClick={() => alBorrar(exp, campo, nombre)}

@@ -121,6 +121,7 @@ export const esquemaCorreo = z.object({
   /** Botón ✉️ de una fecha de la lista (cuál): sirve para pintar el sobre en verde cuando el correo se envía. */
   campo: z
     .enum([
+      "fecha_expediente",
       "fecha_afectacion",
       "fecha_rci",
       "fecha_matriculacion",
@@ -276,6 +277,7 @@ export const direccionValida = (d: string): boolean =>
 /** Preferencia (sincronizada) con el correo predefinido de cada fecha de las listas. */
 export const CLAVE_CORREO_BOTONES = "exp-correo-botones";
 export const FECHAS_CON_SOBRE = [
+  { id: "fecha_expediente", nombre: "F. Exp. (pedido)" },
   { id: "fecha_afectacion", nombre: "F. Afectación" },
   { id: "fecha_rci", nombre: "F. RCI" },
   { id: "fecha_matriculacion", nombre: "F. Matriculación" },

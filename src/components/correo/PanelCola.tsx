@@ -16,6 +16,7 @@ const ESTILO_ESTADO: Record<EstadoCorreo, { texto: string; color: string }> = {
   cancelado: { texto: "🚫 Cancelado", color: "var(--text-muted)" },
 };
 const ETIQUETA_CAMPO: Record<string, string> = {
+  fecha_expediente: "F. Exp.",
   fecha_afectacion: "F. Afectación",
   fecha_rci: "F. RCI",
   fecha_matriculacion: "F. Matriculación",
