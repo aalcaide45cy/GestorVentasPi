@@ -71,11 +71,23 @@ async function guardarImagenesRemotas(editor: Editor | null): Promise<void> {
     }
   });
   if (cambios > 0) editor.view.dispatch(tr);
-  const sin = urls.filter((u) => !datos[u]).length;
-  if (sin > 0)
+  const fallidas = urls.filter((u) => !datos[u]);
+  if (fallidas.length > 0) {
+    const sitios = [
+      ...new Set(
+        fallidas.map((u) => {
+          try {
+            return new URL(u).hostname;
+          } catch {
+            return "dirección no válida";
+          }
+        }),
+      ),
+    ].join(", ");
     window.alert(
-      `${sin} imagen(es) no se han podido descargar (por ejemplo, las que solo se ven con tu sesión de Gmail). Bórralas y súbelas con «🖼️ Subir».`,
+      `${fallidas.length} de ${urls.length} imágenes no se han podido descargar (de: ${sitios}). Suelen ser las que solo se ven con tu sesión de Gmail: copia la firma desde un correo que hayas enviado, o bórralas y súbelas con «🖼️ Subir».`,
     );
+  }
 }
 
 /** Editor sencillo de texto con formato para el cuerpo de un correo, una plantilla o una firma (con selector de campos o con imágenes y tablas). */
