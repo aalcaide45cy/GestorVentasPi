@@ -58,6 +58,16 @@ if [ "$MODO" = "build" ]; then
   fi
 fi
 
+# Next copia dentro de la compilacion (.next-nueva/standalone) las copias de seguridad, los datos y la app antigua de referencia (unos 22 GB). El servidor
+# del Mac usa «npm start» y no esa carpeta. Se quitan las COPIAS de dentro de la compilacion; las carpetas reales del proyecto no se tocan.
+if [ "$MODO" = "build" ]; then
+  for d in backups data referencia; do
+    ruta="$CARPETA/.next-nueva/standalone/$d"
+    if [ -d "$ruta" ] && [ ! -L "$ruta" ]; then rm -rf "$ruta"; fi
+  done
+  anotar "Quitadas de la compilacion las copias de backups, data y referencia"
+fi
+
 parar_servidor
 
 if [ "$MODO" = "dev" ]; then

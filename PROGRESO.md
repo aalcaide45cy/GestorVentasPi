@@ -621,6 +621,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Versión 1.66.2 (06/11/2026)
+
+La compilación ya no arrastra dentro de la app las copias de seguridad, los datos y la app antigua de referencia (unos 22 GB duplicados en cada compilación): `scripts/cambiar-modo.sh` y `scripts/actualizar-mac.sh` quitan esas copias de dentro de la compilación. Las carpetas reales del proyecto no se tocan.
+
 ## Versión 1.66.0 (06/11/2026)
 - **Clientes potenciales, etapa 3: la baja por respuesta.** Opcional por cuenta (Correo → Cuentas → «Leer las respuestas de los clientes potenciales», apagado por defecto): cada 3 minutos (`instrumentation.ts`) la app entra por IMAP en modo solo lectura (`imapflow`, `mailparser`) y mira únicamente los mensajes de las direcciones de personas a las que esa cuenta ha escrito en los últimos 120 días; el resto del buzón no se abre. Si la respuesta es «BAJA» (o una frase clara como «dame de baja» o «no quiero recibir más»; «dar de baja mi coche» no cuenta, y el texto citado de nuestro correo se ignora), la persona queda de baja, se cancelan sus correos pendientes y sale una notificación; cualquier otra respuesta se guarda en su ficha (`correo_respuestas`) y avisa. Botón «👁️ Revisar respuestas» y última revisión o error en la cuenta. Migración 0086.
 
