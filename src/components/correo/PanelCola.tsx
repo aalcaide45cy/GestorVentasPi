@@ -37,10 +37,13 @@ export default function PanelCola({
   modo,
   idExpediente,
   idCliente,
+  soloPotenciales,
 }: {
   modo: "cola" | "historico" | "ficha";
   idExpediente?: number;
   idCliente?: number;
+  /** Solo los correos a clientes potenciales (los lotes). */
+  soloPotenciales?: boolean;
 }) {
   const { mostrar, confirmar } = useToast();
   const [lista, setLista] = useState<CorreoDto[] | null>(null);
@@ -58,10 +61,11 @@ export default function PanelCola({
     const q = new URLSearchParams({ estados });
     if (idExpediente) q.set("id_expediente", String(idExpediente));
     if (idCliente) q.set("id_cliente", String(idCliente));
+    if (soloPotenciales) q.set("potenciales", "1");
     llamar<CorreoDto[]>(`/api/correo/cola?${q}`)
       .then((r) => setLista(r.data))
       .catch((e: unknown) => mostrar(textoError(e), "error"));
-  }, [estados, idExpediente, idCliente, mostrar]);
+  }, [estados, idExpediente, idCliente, soloPotenciales, mostrar]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     cargar();
@@ -164,7 +168,7 @@ export default function PanelCola({
           onChange={(e) => setBusca(e.target.value)}
           style={{ maxWidth: "260px", padding: "4px 10px" }}
         />
-        {modo === "cola" && ids.length > 0 && (
+        {(modo === "cola" || soloPotenciales) && ids.length > 0 && (
           <>
             <span style={{ fontSize: "0.85rem" }}>{ids.length} marcados:</span>
             <button
@@ -272,6 +276,7 @@ export default function PanelCola({
                     ? ` · #EXP-${String(c.id_expediente).padStart(4, "0")}`
                     : ""}
                   {c.cuenta ? ` · desde ${c.cuenta}` : ""}
+                  {c.lote ? ` · lote «${c.lote}»` : ""}
                   {c.regla
                     ? ` · regla «${c.regla}»`
                     : c.origen === "boton"

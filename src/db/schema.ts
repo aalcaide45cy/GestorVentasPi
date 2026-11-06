@@ -1594,6 +1594,8 @@ export const correoCola = pgTable(
     lote: varchar("lote", { length: 60 }),
     /** Segundos de espera hasta el siguiente correo del lote (si no, la pausa general de los ajustes). */
     espera: integer("espera"),
+    /** Si se indica, la espera es al azar entre `espera` y `espera_max` segundos (para que no salgan a intervalos exactos). */
+    esperaMax: integer("espera_max"),
     /** De dónde viene: manual, boton (el botón de las fechas) o regla. */
     origen: varchar("origen", { length: 12 }).notNull().default("manual"),
     /** Con el botón ✉️ de una fecha: cuál (fecha_entrega…), para pintar el sobre en verde cuando se ha enviado. */

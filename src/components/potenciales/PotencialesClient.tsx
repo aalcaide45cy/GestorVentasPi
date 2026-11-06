@@ -8,7 +8,9 @@ import type {
   EstadoPotencial,
   PotencialDto,
 } from "@/lib/servicios/potenciales";
+import PanelCola from "@/components/correo/PanelCola";
 import CargarPresupuestos from "./CargarPresupuestos";
+import ModalLote from "./ModalLote";
 import FichaPotencial, {
   COLOR_ESTADO,
   ETIQUETA_ESTADO,
@@ -22,13 +24,22 @@ const fecha = (f: string | null) =>
 export default function PotencialesClient() {
   const { mostrar } = useToast();
   const [guardada, fijar] = usePreferencia("exp-potenciales-pestana");
-  const pestana = guardada === "cargar" ? "cargar" : "clientes";
+  const pestana =
+    guardada === "cargar"
+      ? "cargar"
+      : guardada === "envios"
+        ? "envios"
+        : "clientes";
   const [lista, setLista] = useState<PotencialDto[] | null>(null);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [estado, setEstado] = useState<EstadoPotencial | "">("");
   const [q, setQ] = useState("");
   const [abierto, setAbierto] = useState<PotencialDto | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [marcados, setMarcados] = useState<Set<number>>(new Set());
+  const [lote, setLote] = useState<{ ids: number[]; todos: boolean } | null>(
+    null,
+  );
 
   const cargar = useCallback(() => {
     const p = new URLSearchParams();
@@ -81,7 +92,7 @@ export default function PotencialesClient() {
       {texto} {n !== undefined ? `(${n})` : ""}
     </button>
   );
-  const pest = (id: "clientes" | "cargar", texto: string) => (
+  const pest = (id: "clientes" | "cargar" | "envios", texto: string) => (
     <button
       key={id}
       type="button"
@@ -130,8 +141,25 @@ export default function PotencialesClient() {
       >
         {pest("clientes", "👥 Clientes")}
         {pest("cargar", "📥 Cargar presupuestos")}
+        {pest("envios", "✉️ Envíos")}
       </div>
       {pestana === "cargar" && <CargarPresupuestos alTerminar={cargar} />}
+      {pestana === "envios" && (
+        <>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.88rem",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Los correos a clientes potenciales: los que esperan tu revisión, los
+            programados (salen solos, uno tras otro) y los ya enviados. Puedes
+            pausarlos o cancelarlos.
+          </p>
+          <PanelCola modo="ficha" soloPotenciales />
+        </>
+      )}
       {pestana === "clientes" && (
         <>
           <div
@@ -170,6 +198,25 @@ export default function PotencialesClient() {
             >
               🔄 Cotejar con los expedientes
             </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={marcados.size === 0}
+              onClick={() => setLote({ ids: [...marcados], todos: false })}
+              style={{ padding: "4px 12px", fontSize: "0.82rem" }}
+            >
+              ✉️ Escribir a los marcados ({marcados.size})
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={!resumen?.activo}
+              onClick={() => setLote({ ids: [], todos: true })}
+              title="Se deja fuera a quien ya compró, se ha dado de baja o no tiene correo"
+              style={{ padding: "4px 12px", fontSize: "0.82rem" }}
+            >
+              ✉️ Escribir a todos los activos
+            </button>
           </div>
           {lista && lista.length === 0 && (
             <p style={{ color: "var(--text-muted)" }}>
@@ -186,6 +233,30 @@ export default function PotencialesClient() {
               >
                 <thead>
                   <tr>
+                    <th style={{ width: "28px" }}>
+                      <input
+                        type="checkbox"
+                        aria-label="Marcar todos los activos de la lista"
+                        checked={
+                          lista.filter((p) => p.estado === "activo").length >
+                            0 &&
+                          lista
+                            .filter((p) => p.estado === "activo")
+                            .every((p) => marcados.has(p.id))
+                        }
+                        onChange={(e) =>
+                          setMarcados(
+                            e.target.checked
+                              ? new Set(
+                                  lista
+                                    .filter((p) => p.estado === "activo")
+                                    .map((p) => p.id),
+                                )
+                              : new Set(),
+                          )
+                        }
+                      />
+                    </th>
                     <th>Cliente</th>
                     <th>Contacto</th>
                     <th>Último presupuesto</th>
@@ -207,6 +278,23 @@ export default function PotencialesClient() {
                             : 1,
                       }}
                     >
+                      <td onClick={(ev) => ev.stopPropagation()}>
+                        {p.estado === "activo" && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Marcar a ${p.nombre}`}
+                            checked={marcados.has(p.id)}
+                            onChange={() =>
+                              setMarcados((m) => {
+                                const n = new Set(m);
+                                if (n.has(p.id)) n.delete(p.id);
+                                else n.add(p.id);
+                                return n;
+                              })
+                            }
+                          />
+                        )}
+                      </td>
                       <td style={{ fontWeight: 600 }}>{p.nombre}</td>
                       <td style={{ fontSize: "0.8rem" }}>
                         {p.email || (
@@ -249,6 +337,18 @@ export default function PotencialesClient() {
             </div>
           )}
         </>
+      )}
+      {lote && (
+        <ModalLote
+          ids={lote.ids}
+          todos={lote.todos}
+          alCerrar={() => setLote(null)}
+          alHecho={() => {
+            setLote(null);
+            setMarcados(new Set());
+            fijar("envios");
+          }}
+        />
       )}
       {abierto && (
         <FichaPotencial

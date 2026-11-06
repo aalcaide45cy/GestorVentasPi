@@ -39,6 +39,7 @@ export const GET = manejar(async (req: Request) => {
       estados: estados.length ? estados : undefined,
       idExpediente: num("id_expediente"),
       idCliente: num("id_cliente"),
+      soloPotenciales: p.get("potenciales") === "1",
     }),
   });
 });

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import type { Ejecutor } from "@/db";
@@ -11,6 +11,7 @@ import {
   correoPlantillas,
   emailsClientes,
   expedientes,
+  potenciales,
 } from "@/db/schema";
 import { cifrar, descifrar } from "@/lib/auth/cifrado";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
@@ -30,6 +31,7 @@ import {
   type PlantillaDto,
 } from "@/lib/correo";
 import { leerAdjunto } from "./adjuntos";
+import { cotejarPotenciales, datosDePotencial } from "./potenciales";
 import { aDto, relacionesExpediente } from "./expedientes";
 import { formatDate } from "@/lib/date-utils";
 
@@ -443,6 +445,8 @@ async function aCorreos(
     estado: x.estado as EstadoCorreo,
     origen: x.origen,
     campo: x.campo,
+    id_potencial: x.idPotencial,
+    lote: x.lote,
     regla: x.idRegla ? (reglas.get(x.idRegla) ?? null) : null,
     error: x.error,
     intentos: x.intentos,
@@ -521,7 +525,17 @@ export async function crearCorreoOpcional(
   let paraPlantilla = "";
   let ccPlantilla = "";
   let ccoPlantilla = "";
-  const datos = await datosDeExpediente(ej, e.id_expediente ?? null, cuenta);
+  let datos = await datosDeExpediente(ej, e.id_expediente ?? null, cuenta);
+  // Un cliente potencial: sus campos y los de su presupuesto; su correo es el destinatario salvo que se pida otro
+  let potencial: Awaited<ReturnType<typeof datosDePotencial>> | null = null;
+  if (e.id_potencial) {
+    potencial = await datosDePotencial(
+      ej,
+      e.id_potencial,
+      e.id_presupuesto ?? null,
+    );
+    datos = { ...datos, ...potencial.datos };
+  }
   if (e.id_plantilla) {
     const [p] = await ej
       .select()
@@ -578,6 +592,16 @@ export async function crearCorreoOpcional(
     if (marcado) aviso = AVISO_NO_ENVIAR;
     else para = datos.email_cliente;
   } else if (marcado && usaCliente) aviso = AVISO_NO_ENVIAR;
+  if (potencial) {
+    if (!para) para = potencial.email;
+    if (potencial.estado !== "activo")
+      aviso =
+        potencial.estado === "baja"
+          ? "Esta persona se ha dado de baja: no se le escribe."
+          : potencial.estado === "compro"
+            ? "Esta persona ya ha comprado: no se le escribe."
+            : "Puede que esta persona ya haya comprado (hay un expediente con su nombre): revísalo antes de enviar.";
+  }
   const auto = op.respetarAutomatico
     ? (await leerAjustesCorreo(ej)).envio_automatico
     : false;
@@ -590,13 +614,18 @@ export async function crearCorreoOpcional(
       idPlantilla: e.id_plantilla ?? null,
       idExpediente: e.id_expediente ?? null,
       idCliente,
+      idPotencial: e.id_potencial ?? null,
+      idPresupuesto: potencial?.idPresupuesto ?? null,
+      lote: e.lote ?? null,
+      espera: e.espera ?? null,
+      esperaMax: e.espera_max ?? null,
       para,
       cc,
       cco,
       asunto,
       cuerpo,
       adjuntos: e.adjuntos,
-      estado: auto && listo ? "programado" : "borrador",
+      estado: (auto || e.programar) && listo ? "programado" : "borrador",
       origen: op.origen ?? (e.campo ? "boton" : "manual"),
       campo: e.campo ?? null,
       idRegla: op.idRegla ?? null,
@@ -638,6 +667,8 @@ export async function listarCorreos(
     estados?: EstadoCorreo[];
     idExpediente?: number;
     idCliente?: number;
+    /** Solo los correos a clientes potenciales (los lotes). */
+    soloPotenciales?: boolean;
   } = {},
 ): Promise<CorreoDto[]> {
   const filas = await ej
@@ -653,6 +684,7 @@ export async function listarCorreos(
         filtro.idCliente
           ? eq(correoCola.idCliente, filtro.idCliente)
           : undefined,
+        filtro.soloPotenciales ? isNotNull(correoCola.idPotencial) : undefined,
       ),
     )
     .orderBy(desc(correoCola.id))
@@ -881,6 +913,17 @@ export async function enviarCorreo(
   if (c.estado === "enviado" || c.estado === "enviando")
     throw new HttpError(409, "Este correo ya se envió");
   validarParaEnviar(c);
+  const motivo = await motivoParaNoEnviarAPotencial(ej, c);
+  if (motivo) {
+    await ej
+      .update(correoCola)
+      .set({
+        estado: motivo.startsWith("Se ha parado") ? "borrador" : "cancelado",
+        error: motivo,
+      })
+      .where(eq(correoCola.id, c.id));
+    throw new HttpError(409, motivo);
+  }
   return (await enviarFila(ej, c))!;
 }
 
@@ -970,7 +1013,6 @@ export async function procesarCola(
   procesando = true;
   try {
     const { pausa_segundos } = await leerAjustesCorreo(ej);
-    if (ahora - ultimoEnvio < pausa_segundos * 1000) return false;
     const [c] = await ej
       .select()
       .from(correoCola)
@@ -978,6 +1020,18 @@ export async function procesarCola(
       .orderBy(asc(correoCola.id))
       .limit(1);
     if (!c) return false;
+    // La pausa del lote (o entre dos valores, elegida al azar una vez por correo) o, si no, la general
+    let pausa = pausasElegidas.get(c.id);
+    if (pausa === undefined) {
+      const min = c.espera ?? pausa_segundos;
+      const max = Math.max(min, c.esperaMax ?? min);
+      pausa = min + Math.random() * (max - min);
+      pausasElegidas.set(c.id, pausa);
+    }
+    if (ahora - ultimoEnvio < pausa * 1000) return false;
+    pausasElegidas.delete(c.id);
+    // Antes de escribir a un cliente potencial se vuelve a comprobar que no haya comprado ni se haya dado de baja
+    if (await descartarSiYaNoProcede(ej, c)) return true;
     ultimoEnvio = ahora;
     try {
       validarParaEnviar(c);
@@ -996,6 +1050,48 @@ export async function procesarCola(
   } finally {
     procesando = false;
   }
+}
+
+const pausasElegidas = new Map<number, number>();
+
+/**
+ * Un correo a un cliente potencial se cancela si, al ir a enviarlo, esa persona ya ha comprado (se vuelve a cotejar con los expedientes) o se ha
+ * dado de baja. Devuelve el motivo si se ha cancelado, o null si se puede enviar.
+ */
+async function motivoParaNoEnviarAPotencial(
+  ej: Ejecutor,
+  c: typeof correoCola.$inferSelect,
+): Promise<string | null> {
+  if (!c.idPotencial) return null;
+  await cotejarPotenciales(ej, [c.idPotencial]);
+  const [p] = await ej
+    .select({ estado: potenciales.estado })
+    .from(potenciales)
+    .where(eq(potenciales.id, c.idPotencial));
+  if (!p) return "El cliente potencial ya no existe";
+  if (p.estado === "baja")
+    return "No se envía: esta persona se ha dado de baja";
+  if (p.estado === "compro")
+    return "No se envía: esta persona ya ha comprado (tiene expediente)";
+  if (p.estado === "posible")
+    return "Se ha parado: hay un expediente con su nombre, comprueba si ya ha comprado";
+  return null;
+}
+
+async function descartarSiYaNoProcede(
+  ej: Ejecutor,
+  c: typeof correoCola.$inferSelect,
+): Promise<boolean> {
+  const motivo = await motivoParaNoEnviarAPotencial(ej, c);
+  if (!motivo) return false;
+  await ej
+    .update(correoCola)
+    .set({
+      estado: motivo.startsWith("Se ha parado") ? "borrador" : "cancelado",
+      error: motivo,
+    })
+    .where(eq(correoCola.id, c.id));
+  return true;
 }
 /** Solo para las pruebas. */
 export function reiniciarRitmoDeEnvio(): void {

@@ -118,6 +118,15 @@ export const esquemaCorreo = z.object({
   asunto: z.string().max(300).default(""),
   cuerpo: z.string().max(5_000_000).default(""),
   adjuntos: z.array(z.number().int().positive()).max(20).default([]),
+  /** Correo a un cliente potencial: a quién y por qué presupuesto (se comprueba antes de enviar que no haya comprado ni se haya dado de baja). */
+  id_potencial: z.number().int().positive().nullable().optional(),
+  id_presupuesto: z.number().int().positive().nullable().optional(),
+  /** Nombre del lote y espera (en segundos, o entre dos valores) hasta el siguiente correo del lote. */
+  lote: z.string().max(60).nullable().optional(),
+  espera: z.number().int().min(1).max(3600).nullable().optional(),
+  espera_max: z.number().int().min(1).max(3600).nullable().optional(),
+  /** Con true, el correo queda programado (sale solo con su pausa) en vez de esperar a que lo revises. */
+  programar: z.boolean().default(false),
   /** Botón ✉️ de una fecha de la lista (cuál): sirve para pintar el sobre en verde cuando el correo se envía. */
   campo: z
     .enum([
@@ -166,6 +175,8 @@ export interface CorreoDto {
   origen: string;
   /** Si salió del botón ✉️ de una fecha: cuál (fecha_entrega…). */
   campo: string | null;
+  id_potencial: number | null;
+  lote: string | null;
   regla: string | null;
   error: string | null;
   intentos: number;
@@ -239,6 +250,51 @@ export const CAMPOS_CORREO: {
     clave: "fecha_entrega_hora",
     etiqueta: "Fecha y hora de la entrega",
     grupo: "Fechas",
+  },
+  {
+    clave: "cliente_potencial",
+    etiqueta: "Nombre completo",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "nombre_pila",
+    etiqueta: "Nombre de pila (Marta)",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "marca_presupuesto",
+    etiqueta: "Marca del presupuesto",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "modelo_presupuesto",
+    etiqueta: "Modelo del presupuesto",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "color_presupuesto",
+    etiqueta: "Color del presupuesto",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "fecha_presupuesto",
+    etiqueta: "Fecha del presupuesto",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "numero_presupuesto",
+    etiqueta: "Número del presupuesto",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "total_presupuesto",
+    etiqueta: "Total del presupuesto",
+    grupo: "Cliente potencial",
+  },
+  {
+    clave: "baja",
+    etiqueta: "Frase para darse de baja (responder BAJA)",
+    grupo: "Cliente potencial",
   },
   { clave: "hoy", etiqueta: "Fecha de hoy", grupo: "Otros" },
   { clave: "firma", etiqueta: "Firma de la cuenta", grupo: "Otros" },

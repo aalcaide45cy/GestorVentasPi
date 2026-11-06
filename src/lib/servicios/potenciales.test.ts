@@ -8,7 +8,18 @@ import {
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { DatosPresupuesto } from "@/lib/documentos/presupuesto";
+import nodemailer from "nodemailer";
+import { esquemaCuenta } from "@/lib/correo";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
+import {
+  fijarTransporteDePrueba,
+  guardarCuenta,
+  guardarPlantilla,
+  listarCorreos,
+  procesarCola,
+  reiniciarRitmoDeEnvio,
+} from "./correo";
+import { prepararLote } from "./potenciales-envios";
 import {
   cambiarPotencial,
   claveNombre,
@@ -249,5 +260,191 @@ describe("clientes potenciales", () => {
     expect(claveNombre("López Pérez, ANA")).toBe(
       claveNombre("ana lopez perez"),
     );
+  });
+
+  it("un lote escribe a cada potencial con sus campos, deja fuera a quien ha comprado, se ha dado de baja o no tiene correo, y respeta la pausa y la comprobación previa", async () => {
+    const enviados: {
+      to: unknown;
+      subject?: string;
+      html?: unknown;
+      bcc?: unknown;
+      cc?: unknown;
+    }[] = [];
+    fijarTransporteDePrueba(() => {
+      const t = nodemailer.createTransport({ jsonTransport: true });
+      return {
+        sendMail: (async (op: (typeof enviados)[number]) => {
+          enviados.push(op);
+          return t.sendMail(op as never);
+        }) as never,
+      };
+    });
+    reiniciarRitmoDeEnvio();
+    const ana = await crearUsuarioPrueba("vendedor", "Ana");
+    const cuenta = await guardarCuenta(
+      db,
+      ana,
+      null,
+      esquemaCuenta.parse({
+        nombre: "Mi cuenta",
+        email: "yo@ejemplo.test",
+        proveedor: "otro",
+        host: "smtp.ejemplo.test",
+        puerto: 587,
+        seguro: false,
+        usuario_smtp: "yo",
+        password: "x",
+        firma: "Alfonso",
+      }),
+    );
+    const plantilla = await guardarPlantilla(db, ana, null, {
+      nombre: "Promo",
+      asunto: "Tu {marca_presupuesto} {modelo_presupuesto}",
+      cuerpo:
+        "<p>Buenos días {nombre_pila}, estuvimos viendo un {marca_presupuesto} {modelo_presupuesto}. {baja}</p>",
+    });
+    const a = await registrarPresupuesto(
+      db,
+      ana,
+      "a.png",
+      PNG,
+      presupuesto({
+        numero: "8001-00",
+        cliente: "MARTA LOPEZ SANZ",
+        email: "marta@ejemplo.test",
+        telefono: "600000001",
+      }),
+    );
+    const b = await registrarPresupuesto(
+      db,
+      ana,
+      "b.png",
+      PNG,
+      presupuesto({
+        numero: "8002-00",
+        cliente: "Luis Gil Soto",
+        email: "luis@ejemplo.test",
+        telefono: "600000002",
+        codigoPostal: "28002",
+        modeloTexto: "DACIA JOGGER extreme",
+      }),
+    );
+    const c = await registrarPresupuesto(
+      db,
+      ana,
+      "c.png",
+      PNG,
+      presupuesto({
+        numero: "8003-00",
+        cliente: "Sin Correo Nadie",
+        email: "",
+        telefono: "",
+        codigoPostal: "28003",
+      }),
+    );
+    const d = await registrarPresupuesto(
+      db,
+      ana,
+      "d.png",
+      PNG,
+      presupuesto({
+        numero: "8004-00",
+        cliente: "Baja Persona",
+        email: "baja@ejemplo.test",
+        telefono: "600000004",
+        codigoPostal: "28004",
+      }),
+    );
+    await cambiarPotencial(db, ana, d.potencial.id, { accion: "baja" });
+    const [cl] = await db
+      .insert(clientes)
+      .values({ clienteId: "x", nombre: "Otro Nombre Raro" })
+      .returning();
+    await db
+      .insert(emailsClientes)
+      .values({ idCliente: cl.id, email: "compro@ejemplo.test" });
+    await db
+      .insert(expedientes)
+      .values({ idUsuario: ana.idUsuario, idCliente: cl.id });
+    const e = await registrarPresupuesto(
+      db,
+      ana,
+      "e.png",
+      PNG,
+      presupuesto({
+        numero: "8005-00",
+        cliente: "Compro Persona",
+        email: "compro@ejemplo.test",
+        telefono: "600000005",
+        codigoPostal: "28005",
+      }),
+    );
+    expect(e.potencial.estado).toBe("compro");
+
+    const base = {
+      todos: true,
+      id_plantilla: plantilla.id,
+      id_cuenta: cuenta.id,
+      espera: 20,
+      espera_max: 30,
+      lote: "Lote de prueba",
+    } as const;
+    const pre = await prepararLote(db, ana, { ...base, modo: "previsualizar" });
+    expect(pre).toMatchObject({
+      incluidos: 2,
+      excluidos: {
+        compraron: 1,
+        baja: 1,
+        sinCorreo: 1,
+        posibles: 0,
+        yaEnviado: 0,
+      },
+      creados: 0,
+    });
+    expect(pre.ejemplo?.asunto).toMatch(/^Tu (Renault Symbioz|Dacia Jogger)$/);
+    expect(pre.ejemplo?.cuerpo).toContain("BAJA");
+    expect((await listarCorreos(db, ana)).length).toBe(0);
+
+    const r = await prepararLote(db, ana, { ...base, modo: "programar" });
+    expect(r.creados).toBe(2);
+    const cola = await listarCorreos(db, ana, { estados: ["programado"] });
+    expect(cola.map((x) => x.para).sort()).toEqual([
+      "luis@ejemplo.test",
+      "marta@ejemplo.test",
+    ]);
+    expect(
+      cola.every(
+        (x) => x.lote === "Lote de prueba" && x.cuerpo.includes("Alfonso"),
+      ),
+    ).toBe(true);
+    // Una segunda vez con la misma plantilla ya no repite
+    expect(
+      (await prepararLote(db, ana, { ...base, modo: "previsualizar" }))
+        .excluidos.yaEnviado,
+    ).toBe(2);
+
+    // Sale uno tras otro, respetando la pausa; el segundo ya ha comprado y se cancela sin enviar
+    const t0 = Date.now();
+    expect(await procesarCola(db, t0)).toBe(true);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0].bcc).toEqual([]);
+    expect(await procesarCola(db, t0 + 5_000)).toBe(false);
+    const [segundo] = await listarCorreos(db, ana, { estados: ["programado"] });
+    const [clL] = await db
+      .insert(clientes)
+      .values({ clienteId: "y", nombre: "Alguien Distinto" })
+      .returning();
+    await db
+      .insert(emailsClientes)
+      .values({ idCliente: clL.id, email: segundo.para });
+    await db
+      .insert(expedientes)
+      .values({ idUsuario: ana.idUsuario, idCliente: clL.id });
+    expect(await procesarCola(db, t0 + 60_000)).toBe(true);
+    expect(enviados).toHaveLength(1);
+    const cancelado = (
+      await listarCorreos(db, ana, { estados: ["cancelado"] })
+    )[0];
+    expect(cancelado.error).toMatch(/ya ha comprado/);
   });
 });

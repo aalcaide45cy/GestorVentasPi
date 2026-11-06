@@ -592,3 +592,74 @@ export async function resumenPotenciales(
   }
   return r;
 }
+
+/* ------------------------------ Campos para las plantillas de correo ------------------------------ */
+
+const bonito = (t: string): string =>
+  t
+    ? t
+        .toLowerCase()
+        .replace(
+          /(^|\s)(\p{L})/gu,
+          (_m, a: string, b: string) => `${a}${b.toUpperCase()}`,
+        )
+    : "";
+const euros = (c: number | null): string =>
+  c === null
+    ? ""
+    : `${(c / 100).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const fechaCorta = (f: string | null): string =>
+  f ? f.split("-").reverse().join("/") : "";
+/** La frase que invita a darse de baja: la app la detecta al leer las respuestas. */
+export const FRASE_BAJA =
+  "Si no quieres recibir más mensajes, responde a este correo con la palabra BAJA.";
+
+/** Los campos de plantilla de un cliente potencial y de su presupuesto (el que se indique o el último). */
+export async function datosDePotencial(
+  ej: Ejecutor,
+  idPotencial: number,
+  idPresupuesto?: number | null,
+): Promise<{
+  datos: Record<string, string>;
+  email: string;
+  estado: EstadoPotencial;
+  idPresupuesto: number | null;
+  nombre: string;
+}> {
+  const [p] = await ej
+    .select()
+    .from(potenciales)
+    .where(eq(potenciales.id, idPotencial));
+  if (!p) throw new HttpError(404, "Cliente potencial no encontrado");
+  const ps = await ej
+    .select()
+    .from(presupuestos)
+    .where(eq(presupuestos.idPotencial, idPotencial))
+    .orderBy(desc(presupuestos.fecha), desc(presupuestos.id));
+  const pr =
+    (idPresupuesto ? ps.find((x) => x.id === idPresupuesto) : null) ??
+    ps[0] ??
+    null;
+  const pila = bonito(p.nombre.split(/\s+/)[0] ?? "");
+  return {
+    email: p.email,
+    estado: p.estado as EstadoPotencial,
+    idPresupuesto: pr?.id ?? null,
+    nombre: p.nombre,
+    datos: {
+      cliente_potencial: p.nombre,
+      nombre_pila: pila,
+      cliente: p.nombre,
+      email_cliente: p.email,
+      telefono_cliente: p.telefono,
+      marca_presupuesto: pr?.marca ?? "",
+      modelo_presupuesto: pr?.modelo ?? "",
+      color_presupuesto: pr?.color ?? "",
+      fecha_presupuesto: fechaCorta(pr?.fecha ?? null),
+      numero_presupuesto: pr?.numero ?? "",
+      total_presupuesto: euros(pr?.totalCentimos ?? null),
+      vendedor: pr?.vendedor ?? "",
+      baja: FRASE_BAJA,
+    },
+  };
+}
