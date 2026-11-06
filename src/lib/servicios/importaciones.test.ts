@@ -34,21 +34,17 @@ describe("importación CSV de expedientes", () => {
         sistemaComisiones: true,
       })
       .returning();
-    await db
-      .insert(modelos)
-      .values({
-        marcaId: marca.idMarca,
-        nombreModelo: "Clio",
-        accesoRapido: true,
-        ordenAccesoRapido: 1,
-      });
-    await db
-      .insert(tipoDeVenta)
-      .values({
-        nombreTipoVenta: "Financiación Crédito",
-        color: "#123456",
-        categoria: "CREDITO",
-      });
+    await db.insert(modelos).values({
+      marcaId: marca.idMarca,
+      nombreModelo: "Clio",
+      accesoRapido: true,
+      ordenAccesoRapido: 1,
+    });
+    await db.insert(tipoDeVenta).values({
+      nombreTipoVenta: "Financiación Crédito",
+      color: "#123456",
+      categoria: "CREDITO",
+    });
     await db
       .insert(estadoVehiculo)
       .values({ nombreEstadoVehiculo: "KM0", clase: "VO", subtipoVo: "KM0" });

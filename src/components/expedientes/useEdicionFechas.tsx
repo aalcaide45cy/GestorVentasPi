@@ -8,6 +8,7 @@ import type { ExpedienteDto } from "@/lib/dto";
 import { hoyIsoCliente } from "@/lib/date-utils";
 import VisorAdjuntos from "@/components/documentos/VisorAdjuntos";
 import FechaRapida from "@/components/FechaRapida";
+import SelectorHora from "@/components/SelectorHora";
 import { mensajeDeError, type CampoFecha } from "./comun";
 
 interface Pendiente {
@@ -196,13 +197,7 @@ export function useEdicionFechas(
               <label className="form-label">
                 Hora de la entrega (opcional)
               </label>
-              <input
-                type="time"
-                className="form-input"
-                value={hora}
-                onChange={(e) => setHora(e.target.value)}
-                style={{ maxWidth: "160px" }}
-              />
+              <SelectorHora valor={hora} alCambiar={setHora} />
             </div>
           )}
           {editando.campo === "fecha_afectacion" && (

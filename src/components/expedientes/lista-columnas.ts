@@ -22,6 +22,7 @@ export interface ActualizacionExcel {
   f_exp: string | null;
   telefono: string;
   f_entrega: string | null;
+  h_entrega?: string | null;
 }
 
 export type Columna =
@@ -68,16 +69,106 @@ export const COLUMNAS: { clave: Columna; etiqueta: string }[] = [
 ];
 
 export type Visibles = Record<Columna, boolean>;
-const TODAS: Visibles = Object.fromEntries(COLUMNAS.map((c) => [c.clave, true])) as Visibles;
+const TODAS: Visibles = Object.fromEntries(
+  COLUMNAS.map((c) => [c.clave, true]),
+) as Visibles;
 /** Por defecto «Marca» y «Modelo» van por separado; la columna unificada «Marca y modelo» se activa desde «Columnas». */
-export const POR_DEFECTO: Visibles = { ...TODAS, marca_modelo: false, estado_intranet: false, cobro: false };
+export const POR_DEFECTO: Visibles = {
+  ...TODAS,
+  marca_modelo: false,
+  estado_intranet: false,
+  cobro: false,
+};
 export const ORDEN_POR_DEFECTO: Columna[] = COLUMNAS.map((c) => c.clave);
-const solo = (claves: Columna[]): Visibles => Object.fromEntries(COLUMNAS.map((c) => [c.clave, claves.includes(c.clave)])) as Visibles;
-export const VISTAS_INCLUIDAS: { id: string; nombre: string; ayuda: string; config: ConfigColumnas }[] = [
-  { id: "compacta", nombre: "Compacta", ayuda: "Cliente, marca y modelo juntos, tipo de venta, estado, vendedor y fecha de expediente.", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "clase", "marca_modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente"]) } },
-  { id: "fechas", nombre: "Seguimiento de fechas", ayuda: "Cliente, vehículo, vendedor y todas las fechas (expediente, afectación, RCI, matriculación, facturación, entrega).", config: { orden: ORDEN_POR_DEFECTO, visibles: solo(["cliente", "marca_modelo", "vendedor", "fecha_expediente", "fecha_afectacion", "fecha_rci", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega"]) } },
-  { id: "contacto", nombre: "Contacto", ayuda: "Cliente, teléfono, email, vehículo y vendedor para llamar o escribir.", config: { orden: ["cliente", "telefono", "email", "marca_modelo", "vendedor", ...ORDEN_POR_DEFECTO.filter((c) => !["cliente", "telefono", "email", "marca_modelo", "vendedor"].includes(c))], visibles: solo(["cliente", "telefono", "email", "marca_modelo", "vendedor"]) } },
-  { id: "todas", nombre: "Todas las columnas", ayuda: "Todas las columnas, con marca y modelo por separado.", config: { orden: ORDEN_POR_DEFECTO, visibles: { ...TODAS, marca_modelo: false } } },
+const solo = (claves: Columna[]): Visibles =>
+  Object.fromEntries(
+    COLUMNAS.map((c) => [c.clave, claves.includes(c.clave)]),
+  ) as Visibles;
+export const VISTAS_INCLUIDAS: {
+  id: string;
+  nombre: string;
+  ayuda: string;
+  config: ConfigColumnas;
+}[] = [
+  {
+    id: "compacta",
+    nombre: "Compacta",
+    ayuda:
+      "Cliente, marca y modelo juntos, tipo de venta, estado, vendedor y fecha de expediente.",
+    config: {
+      orden: ORDEN_POR_DEFECTO,
+      visibles: solo([
+        "cliente",
+        "clase",
+        "marca_modelo",
+        "tipo_venta",
+        "estado",
+        "vendedor",
+        "fecha_expediente",
+      ]),
+    },
+  },
+  {
+    id: "fechas",
+    nombre: "Seguimiento de fechas",
+    ayuda:
+      "Cliente, vehículo, vendedor y todas las fechas (expediente, afectación, RCI, matriculación, facturación, entrega).",
+    config: {
+      orden: ORDEN_POR_DEFECTO,
+      visibles: solo([
+        "cliente",
+        "marca_modelo",
+        "vendedor",
+        "fecha_expediente",
+        "fecha_afectacion",
+        "fecha_rci",
+        "fecha_matriculacion",
+        "fecha_facturacion",
+        "fecha_entrega",
+      ]),
+    },
+  },
+  {
+    id: "contacto",
+    nombre: "Contacto",
+    ayuda:
+      "Cliente, teléfono, email, vehículo y vendedor para llamar o escribir.",
+    config: {
+      orden: [
+        "cliente",
+        "telefono",
+        "email",
+        "marca_modelo",
+        "vendedor",
+        ...ORDEN_POR_DEFECTO.filter(
+          (c) =>
+            ![
+              "cliente",
+              "telefono",
+              "email",
+              "marca_modelo",
+              "vendedor",
+            ].includes(c),
+        ),
+      ],
+      visibles: solo([
+        "cliente",
+        "telefono",
+        "email",
+        "marca_modelo",
+        "vendedor",
+      ]),
+    },
+  },
+  {
+    id: "todas",
+    nombre: "Todas las columnas",
+    ayuda: "Todas las columnas, con marca y modelo por separado.",
+    config: {
+      orden: ORDEN_POR_DEFECTO,
+      visibles: { ...TODAS, marca_modelo: false },
+    },
+  },
 ];
 
 /** Ancho fijo de cada columna (px): la tabla no cambia de tamaño al ocultar entregados, filtrar u ordenar. */
@@ -108,11 +199,20 @@ export function marcaYModelo(e: ExpedienteDto): string {
   const modelo = e.modelo?.nombre_modelo?.trim() ?? "";
   if (!marca) return modelo;
   if (!modelo) return marca;
-  const sinAcentos = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  return sinAcentos(modelo).startsWith(sinAcentos(marca)) ? modelo : `${marca} ${modelo}`;
+  const sinAcentos = (t: string) =>
+    t
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  return sinAcentos(modelo).startsWith(sinAcentos(marca))
+    ? modelo
+    : `${marca} ${modelo}`;
 }
 
-export const ENCABEZADOS: Record<Columna, { etiqueta: string; fondo?: string }> = {
+export const ENCABEZADOS: Record<
+  Columna,
+  { etiqueta: string; fondo?: string }
+> = {
   cliente: { etiqueta: "Cliente" },
   telefono: { etiqueta: "Teléfono" },
   email: { etiqueta: "Email" },
@@ -149,12 +249,17 @@ export const AYUDA_COLUMNA: Record<Columna, string> = {
   vendedor: "Comercial al que pertenece el expediente",
   fecha_expediente: "Fecha en que se hizo el pedido",
   fecha_afectacion: "Fecha de afectación del vehículo al pedido",
-  fecha_rci: "Fecha de contratación de la financiación (la fecha de pago de la financiera)",
-  fecha_matriculacion: "Fecha de matriculación (en un VN cuenta para comisionar)",
-  fecha_facturacion: "Fecha de facturación (en un VN y un VO es la que cuenta para comisionar)",
+  fecha_rci:
+    "Fecha de contratación de la financiación (la fecha de pago de la financiera)",
+  fecha_matriculacion:
+    "Fecha de matriculación (en un VN cuenta para comisionar)",
+  fecha_facturacion:
+    "Fecha de facturación (en un VN y un VO es la que cuenta para comisionar)",
   fecha_entrega: "Fecha de entrega al cliente",
-  estado_intranet: "Estado en la intranet del fabricante (Archivado, Anulado…), importado de sus listados",
-  cobro: "Si la comisión del coche ya aparece como pagada en el Cotejo de pagos",
+  estado_intranet:
+    "Estado en la intranet del fabricante (Archivado, Anulado…), importado de sus listados",
+  cobro:
+    "Si la comisión del coche ya aparece como pagada en el Cotejo de pagos",
 };
 
 export const ANCHO_SELECCION = 40;
@@ -171,8 +276,16 @@ export const FECHAS_FILTRO: { valor: string; etiqueta: string }[] = [
   { valor: "fecha_comisionado", etiqueta: "Fecha Comisionado" },
 ];
 
-export const etiquetaFiltro: CSSProperties = { fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" };
-export const botonHerramienta = (activo: boolean, fondoActivo: string, colorActivo: string): CSSProperties => ({
+export const etiquetaFiltro: CSSProperties = {
+  fontSize: "0.75rem",
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
+};
+export const botonHerramienta = (
+  activo: boolean,
+  fondoActivo: string,
+  colorActivo: string,
+): CSSProperties => ({
   padding: "5px 10px",
   fontSize: "0.8rem",
   cursor: "pointer",
@@ -185,7 +298,11 @@ export const botonHerramienta = (activo: boolean, fondoActivo: string, colorActi
   borderRadius: "var(--radius-sm)",
   fontWeight: 600,
 });
-export const botonMes: CSSProperties = { padding: "3px 8px", fontSize: "0.75rem", fontWeight: 600 };
+export const botonMes: CSSProperties = {
+  padding: "3px 8px",
+  fontSize: "0.75rem",
+  fontWeight: 600,
+};
 export const cajaMes: CSSProperties = {
   padding: "4px 10px",
   border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -196,12 +313,20 @@ export const cajaMes: CSSProperties = {
   gap: "8px",
   width: "fit-content",
 };
-export const textoCaja: CSSProperties = { fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-light, #60a5fa)", textTransform: "uppercase", letterSpacing: "0.5px" };
-
+export const textoCaja: CSSProperties = {
+  fontSize: "0.75rem",
+  fontWeight: 700,
+  color: "var(--primary-light, #60a5fa)",
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
+};
 
 export const hoyIsoLocal = () => new Date().toISOString().split("T")[0];
 
-export function leerArchivo<T extends string | ArrayBuffer>(archivo: File, como: "texto" | "binario"): Promise<T> {
+export function leerArchivo<T extends string | ArrayBuffer>(
+  archivo: File,
+  como: "texto" | "binario",
+): Promise<T> {
   return new Promise((resolver, rechazar) => {
     const lector = new FileReader();
     lector.onload = () => resolver(lector.result as T);
@@ -211,7 +336,11 @@ export function leerArchivo<T extends string | ArrayBuffer>(archivo: File, como:
   });
 }
 
-export function aActualizacion(fila: FilaExcel, idCliente: number, idExpediente: number): ActualizacionExcel {
+export function aActualizacion(
+  fila: FilaExcel,
+  idCliente: number,
+  idExpediente: number,
+): ActualizacionExcel {
   return {
     rowIdx: fila.rowIdx,
     id_cliente: idCliente,
@@ -225,5 +354,6 @@ export function aActualizacion(fila: FilaExcel, idCliente: number, idExpediente:
     f_exp: fila.f_exp,
     telefono: fila.telefono,
     f_entrega: fila.f_entrega,
+    h_entrega: fila.h_entrega,
   };
 }

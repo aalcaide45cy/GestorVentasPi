@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { limpiarMatricula, limpiarTelefono, parseFechaFlexible } from "./fechas-import";
+import {
+  limpiarMatricula,
+  limpiarTelefono,
+  parseFechaFlexible,
+  parseHoraFlexible,
+} from "./fechas-import";
 
 describe("parseFechaFlexible (10.4)", () => {
   it("acepta DD/MM/AAAA, DD-MM-AAAA y AAAA-MM-DD", () => {
@@ -31,5 +36,21 @@ describe("limpieza de datos importados", () => {
   it("descarta lo que sigue a un paréntesis en la matrícula", () => {
     expect(limpiarMatricula("1234ABC (baja)")).toBe("1234ABC");
     expect(limpiarMatricula(null)).toBe("");
+  });
+});
+
+describe("parseHoraFlexible", () => {
+  it("saca la hora de un número de serie de Excel, de un Date y de un texto; sin hora (o medianoche) es null", () => {
+    expect(parseHoraFlexible(46332.4375)).toBe("10:30");
+    expect(parseHoraFlexible(46332)).toBeNull();
+    expect(parseHoraFlexible(new Date(Date.UTC(2026, 10, 5, 9, 5)))).toBe(
+      "09:05",
+    );
+    expect(parseHoraFlexible("05/11/2026 10:30")).toBe("10:30");
+    expect(parseHoraFlexible("2026-11-05T16:45:00")).toBe("16:45");
+    expect(parseHoraFlexible("05/11/2026 4:15 pm")).toBe("16:15");
+    expect(parseHoraFlexible("05/11/2026")).toBeNull();
+    expect(parseHoraFlexible("05/11/2026 00:00")).toBeNull();
+    expect(parseHoraFlexible("")).toBeNull();
   });
 });

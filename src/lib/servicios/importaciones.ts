@@ -21,6 +21,7 @@ import {
   limpiarMatricula,
   limpiarTelefono,
   parseFechaFlexible,
+  parseHoraFlexible,
 } from "@/lib/fechas-import";
 import { aDto, relacionesExpediente } from "./expedientes";
 import { aplicarReglasSemaforo } from "./reglas-semaforo";
@@ -99,6 +100,11 @@ export const esquemaProcesarExcel = z.object({
         f_exp: fechaExcel,
         telefono: z.union([z.string(), z.number()]).nullable().optional(),
         f_entrega: fechaExcel,
+        h_entrega: z
+          .string()
+          .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+          .nullable()
+          .optional(),
       }),
     )
     .max(20000),
@@ -233,15 +239,13 @@ async function resolverCliente(
       .where(eq(telefonosClientes.idCliente, idCliente));
     const lista = pares(item.cliente_telefonos);
     if (lista.length > 0) {
-      await ej
-        .insert(telefonosClientes)
-        .values(
-          lista.map((p) => ({
-            idCliente,
-            telefono: p.valor,
-            tipoTelefono: p.tipo,
-          })),
-        );
+      await ej.insert(telefonosClientes).values(
+        lista.map((p) => ({
+          idCliente,
+          telefono: p.valor,
+          tipoTelefono: p.tipo,
+        })),
+      );
     }
   }
   return idCliente;
@@ -424,6 +428,9 @@ export async function importarExpedientesCsv(
               fechaAfectacion: parseFechaFlexible(item.fecha_afectacion),
               fechaMatriculacion: parseFechaFlexible(item.fecha_matriculacion),
               fechaEntrega: parseFechaFlexible(item.fecha_entrega),
+              horaEntrega: parseFechaFlexible(item.fecha_entrega)
+                ? parseHoraFlexible(item.fecha_entrega)
+                : null,
               fechaRci: parseFechaFlexible(item.fecha_rci),
               matricula: matricula || null,
               vin: vin || null,
@@ -769,6 +776,17 @@ export async function procesarActualizacionesExcel(
           anotar(etiqueta, actual, nueva);
         }
       }
+      // La hora de la entrega, si la celda del Excel la trae (con la fecha de entrega que quede)
+      const horaActual =
+        "horaEntrega" in cambiosExp ? cambiosExp.horaEntrega : exp.horaEntrega;
+      if (
+        u.h_entrega &&
+        (cambiosExp.fechaEntrega ?? exp.fechaEntrega) &&
+        u.h_entrega !== horaActual
+      ) {
+        cambiosExp.horaEntrega = u.h_entrega;
+        anotar("Hora de entrega", exp.horaEntrega, u.h_entrega);
+      }
 
       if (Object.keys(cambios).length === 0) {
         omitidos++;
@@ -926,15 +944,13 @@ export async function importarClientesCsv(
           .where(eq(emailsClientes.idCliente, idCliente));
         const lista = pares(limpio(item.emails));
         if (lista.length > 0)
-          await tx
-            .insert(emailsClientes)
-            .values(
-              lista.map((p) => ({
-                idCliente,
-                email: p.valor,
-                tipoEmail: p.tipo,
-              })),
-            );
+          await tx.insert(emailsClientes).values(
+            lista.map((p) => ({
+              idCliente,
+              email: p.valor,
+              tipoEmail: p.tipo,
+            })),
+          );
       }
       if (limpio(item.telefonos)) {
         await tx
@@ -942,15 +958,13 @@ export async function importarClientesCsv(
           .where(eq(telefonosClientes.idCliente, idCliente));
         const lista = pares(limpio(item.telefonos));
         if (lista.length > 0)
-          await tx
-            .insert(telefonosClientes)
-            .values(
-              lista.map((p) => ({
-                idCliente,
-                telefono: p.valor,
-                tipoTelefono: p.tipo,
-              })),
-            );
+          await tx.insert(telefonosClientes).values(
+            lista.map((p) => ({
+              idCliente,
+              telefono: p.valor,
+              tipoTelefono: p.tipo,
+            })),
+          );
       }
     }
     return {

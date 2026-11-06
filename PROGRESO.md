@@ -621,6 +621,11 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Versión 1.63.0 (06/11/2026)
+- **Hora de la entrega más fácil** en «Establecer fecha de Entrega» (`SelectorHora`): botones rápidos 09:00, 10:00, 11:00, 12:00, 13:00, 16:00, 17:00, 18:00 y «Sin hora», flechas ← → para la hora (de 1 en 1) y los minutos (de 15 en 15) y el campo para escribirla.
+- **Excel con hora**: si la celda de la fecha de entrega trae fecha y hora (número de Excel, texto «05/11/2026 10:30» o ISO), se guarda también la hora (`parseHoraFlexible`; también al crear por CSV). Solo con fecha se rellena la fecha como siempre; si el día cambia y no hay hora, se quita la antigua.
+- Mejoras de 1.62.x: sobre en la fecha del pedido, plantillas con cuenta, CC/CCO, firma opcional y los datos de la plantilla ya se guardan bien.
+
 ## Versión 1.61.0 (05/11/2026)
 - **CC y CCO** en las plantillas y en cada correo (`cc`, `cco` en `correo_plantillas` y `correo_cola`, migración 0081); admiten varias direcciones y campos como `{email_cliente}`; se usan al enviar. La firma de la cuenta es opcional por plantilla (1.60.1).
 - **Clientes que no quieren correos**: su dirección no se pone nunca (ni en Para, ni en CC/CCO con `{email_cliente}`); el correo queda en la cola con el aviso, sale una notificación en las alertas y hay un botón «Enviar al cliente igualmente» (en la cola y en la ventana del correo) que pone su dirección para que se envíe a mano.
