@@ -28,6 +28,7 @@ import {
 } from "@/lib/documentos/presupuesto";
 import { guardarAdjunto } from "./adjuntos";
 import { leerCatalogos } from "./catalogos";
+import { respuestasDe, type RespuestaDto } from "./correo-respuestas";
 import { textoDeDocumento } from "./ocr";
 
 /**
@@ -73,6 +74,8 @@ export interface PotencialDto {
   /** El último presupuesto (para enseñarlo en la lista). */
   ultimo: PresupuestoDto | null;
   presupuestos: PresupuestoDto[];
+  /** Lo que ha contestado por correo (solo en la ficha). */
+  respuestas?: RespuestaDto[];
 }
 
 /* ------------------------------ Utilidades ------------------------------ */
@@ -519,7 +522,8 @@ export async function leerPotencial(
   u: UsuarioActual,
   id: number,
 ): Promise<PotencialDto> {
-  return (await aDtos(ej, [await potencialAccesible(ej, u, id)]))[0];
+  const [d] = await aDtos(ej, [await potencialAccesible(ej, u, id)]);
+  return { ...d, respuestas: await respuestasDe(ej, id) };
 }
 
 export interface CambioPotencial {

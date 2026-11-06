@@ -20,6 +20,9 @@ interface Borrador {
   firma: string;
   limite_diario: number;
   activa: boolean;
+  leer_respuestas: boolean;
+  imap_host: string;
+  imap_puerto: number;
   con_password: boolean;
 }
 /** Las firmas antiguas eran texto plano: se pasan a párrafos para el editor. */
@@ -44,6 +47,9 @@ const nueva = (): Borrador => ({
   firma: "",
   limite_diario: 200,
   activa: true,
+  leer_respuestas: false,
+  imap_host: "",
+  imap_puerto: 993,
   con_password: false,
 });
 
@@ -58,10 +64,45 @@ export default function PanelCuentas() {
       .then((r) => setCuentas(r.data))
       .catch((e: unknown) => mostrar(textoError(e), "error"));
   }, [mostrar]);
+  const [revision, setRevision] = useState<
+    Record<number, { ultima: string | null; error: string | null }>
+  >({});
+  const cargarRevision = useCallback(() => {
+    llamar<Record<number, { ultima: string | null; error: string | null }>>(
+      "/api/correo/respuestas",
+    )
+      .then((x) => setRevision(x.data))
+      .catch(() => undefined);
+  }, []);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     cargar();
-  }, [cargar]);
+    cargarRevision();
+  }, [cargar, cargarRevision]);
+  const revisarAhora = async () => {
+    setOcupado(true);
+    try {
+      const x = await llamar<{
+        cuentas: number;
+        mensajes: number;
+        bajas: number;
+        respuestas: number;
+        errores: string[];
+      }>("/api/correo/respuestas", { method: "POST", cuerpo: {} });
+      if (x.data.errores.length > 0) mostrar(x.data.errores[0], "error", 9000);
+      else
+        mostrar(
+          x.data.cuentas === 0
+            ? "No hay cuentas con la lectura de respuestas activada, o todavía no has escrito a ningún cliente potencial."
+            : `Buzón revisado: ${x.data.mensajes} respuestas nuevas, ${x.data.bajas} bajas.`,
+        );
+      cargarRevision();
+    } catch (e) {
+      mostrar(textoError(e), "error", 9000);
+    } finally {
+      setOcupado(false);
+    }
+  };
 
   const guardar = async () => {
     if (!b) return;
@@ -165,6 +206,23 @@ export default function PanelCuentas() {
               {c.limite_diario > 0 ? ` de ${c.limite_diario}` : ""} correos
               {c.activa ? "" : " · desactivada"}
             </div>
+            {c.leer_respuestas && (
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  color: revision[c.id]?.error
+                    ? "var(--danger)"
+                    : "var(--text-muted)",
+                }}
+              >
+                👁️ Lee las respuestas de potenciales (solo lectura)
+                {revision[c.id]?.error
+                  ? ` · ⚠️ ${revision[c.id].error}`
+                  : revision[c.id]?.ultima
+                    ? ` · revisado a las ${new Date(revision[c.id].ultima as string).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`
+                    : " · todavía sin revisar"}
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -175,6 +233,18 @@ export default function PanelCuentas() {
           >
             ✉️ Enviar prueba
           </button>
+          {c.leer_respuestas && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={ocupado}
+              onClick={() => void revisarAhora()}
+              title="Mira ahora si ha llegado alguna respuesta (solo lectura)"
+              style={{ padding: "3px 10px", fontSize: "0.82rem" }}
+            >
+              👁️ Revisar respuestas
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-secondary"
@@ -376,6 +446,84 @@ export default function PanelCuentas() {
               el formato, los colores, los enlaces, las tablas y las imágenes.
               También puedes subir una imagen o poner su dirección web.
             </span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              padding: "8px 10px",
+              border: "1px solid var(--border-light)",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            <label
+              style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}
+            >
+              <input
+                type="checkbox"
+                checked={b.leer_respuestas}
+                onChange={(e) =>
+                  setB({ ...b, leer_respuestas: e.target.checked })
+                }
+              />
+              <span>
+                <strong>Leer las respuestas de los clientes potenciales</strong>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: "0.78rem",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  Solo lectura y solo de las personas a las que escribes desde
+                  Potenciales: si alguien responde «BAJA», se le da de baja; lo
+                  demás se guarda en su ficha y te avisa. No se abre nada más de
+                  tu buzón. En Gmail tiene que estar activado IMAP (Ajustes →
+                  Reenvío y correo POP/IMAP) y se usa la misma contraseña de
+                  aplicación.
+                </span>
+              </span>
+            </label>
+            {b.leer_respuestas && (b.proveedor === "otro" || b.imap_host) && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                    flex: 1,
+                    minWidth: "200px",
+                  }}
+                >
+                  Servidor de entrada (IMAP)
+                  <input
+                    className="form-input"
+                    value={b.imap_host}
+                    onChange={(e) => setB({ ...b, imap_host: e.target.value })}
+                    placeholder="imap.tuproveedor.com (vacío = el habitual)"
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                    width: "100px",
+                  }}
+                >
+                  Puerto
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={b.imap_puerto}
+                    onChange={(e) =>
+                      setB({ ...b, imap_puerto: Number(e.target.value) || 993 })
+                    }
+                  />
+                </label>
+              </div>
+            )}
           </div>
           <div
             style={{

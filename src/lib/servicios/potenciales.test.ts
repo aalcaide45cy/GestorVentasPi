@@ -21,6 +21,14 @@ import {
 } from "./correo";
 import { prepararLote } from "./potenciales-envios";
 import {
+  revisarRespuestas,
+  respuestasDe,
+  type FabricaBuzon,
+  type MensajeEntrante,
+} from "./correo-respuestas";
+import { enviarCorreo } from "./correo";
+import { misAlertas } from "./alertas";
+import {
   cambiarPotencial,
   claveNombre,
   cotejarPotenciales,
@@ -446,5 +454,146 @@ describe("clientes potenciales", () => {
       await listarCorreos(db, ana, { estados: ["cancelado"] })
     )[0];
     expect(cancelado.error).toMatch(/ya ha comprado/);
+  });
+
+  it("lee las respuestas de quien ha recibido un correo: «BAJA» lo da de baja y cancela lo pendiente, lo demás se guarda y avisa, y no se procesa dos veces", async () => {
+    fijarTransporteDePrueba(() => ({ sendMail: (async () => ({})) as never }));
+    const ana = await crearUsuarioPrueba("vendedor", "Ana");
+    const cuenta = await guardarCuenta(
+      db,
+      ana,
+      null,
+      esquemaCuenta.parse({
+        nombre: "Mi cuenta",
+        email: "yo@ejemplo.test",
+        proveedor: "otro",
+        host: "smtp.ejemplo.test",
+        puerto: 587,
+        seguro: false,
+        usuario_smtp: "yo",
+        password: "x",
+        leer_respuestas: true,
+      }),
+    );
+    const plantilla = await guardarPlantilla(db, ana, null, {
+      nombre: "Promo",
+      asunto: "Hola",
+      cuerpo: "<p>Hola {nombre_pila}. {baja}</p>",
+    });
+    const a = await registrarPresupuesto(
+      db,
+      ana,
+      "a.png",
+      PNG,
+      presupuesto({
+        numero: "9001-00",
+        cliente: "Marta Lopez Sanz",
+        email: "marta@ejemplo.test",
+        telefono: "600000001",
+      }),
+    );
+    const b = await registrarPresupuesto(
+      db,
+      ana,
+      "b.png",
+      PNG,
+      presupuesto({
+        numero: "9002-00",
+        cliente: "Luis Gil Soto",
+        email: "luis@ejemplo.test",
+        telefono: "600000002",
+        codigoPostal: "28002",
+      }),
+    );
+    await prepararLote(db, ana, {
+      todos: true,
+      id_plantilla: plantilla.id,
+      id_cuenta: cuenta.id,
+      espera: 20,
+      modo: "borradores",
+      lote: "L",
+    });
+    // Se envía solo el de Marta; el de Luis queda pendiente en la cola
+    const cola = await listarCorreos(db, ana, { estados: ["borrador"] });
+    await enviarCorreo(
+      db,
+      ana,
+      cola.find((x) => x.para === "marta@ejemplo.test")!.id,
+    );
+
+    const mensajes: MensajeEntrante[] = [
+      {
+        messageId: "<1@x>",
+        de: "marta@ejemplo.test",
+        asunto: "Re: Hola",
+        fecha: new Date(),
+        texto:
+          "BAJA\n\nEl vie, 6 nov, Ana escribió:\n> Hola Marta. Si no quieres recibir más mensajes, responde con la palabra BAJA.",
+      },
+      {
+        messageId: "<2@x>",
+        de: "luis@ejemplo.test",
+        asunto: "Re: Hola",
+        fecha: new Date(),
+        texto: "Me interesa, llámame mañana por favor",
+      },
+      {
+        messageId: "<3@x>",
+        de: "otro@ejemplo.test",
+        asunto: "Spam",
+        fecha: new Date(),
+        texto: "BAJA",
+      },
+    ];
+    const pedidas: string[][] = [];
+    const fabrica: FabricaBuzon = async () => ({
+      mensajes: async (_d, dirs) => {
+        pedidas.push([...dirs].sort());
+        return mensajes.filter((m) => dirs.has(m.de));
+      },
+      cerrar: async () => undefined,
+    });
+    const r1 = await revisarRespuestas(db, { fabrica });
+    expect(pedidas[0]).toEqual(["marta@ejemplo.test"]);
+    expect(r1).toMatchObject({ cuentas: 1, bajas: 1, errores: [] });
+    expect((await leerPotencial(db, ana, a.potencial.id)).estado).toBe("baja");
+    expect((await respuestasDe(db, a.potencial.id))[0]).toMatchObject({
+      tipo: "baja",
+      extracto: "BAJA",
+    });
+    expect(
+      (await misAlertas(db, ana)).pendientes.some((x) =>
+        /ha pedido la baja/.test(x.mensaje),
+      ),
+    ).toBe(true);
+    // Segunda pasada con los mismos mensajes: no se repite nada
+    expect(await revisarRespuestas(db, { fabrica })).toMatchObject({
+      mensajes: 0,
+      bajas: 0,
+      respuestas: 0,
+    });
+    // Luis (que no ha recibido nada enviado) no se mira; si se le envía, su respuesta se guarda y avisa
+    await enviarCorreo(
+      db,
+      ana,
+      (await listarCorreos(db, ana, { estados: ["borrador"] })).find(
+        (x) => x.para === "luis@ejemplo.test",
+      )!.id,
+    );
+    const r3 = await revisarRespuestas(db, { fabrica });
+    expect(r3).toMatchObject({ respuestas: 1, bajas: 0 });
+    expect((await leerPotencial(db, ana, b.potencial.id)).estado).toBe(
+      "activo",
+    );
+    expect((await respuestasDe(db, b.potencial.id))[0]).toMatchObject({
+      tipo: "otra",
+      extracto: "Me interesa, llámame mañana por favor",
+    });
+    // Un fallo del buzón se anota sin romper nada
+    const caido: FabricaBuzon = async () => {
+      throw new Error("Invalid credentials");
+    };
+    const r4 = await revisarRespuestas(db, { fabrica: caido });
+    expect(r4.errores[0]).toMatch(/usuario o la contraseña/);
   });
 });

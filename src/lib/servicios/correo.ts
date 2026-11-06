@@ -125,6 +125,9 @@ const aCuenta = (
   firma: c.firma,
   limite_diario: c.limiteDiario,
   activa: c.activa,
+  leer_respuestas: c.leerRespuestas,
+  imap_host: c.imapHost,
+  imap_puerto: c.imapPuerto,
   enviados_hoy: hoy,
 });
 
@@ -176,6 +179,9 @@ export async function guardarCuenta(
     firma: e.firma,
     limiteDiario: e.limite_diario,
     activa: e.activa,
+    leerRespuestas: e.leer_respuestas,
+    imapHost: e.imap_host,
+    imapPuerto: e.imap_puerto,
   };
   if (id === null) {
     if (!e.password) throw new HttpError(400, "Falta la contraseña");

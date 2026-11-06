@@ -49,6 +49,10 @@ export const esquemaCuenta = z.object({
   firma: z.string().max(3_000_000).default(""),
   limite_diario: z.number().int().min(0).max(100000).default(200),
   activa: z.boolean().default(true),
+  /** Leer las respuestas de los clientes potenciales en el buzón (solo lectura). */
+  leer_respuestas: z.boolean().default(false),
+  imap_host: z.string().trim().max(255).default(""),
+  imap_puerto: z.number().int().min(1).max(65535).default(993),
 });
 export type EntradaCuenta = z.infer<typeof esquemaCuenta>;
 
@@ -67,6 +71,9 @@ export interface CuentaDto {
   firma: string;
   limite_diario: number;
   activa: boolean;
+  leer_respuestas: boolean;
+  imap_host: string;
+  imap_puerto: number;
   /** Correos enviados hoy desde esta cuenta. */
   enviados_hoy: number;
 }

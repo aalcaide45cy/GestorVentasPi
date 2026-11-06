@@ -1541,6 +1541,11 @@ export const correoCuentas = pgTable("correo_cuentas", {
   /** Máximo de correos al día por esta cuenta (0 = sin límite). */
   limiteDiario: integer("limite_diario").notNull().default(200),
   activa: boolean("activa").notNull().default(true),
+  /** Leer en el buzón las respuestas de los clientes potenciales (para detectar quien pide la baja). Solo lee; apagado por defecto. */
+  leerRespuestas: boolean("leer_respuestas").notNull().default(false),
+  /** Servidor de entrada (IMAP); vacío = el de siempre de Gmail, IONOS u Outlook (o el de salida cambiando «smtp» por «imap»). */
+  imapHost: varchar("imap_host", { length: 255 }).notNull().default(""),
+  imapPuerto: integer("imap_puerto").notNull().default(993),
   creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -1668,4 +1673,25 @@ export const presupuestos = pgTable(
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("presupuestos_numero_uq").on(t.numero), index("presupuestos_potencial_idx").on(t.idPotencial)],
+);
+
+/** Respuestas de clientes potenciales leídas del buzón (solo las que contestan a un correo enviado por la app). */
+export const correoRespuestas = pgTable(
+  "correo_respuestas",
+  {
+    id: serial("id").primaryKey(),
+    idPotencial: integer("id_potencial").references(() => potenciales.id, { onDelete: "cascade" }),
+    idCuenta: integer("id_cuenta").references(() => correoCuentas.id, { onDelete: "set null" }),
+    /** Identificador del mensaje (para no procesar dos veces el mismo). */
+    messageId: varchar("message_id", { length: 400 }).notNull(),
+    de: varchar("de", { length: 255 }).notNull().default(""),
+    asunto: varchar("asunto", { length: 300 }).notNull().default(""),
+    fecha: timestamp("fecha", { withTimezone: true }),
+    /** Lo que ha escrito (sin el texto citado), recortado. */
+    extracto: text("extracto").notNull().default(""),
+    /** baja (pide la baja) u otra (cualquier otra cosa). */
+    tipo: varchar("tipo", { length: 8 }).notNull().default("otra"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("correo_respuestas_msg_uq").on(t.messageId), index("correo_respuestas_potencial_idx").on(t.idPotencial)],
 );

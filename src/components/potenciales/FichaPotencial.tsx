@@ -312,6 +312,37 @@ export default function FichaPotencial({
           </div>
         ))}
       </div>
+      {(p.respuestas?.length ?? 0) > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <strong style={{ fontSize: "0.9rem" }}>
+            Lo que ha contestado ({p.respuestas?.length})
+          </strong>
+          {p.respuestas?.map((x) => (
+            <div
+              key={x.id}
+              className="glass-panel"
+              style={{
+                padding: "6px 12px",
+                fontSize: "0.85rem",
+                borderLeft: `4px solid ${x.tipo === "baja" ? "var(--danger)" : "var(--primary)"}`,
+              }}
+            >
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                {x.fecha
+                  ? new Date(x.fecha).toLocaleString("es-ES", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : ""}{" "}
+                · {x.tipo === "baja" ? "pide la baja" : "respuesta"}
+              </div>
+              {x.extracto || "(sin texto)"}
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
         {p.estado !== "baja" ? (
           <button
