@@ -343,6 +343,41 @@ describe("completar datos desde un listado", () => {
     });
   });
 
+  it("un expediente que ya tenía fecha de entrega pero no hora recibe la hora del listado, sin tocar la fecha", async () => {
+    const { admin, exp } = await escenario();
+    await db
+      .update(expedientes)
+      .set({ fechaEntrega: "2026-11-12" })
+      .where(eq(expedientes.idExpediente, exp.idExpediente));
+    const r = await previsualizarCompletado(db, admin, [
+      fila({
+        bastidor: "UU1DJF00477657076",
+        fEntrega: "2026-11-12",
+        hEntrega: "16:00",
+      }),
+    ]);
+    const campos = r.filas[0].propuestas.map((p) => p.campo);
+    expect(campos).toContain("hora_entrega");
+    expect(campos).not.toContain("fecha_entrega");
+    await aplicarCompletado(db, admin, {
+      archivo: "h.xlsx",
+      cambios: [
+        {
+          id_expediente: exp.idExpediente,
+          campos: [{ campo: "hora_entrega", valor: "16:00" }],
+        },
+      ],
+    });
+    expect(
+      (
+        await db
+          .select()
+          .from(expedientes)
+          .where(eq(expedientes.idExpediente, exp.idExpediente))
+      )[0],
+    ).toMatchObject({ fechaEntrega: "2026-11-12", horaEntrega: "16:00" });
+  });
+
   it("guarda el estado de la intranet (Archivado, Anulado…) para poder filtrar y revisar a mano, y se deshace", async () => {
     const { admin, exp } = await escenario();
     const r = await previsualizarCompletado(db, admin, [
