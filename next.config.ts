@@ -48,7 +48,7 @@ const nextConfig: NextConfig = {
   // Acceso desde fuera (Tailscale Funnel / red Tailscale) con el servidor en desarrollo: sin esto Next bloquea el código de la página
   allowedDevOrigins: ["pcamd.tail047528.ts.net", "100.85.73.108"],
   // OCR de la rejilla (Tesseract en WebAssembly, lectura de PDF y lienzo nativo): se cargan desde node_modules en tiempo de ejecución
-  serverExternalPackages: ["tesseract.js", "pdfjs-dist", "@napi-rs/canvas", "onnxruntime-node", "onnxruntime-common"],
+  serverExternalPackages: ["imapflow", "mailparser", "tesseract.js", "pdfjs-dist", "@napi-rs/canvas", "onnxruntime-node", "onnxruntime-common"],
   outputFileTracingIncludes: {
     "/api/documentos/leer": [
       "./node_modules/tesseract.js/**/*",
