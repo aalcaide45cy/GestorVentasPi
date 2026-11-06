@@ -1,5 +1,9 @@
 import * as XLSX from "xlsx";
-import { limpiarTelefono, parseFechaFlexible } from "@/lib/fechas-import";
+import {
+  limpiarTelefono,
+  parseFechaFlexible,
+  parseHoraFlexible,
+} from "@/lib/fechas-import";
 import { normalizarMatricula } from "@/lib/identificadores";
 
 /**
@@ -27,6 +31,8 @@ export interface FilaListadoRenault {
   fAfectacion: string | null;
   fMatriculacion: string | null;
   fEntrega: string | null;
+  /** Hora de la entrega (HH:MM) si la celda «Entrega fijada» la trae. */
+  hEntrega: string | null;
   fFactura: string | null;
   email: string;
   telefono: string;
@@ -44,7 +50,13 @@ export interface ListadoLeido {
   columnasIgnoradas: string[];
 }
 
-const sinAcentos = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+const sinAcentos = (t: string): string =>
+  t
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** Nombres con los que puede venir cada dato; se prefiere el nombre exacto antes que el que lo contiene. */
 const SINONIMOS: Record<string, string[]> = {
@@ -59,55 +71,124 @@ const SINONIMOS: Record<string, string[]> = {
   matricula: ["matricula", "patente"],
   fCreado: ["f. creado", "fecha creado", "fecha creacion", "creado"],
   fAfectacion: ["f. afect", "f. afectacion", "fecha afectacion", "afectacion"],
-  fMatriculacion: ["fecha matriculacion", "f. matriculacion", "f. mat", "fecha de matriculacion"],
-  fEntrega: ["entrega fijada", "fecha entrega", "f. entrega", "fecha de entrega"],
-  fFactura: ["fecha factura", "f. factura", "fecha de factura", "fecha facturacion", "fra. prevista", "fra prevista", "fecha fra. prevista", "factura prevista"],
+  fMatriculacion: [
+    "fecha matriculacion",
+    "f. matriculacion",
+    "f. mat",
+    "fecha de matriculacion",
+  ],
+  fEntrega: [
+    "entrega fijada",
+    "fecha entrega",
+    "f. entrega",
+    "fecha de entrega",
+  ],
+  fFactura: [
+    "fecha factura",
+    "f. factura",
+    "fecha de factura",
+    "fecha facturacion",
+    "fra. prevista",
+    "fra prevista",
+    "fecha fra. prevista",
+    "factura prevista",
+  ],
   email: ["email cliente", "email", "correo cliente", "correo", "e-mail"],
   telefono: ["telefono", "movil", "tfno", "tel."],
 };
 
 /** Columnas que contienen el nombre de otra y no son la que se busca (p. ej. «Fecha mínima matriculación»). */
-const EXCLUIR: Record<string, string[]> = { fMatriculacion: ["minima"], fEntrega: ["prueba"], estado: ["estimated"], tipo: ["venta", "destino"], telefono: [] };
+const EXCLUIR: Record<string, string[]> = {
+  fMatriculacion: ["minima"],
+  fEntrega: ["prueba"],
+  estado: ["estimated"],
+  tipo: ["venta", "destino"],
+  telefono: [],
+};
 
-function buscarColumna(cabeceras: { original: string; norm: string }[], dato: string): string | null {
+function buscarColumna(
+  cabeceras: { original: string; norm: string }[],
+  dato: string,
+): string | null {
   const nombres = SINONIMOS[dato];
   const excluidas = EXCLUIR[dato] ?? [];
-  const valida = (c: { norm: string }) => !excluidas.some((x) => c.norm.includes(x));
+  const valida = (c: { norm: string }) =>
+    !excluidas.some((x) => c.norm.includes(x));
   // Se respeta el orden de preferencia de los nombres (p. ej. «Tipo» antes que «VN/VO»)
   for (const nombre of nombres) {
     const exacta = cabeceras.find((c) => c.norm === nombre && valida(c));
     if (exacta) return exacta.original;
   }
-  const parecida = cabeceras.find((c) => valida(c) && nombres.some((n) => n.length >= 5 && c.norm.includes(n)));
+  const parecida = cabeceras.find(
+    (c) =>
+      valida(c) && nombres.some((n) => n.length >= 5 && c.norm.includes(n)),
+  );
   return parecida?.original ?? null;
 }
 
 /** «3020NTH(15-10-2026)» → matrícula y fecha. */
-export function separarMatricula(valor: unknown): { matricula: string; fecha: string | null } {
+export function separarMatricula(valor: unknown): {
+  matricula: string;
+  fecha: string | null;
+} {
   const t = String(valor ?? "").trim();
   const m = t.match(/^([^(]*)\(\s*([^)]*)\)?\s*$/);
   if (!m) return { matricula: normalizarMatricula(t), fecha: null };
-  return { matricula: normalizarMatricula(m[1]), fecha: parseFechaFlexible(m[2]) };
+  return {
+    matricula: normalizarMatricula(m[1]),
+    fecha: parseFechaFlexible(m[2]),
+  };
 }
 
-const texto = (fila: Record<string, unknown>, columna: string | null): string => (columna ? String(fila[columna] ?? "").trim() : "");
+const texto = (
+  fila: Record<string, unknown>,
+  columna: string | null,
+): string => (columna ? String(fila[columna] ?? "").trim() : "");
 
 /** Convierte el contenido de un Excel o CSV (como `ArrayBuffer`) en un listado reconocido. Lanza un `Error` con un texto claro. */
-export function leerListadoRenault(datos: ArrayBuffer, nombre: string): ListadoLeido {
+export function leerListadoRenault(
+  datos: ArrayBuffer,
+  nombre: string,
+): ListadoLeido {
   const bytes = new Uint8Array(datos);
   const esCsv = /\.(csv|txt)$/i.test(nombre);
   // El CSV se lee como texto UTF-8 (con o sin BOM) para no estropear tildes ni eñes
-  const libro = esCsv ? XLSX.read(new TextDecoder("utf-8").decode(bytes).replace(/^﻿/, ""), { type: "string", raw: true }) : XLSX.read(bytes, { type: "array", cellDates: false });
+  const libro = esCsv
+    ? XLSX.read(new TextDecoder("utf-8").decode(bytes).replace(/^﻿/, ""), {
+        type: "string",
+        raw: true,
+      })
+    : XLSX.read(bytes, { type: "array", cellDates: false });
   const hoja = libro.Sheets[libro.SheetNames[0]];
-  const filas = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, { defval: "", raw: false, dateNF: "dd/mm/yyyy" });
+  const filas = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, {
+    defval: "",
+    raw: false,
+    dateNF: "dd/mm/yyyy",
+  });
   if (filas.length === 0) throw new Error(`«${nombre}» está vacío.`);
-  const cabeceras = Object.keys(filas[0]).map((original) => ({ original, norm: sinAcentos(original) }));
+  const cabeceras = Object.keys(filas[0]).map((original) => ({
+    original,
+    norm: sinAcentos(original),
+  }));
 
-  const col = Object.fromEntries(Object.keys(SINONIMOS).map((d) => [d, buscarColumna(cabeceras, d)])) as Record<string, string | null>;
-  const usadas = new Set(Object.values(col).filter((c): c is string => c !== null));
-  const llamadas = cabeceras.some((c) => c.norm.includes("fecha encuesta") || c.norm.includes("llamada"));
-  const tipo: TipoListado = llamadas ? "llamadas_calidad" : col.matricula && (col.fAfectacion || col.fCreado) ? "expedientes" : "desconocido";
-  if (!col.bastidor && !col.matricula && !col.nif && !col.cliente) throw new Error(`No he reconocido ninguna columna útil en «${nombre}» (busco Cliente, NIF, Bastidor, Matrícula…).`);
+  const col = Object.fromEntries(
+    Object.keys(SINONIMOS).map((d) => [d, buscarColumna(cabeceras, d)]),
+  ) as Record<string, string | null>;
+  const usadas = new Set(
+    Object.values(col).filter((c): c is string => c !== null),
+  );
+  const llamadas = cabeceras.some(
+    (c) => c.norm.includes("fecha encuesta") || c.norm.includes("llamada"),
+  );
+  const tipo: TipoListado = llamadas
+    ? "llamadas_calidad"
+    : col.matricula && (col.fAfectacion || col.fCreado)
+      ? "expedientes"
+      : "desconocido";
+  if (!col.bastidor && !col.matricula && !col.nif && !col.cliente)
+    throw new Error(
+      `No he reconocido ninguna columna útil en «${nombre}» (busco Cliente, NIF, Bastidor, Matrícula…).`,
+    );
 
   const resultado: FilaListadoRenault[] = filas.map((f, i) => {
     const { matricula, fecha } = separarMatricula(f[col.matricula ?? ""]);
@@ -124,16 +205,34 @@ export function leerListadoRenault(datos: ArrayBuffer, nombre: string): ListadoL
       matricula,
       fechaDeMatricula: fecha,
       fCreado: col.fCreado ? parseFechaFlexible(f[col.fCreado]) : null,
-      fAfectacion: col.fAfectacion ? parseFechaFlexible(f[col.fAfectacion]) : null,
-      fMatriculacion: col.fMatriculacion ? parseFechaFlexible(f[col.fMatriculacion]) : null,
+      fAfectacion: col.fAfectacion
+        ? parseFechaFlexible(f[col.fAfectacion])
+        : null,
+      fMatriculacion: col.fMatriculacion
+        ? parseFechaFlexible(f[col.fMatriculacion])
+        : null,
       fEntrega: col.fEntrega ? parseFechaFlexible(f[col.fEntrega]) : null,
+      hEntrega: col.fEntrega ? parseHoraFlexible(f[col.fEntrega]) : null,
       fFactura: col.fFactura ? parseFechaFlexible(f[col.fFactura]) : null,
       email: texto(f, col.email).toLowerCase(),
       telefono: col.telefono ? limpiarTelefono(f[col.telefono]) : "",
     };
   });
   // Filas sin nada con lo que identificar un expediente
-  const validas = resultado.filter((f) => f.bastidor || f.matricula || f.nif || f.cliente);
-  if (validas.length === 0) throw new Error(`«${nombre}» no tiene filas con datos que se puedan reconocer.`);
-  return { tipo, nombre, filas: validas, columnasUsadas: [...usadas], columnasIgnoradas: cabeceras.map((c) => c.original).filter((c) => !usadas.has(c) && c.trim() !== "") };
+  const validas = resultado.filter(
+    (f) => f.bastidor || f.matricula || f.nif || f.cliente,
+  );
+  if (validas.length === 0)
+    throw new Error(
+      `«${nombre}» no tiene filas con datos que se puedan reconocer.`,
+    );
+  return {
+    tipo,
+    nombre,
+    filas: validas,
+    columnasUsadas: [...usadas],
+    columnasIgnoradas: cabeceras
+      .map((c) => c.original)
+      .filter((c) => !usadas.has(c) && c.trim() !== ""),
+  };
 }

@@ -1,12 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { leerListadoRenault } from "./listados-renault";
 
-const csv = (texto: string) => new TextEncoder().encode(texto).buffer as ArrayBuffer;
+const csv = (texto: string) =>
+  new TextEncoder().encode(texto).buffer as ArrayBuffer;
 
 describe("listado de Renault", () => {
   it("reconoce «Fra. prevista» como la fecha de facturación", () => {
-    const l = leerListadoRenault(csv("Cliente,Bastidor,Matrícula,F. Afect,Fra. prevista\nANA PEREZ,VF1ABC,1234BCD,01/10/2026,31/10/2026\n"), "usados.csv");
+    const l = leerListadoRenault(
+      csv(
+        "Cliente,Bastidor,Matrícula,F. Afect,Fra. prevista\nANA PEREZ,VF1ABC,1234BCD,01/10/2026,31/10/2026\n",
+      ),
+      "usados.csv",
+    );
     expect(l.filas[0].fFactura).toBe("2026-10-31");
     expect(l.columnasUsadas).toContain("Fra. prevista");
+  });
+
+  it("«Entrega fijada» da la fecha y, si la trae, la hora de la entrega", () => {
+    const l = leerListadoRenault(
+      csv(
+        "Cliente,Bastidor,Matrícula,F. Afect,Entrega fijada\nANA PEREZ,VF1ABC,1234BCD,01/10/2026,12/11/2026 10:30\nLUIS GIL,VF1ABD,1234BCE,01/10/2026,13/11/2026\n",
+      ),
+      "ventas.csv",
+    );
+    expect(l.filas[0]).toMatchObject({
+      fEntrega: "2026-11-12",
+      hEntrega: "10:30",
+    });
+    expect(l.filas[1]).toMatchObject({
+      fEntrega: "2026-11-13",
+      hEntrega: null,
+    });
   });
 });
