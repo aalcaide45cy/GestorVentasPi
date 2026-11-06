@@ -14,6 +14,7 @@ const ETIQUETA: Record<TipoAdjunto, string> = {
   dni_reverso: "DNI (reverso)",
   pedido: "Pedido",
   pago_rci: "Pago de la financiera (RCI)",
+  presupuesto: "Presupuesto",
   foto_cliente: "Foto del cliente",
   otro: "Otro documento",
 };

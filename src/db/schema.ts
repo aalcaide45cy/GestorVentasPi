@@ -1587,6 +1587,13 @@ export const correoCola = pgTable(
     adjuntos: jsonb("adjuntos").$type<number[]>().notNull().default([]),
     /** borrador (a la espera de que lo revises), programado (se enviará solo), enviando, enviado, error o cancelado. */
     estado: varchar("estado", { length: 12 }).notNull().default("borrador"),
+    /** Si es un correo a un cliente potencial: a quién y por qué presupuesto (se repasa justo antes de enviar que no haya comprado ni se haya dado de baja). */
+    idPotencial: integer("id_potencial").references(() => potenciales.id, { onDelete: "set null" }),
+    idPresupuesto: integer("id_presupuesto").references(() => presupuestos.id, { onDelete: "set null" }),
+    /** Nombre del lote de envío al que pertenece (campañas a potenciales). */
+    lote: varchar("lote", { length: 60 }),
+    /** Segundos de espera hasta el siguiente correo del lote (si no, la pausa general de los ajustes). */
+    espera: integer("espera"),
     /** De dónde viene: manual, boton (el botón de las fechas) o regla. */
     origen: varchar("origen", { length: 12 }).notNull().default("manual"),
     /** Con el botón ✉️ de una fecha: cuál (fecha_entrega…), para pintar el sobre en verde cuando se ha enviado. */
@@ -1598,4 +1605,65 @@ export const correoCola = pgTable(
     enviadoEn: timestamp("enviado_en", { withTimezone: true }),
   },
   (t) => [index("correo_cola_usuario_estado_idx").on(t.idUsuario, t.estado), uniqueIndex("correo_cola_regla_exp_uq").on(t.idRegla, t.idExpediente)],
+);
+
+/* ------------------------------------------------------------------ */
+/* Clientes potenciales (presupuestos sin compra)                       */
+/* ------------------------------------------------------------------ */
+
+/** Personas que han pedido un presupuesto. Se cotejan con los expedientes (solo lectura) para saber si ya han comprado. */
+export const potenciales = pgTable(
+  "potenciales",
+  {
+    id: serial("id").primaryKey(),
+    /** El vendedor que los atiende. */
+    idUsuario: integer("id_usuario")
+      .notNull()
+      .references(() => usuarios.idUsuario, { onDelete: "cascade" }),
+    nombre: varchar("nombre", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull().default(""),
+    telefono: varchar("telefono", { length: 30 }).notNull().default(""),
+    poblacion: varchar("poblacion", { length: 120 }).notNull().default(""),
+    provincia: varchar("provincia", { length: 80 }).notNull().default(""),
+    codigoPostal: varchar("codigo_postal", { length: 10 }).notNull().default(""),
+    /** activo, baja (no quiere más correos), compro (tiene expediente: se cotejó por correo o teléfono) o posible (solo coincide el nombre: se revisa a mano). */
+    estado: varchar("estado", { length: 10 }).notNull().default("activo"),
+    /** El expediente con el que coincide, si compró o es posible. */
+    idExpediente: integer("id_expediente").references(() => expedientes.idExpediente, { onDelete: "set null" }),
+    /** El usuario ha dicho que la coincidencia por nombre no es la misma persona. */
+    ignorarPosible: boolean("ignorar_posible").notNull().default(false),
+    bajaEn: timestamp("baja_en", { withTimezone: true }),
+    bajaMotivo: varchar("baja_motivo", { length: 200 }),
+    notas: text("notas").notNull().default(""),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("potenciales_usuario_estado_idx").on(t.idUsuario, t.estado), index("potenciales_email_idx").on(sql`lower(${t.email})`), index("potenciales_telefono_idx").on(t.telefono)],
+);
+
+/** Los presupuestos de cada cliente potencial (una persona puede tener varios). */
+export const presupuestos = pgTable(
+  "presupuestos",
+  {
+    id: serial("id").primaryKey(),
+    idPotencial: integer("id_potencial")
+      .notNull()
+      .references(() => potenciales.id, { onDelete: "cascade" }),
+    /** Número del presupuesto («7639-00»): no se repite. */
+    numero: varchar("numero", { length: 20 }).notNull(),
+    referencia: varchar("referencia", { length: 40 }),
+    fecha: date("fecha"),
+    hora: varchar("hora", { length: 5 }),
+    marca: varchar("marca", { length: 80 }).notNull().default(""),
+    modelo: varchar("modelo", { length: 120 }).notNull().default(""),
+    idModelo: integer("id_modelo").references(() => modelos.idModelo, { onDelete: "set null" }),
+    /** El texto tal cual del presupuesto («RENAULT Symbioz evolution ECO-G 90 kw…»). */
+    modeloTexto: text("modelo_texto").notNull().default(""),
+    color: varchar("color", { length: 80 }).notNull().default(""),
+    totalCentimos: integer("total_centimos"),
+    vendedor: varchar("vendedor", { length: 120 }).notNull().default(""),
+    /** El PDF original (cifrado, como el resto de adjuntos). */
+    idAdjunto: integer("id_adjunto").references(() => adjuntos.id, { onDelete: "set null" }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("presupuestos_numero_uq").on(t.numero), index("presupuestos_potencial_idx").on(t.idPotencial)],
 );

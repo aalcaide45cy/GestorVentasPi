@@ -101,6 +101,17 @@ export const GUIAS: Record<string, Guia> = {
     ],
     ojo: ["Lo que borras va a la papelera de notas, desde donde se recupera; solo se borra de verdad desde ahí.", "Si dos personas editan a la vez una nota compartida, la segunda recibe un aviso para no pisar el trabajo de la primera."],
   },
+  "menu.potenciales": {
+    titulo: "Clientes potenciales",
+    queEs: "Quien ha pedido un presupuesto. Se cargan los presupuestos de Renault y Dacia, se cotejan con los expedientes para saber quién ya ha comprado y a los demás se les puede escribir.",
+    pasos: [
+      "En «Cargar presupuestos» suelta los PDF «INFORMACIÓN DE VEHÍCULO NUEVO» (o una foto): se leen uno a uno y se guardan con su cliente. Lo que no sea un presupuesto se descarta.",
+      "En «Clientes» ves a cada persona con su último presupuesto y su estado: activo, posible compra, ya compró o de baja.",
+      "Con correo o teléfono iguales a los de un expediente, la persona ya compró y no entra en los envíos. Si solo coincide el nombre, sale como «posible compra» para que lo confirmes.",
+      "Abre una ficha para ver todos sus presupuestos y el PDF, corregir sus datos, darla de baja o reactivarla.",
+    ],
+    ojo: ["El cotejo solo lee los expedientes: nunca cambia nada en ellos.", "Los expedientes anulados en la intranet no cuentan como compra."],
+  },
   "menu.correo": {
     titulo: "Correo",
     queEs: "Envío de correos (solo envía, no recibe) con plantillas que se rellenan con los datos del cliente y del expediente. Todo entra en una cola que revisas antes de enviar.",

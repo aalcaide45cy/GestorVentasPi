@@ -621,6 +621,13 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Versión 1.64.0 (06/11/2026)
+- **Nueva sección 🎯 Clientes potenciales** (etapa 1): quien ha pedido un presupuesto. Tablas `potenciales` y `presupuestos` (migración 0084, aparte de los expedientes), `lib/documentos/presupuesto.ts` (lee «INFORMACIÓN DE VEHÍCULO NUEVO» del texto del PDF o por el OCR configurado, incluido Apple Vision; descarta cualquier otro documento) y `servicios/potenciales.ts`.
+  - **Cargar presupuestos**: arrastrar varios PDF o fotos; se leen uno a uno, el mismo número no se carga dos veces, una persona con varios presupuestos es una sola ficha (por correo, teléfono o nombre y código postal) y el PDF se guarda cifrado.
+  - **Cotejo con los expedientes (solo lectura)**: correo o teléfono iguales a los de un expediente = «ya compró» (no entrará en envíos); solo el nombre = «posible compra» para confirmar a mano; los anulados en la intranet no cuentan como compra.
+  - Lista con filtros (activos, posibles, ya compraron, de baja), búsqueda y ficha con sus presupuestos y PDF, baja y reactivar. Cada vendedor ve solo los suyos; el administrador, todos.
+  - En columnas nuevas de `correo_cola` (`id_potencial`, `id_presupuesto`, `lote`, `espera`) queda preparado el envío por lotes (etapa 2) y la baja por respuesta (etapa 3).
+
 ## Versión 1.63.0 (06/11/2026)
 - **Hora de la entrega más fácil** en «Establecer fecha de Entrega» (`SelectorHora`): botones rápidos 09:00, 10:00, 11:00, 12:00, 13:00, 16:00, 17:00, 18:00 y «Sin hora», flechas ← → para la hora (de 1 en 1) y los minutos (de 15 en 15) y el campo para escribirla.
 - **Excel con hora**: si la celda de la fecha de entrega trae fecha y hora (número de Excel, texto «05/11/2026 10:30» o ISO), se guarda también la hora (`parseHoraFlexible`; también al crear por CSV). Solo con fecha se rellena la fecha como siempre; si el día cambia y no hay hora, se quita la antigua.

@@ -703,7 +703,22 @@ export default function Sidebar({ user, version, zoom = 100 }: SidebarProps) {
                   <line x1="8" y1="13" x2="16" y2="13" />
                   <line x1="8" y1="17" x2="13" y2="17" />
                 </EnlaceNav>
-                <EnlaceNav href="/dashboard/correo" titulo="Correo" guia="menu.correo" colapsado={isCollapsed}>
+                <EnlaceNav
+                  href="/dashboard/potenciales"
+                  titulo="Potenciales"
+                  guia="menu.potenciales"
+                  colapsado={isCollapsed}
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" />
+                </EnlaceNav>
+                <EnlaceNav
+                  href="/dashboard/correo"
+                  titulo="Correo"
+                  guia="menu.correo"
+                  colapsado={isCollapsed}
+                >
                   <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
                   <polyline points="22,6 12,13 2,6" />
                 </EnlaceNav>
