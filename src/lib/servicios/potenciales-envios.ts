@@ -12,6 +12,7 @@ import { hayFirma, rellenarPlantilla } from "@/lib/correo";
 import { crearCorreo } from "./correo";
 import {
   cotejarPotenciales,
+  hayBajaDeLaMismaPersona,
   datosDePotencial,
   listarPotenciales,
 } from "./potenciales";
@@ -126,7 +127,8 @@ export async function prepararLote(
   const incluir: { id: number; idPresupuesto: number | null }[] = [];
   for (const p of elegidos) {
     const st = estado.get(p.id) ?? p.estado;
-    if (st === "baja") r.excluidos.baja++;
+    if (st === "baja" || (await hayBajaDeLaMismaPersona(ej, p)))
+      r.excluidos.baja++;
     else if (st === "compro") r.excluidos.compraron++;
     else if (st === "posible") r.excluidos.posibles++;
     else if (!p.email) r.excluidos.sinCorreo++;

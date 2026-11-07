@@ -4,6 +4,7 @@ import {
   clientes,
   emailsClientes,
   expedientes,
+  potenciales,
   telefonosClientes,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -33,6 +34,7 @@ import {
   claveNombre,
   cotejarPotenciales,
   eliminarPotencial,
+  hayBajaDeLaMismaPersona,
   leerPotencial,
   listarPotenciales,
   registrarPresupuesto,
@@ -262,6 +264,67 @@ describe("clientes potenciales", () => {
     ).toBe("activo");
     await eliminarPotencial(db, ana, id);
     expect(await listarPotenciales(db, admin)).toHaveLength(0);
+  });
+
+  it("una baja no se pierde: volver a leer su presupuesto no la toca, otro presupuesto suyo sigue en baja, no se puede borrar y otra ficha con su mismo correo tampoco recibe", async () => {
+    const ana = await crearUsuarioPrueba("vendedor", "Ana");
+    const r = await registrarPresupuesto(db, ana, "a.png", PNG, presupuesto());
+    const id = r.potencial.id;
+    await cambiarPotencial(db, ana, id, { accion: "baja" });
+
+    // El mismo presupuesto otra vez: ni se sobrescribe ni se crea otra ficha
+    const otra = await registrarPresupuesto(
+      db,
+      ana,
+      "a.png",
+      PNG,
+      presupuesto(),
+    );
+    expect(otra.resultado).toBe("repetido");
+    expect(otra.potencial.id).toBe(id);
+    expect(otra.potencial.estado).toBe("baja");
+    // Otro presupuesto de la misma persona: se suma a su ficha, que sigue en baja
+    const nuevo = await registrarPresupuesto(
+      db,
+      ana,
+      "b.png",
+      PNG,
+      presupuesto({ numero: "7002-00" }),
+    );
+    expect(nuevo.nuevoPotencial).toBe(false);
+    expect(nuevo.potencial).toMatchObject({ id, estado: "baja" });
+    expect(await listarPotenciales(db, ana)).toHaveLength(1);
+
+    // Una baja no se borra
+    await expect(eliminarPotencial(db, ana, id)).rejects.toThrow(
+      /dada de baja/,
+    );
+    expect(await listarPotenciales(db, ana)).toHaveLength(1);
+
+    // Otra ficha con su mismo correo o teléfono es la misma persona
+    const [copia] = await db
+      .insert(potenciales)
+      .values({
+        idUsuario: ana.idUsuario,
+        nombre: "Otro nombre",
+        email: "ANA@ejemplo.test",
+        telefono: "",
+      })
+      .returning();
+    expect(
+      await hayBajaDeLaMismaPersona(db, {
+        id: copia.id,
+        email: copia.email,
+        telefono: copia.telefono,
+      }),
+    ).toBe(true);
+    expect(
+      await hayBajaDeLaMismaPersona(db, {
+        id: copia.id,
+        email: "distinto@ejemplo.test",
+        telefono: "",
+      }),
+    ).toBe(false);
   });
 
   it("compara nombres sin importar acentos, mayúsculas ni el orden", () => {

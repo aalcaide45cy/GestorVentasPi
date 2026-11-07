@@ -621,6 +621,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Versión 1.66.7 (07/11/2026)
+
+Clientes potenciales: las bajas quedan protegidas. Volver a leer un presupuesto ya cargado no cambia nada; otro presupuesto de una persona dada de baja se suma a su ficha y sigue en baja; una baja no se puede borrar (así no se crea una ficha nueva al recargar su presupuesto); y si otra ficha tiene el mismo correo o teléfono que una baja, tampoco se le escribe (ni al preparar el lote ni justo antes de enviar).
+
 ## Versión 1.66.6 (07/11/2026)
 
 Cada plantilla de correo puede tener su propia firma (editor con imágenes, migración 0087): si la tiene, sale en lugar de la de la cuenta (también en {firma} y en la vista previa de los lotes); vacía, sale la de la cuenta.

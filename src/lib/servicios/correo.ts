@@ -32,7 +32,11 @@ import {
   type PlantillaDto,
 } from "@/lib/correo";
 import { leerAdjunto } from "./adjuntos";
-import { cotejarPotenciales, datosDePotencial } from "./potenciales";
+import {
+  cotejarPotenciales,
+  datosDePotencial,
+  hayBajaDeLaMismaPersona,
+} from "./potenciales";
 import { aDto, relacionesExpediente } from "./expedientes";
 import { formatDate } from "@/lib/date-utils";
 
@@ -1081,10 +1085,17 @@ async function motivoParaNoEnviarAPotencial(
   if (!c.idPotencial) return null;
   await cotejarPotenciales(ej, [c.idPotencial]);
   const [p] = await ej
-    .select({ estado: potenciales.estado })
+    .select({
+      id: potenciales.id,
+      estado: potenciales.estado,
+      email: potenciales.email,
+      telefono: potenciales.telefono,
+    })
     .from(potenciales)
     .where(eq(potenciales.id, c.idPotencial));
   if (!p) return "El cliente potencial ya no existe";
+  if (p.estado !== "baja" && (await hayBajaDeLaMismaPersona(ej, p)))
+    return "No se envía: esta persona se ha dado de baja (otra ficha con su mismo correo o teléfono)";
   if (p.estado === "baja")
     return "No se envía: esta persona se ha dado de baja";
   if (p.estado === "compro")

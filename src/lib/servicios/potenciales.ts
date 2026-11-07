@@ -576,8 +576,39 @@ export async function eliminarPotencial(
   u: UsuarioActual,
   id: number,
 ): Promise<void> {
-  await potencialAccesible(ej, u, id);
+  const p = await potencialAccesible(ej, u, id);
+  // Una baja no se borra: si se borrara, al volver a cargar su presupuesto se crearía una ficha nueva y volvería a recibir correos
+  if (p.estado === "baja")
+    throw new HttpError(
+      409,
+      "Esta persona está dada de baja y no se puede borrar: así se acuerda de que no debe recibir correos. Si quieres escribirle otra vez, reactívala.",
+    );
   await ej.delete(potenciales).where(eq(potenciales.id, id));
+}
+
+/** ¿Hay otra ficha dada de baja con el mismo correo o teléfono? Es la misma persona: tampoco se le escribe. */
+export async function hayBajaDeLaMismaPersona(
+  ej: Ejecutor,
+  p: { id: number; email: string; telefono: string },
+): Promise<boolean> {
+  const correo = p.email.trim().toLowerCase();
+  const tel = p.telefono.trim();
+  if (!correo && !tel) return false;
+  const [f] = await ej
+    .select({ id: potenciales.id })
+    .from(potenciales)
+    .where(
+      and(
+        eq(potenciales.estado, "baja"),
+        ne(potenciales.id, p.id),
+        or(
+          correo ? sql`lower(${potenciales.email}) = ${correo}` : undefined,
+          tel ? eq(potenciales.telefono, tel) : undefined,
+        ),
+      ),
+    )
+    .limit(1);
+  return !!f;
 }
 
 export async function resumenPotenciales(
