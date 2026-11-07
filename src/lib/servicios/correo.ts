@@ -18,6 +18,7 @@ import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import {
   direccionValida,
   esquemaCorreo,
+  hayFirma,
   rellenarPlantilla,
   separarDirecciones,
   type AjustesCorreoDto,
@@ -257,6 +258,7 @@ const aPlantilla = (p: typeof correoPlantillas.$inferSelect): PlantillaDto => ({
   cco: p.cco,
   id_cuenta: p.idCuenta,
   con_firma: p.conFirma,
+  firma: p.firma,
   cuerpo: p.cuerpo,
 });
 export async function listarPlantillas(ej: Ejecutor): Promise<PlantillaDto[]> {
@@ -557,8 +559,13 @@ export async function crearCorreoOpcional(
     }
     // El cuerpo es el escrito o el de la plantilla; la firma de la cuenta se añade al final si la plantilla lo pide y el texto no lleva ya {firma}
     const base = cuerpo || p.cuerpo;
+    // La firma propia de la plantilla, si la tiene, va en lugar de la de la cuenta
+    const hayFirmaPropia = hayFirma(p.firma);
+    if (hayFirmaPropia) datos = { ...datos, firma: p.firma };
     cuerpo =
-      p.conFirma && cuenta?.firma && !base.includes("{firma}")
+      p.conFirma &&
+      (hayFirmaPropia || cuenta?.firma) &&
+      !base.includes("{firma}")
         ? `${base}<p></p>{firma}`
         : base;
   }

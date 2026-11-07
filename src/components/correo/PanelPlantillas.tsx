@@ -20,6 +20,7 @@ export default function PanelPlantillas() {
     cco: string;
     id_cuenta: number | null;
     con_firma: boolean;
+    firma: string;
     cuerpo: string;
   } | null>(null);
   const [cuentas, setCuentas] = useState<CuentaDto[]>([]);
@@ -52,6 +53,7 @@ export default function PanelPlantillas() {
           cco: b.cco,
           id_cuenta: b.id_cuenta,
           con_firma: b.con_firma,
+          firma: b.firma,
           cuerpo: b.cuerpo,
         },
       });
@@ -90,6 +92,7 @@ export default function PanelPlantillas() {
               cco: "",
               id_cuenta: null,
               con_firma: true,
+              firma: "",
               cuerpo: "",
             })
           }
@@ -135,6 +138,7 @@ export default function PanelPlantillas() {
                 cco: p.cco,
                 id_cuenta: p.id_cuenta,
                 con_firma: p.con_firma,
+                firma: p.firma,
                 cuerpo: p.cuerpo,
               })
             }
@@ -155,6 +159,7 @@ export default function PanelPlantillas() {
                 cco: p.cco,
                 id_cuenta: p.id_cuenta,
                 con_firma: p.con_firma,
+                firma: p.firma,
                 cuerpo: p.cuerpo,
               })
             }
@@ -328,8 +333,25 @@ export default function PanelPlantillas() {
               checked={b.con_firma}
               onChange={(e) => setB({ ...b, con_firma: e.target.checked })}
             />
-            Incluir al final la firma de la cuenta con la que se envía
+            Incluir al final la firma
           </label>
+          {b.con_firma && (
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+            >
+              Firma de esta plantilla (opcional)
+              <EditorHtml
+                valor={b.firma}
+                alCambiar={(h) => setB((x) => (x ? { ...x, firma: h } : x))}
+                conImagenes
+              />
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                Si la dejas vacía, sale la firma de la cuenta con la que se
+                envía. Puedes pegar aquí una firma de Gmail con su formato y sus
+                imágenes.
+              </span>
+            </div>
+          )}
         </Modal>
       )}
     </div>

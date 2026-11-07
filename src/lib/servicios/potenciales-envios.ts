@@ -8,7 +8,7 @@ import {
   potenciales,
 } from "@/db/schema";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
-import { rellenarPlantilla } from "@/lib/correo";
+import { hayFirma, rellenarPlantilla } from "@/lib/correo";
 import { crearCorreo } from "./correo";
 import {
   cotejarPotenciales,
@@ -143,15 +143,14 @@ export async function prepararLote(
         incluir[0].id,
         incluir[0].idPresupuesto,
       );
+      const firma = hayFirma(plantilla.firma) ? plantilla.firma : cuenta.firma;
       const datos = {
         ...d.datos,
-        firma: cuenta.firma,
+        firma,
         hoy: new Date().toLocaleDateString("es-ES"),
       };
       const base =
-        plantilla.conFirma &&
-        cuenta.firma &&
-        !plantilla.cuerpo.includes("{firma}")
+        plantilla.conFirma && firma && !plantilla.cuerpo.includes("{firma}")
           ? `${plantilla.cuerpo}<p></p>{firma}`
           : plantilla.cuerpo;
       r.ejemplo = {

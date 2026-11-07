@@ -1563,6 +1563,8 @@ export const correoPlantillas = pgTable("correo_plantillas", {
   idCuenta: integer("id_cuenta").references(() => correoCuentas.id, { onDelete: "set null" }),
   /** Añade al final la firma de la cuenta desde la que se envía (si el cuerpo no lleva ya el campo {firma}). */
   conFirma: boolean("con_firma").notNull().default(true),
+  /** Firma propia de la plantilla (HTML); vacía = se usa la de la cuenta con la que se envía. */
+  firma: text("firma").notNull().default(""),
   /** HTML del cuerpo. */
   cuerpo: text("cuerpo").notNull().default(""),
   creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),

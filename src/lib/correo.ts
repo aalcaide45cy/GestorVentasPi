@@ -89,6 +89,8 @@ export const esquemaPlantilla = z.object({
   id_cuenta: z.number().int().positive().nullable().optional(),
   /** Añade al final la firma de la cuenta desde la que se envía. */
   con_firma: z.boolean().default(true),
+  /** Firma propia de esta plantilla; vacía = la de la cuenta. */
+  firma: z.string().max(3_000_000).default(""),
   cuerpo: z.string().max(200_000).default(""),
 });
 export type EntradaPlantilla = z.input<typeof esquemaPlantilla>;
@@ -101,6 +103,7 @@ export interface PlantillaDto {
   cco: string;
   id_cuenta: number | null;
   con_firma: boolean;
+  firma: string;
   cuerpo: string;
 }
 
@@ -390,3 +393,11 @@ export function leerBotonesFecha(
   }
   return res;
 }
+
+/** ¿Esta firma (HTML) tiene algo escrito o alguna imagen? Un editor vacío deja «<p></p>». */
+export const hayFirma = (html: string): boolean =>
+  /<img/i.test(html) ||
+  html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim() !== "";

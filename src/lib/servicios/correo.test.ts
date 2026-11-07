@@ -406,6 +406,44 @@ describe("correo", () => {
     expect(c.error).toMatch(/no enviar correos/);
   });
 
+  it("una plantilla puede tener su propia firma, que sale en lugar de la de la cuenta; vacía, sale la de la cuenta", async () => {
+    const { ana, id, cuenta } = await escenario();
+    const propia = await guardarPlantilla(db, ana, null, {
+      nombre: "Propia",
+      asunto: "A",
+      firma: "<p>Firma de la plantilla</p>",
+      cuerpo: "<p>Texto</p>",
+    });
+    const vacia = await guardarPlantilla(db, ana, null, {
+      nombre: "Vacía",
+      asunto: "B",
+      firma: "<p></p>",
+      cuerpo: "<p>Texto</p>",
+    });
+    const conCampo = await guardarPlantilla(db, ana, null, {
+      nombre: "Campo",
+      asunto: "C",
+      firma: "<p>Firma de la plantilla</p>",
+      cuerpo: "<p>Texto {firma} fin</p>",
+    });
+    const cuerpo = async (idPlantilla: number) =>
+      (
+        await crearCorreo(db, ana, {
+          id_plantilla: idPlantilla,
+          id_expediente: id,
+          id_cuenta: cuenta.id,
+        })
+      ).cuerpo;
+    const a = await cuerpo(propia.id);
+    expect(a).toContain("Firma de la plantilla");
+    expect(a).not.toContain("Alfonso");
+    const b = await cuerpo(vacia.id);
+    expect(b).toContain("Alfonso");
+    const c = await cuerpo(conCampo.id);
+    expect(c).toContain("Texto <p>Firma de la plantilla</p> fin");
+    expect(c).not.toContain("Alfonso");
+  });
+
   it("la firma de la cuenta es opcional en cada plantilla", async () => {
     const { ana, id, cuenta } = await escenario();
     const con = await guardarPlantilla(db, ana, null, {
