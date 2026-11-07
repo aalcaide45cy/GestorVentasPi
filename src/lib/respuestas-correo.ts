@@ -9,8 +9,22 @@ const sinAcentos = (t: string): string =>
  */
 export function textoNuevo(texto: string): string {
   const lineas = texto.replace(/\r/g, "").split("\n");
-  const fin = lineas.findIndex((l) => {
+  const fin = lineas.findIndex((l, i) => {
     const t = l.trim();
+    // «El jue, 5 nov 2026 a las 12:00, Nombre <correo> escribió:» puede venir partido en dos o tres líneas
+    const cabecera = [
+      t,
+      `${t} ${(lineas[i + 1] ?? "").trim()}`,
+      `${t} ${(lineas[i + 1] ?? "").trim()} ${(lineas[i + 2] ?? "").trim()}`,
+    ];
+    if (
+      cabecera.some(
+        (c) =>
+          /^(El|On)\s.{3,200}(escribi[óo]|wrote)\s*:\s*$/i.test(c.trim()) &&
+          /\d{1,2}:\d{2}|\d{4}/.test(c),
+      )
+    )
+      return true;
     return (
       /^>/.test(t) ||
       /^(El|On)\s.+(escribi[óo]|wrote)\s*:?\s*$/i.test(t) ||

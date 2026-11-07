@@ -204,7 +204,11 @@ export async function revisarRespuestas(
     // Personas a las que esta cuenta ha escrito hace poco (correo enviado a un cliente potencial)
     const hace120 = new Date(Date.now() - 120 * 86_400_000);
     const enviados = await ej
-      .select({ idPotencial: correoCola.idPotencial, para: correoCola.para })
+      .select({
+        idPotencial: correoCola.idPotencial,
+        para: correoCola.para,
+        enviadoEn: correoCola.enviadoEn,
+      })
       .from(correoCola)
       .where(
         and(
@@ -215,17 +219,20 @@ export async function revisarRespuestas(
         ),
       );
     if (enviados.length === 0) continue;
-    const porDireccion = new Map<string, Set<number>>();
+    // Dirección → potenciales a los que se escribió y desde cuándo: solo cuenta lo que llega DESPUÉS de nuestro primer correo
+    const porDireccion = new Map<string, Map<number, Date>>();
     for (const x of enviados) {
       if (x.idPotencial === null) continue;
       for (const d of x.para
         .split(/[,;\s]+/)
         .map((v) => v.trim().toLowerCase())
-        .filter(Boolean))
-        porDireccion.set(
-          d,
-          (porDireccion.get(d) ?? new Set()).add(x.idPotencial),
-        );
+        .filter(Boolean)) {
+        const mapa = porDireccion.get(d) ?? new Map<number, Date>();
+        const desdeEnvio = x.enviadoEn ?? new Date(0);
+        const previo = mapa.get(x.idPotencial);
+        if (!previo || desdeEnvio < previo) mapa.set(x.idPotencial, desdeEnvio);
+        porDireccion.set(d, mapa);
+      }
     }
     r.cuentas++;
     let buzon: Buzon | null = null;
@@ -248,7 +255,9 @@ export async function revisarRespuestas(
         if (ya) continue;
         r.mensajes++;
         const baja = pideLaBaja(m.texto);
-        for (const idPot of porDireccion.get(m.de) ?? []) {
+        for (const [idPot, desdeEnvio] of porDireccion.get(m.de) ?? []) {
+          // Un correo anterior a nuestro envío no puede ser su respuesta
+          if (!m.fecha || m.fecha < desdeEnvio) continue;
           const [p] = await ej
             .select()
             .from(potenciales)
@@ -275,20 +284,16 @@ export async function revisarRespuestas(
               idPot,
               `Pidió la baja por correo el ${(m.fecha ?? ahora).toLocaleDateString("es-ES")}`,
             );
-            await ej
-              .insert(alertas)
-              .values({
-                idUsuario: p.idUsuario,
-                mensaje: `🚫 ${p.nombre} ha pedido la baja por correo: ya no se le escribirá${cancelados > 0 ? ` (y se han cancelado ${cancelados} correos pendientes)` : ""}.`,
-              });
+            await ej.insert(alertas).values({
+              idUsuario: p.idUsuario,
+              mensaje: `🚫 ${p.nombre} ha pedido la baja por correo: ya no se le escribirá${cancelados > 0 ? ` (y se han cancelado ${cancelados} correos pendientes)` : ""}.`,
+            });
             r.bajas++;
           } else {
-            await ej
-              .insert(alertas)
-              .values({
-                idUsuario: p.idUsuario,
-                mensaje: `💬 ${p.nombre} ha respondido a tu correo: «${extracto(m.texto, 160) || "(sin texto)"}». Está en su ficha de Potenciales.`,
-              });
+            await ej.insert(alertas).values({
+              idUsuario: p.idUsuario,
+              mensaje: `💬 ${p.nombre} ha respondido a tu correo: «${extracto(m.texto, 160) || "(sin texto)"}». Está en su ficha de Potenciales.`,
+            });
             r.respuestas++;
           }
         }

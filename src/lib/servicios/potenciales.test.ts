@@ -526,7 +526,7 @@ describe("clientes potenciales", () => {
         messageId: "<1@x>",
         de: "marta@ejemplo.test",
         asunto: "Re: Hola",
-        fecha: new Date(),
+        fecha: new Date(Date.now() + 3_600_000),
         texto:
           "BAJA\n\nEl vie, 6 nov, Ana escribió:\n> Hola Marta. Si no quieres recibir más mensajes, responde con la palabra BAJA.",
       },
@@ -534,14 +534,14 @@ describe("clientes potenciales", () => {
         messageId: "<2@x>",
         de: "luis@ejemplo.test",
         asunto: "Re: Hola",
-        fecha: new Date(),
+        fecha: new Date(Date.now() + 3_600_000),
         texto: "Me interesa, llámame mañana por favor",
       },
       {
         messageId: "<3@x>",
         de: "otro@ejemplo.test",
         asunto: "Spam",
-        fecha: new Date(),
+        fecha: new Date(Date.now() + 3_600_000),
         texto: "BAJA",
       },
     ];

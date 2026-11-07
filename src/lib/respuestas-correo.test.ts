@@ -48,4 +48,11 @@ describe("respuestas a los correos a potenciales", () => {
     ])
       expect(pideLaBaja(t), t).toBe(false);
   });
+
+  it("corta el texto citado aunque la cabecera de Gmail venga partida en varias líneas", () => {
+    const t =
+      "agendado\n\nEl jue, 5 nov 2026 a las 12:00, Ana Prueba (<\nana@ejemplo.test>) escribió:\nTexto antiguo";
+    expect(textoNuevo(t)).toBe("agendado");
+    expect(extracto(t)).toBe("agendado");
+  });
 });

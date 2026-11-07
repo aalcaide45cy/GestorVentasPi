@@ -1,6 +1,6 @@
 {
   "name": "gestor-ventas-pi",
-  "version": "1.66.3",
+  "version": "1.66.4",
   "private": true,
   "scripts": {
     "predev": "tsx src/db/migrar.ts",
