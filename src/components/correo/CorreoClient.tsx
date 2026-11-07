@@ -4,12 +4,14 @@ import { usePreferencia } from "@/lib/preferencias";
 import PanelAjustesCorreo from "./PanelAjustesCorreo";
 import PanelCola from "./PanelCola";
 import PanelCuentas from "./PanelCuentas";
+import PanelFirmas from "./PanelFirmas";
 import PanelPlantillas from "./PanelPlantillas";
 
 const PESTANAS = [
   { id: "cola", texto: "📬 Cola" },
   { id: "historico", texto: "🗂️ Histórico" },
   { id: "plantillas", texto: "📝 Plantillas" },
+  { id: "firmas", texto: "✍️ Firmas" },
   { id: "cuentas", texto: "👤 Cuentas" },
   { id: "ajustes", texto: "⚙️ Ajustes" },
 ] as const;
@@ -68,6 +70,7 @@ export default function CorreoClient({ esAdmin }: { esAdmin: boolean }) {
       {actual === "cola" && <PanelCola key="cola" modo="cola" />}
       {actual === "historico" && <PanelCola key="historico" modo="historico" />}
       {actual === "plantillas" && <PanelPlantillas />}
+      {actual === "firmas" && <PanelFirmas />}
       {actual === "cuentas" && <PanelCuentas />}
       {actual === "ajustes" && <PanelAjustesCorreo esAdmin={esAdmin} />}
     </div>

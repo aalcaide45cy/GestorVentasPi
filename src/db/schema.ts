@@ -1549,6 +1549,15 @@ export const correoCuentas = pgTable("correo_cuentas", {
   creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Gestor de firmas: cada plantilla puede elegir una (HTML con formato e imágenes). */
+export const correoFirmas = pgTable("correo_firmas", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 80 }).notNull(),
+  html: text("html").notNull().default(""),
+  creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Plantillas de correo con campos del cliente, el expediente, etc. entre llaves ({cliente}, {fecha_entrega}…). */
 export const correoPlantillas = pgTable("correo_plantillas", {
   id: serial("id").primaryKey(),
@@ -1563,8 +1572,8 @@ export const correoPlantillas = pgTable("correo_plantillas", {
   idCuenta: integer("id_cuenta").references(() => correoCuentas.id, { onDelete: "set null" }),
   /** Añade al final la firma de la cuenta desde la que se envía (si el cuerpo no lleva ya el campo {firma}). */
   conFirma: boolean("con_firma").notNull().default(true),
-  /** Firma propia de la plantilla (HTML); vacía = se usa la de la cuenta con la que se envía. */
-  firma: text("firma").notNull().default(""),
+  /** Firma elegida del gestor de firmas; vacía = se usa la de la cuenta con la que se envía. */
+  idFirma: integer("id_firma").references(() => correoFirmas.id, { onDelete: "set null" }),
   /** HTML del cuerpo. */
   cuerpo: text("cuerpo").notNull().default(""),
   creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),

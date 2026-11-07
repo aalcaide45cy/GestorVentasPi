@@ -8,6 +8,7 @@ import {
   clientes,
   correoCola,
   correoCuentas,
+  correoFirmas,
   correoPlantillas,
   emailsClientes,
   expedientes,
@@ -27,8 +28,10 @@ import {
   type EntradaCambioCorreo,
   type EntradaCorreo,
   type EntradaCuenta,
+  type EntradaFirma,
   type EntradaPlantilla,
   type EstadoCorreo,
+  type FirmaDto,
   type PlantillaDto,
 } from "@/lib/correo";
 import { leerAdjunto } from "./adjuntos";
@@ -262,7 +265,7 @@ const aPlantilla = (p: typeof correoPlantillas.$inferSelect): PlantillaDto => ({
   cco: p.cco,
   id_cuenta: p.idCuenta,
   con_firma: p.conFirma,
-  firma: p.firma,
+  id_firma: p.idFirma,
   cuerpo: p.cuerpo,
 });
 export async function listarPlantillas(ej: Ejecutor): Promise<PlantillaDto[]> {
@@ -279,9 +282,10 @@ export async function guardarPlantilla(
   id: number | null,
   entrada: EntradaPlantilla,
 ): Promise<PlantillaDto> {
-  const { con_firma, id_cuenta, ...resto } = entrada;
+  const { con_firma, id_cuenta, id_firma, ...resto } = entrada;
   const e = {
     ...resto,
+    ...(id_firma !== undefined ? { idFirma: id_firma } : {}),
     ...(con_firma !== undefined ? { conFirma: con_firma } : {}),
     ...(id_cuenta !== undefined ? { idCuenta: id_cuenta } : {}),
   };
@@ -302,6 +306,58 @@ export async function guardarPlantilla(
   if (!p) throw new HttpError(404, "Plantilla no encontrada");
   return aPlantilla(p);
 }
+/* ------------------------------ Firmas ------------------------------ */
+
+const aFirma = (f: typeof correoFirmas.$inferSelect): FirmaDto => ({
+  id: f.id,
+  nombre: f.nombre,
+  html: f.html,
+});
+export async function listarFirmas(ej: Ejecutor): Promise<FirmaDto[]> {
+  return (
+    await ej.select().from(correoFirmas).orderBy(asc(correoFirmas.nombre))
+  ).map(aFirma);
+}
+export async function guardarFirma(
+  ej: Ejecutor,
+  u: Pick<UsuarioActual, "idUsuario">,
+  id: number | null,
+  entrada: EntradaFirma,
+): Promise<FirmaDto> {
+  if (id === null)
+    return aFirma(
+      (
+        await ej
+          .insert(correoFirmas)
+          .values({ ...entrada, creadoPor: u.idUsuario })
+          .returning()
+      )[0],
+    );
+  const [f] = await ej
+    .update(correoFirmas)
+    .set(entrada)
+    .where(eq(correoFirmas.id, id))
+    .returning();
+  if (!f) throw new HttpError(404, "Firma no encontrada");
+  return aFirma(f);
+}
+/** Quita una firma: las plantillas que la usaban pasan a usar la de la cuenta. */
+export async function eliminarFirma(ej: Ejecutor, id: number): Promise<void> {
+  await ej.delete(correoFirmas).where(eq(correoFirmas.id, id));
+}
+/** El HTML de una firma del gestor ("" si no hay o ya no existe). */
+export async function htmlDeFirma(
+  ej: Ejecutor,
+  id: number | null,
+): Promise<string> {
+  if (!id) return "";
+  const [f] = await ej
+    .select({ html: correoFirmas.html })
+    .from(correoFirmas)
+    .where(eq(correoFirmas.id, id));
+  return f?.html ?? "";
+}
+
 export async function eliminarPlantilla(
   ej: Ejecutor,
   id: number,
@@ -563,9 +619,10 @@ export async function crearCorreoOpcional(
     }
     // El cuerpo es el escrito o el de la plantilla; la firma de la cuenta se añade al final si la plantilla lo pide y el texto no lleva ya {firma}
     const base = cuerpo || p.cuerpo;
-    // La firma propia de la plantilla, si la tiene, va en lugar de la de la cuenta
-    const hayFirmaPropia = hayFirma(p.firma);
-    if (hayFirmaPropia) datos = { ...datos, firma: p.firma };
+    // La firma elegida en la plantilla, si la tiene, va en lugar de la de la cuenta
+    const firmaElegida = await htmlDeFirma(ej, p.idFirma);
+    const hayFirmaPropia = hayFirma(firmaElegida);
+    if (hayFirmaPropia) datos = { ...datos, firma: firmaElegida };
     cuerpo =
       p.conFirma &&
       (hayFirmaPropia || cuenta?.firma) &&

@@ -89,8 +89,8 @@ export const esquemaPlantilla = z.object({
   id_cuenta: z.number().int().positive().nullable().optional(),
   /** Añade al final la firma de la cuenta desde la que se envía. */
   con_firma: z.boolean().default(true),
-  /** Firma propia de esta plantilla; vacía = la de la cuenta. */
-  firma: z.string().max(3_000_000).default(""),
+  /** Firma del gestor de firmas; vacío = la de la cuenta. */
+  id_firma: z.number().int().positive().nullable().optional(),
   cuerpo: z.string().max(200_000).default(""),
 });
 export type EntradaPlantilla = z.input<typeof esquemaPlantilla>;
@@ -103,8 +103,18 @@ export interface PlantillaDto {
   cco: string;
   id_cuenta: number | null;
   con_firma: boolean;
-  firma: string;
+  id_firma: number | null;
   cuerpo: string;
+}
+export const esquemaFirma = z.object({
+  nombre: z.string().trim().min(1, "Falta el nombre").max(80),
+  html: z.string().max(3_000_000).default(""),
+});
+export type EntradaFirma = z.input<typeof esquemaFirma>;
+export interface FirmaDto {
+  id: number;
+  nombre: string;
+  html: string;
 }
 
 export const ESTADOS_CORREO = [

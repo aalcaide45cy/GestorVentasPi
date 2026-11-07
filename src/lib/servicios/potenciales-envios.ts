@@ -9,7 +9,7 @@ import {
 } from "@/db/schema";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import { hayFirma, rellenarPlantilla } from "@/lib/correo";
-import { crearCorreo } from "./correo";
+import { crearCorreo, htmlDeFirma } from "./correo";
 import {
   cotejarPotenciales,
   hayBajaDeLaMismaPersona,
@@ -145,7 +145,8 @@ export async function prepararLote(
         incluir[0].id,
         incluir[0].idPresupuesto,
       );
-      const firma = hayFirma(plantilla.firma) ? plantilla.firma : cuenta.firma;
+      const elegida = await htmlDeFirma(ej, plantilla.idFirma);
+      const firma = hayFirma(elegida) ? elegida : cuenta.firma;
       const datos = {
         ...d.datos,
         firma,

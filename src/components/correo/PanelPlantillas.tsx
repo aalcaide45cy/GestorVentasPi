@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
-import type { CuentaDto, PlantillaDto } from "@/lib/correo";
+import type { CuentaDto, FirmaDto, PlantillaDto } from "@/lib/correo";
 import EditorHtml from "./EditorHtml";
 
 /** Plantillas de correo: asunto y cuerpo con campos del cliente, el expediente y las fechas entre llaves. */
@@ -20,10 +20,16 @@ export default function PanelPlantillas() {
     cco: string;
     id_cuenta: number | null;
     con_firma: boolean;
-    firma: string;
+    id_firma: number | null;
     cuerpo: string;
   } | null>(null);
   const [cuentas, setCuentas] = useState<CuentaDto[]>([]);
+  const [firmas, setFirmas] = useState<FirmaDto[]>([]);
+  useEffect(() => {
+    llamar<FirmaDto[]>("/api/correo/firmas")
+      .then((r) => setFirmas(r.data))
+      .catch(() => undefined);
+  }, []);
   useEffect(() => {
     llamar<CuentaDto[]>("/api/correo/cuentas")
       .then((r) => setCuentas(r.data))
@@ -53,7 +59,7 @@ export default function PanelPlantillas() {
           cco: b.cco,
           id_cuenta: b.id_cuenta,
           con_firma: b.con_firma,
-          firma: b.firma,
+          id_firma: b.id_firma,
           cuerpo: b.cuerpo,
         },
       });
@@ -92,7 +98,7 @@ export default function PanelPlantillas() {
               cco: "",
               id_cuenta: null,
               con_firma: true,
-              firma: "",
+              id_firma: null,
               cuerpo: "",
             })
           }
@@ -138,7 +144,7 @@ export default function PanelPlantillas() {
                 cco: p.cco,
                 id_cuenta: p.id_cuenta,
                 con_firma: p.con_firma,
-                firma: p.firma,
+                id_firma: p.id_firma,
                 cuerpo: p.cuerpo,
               })
             }
@@ -159,7 +165,7 @@ export default function PanelPlantillas() {
                 cco: p.cco,
                 id_cuenta: p.id_cuenta,
                 con_firma: p.con_firma,
-                firma: p.firma,
+                id_firma: p.id_firma,
                 cuerpo: p.cuerpo,
               })
             }
@@ -336,21 +342,31 @@ export default function PanelPlantillas() {
             Incluir al final la firma
           </label>
           {b.con_firma && (
-            <div
+            <label
               style={{ display: "flex", flexDirection: "column", gap: "4px" }}
             >
-              Firma de esta plantilla (opcional)
-              <EditorHtml
-                valor={b.firma}
-                alCambiar={(h) => setB((x) => (x ? { ...x, firma: h } : x))}
-                conImagenes
-              />
+              Firma que se pone
+              <select
+                className="form-input"
+                value={b.id_firma ?? ""}
+                onChange={(e) =>
+                  setB({
+                    ...b,
+                    id_firma: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+              >
+                <option value="">La de la cuenta con la que se envía</option>
+                {firmas.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nombre}
+                  </option>
+                ))}
+              </select>
               <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                Si la dejas vacía, sale la firma de la cuenta con la que se
-                envía. Puedes pegar aquí una firma de Gmail con su formato y sus
-                imágenes.
+                Las firmas se crean y se cambian en la pestaña «Firmas».
               </span>
-            </div>
+            </label>
           )}
         </Modal>
       )}

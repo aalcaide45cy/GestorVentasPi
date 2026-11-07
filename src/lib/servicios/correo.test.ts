@@ -21,7 +21,10 @@ import {
   fijarTransporteDePrueba,
   guardarAjustesCorreo,
   guardarCuenta,
+  eliminarFirma,
+  guardarFirma,
   guardarPlantilla,
+  listarPlantillas,
   listarCorreos,
   listarCuentas,
   probarCuenta,
@@ -406,24 +409,27 @@ describe("correo", () => {
     expect(c.error).toMatch(/no enviar correos/);
   });
 
-  it("una plantilla puede tener su propia firma, que sale en lugar de la de la cuenta; vacía, sale la de la cuenta", async () => {
+  it("cada plantilla elige una firma del gestor, que sale en lugar de la de la cuenta; sin elegir (o si se quita la firma), sale la de la cuenta", async () => {
     const { ana, id, cuenta } = await escenario();
+    const firma = await guardarFirma(db, ana, null, {
+      nombre: "Comercial",
+      html: "<p>Firma de la plantilla</p>",
+    });
     const propia = await guardarPlantilla(db, ana, null, {
       nombre: "Propia",
       asunto: "A",
-      firma: "<p>Firma de la plantilla</p>",
+      id_firma: firma.id,
       cuerpo: "<p>Texto</p>",
     });
-    const vacia = await guardarPlantilla(db, ana, null, {
-      nombre: "Vacía",
+    const sinElegir = await guardarPlantilla(db, ana, null, {
+      nombre: "Sin elegir",
       asunto: "B",
-      firma: "<p></p>",
       cuerpo: "<p>Texto</p>",
     });
     const conCampo = await guardarPlantilla(db, ana, null, {
       nombre: "Campo",
       asunto: "C",
-      firma: "<p>Firma de la plantilla</p>",
+      id_firma: firma.id,
       cuerpo: "<p>Texto {firma} fin</p>",
     });
     const cuerpo = async (idPlantilla: number) =>
@@ -437,11 +443,21 @@ describe("correo", () => {
     const a = await cuerpo(propia.id);
     expect(a).toContain("Firma de la plantilla");
     expect(a).not.toContain("Alfonso");
-    const b = await cuerpo(vacia.id);
-    expect(b).toContain("Alfonso");
+    expect(await cuerpo(sinElegir.id)).toContain("Alfonso");
     const c = await cuerpo(conCampo.id);
     expect(c).toContain("Texto <p>Firma de la plantilla</p> fin");
     expect(c).not.toContain("Alfonso");
+    // Un cambio en la firma llega a todas las plantillas que la usan
+    await guardarFirma(db, ana, firma.id, {
+      nombre: "Comercial",
+      html: "<p>Firma nueva</p>",
+    });
+    expect(await cuerpo(propia.id)).toContain("Firma nueva");
+    expect(await cuerpo(conCampo.id)).toContain("Firma nueva");
+    // Quitada la firma, las plantillas vuelven a la de la cuenta
+    await eliminarFirma(db, firma.id);
+    expect(await cuerpo(propia.id)).toContain("Alfonso");
+    expect((await listarPlantillas(db))[0].id_firma).toBeNull();
   });
 
   it("la firma de la cuenta es opcional en cada plantilla", async () => {
