@@ -549,9 +549,12 @@ export async function crearCorreoOpcional(
       .where(eq(correoPlantillas.id, e.id_plantilla));
     if (!p) throw new HttpError(404, "Plantilla no encontrada");
     if (!asunto) asunto = p.asunto;
-    paraPlantilla = p.para;
-    ccPlantilla = p.cc;
-    ccoPlantilla = p.cco;
+    // A un cliente potencial se le escribe solo a él: los destinatarios, CC y CCO de la plantilla (pensados para expedientes) no se aplican
+    if (!e.id_potencial) {
+      paraPlantilla = p.para;
+      ccPlantilla = p.cc;
+      ccoPlantilla = p.cco;
+    }
     // El cuerpo es el escrito o el de la plantilla; la firma de la cuenta se añade al final si la plantilla lo pide y el texto no lleva ya {firma}
     const base = cuerpo || p.cuerpo;
     cuerpo =

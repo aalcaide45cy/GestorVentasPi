@@ -621,6 +621,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Versión 1.66.5 (07/11/2026)
+
+Clientes potenciales: los destinatarios, CC y CCO de la plantilla (pensados para expedientes) ya no se aplican; un lote escribe solo al correo de cada potencial, como enseña la vista previa. Respuestas: si se escribe a la misma dirección desde la que se envía, la copia del propio correo enviado no cuenta como respuesta (una respuesta lleva «Re:»).
+
 ## Versión 1.66.4 (07/11/2026)
 
 Respuestas de clientes potenciales: solo cuentan los correos que llegan DESPUÉS de nuestro envío (antes, correos antiguos de la misma dirección salían como respuestas), y el texto citado de Gmail se recorta aunque su cabecera («El jue, 5 nov… escribió:») venga partida en varias líneas.

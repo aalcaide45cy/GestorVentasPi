@@ -253,6 +253,12 @@ export async function revisarRespuestas(
           .from(correoRespuestas)
           .where(eq(correoRespuestas.messageId, m.messageId));
         if (ya) continue;
+        // Si se escribe a la misma dirección desde la que se envía, la copia del propio correo enviado no es una respuesta (una respuesta lleva «Re:»)
+        if (
+          m.de === c.email.toLowerCase() &&
+          !/^\s*(re|rv|res)\s*:/i.test(m.asunto)
+        )
+          continue;
         r.mensajes++;
         const baja = pideLaBaja(m.texto);
         for (const [idPot, desdeEnvio] of porDireccion.get(m.de) ?? []) {

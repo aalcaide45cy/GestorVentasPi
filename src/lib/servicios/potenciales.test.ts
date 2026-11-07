@@ -307,6 +307,10 @@ describe("clientes potenciales", () => {
     );
     const plantilla = await guardarPlantilla(db, ana, null, {
       nombre: "Promo",
+      // Destinatarios pensados para expedientes: en un lote a potenciales no deben aplicarse
+      para: "interno@ejemplo.test",
+      cc: "copia@ejemplo.test",
+      cco: "oculta@ejemplo.test",
       asunto: "Tu {marca_presupuesto} {modelo_presupuesto}",
       cuerpo:
         "<p>Buenos días {nombre_pila}, estuvimos viendo un {marca_presupuesto} {modelo_presupuesto}. {baja}</p>",
@@ -425,6 +429,7 @@ describe("clientes potenciales", () => {
         (x) => x.lote === "Lote de prueba" && x.cuerpo.includes("Alfonso"),
       ),
     ).toBe(true);
+    expect(cola.every((x) => x.cc === "" && x.cco === "")).toBe(true);
     // Una segunda vez con la misma plantilla ya no repite
     expect(
       (await prepararLote(db, ana, { ...base, modo: "previsualizar" }))
