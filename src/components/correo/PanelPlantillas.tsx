@@ -124,6 +124,27 @@ export default function PanelPlantillas() {
           <button
             type="button"
             className="btn btn-secondary"
+            title="Abre una copia para que la cambies y la guardes con otro nombre"
+            onClick={() =>
+              setB({
+                id: null,
+                nombre: `${p.nombre} (copia)`.slice(0, 80),
+                asunto: p.asunto,
+                para: p.para,
+                cc: p.cc,
+                cco: p.cco,
+                id_cuenta: p.id_cuenta,
+                con_firma: p.con_firma,
+                cuerpo: p.cuerpo,
+              })
+            }
+            style={{ padding: "3px 10px", fontSize: "0.82rem" }}
+          >
+            📄 Duplicar
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
             onClick={() =>
               setB({
                 id: p.id,

@@ -218,7 +218,8 @@ export default function ModalLote({
                 display: "flex",
                 flexDirection: "column",
                 gap: "4px",
-                width: "150px",
+                width: "190px",
+                flexShrink: 0,
               }}
               title="Entre un correo y el siguiente pasa un tiempo al azar entre estos dos valores"
             >
@@ -235,7 +236,11 @@ export default function ModalLote({
                   onChange={(e) =>
                     setEspera(Math.max(1, Number(e.target.value) || 1))
                   }
-                  style={{ width: "64px" }}
+                  style={{
+                    width: "80px",
+                    boxSizing: "border-box",
+                    textAlign: "center",
+                  }}
                 />
                 –
                 <input
@@ -247,7 +252,11 @@ export default function ModalLote({
                   onChange={(e) =>
                     setEsperaMax(Math.max(1, Number(e.target.value) || 1))
                   }
-                  style={{ width: "64px" }}
+                  style={{
+                    width: "80px",
+                    boxSizing: "border-box",
+                    textAlign: "center",
+                  }}
                 />
               </span>
             </label>
