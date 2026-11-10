@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { db } from "@/db";
 import { sesiones, usuarios } from "@/db/schema";
+import { ipDeCabeceras } from "./ip";
 import { fijarUsuarioHistorial } from "@/lib/historial/contexto";
 import { cumplePermiso, normalizarRol, type Permiso, type Rol } from "./permisos";
 
@@ -55,8 +56,7 @@ export function hashToken(token: string): string {
 export async function ipCliente(): Promise<string | null> {
   if (process.env.TRUST_PROXY !== "true") return null;
   const h = await headers();
-  const xff = h.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return xff || h.get("x-real-ip") || null;
+  return ipDeCabeceras((n) => h.get(n));
 }
 
 async function ponerCookie(token: string): Promise<void> {

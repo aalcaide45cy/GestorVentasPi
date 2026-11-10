@@ -199,13 +199,13 @@ export default function PestanaEstados({ estados, setEstados }: Props) {
           <thead>
             <tr>
               <Cabecera etiqueta="Nombre Estado" campo="nombre" orden={orden} />
-              <th>Tipo</th>
-              <th>Color</th>
+              <th title="Tipo de estado del vehículo">Tipo</th>
+              <th title="Color con el que se pinta este estado">Color</th>
               <th title="Borde de la cápsula que rodea la marca y el modelo de los coches con este estado">Cápsula</th>
               <th title="Símbolo y color del punto de los coches con este estado">Punto</th>
               <th title="Si la marca y el estado tienen color, cuál manda: el de la marca o el de este estado. El que no manda rellena lo que falte">Prevalece</th>
-              <th>Predeterminado</th>
-              <th>Acciones</th>
+              <th title="El estado que se pone solo al crear un expediente">Predeterminado</th>
+              <th title="Editar o eliminar esta fila">Acciones</th>
             </tr>
           </thead>
           <tbody>

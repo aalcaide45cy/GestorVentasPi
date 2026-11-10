@@ -441,7 +441,7 @@ export default function PestanaMarcas({ marcas, setMarcas }: Props) {
                 orden={orden}
               />
               <Cabecera etiqueta="Expedientes" campo="usos" orden={orden} />
-              <th>Acciones</th>
+              <th title="Editar o eliminar esta fila">Acciones</th>
             </tr>
           </thead>
           <tbody>

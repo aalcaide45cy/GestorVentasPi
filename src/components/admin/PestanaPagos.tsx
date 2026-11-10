@@ -147,11 +147,11 @@ export default function PestanaPagos({ tipos, setTipos }: Props) {
           <thead>
             <tr>
               <Cabecera etiqueta="Nombre Tipo Venta" campo="nombre" orden={orden} />
-              <th>Color Asignado</th>
+              <th title="Color con el que se pinta este tipo de venta">Color Asignado</th>
               <th title="Si es Sí, un expediente con este tipo de pago no se puede matricular sin fecha RCI (fecha de contratación de la financiera), que se tiene en cuenta en las comisiones">Requerido al Matricular</th>
               <th title="Si es Sí, los expedientes con este tipo de pago suman a la tasa de intervención financiera (se cuentan en el mes de su fecha RCI)">Cuenta para la tasa</th>
               <Cabecera etiqueta="Orden Dashboard" campo="orden" orden={orden} ancho="180px" />
-              <th>Acciones</th>
+              <th title="Editar o eliminar esta fila">Acciones</th>
             </tr>
           </thead>
           <tbody>

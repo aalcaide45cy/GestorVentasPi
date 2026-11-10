@@ -621,6 +621,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Revisión completa (10/11/2026, sin cambio de versión)
+
+Interfaz: revisadas todas las pantallas en móvil (390 px) y las pestañas de Configuración; ayuda al pasar el ratón en todas las cabeceras ordenables de Configuración (`Cabecera` de `admin/utilidades.tsx`) y en «Acciones»; el desplegable «Columnas» de Potenciales ya no se sale en móvil. Seguridad: la IP de quien entra se lee de `cf-connecting-ip` o del último elemento de `x-forwarded-for` (`src/lib/auth/ip.ts`), y en el Mac se activa `TRUST_PROXY=true` en `.env`: el límite de intentos de login ya es por persona y un desconocido no bloquea a todos. `npm audit fix`: 0 avisos en los paquetes de producción. Pendiente de decidir con el propietario: escuchar solo en local (rompería red local y Tailscale), copias fuera del Mac, FileVault y firewall. Sin localizar: aviso de claves de React en el Dashboard (solo desarrollo).
+
 ## Mejoras de interfaz (10/11/2026, sin cambio de versión)
 
 Copia previa «Antes de Fable» (datos en `~/copias-previas` y rama `copia/antes-de-fable`). Títulos de Potenciales, Correo, Notas y Calendario con el mismo estilo que el resto de pantallas. Potenciales: la lista se ordena por columna, se filtra por columna, se eligen las columnas visibles (preferencia `exp-potenciales-columnas`) y las cabeceras tienen ayuda al pasar el ratón. Clientes y Expedientes: ayuda en las cabeceras que no la tenían.

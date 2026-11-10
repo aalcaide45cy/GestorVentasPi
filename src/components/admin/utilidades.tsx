@@ -26,9 +26,9 @@ export function comparar(a: string | number, b: string | number, asc: boolean): 
   return asc ? r : -r;
 }
 
-export function Cabecera({ etiqueta, campo, orden, ancho }: { etiqueta: string; campo: string; orden: ReturnType<typeof useOrden>; ancho?: string }) {
+export function Cabecera({ etiqueta, campo, orden, ancho, ayuda }: { etiqueta: string; campo: string; orden: ReturnType<typeof useOrden>; ancho?: string; ayuda?: string }) {
   return (
-    <th onClick={() => orden.ordenar(campo)} style={{ cursor: "pointer", userSelect: "none", ...(ancho ? { width: ancho } : {}) }}>
+    <th title={ayuda ?? `Clic para ordenar por «${etiqueta}» (otro clic invierte el orden)`} onClick={() => orden.ordenar(campo)} style={{ cursor: "pointer", userSelect: "none", ...(ancho ? { width: ancho } : {}) }}>
       {etiqueta}
       {orden.flecha(campo)}
     </th>

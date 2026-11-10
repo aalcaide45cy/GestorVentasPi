@@ -155,7 +155,7 @@ export default function PestanaTiendas({
             <tr>
               <Cabecera etiqueta="Nombre Tienda" campo="nombre" orden={orden} />
               <Cabecera etiqueta="Ciudad" campo="ciudad" orden={orden} />
-              <th>Acciones</th>
+              <th title="Editar o eliminar esta fila">Acciones</th>
             </tr>
           </thead>
           <tbody>

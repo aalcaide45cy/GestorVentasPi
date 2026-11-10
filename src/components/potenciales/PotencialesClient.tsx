@@ -295,7 +295,7 @@ export default function PotencialesClient() {
                   position: "absolute",
                   zIndex: 20,
                   top: "110%",
-                  left: 0,
+                  right: 0,
                   padding: "8px 12px",
                   display: "flex",
                   flexDirection: "column",
