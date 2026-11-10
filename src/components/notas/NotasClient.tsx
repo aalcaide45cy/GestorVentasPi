@@ -38,14 +38,8 @@ export default function NotasClient() {
       }}
     >
       <div>
-        <h2 style={{ margin: 0, fontSize: "1.5rem" }}>📝 Notas</h2>
-        <p
-          style={{
-            margin: "4px 0 0",
-            color: "var(--text-secondary)",
-            fontSize: "0.9rem",
-          }}
-        >
+        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Notas</h1>
+        <p style={{ color: "var(--text-secondary)" }}>
           Tus notas y tus flujos de trabajo, con grupos, etiquetas y adjuntos.
           Se guardan solas y las puedes compartir con el equipo.
         </p>

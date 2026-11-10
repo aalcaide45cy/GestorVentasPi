@@ -20,6 +20,57 @@ type Resumen = Record<EstadoPotencial | "total", number>;
 const fecha = (f: string | null) =>
   f ? f.split("-").reverse().join("/") : "—";
 
+type CampoLista =
+  "cliente" | "contacto" | "presupuesto" | "fecha" | "n" | "estado";
+const COLUMNAS_LISTA: Record<CampoLista, { texto: string; ayuda: string }> = {
+  cliente: {
+    texto: "Cliente",
+    ayuda: "Nombre de quien pidió el presupuesto. Clic para ordenar",
+  },
+  contacto: {
+    texto: "Contacto",
+    ayuda: "Correo y teléfono que traía el presupuesto. Clic para ordenar",
+  },
+  presupuesto: {
+    texto: "Último presupuesto",
+    ayuda: "Marca y modelo de su último presupuesto. Clic para ordenar",
+  },
+  fecha: {
+    texto: "Fecha",
+    ayuda: "Fecha de su último presupuesto. Clic para ordenar",
+  },
+  n: {
+    texto: "Nº",
+    ayuda: "Cuántos presupuestos tiene cargados. Clic para ordenar",
+  },
+  estado: {
+    texto: "Estado",
+    ayuda:
+      "Activo (se le puede escribir), posible compra, ya compró o de baja. Clic para ordenar",
+  },
+};
+const textoDe = (p: PotencialDto, c: CampoLista): string =>
+  c === "cliente"
+    ? p.nombre
+    : c === "contacto"
+      ? `${p.email} ${p.telefono}`
+      : c === "presupuesto"
+        ? p.ultimo
+          ? [p.ultimo.marca, p.ultimo.modelo].filter(Boolean).join(" ") ||
+            p.ultimo.modelo_texto
+          : ""
+        : c === "fecha"
+          ? fecha(p.ultimo?.fecha ?? null)
+          : c === "n"
+            ? String(p.n_presupuestos)
+            : ETIQUETA_ESTADO[p.estado];
+const valorDe = (p: PotencialDto, c: CampoLista): string | number =>
+  c === "n"
+    ? p.n_presupuestos
+    : c === "fecha"
+      ? (p.ultimo?.fecha ?? "")
+      : textoDe(p, c);
+
 /** «Clientes potenciales»: quien ha pedido un presupuesto. Se cargan los presupuestos, se cotejan con los expedientes y se les escribe a quien no ha comprado. */
 export default function PotencialesClient() {
   const { mostrar } = useToast();
@@ -34,6 +85,24 @@ export default function PotencialesClient() {
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [estado, setEstado] = useState<EstadoPotencial | "">("");
   const [q, setQ] = useState("");
+  // Orden, filtros por columna y columnas visibles de la lista (se aplican a lo que ya está cargado)
+  const [orden, setOrden] = useState<{ campo: CampoLista; asc: boolean }>({
+    campo: "cliente",
+    asc: true,
+  });
+  const [filtros, setFiltros] = useState<Record<CampoLista, string>>({
+    cliente: "",
+    contacto: "",
+    presupuesto: "",
+    fecha: "",
+    n: "",
+    estado: "",
+  });
+  const [colsGuardadas, fijarCols] = usePreferencia("exp-potenciales-columnas");
+  const ocultas = new Set(
+    (colsGuardadas ?? "").split(",").filter((c) => c in COLUMNAS_LISTA),
+  );
+  const mostrarCol = (c: CampoLista) => c === "cliente" || !ocultas.has(c);
   const [abierto, setAbierto] = useState<PotencialDto | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
@@ -56,6 +125,30 @@ export default function PotencialesClient() {
     const t = setTimeout(cargar, q ? 250 : 0);
     return () => clearTimeout(t);
   }, [cargar, q]);
+
+  const vista = (lista ?? [])
+    .filter((p) =>
+      (Object.keys(filtros) as CampoLista[]).every((c) => {
+        const f = filtros[c].trim().toLowerCase();
+        if (!f) return true;
+        if (c === "estado") return p.estado === f;
+        return textoDe(p, c).toLowerCase().includes(f);
+      }),
+    )
+    .sort((a, b) => {
+      const x = valorDe(a, orden.campo);
+      const y = valorDe(b, orden.campo);
+      const r =
+        typeof x === "number" && typeof y === "number"
+          ? x - y
+          : String(x).localeCompare(String(y), "es", { sensitivity: "base" });
+      return orden.asc ? r : -r;
+    });
+  const hayFiltros = Object.values(filtros).some((f) => f.trim() !== "");
+  const ordenarPor = (c: CampoLista) =>
+    setOrden((o) => ({ campo: c, asc: o.campo === c ? !o.asc : true }));
+  const flecha = (c: CampoLista) =>
+    orden.campo === c ? (orden.asc ? "▲" : "▼") : "↕";
 
   const cotejar = async () => {
     setOcupado(true);
@@ -117,16 +210,10 @@ export default function PotencialesClient() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: "1.5rem" }}>
-          🎯 Clientes potenciales
-        </h2>
-        <p
-          style={{
-            margin: "4px 0 0",
-            color: "var(--text-secondary)",
-            fontSize: "0.9rem",
-          }}
-        >
+        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>
+          Clientes potenciales
+        </h1>
+        <p style={{ color: "var(--text-secondary)" }}>
           Quien ha pedido un presupuesto. Se cotejan con los expedientes para
           saber quién ya ha comprado, y a los demás se les puede escribir.
         </p>
@@ -180,14 +267,64 @@ export default function PotencialesClient() {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="🔎 Buscar por nombre, correo o teléfono…"
+              placeholder="🔎 Nombre, correo o teléfono…"
+              title="Busca por nombre, correo o teléfono"
               style={{
                 flex: 1,
-                minWidth: "200px",
+                minWidth: "240px",
                 maxWidth: "340px",
                 padding: "4px 10px",
               }}
             />
+            <details style={{ position: "relative" }}>
+              <summary
+                className="btn btn-secondary"
+                title="Elige qué columnas se ven en la lista"
+                style={{
+                  padding: "4px 12px",
+                  fontSize: "0.82rem",
+                  listStyle: "none",
+                  cursor: "pointer",
+                }}
+              >
+                ⚙️ Columnas
+              </summary>
+              <div
+                className="glass-panel"
+                style={{
+                  position: "absolute",
+                  zIndex: 20,
+                  top: "110%",
+                  left: 0,
+                  padding: "8px 12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                  minWidth: "190px",
+                  background: "var(--bg-card)",
+                }}
+              >
+                {(Object.keys(COLUMNAS_LISTA) as CampoLista[]).map((c) => (
+                  <label
+                    key={c}
+                    style={{ display: "flex", gap: "6px", fontSize: "0.85rem" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={mostrarCol(c)}
+                      disabled={c === "cliente"}
+                      onChange={(e) => {
+                        const n = new Set(ocultas);
+                        if (e.target.checked) n.delete(c);
+                        else n.add(c);
+                        fijarCols([...n].join(","));
+                      }}
+                    />
+                    {COLUMNAS_LISTA[c].texto}
+                  </label>
+                ))}
+              </div>
+            </details>
             <button
               type="button"
               className="btn btn-secondary"
@@ -226,21 +363,24 @@ export default function PotencialesClient() {
             </p>
           )}
           {lista && lista.length > 0 && (
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-container">
               <table
                 className="table-premium table-compact"
                 style={{ width: "100%" }}
               >
                 <thead>
                   <tr>
-                    <th style={{ width: "28px" }}>
+                    <th
+                      style={{ width: "28px" }}
+                      title="Marca a todos los activos de la lista"
+                    >
                       <input
                         type="checkbox"
                         aria-label="Marcar todos los activos de la lista"
                         checked={
-                          lista.filter((p) => p.estado === "activo").length >
+                          vista.filter((p) => p.estado === "activo").length >
                             0 &&
-                          lista
+                          vista
                             .filter((p) => p.estado === "activo")
                             .every((p) => marcados.has(p.id))
                         }
@@ -248,7 +388,7 @@ export default function PotencialesClient() {
                           setMarcados(
                             e.target.checked
                               ? new Set(
-                                  lista
+                                  vista
                                     .filter((p) => p.estado === "activo")
                                     .map((p) => p.id),
                                 )
@@ -257,16 +397,110 @@ export default function PotencialesClient() {
                         }
                       />
                     </th>
-                    <th>Cliente</th>
-                    <th>Contacto</th>
-                    <th>Último presupuesto</th>
-                    <th>Fecha</th>
-                    <th style={{ textAlign: "center" }}>Nº</th>
-                    <th>Estado</th>
+                    {(Object.keys(COLUMNAS_LISTA) as CampoLista[])
+                      .filter(mostrarCol)
+                      .map((c) => (
+                        <th
+                          key={c}
+                          title={COLUMNAS_LISTA[c].ayuda}
+                          onClick={() => ordenarPor(c)}
+                          style={{
+                            cursor: "pointer",
+                            userSelect: "none",
+                            whiteSpace: "nowrap",
+                            textAlign: c === "n" ? "center" : undefined,
+                          }}
+                        >
+                          {COLUMNAS_LISTA[c].texto} {flecha(c)}
+                        </th>
+                      ))}
+                  </tr>
+                  <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
+                    <td>
+                      {hayFiltros && (
+                        <button
+                          type="button"
+                          title="Limpiar los filtros de las columnas"
+                          onClick={() =>
+                            setFiltros({
+                              cliente: "",
+                              contacto: "",
+                              presupuesto: "",
+                              fecha: "",
+                              n: "",
+                              estado: "",
+                            })
+                          }
+                          style={{
+                            border: "none",
+                            background: "none",
+                            cursor: "pointer",
+                            color: "var(--danger)",
+                          }}
+                        >
+                          ✖
+                        </button>
+                      )}
+                    </td>
+                    {(Object.keys(COLUMNAS_LISTA) as CampoLista[])
+                      .filter(mostrarCol)
+                      .map((c) => (
+                        <td key={c}>
+                          {c === "estado" ? (
+                            <select
+                              className="form-select"
+                              aria-label="Filtrar por estado"
+                              value={filtros.estado}
+                              onChange={(e) =>
+                                setFiltros({
+                                  ...filtros,
+                                  estado: e.target.value,
+                                })
+                              }
+                              style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            >
+                              <option value="">Todos</option>
+                              <option value="activo">Activo</option>
+                              <option value="posible">Posible compra</option>
+                              <option value="compro">Ya compró</option>
+                              <option value="baja">De baja</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Filtrar..."
+                              aria-label={`Filtrar por ${COLUMNAS_LISTA[c].texto}`}
+                              value={filtros[c]}
+                              onChange={(e) =>
+                                setFiltros({ ...filtros, [c]: e.target.value })
+                              }
+                              style={{
+                                padding: "4px 8px",
+                                fontSize: "0.8rem",
+                                minWidth: c === "n" ? "40px" : "80px",
+                              }}
+                            />
+                          )}
+                        </td>
+                      ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {lista.map((p) => (
+                  {vista.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        style={{
+                          textAlign: "center",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        No hay nadie con esos filtros.
+                      </td>
+                    </tr>
+                  )}
+                  {vista.map((p) => (
                     <tr
                       key={p.id}
                       onClick={() => setAbierto(p)}
@@ -296,40 +530,44 @@ export default function PotencialesClient() {
                         )}
                       </td>
                       <td style={{ fontWeight: 600 }}>{p.nombre}</td>
-                      <td style={{ fontSize: "0.8rem" }}>
-                        {p.email || (
-                          <span style={{ color: "var(--warning)" }}>
-                            sin correo
+                      {mostrarCol("contacto") && (
+                        <td style={{ fontSize: "0.8rem" }}>
+                          {p.email || (
+                            <span style={{ color: "var(--warning)" }}>
+                              sin correo
+                            </span>
+                          )}
+                          {p.telefono ? ` · ${p.telefono}` : ""}
+                        </td>
+                      )}
+                      {mostrarCol("presupuesto") && (
+                        <td>{textoDe(p, "presupuesto") || "—"}</td>
+                      )}
+                      {mostrarCol("fecha") && (
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          {fecha(p.ultimo?.fecha ?? null)}
+                        </td>
+                      )}
+                      {mostrarCol("n") && (
+                        <td style={{ textAlign: "center" }}>
+                          {p.n_presupuestos}
+                        </td>
+                      )}
+                      {mostrarCol("estado") && (
+                        <td>
+                          <span
+                            style={{
+                              color: COLOR_ESTADO[p.estado],
+                              fontWeight: 700,
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            {ETIQUETA_ESTADO[p.estado]}
                           </span>
-                        )}
-                        {p.telefono ? ` · ${p.telefono}` : ""}
-                      </td>
-                      <td>
-                        {p.ultimo
-                          ? [p.ultimo.marca, p.ultimo.modelo]
-                              .filter(Boolean)
-                              .join(" ") || p.ultimo.modelo_texto
-                          : "—"}
-                      </td>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        {fecha(p.ultimo?.fecha ?? null)}
-                      </td>
-                      <td style={{ textAlign: "center" }}>
-                        {p.n_presupuestos}
-                      </td>
-                      <td>
-                        <span
-                          style={{
-                            color: COLOR_ESTADO[p.estado],
-                            fontWeight: 700,
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          {ETIQUETA_ESTADO[p.estado]}
-                        </span>
-                        {p.id_expediente &&
-                          ` · #EXP-${String(p.id_expediente).padStart(4, "0")}`}
-                      </td>
+                          {p.id_expediente &&
+                            ` · #EXP-${String(p.id_expediente).padStart(4, "0")}`}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

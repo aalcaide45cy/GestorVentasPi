@@ -1456,7 +1456,10 @@ export default function ExpedientesList({
               )}
             </Fragment>
           ))}
-          <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>
+          <th
+            title="Editar o eliminar el expediente"
+            style={{ whiteSpace: "nowrap", textAlign: "center" }}
+          >
             Acciones
           </th>
         </tr>

@@ -23,14 +23,8 @@ export default function CorreoClient({ esAdmin }: { esAdmin: boolean }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: "1.5rem" }}>✉️ Correo</h2>
-        <p
-          style={{
-            margin: "4px 0 0",
-            color: "var(--text-secondary)",
-            fontSize: "0.9rem",
-          }}
-        >
+        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Correo</h1>
+        <p style={{ color: "var(--text-secondary)" }}>
           Envío de correos con plantillas rellenadas con los datos del cliente y
           del expediente. Todo entra en una cola que revisas antes de enviar.
         </p>

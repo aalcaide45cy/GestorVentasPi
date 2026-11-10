@@ -621,6 +621,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Mejoras de interfaz (10/11/2026, sin cambio de versión)
+
+Copia previa «Antes de Fable» (datos en `~/copias-previas` y rama `copia/antes-de-fable`). Títulos de Potenciales, Correo, Notas y Calendario con el mismo estilo que el resto de pantallas. Potenciales: la lista se ordena por columna, se filtra por columna, se eligen las columnas visibles (preferencia `exp-potenciales-columnas`) y las cabeceras tienen ayuda al pasar el ratón. Clientes y Expedientes: ayuda en las cabeceras que no la tenían.
+
 ## Versión 1.66.8 (07/11/2026)
 
 Gestor de firmas (Correo › ✍️ Firmas, migración 0088): se crean una vez, con formato e imágenes, y cada plantilla elige cuál usar; un cambio en la firma llega a todas las plantillas que la usan; sin elegir (o si se quita la firma), sale la de la cuenta. Sustituye a la firma suelta de la 1.66.6 (si alguna plantilla la tenía, se pasa al gestor).

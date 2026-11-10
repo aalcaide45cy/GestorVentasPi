@@ -299,14 +299,8 @@ export default function CalendarioClient({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: "1.5rem" }}>📅 Calendario</h2>
-        <p
-          style={{
-            margin: "4px 0 0",
-            color: "var(--text-secondary)",
-            fontSize: "0.9rem",
-          }}
-        >
+        <h1 style={{ fontSize: "1.85rem", marginBottom: "8px" }}>Calendario</h1>
+        <p style={{ color: "var(--text-secondary)" }}>
           Tus notas y eventos, con avisos que salen como alertas (el botón ❗ de
           arriba). Pulsa un día para añadir una nota.
         </p>
@@ -732,7 +726,10 @@ export default function CalendarioClient({
             <span style={{ minWidth: "92px" }}>
               {x.dia === hoy ? "Hoy" : fechaCorta(x.dia)}
             </span>
-            <span>{TIPO_FECHA[x.tipo]}{x.hora ? ` · ${x.hora}` : ""}</span>
+            <span>
+              {TIPO_FECHA[x.tipo]}
+              {x.hora ? ` · ${x.hora}` : ""}
+            </span>
             <Link href={`/dashboard/expedientes/editar/${x.id_expediente}`}>
               {x.cliente ?? "Sin cliente"}
               {x.matricula ? ` · ${x.matricula}` : ""}

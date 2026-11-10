@@ -485,14 +485,14 @@ export default function ClientesList({ clientesIniciales, totalEnBd, tiendas, us
                     />
                   </th>
                 )}
-                <th onClick={() => ordenar("nombre")} style={{ cursor: "pointer" }}>Nombre {flecha("nombre")}</th>
-                <th onClick={() => ordenar("dni")} style={{ cursor: "pointer" }}>DNI / NIE {flecha("dni")}</th>
-                {!oculta("fecha") && (<th onClick={() => ordenar("fecha_de_nacimiento")} style={{ cursor: "pointer" }}>F. Nacimiento {flecha("fecha_de_nacimiento")}</th>)}
-                {!oculta("correos") && (<th>Correos</th>)}
-                {!oculta("telefonos") && (<th>Teléfonos</th>)}
-                {!oculta("tienda") && (<th onClick={() => ordenar("tienda")} style={{ cursor: "pointer" }}>Tienda {flecha("tienda")}</th>)}
-                {!oculta("ventas") && (<th onClick={() => ordenar("expedientes")} style={{ cursor: "pointer" }}>Ventas {flecha("expedientes")}</th>)}
-                <th>Acciones</th>
+                <th title="Nombre del cliente. Clic para ordenar" onClick={() => ordenar("nombre")} style={{ cursor: "pointer" }}>Nombre {flecha("nombre")}</th>
+                <th title="DNI o NIE del cliente. Clic para ordenar" onClick={() => ordenar("dni")} style={{ cursor: "pointer" }}>DNI / NIE {flecha("dni")}</th>
+                {!oculta("fecha") && (<th title="Fecha de nacimiento. Clic para ordenar" onClick={() => ordenar("fecha_de_nacimiento")} style={{ cursor: "pointer" }}>F. Nacimiento {flecha("fecha_de_nacimiento")}</th>)}
+                {!oculta("correos") && (<th title="Correos electrónicos del cliente">Correos</th>)}
+                {!oculta("telefonos") && (<th title="Teléfonos del cliente">Teléfonos</th>)}
+                {!oculta("tienda") && (<th title="Tienda del cliente. Clic para ordenar" onClick={() => ordenar("tienda")} style={{ cursor: "pointer" }}>Tienda {flecha("tienda")}</th>)}
+                {!oculta("ventas") && (<th title="Número de ventas (expedientes) del cliente. Clic para ordenar" onClick={() => ordenar("expedientes")} style={{ cursor: "pointer" }}>Ventas {flecha("expedientes")}</th>)}
+                <th title="Editar o eliminar el cliente">Acciones</th>
               </tr>
               <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
                 {seleccionActiva && <td></td>}
