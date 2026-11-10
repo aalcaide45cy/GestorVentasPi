@@ -721,6 +721,12 @@ export default function ExpedientesList({
           e.vin,
           e.matricula,
           e.estado_intranet,
+          ...(e.cliente?.emails ?? []).map((x) => x.email),
+          // Los teléfonos, también sin espacios ni signos, para encontrarlos se escriban como se escriban
+          ...(e.cliente?.telefonos ?? []).flatMap((x) => [
+            x.telefono,
+            x.telefono.replace(/\D/g, ""),
+          ]),
         ];
         const textos = campos.map((c) => plano(c ?? ""));
         if (!palabras.every((w) => textos.some((t) => t.includes(w))))
@@ -2028,9 +2034,9 @@ export default function ExpedientesList({
                       setPagina(1);
                     }
                   }}
-                  placeholder="🔎 Buscar en la lista: nombre, marca, modelo, matrícula, bastidor…"
+                  placeholder="🔎 Buscar: nombre, correo, teléfono, marca, modelo, matrícula, bastidor…"
                   aria-label="Buscar en la lista de expedientes"
-                  title="Filtra la lista mientras escribes: nombre o DNI del cliente, marca, modelo, matrícula o bastidor. Puedes poner varias palabras. Se suma a los demás filtros"
+                  title="Filtra la lista mientras escribes: nombre, DNI, correo o teléfono del cliente, marca, modelo, matrícula o bastidor. Puedes poner varias palabras. Se suma a los demás filtros"
                   style={{
                     width: "100%",
                     padding: "6px 30px 6px 10px",

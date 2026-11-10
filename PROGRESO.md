@@ -623,7 +623,7 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 
 ## Buscador en la lista de Expedientes (10/11/2026, sin cambio de versión)
 
-Caja «Buscar en la lista» en la barra de filtros de Expedientes (siempre visible, aunque los filtros estén plegados): filtra mientras se escribe por nombre o DNI del cliente, marca, modelo, matrícula y bastidor, sin acentos ni mayúsculas y con varias palabras; se limpia con ✖, con Esc o con «Limpiar filtros». Usa el estado `busqueda` que ya existía (se suma al resto de filtros y se recuerda con ellos).
+Caja «Buscar en la lista» en la barra de filtros de Expedientes (siempre visible, aunque los filtros estén plegados): filtra mientras se escribe por nombre o DNI del cliente, correos y teléfonos del cliente, marca, modelo, matrícula y bastidor, sin acentos ni mayúsculas y con varias palabras; se limpia con ✖, con Esc o con «Limpiar filtros». Usa el estado `busqueda` que ya existía (se suma al resto de filtros y se recuerda con ellos).
 
 ## Revisión completa (10/11/2026, sin cambio de versión)
 
