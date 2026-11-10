@@ -621,6 +621,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Buscador en la lista de Expedientes (10/11/2026, sin cambio de versión)
+
+Caja «Buscar en la lista» en la barra de filtros de Expedientes (siempre visible, aunque los filtros estén plegados): filtra mientras se escribe por nombre o DNI del cliente, marca, modelo, matrícula y bastidor, sin acentos ni mayúsculas y con varias palabras; se limpia con ✖, con Esc o con «Limpiar filtros». Usa el estado `busqueda` que ya existía (se suma al resto de filtros y se recuerda con ellos).
+
 ## Revisión completa (10/11/2026, sin cambio de versión)
 
 Interfaz: revisadas todas las pantallas en móvil (390 px) y las pestañas de Configuración; ayuda al pasar el ratón en todas las cabeceras ordenables de Configuración (`Cabecera` de `admin/utilidades.tsx`) y en «Acciones»; el desplegable «Columnas» de Potenciales ya no se sale en móvil. Seguridad: la IP de quien entra se lee de `cf-connecting-ip` o del último elemento de `x-forwarded-for` (`src/lib/auth/ip.ts`), y en el Mac se activa `TRUST_PROXY=true` en `.env`: el límite de intentos de login ya es por persona y un desconocido no bloquea a todos. `npm audit fix`: 0 avisos en los paquetes de producción. Pendiente de decidir con el propietario: escuchar solo en local (rompería red local y Tailscale), copias fuera del Mac, FileVault y firewall. Sin localizar: aviso de claves de React en el Dashboard (solo desarrollo).

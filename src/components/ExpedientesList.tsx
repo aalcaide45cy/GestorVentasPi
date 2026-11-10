@@ -691,6 +691,13 @@ export default function ExpedientesList({
     reglaQueAplica(e, reglasColor, hoyLocal);
   const filtrados = useMemo(() => {
     const gs = busqueda.toLowerCase();
+    // Buscador de la lista: sin acentos ni mayúsculas, y cada palabra tiene que estar en algún campo («clio rojo 1234»)
+    const plano = (t: string) =>
+      t
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    const palabras = plano(busqueda).split(/\s+/).filter(Boolean);
     return expedientes.filter((e) => {
       if (ocultarEntregados && estaEntregadoEnIntranet(e.estado_intranet))
         return false;
@@ -715,7 +722,9 @@ export default function ExpedientesList({
           e.matricula,
           e.estado_intranet,
         ];
-        if (!campos.some((c) => c?.toLowerCase().includes(gs))) return false;
+        const textos = campos.map((c) => plano(c ?? ""));
+        if (!palabras.every((w) => textos.some((t) => t.includes(w))))
+          return false;
       }
       if (fMarca) {
         if (fMarca === "VO_NO_BRAND") {
@@ -1987,7 +1996,73 @@ export default function ExpedientesList({
               gap: "8px 14px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                flexWrap: "wrap",
+                flex: 1,
+              }}
+            >
+              <span
+                style={{
+                  position: "relative",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  flex: "1 1 260px",
+                  maxWidth: "420px",
+                }}
+              >
+                <input
+                  type="text"
+                  className="form-input"
+                  value={busqueda}
+                  onChange={(e) => {
+                    setBusqueda(e.target.value);
+                    setPagina(1);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setBusqueda("");
+                      setPagina(1);
+                    }
+                  }}
+                  placeholder="🔎 Buscar en la lista: nombre, marca, modelo, matrícula, bastidor…"
+                  aria-label="Buscar en la lista de expedientes"
+                  title="Filtra la lista mientras escribes: nombre o DNI del cliente, marca, modelo, matrícula o bastidor. Puedes poner varias palabras. Se suma a los demás filtros"
+                  style={{
+                    width: "100%",
+                    padding: "6px 30px 6px 10px",
+                    fontSize: "0.88rem",
+                    borderColor: busqueda.trim() ? "var(--primary)" : undefined,
+                  }}
+                />
+                {busqueda && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBusqueda("");
+                      setPagina(1);
+                    }}
+                    title="Quitar la búsqueda"
+                    aria-label="Quitar la búsqueda"
+                    style={{
+                      position: "absolute",
+                      right: "6px",
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                      color: "var(--danger)",
+                      fontSize: "0.95rem",
+                      lineHeight: 1,
+                      padding: "2px 4px",
+                    }}
+                  >
+                    ✖
+                  </button>
+                )}
+              </span>
               <h4
                 onClick={() =>
                   fijarFiltrosAbiertos(filtrosAbiertos ? "false" : "true")
