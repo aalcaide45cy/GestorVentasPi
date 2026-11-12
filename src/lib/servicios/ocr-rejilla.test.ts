@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { aGris, celdaConTinta, matriculaDeTexto, mesDeTexto, mesLegible, notaDeLectura } from "./ocr-rejilla";
+import { aGris, celdaConTinta, importeDeTexto, matriculaDeTexto, mesDeTexto, mesLegible, notaDeLectura } from "./ocr-rejilla";
 
 describe("mesDeTexto (fecha de la rejilla, abajo a la izquierda)", () => {
   it("lee «abril-24» y sus variantes con errores típicos del OCR", () => {
@@ -71,5 +71,20 @@ describe("notaDeLectura (elegir el giro bueno de la hoja)", () => {
   it("a igual número de válidas, gana la lectura más fiable y la que no trae lecturas sin sentido", () => {
     expect(notaDeLectura([m("1111BBB", 98)])).toBeGreaterThan(notaDeLectura([m("1111BBB", 70)]));
     expect(notaDeLectura([m("1111BBB", 98)])).toBeGreaterThan(notaDeLectura([m("1111BBB", 98), m("XX1", 0, false)]));
+  });
+});
+
+describe("importeDeTexto (celda de la columna IMPORTE)", () => {
+  it("lee importes con dos decimales, con coma o punto y con separador de miles", () => {
+    expect(importeDeTexto("60,00")).toBe(6000);
+    expect(importeDeTexto(" 20.00 ")).toBe(2000);
+    expect(importeDeTexto("1.576,57")).toBe(157657);
+    expect(importeDeTexto("0,00")).toBe(0);
+  });
+  it("lo que no tiene forma de importe queda vacío para escribirlo a mano", () => {
+    expect(importeDeTexto("")).toBeNull();
+    expect(importeDeTexto("60")).toBeNull();
+    expect(importeDeTexto("6,0,00")).toBeNull();
+    expect(importeDeTexto("123456789,00")).toBeNull();
   });
 });

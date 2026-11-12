@@ -16,6 +16,8 @@ export interface MatriculaLeida {
   /** Confianza en la lectura (0-100): 95 si dos lecturas distintas coinciden, 0 si no se ha podido leer bien. */
   confianza: number;
   valida: boolean;
+  /** Importe de su fila (columna «IMPORTE»), en céntimos; null o ausente si no se ha podido leer. */
+  importe?: number | null;
 }
 
 export interface LecturaHoja {
@@ -213,6 +215,29 @@ function tablaRegular(lineas: Linea[]): { tabla: Linea[]; paso: number } | null 
 
 /** Celdas de la columna de matrículas: una por fila de la tabla. */
 export function celdasMatricula(g: Gris): Celda[] {
+  return cuadricula(g).celdas;
+}
+
+/** ¿Hay línea horizontal de la tabla entre dos x, a la altura `y`? (se mira una franja de unos píxeles por si la línea baila) */
+function hayLineaEntre(g: Gris, y: number, x0: number, x1: number): boolean {
+  if (x1 - x0 < 8) return false;
+  let mejor = 0;
+  for (let dy = -3; dy <= 3; dy++) {
+    const yy = y + dy;
+    if (yy < 0 || yy >= g.alto) continue;
+    let oscuros = 0;
+    for (let x = x0 + 3; x < x1 - 3; x++) if (g.datos[yy * g.ancho + x] < UMBRAL_OSCURO) oscuros++;
+    mejor = Math.max(mejor, oscuros / (x1 - x0 - 6));
+  }
+  return mejor > 0.6;
+}
+
+/**
+ * La cuadrícula de la hoja: las celdas de la columna de matrículas y, si se encuentra, la columna «IMPORTE», que es la caja suelta que hay a la
+ * derecha de la tabla (separada de ella por un hueco en blanco) con las mismas filas.
+ */
+export function cuadricula(g: Gris): { celdas: Celda[]; importe: { x: number; ancho: number } | null } {
+  const nada = { celdas: [] as Celda[], importe: null };
   const tolerancia = Math.round(g.ancho * 0.012);
   const tramos = tramosHorizontales(g, Math.round(g.ancho * 0.1));
   // La tabla de matrículas es la de la mitad izquierda con más filas regulares (la hoja trae otras tablas).
@@ -221,22 +246,35 @@ export function celdasMatricula(g: Gris): Celda[] {
     const candidata = tablaRegular(lineasHorizontales(tramos.filter((o) => Math.abs(o.x - t.x) <= tolerancia)));
     if (candidata && candidata.tabla.length >= 5 && (!mejor || candidata.tabla.length > mejor.tabla.length)) mejor = { x0: t.x, ...candidata };
   }
-  if (!mejor) return [];
+  if (!mejor) return nada;
   const { x0, tabla, paso } = mejor;
   const yIni = tabla[0].y;
   const yFin = tabla[tabla.length - 1].y;
   const verticales = lineasVerticales(g, yIni + 3, Math.min(yFin, yIni + paso * 8) - 3, x0 - tolerancia * 2, x0 + Math.round(g.ancho * 0.3));
   const izquierda = verticales.find((x) => Math.abs(x - x0) <= tolerancia * 3);
-  if (izquierda === undefined) return [];
+  if (izquierda === undefined) return nada;
   const derecha = verticales.find((x) => x > izquierda + g.ancho * 0.05);
-  if (derecha === undefined) return [];
+  if (derecha === undefined) return nada;
   const celdas: Celda[] = [];
   for (let i = 0; i + 1 < tabla.length; i++) {
     const alto = tabla[i + 1].y - tabla[i].y;
     if (alto < paso * 0.7 || alto > paso * 1.4) continue;
     celdas.push({ x: izquierda + 4, y: tabla[i].y + 3, ancho: derecha - izquierda - 8, alto: alto - 6 });
   }
-  return celdas;
+  // Columna de importes: tras el borde derecho de la tabla (hasta donde llegan sus líneas de fila) hay un hueco y después otra caja
+  let importe: { x: number; ancho: number } | null = null;
+  const yLinea = tabla[Math.min(2, tabla.length - 1)].y;
+  const todas = lineasVerticales(g, yIni + 3, Math.min(yFin, yIni + paso * 8) - 3, izquierda - 2, Math.round(g.ancho * 0.7)).filter((x) => x >= izquierda);
+  let k = 0;
+  while (k + 1 < todas.length && hayLineaEntre(g, yLinea, todas[k], todas[k + 1])) k++;
+  // todas[k] es el borde derecho de la tabla; la caja de importes es el siguiente par de verticales unido por las líneas de fila
+  for (let n = k + 1; n + 1 < todas.length; n++) {
+    if (hayLineaEntre(g, yLinea, todas[n], todas[n + 1]) && todas[n + 1] - todas[n] > g.ancho * 0.03) {
+      importe = { x: todas[n] + 4, ancho: todas[n + 1] - todas[n] - 8 };
+      break;
+    }
+  }
+  return { celdas, importe };
 }
 
 /** Recorte binarizado de la celda (tinta negra sobre blanco), sin los bordes de la tabla. */
@@ -316,6 +354,15 @@ function repararMatricula(texto: string): string | null {
   return MATRICULA.test(r) ? r : null;
 }
 
+/** Importe en céntimos de lo leído en una celda («60,00», «1.576,57»); null si no tiene forma de importe con dos decimales. */
+export function importeDeTexto(texto: string): number | null {
+  const t = texto.replace(/\s/g, "");
+  const m = /^(\d{1,3}(?:\.\d{3})*|\d+)[,.](\d{2})$/.exec(t);
+  if (!m) return null;
+  const euros = Number(m[1].replace(/\./g, ""));
+  return Number.isFinite(euros) && euros < 100_000 ? euros * 100 + Number(m[2]) : null;
+}
+
 /** Recorte de la celda en grises, listo para leer la línea entera. */
 async function recorteLinea(img: Buffer, c: Celda): Promise<Buffer> {
   return sharp(img, { failOn: "none" })
@@ -363,7 +410,8 @@ export async function leerMatriculasDeImagen(original: Buffer): Promise<LecturaH
   for (const giro of [270, 90, 0, 180]) {
     const girada = await sharp(imagen, { failOn: "none" }).rotate(giro).png().toBuffer();
     const g = await aGris(girada, 0);
-    const celdas = celdasMatricula(g).filter((c) => celdaConTinta(g, c));
+    const rejilla = cuadricula(g);
+    const celdas = rejilla.celdas.filter((c) => celdaConTinta(g, c));
     if (celdas.length === 0) continue;
     // Lectura 1: la celda entera como una línea. Lectura 2: carácter a carácter (cifras en las cuatro primeras
     // posiciones y consonantes en las tres últimas), que evita confusiones como 5/S o 0/O.
@@ -402,6 +450,17 @@ export async function leerMatriculasDeImagen(original: Buffer): Promise<LecturaH
         }
       }
     }
+    // Importe de cada fila (si la hoja trae la caja «IMPORTE»): la celda de la misma fila, leída solo con cifras
+    let importes: (number | null)[] = celdas.map(() => null);
+    if (rejilla.importe) {
+      const col = rejilla.importe;
+      try {
+        const leidos = await ocrCeldas(await Promise.all(celdas.map((c) => recorteLinea(girada, { x: col.x, y: c.y, ancho: col.ancho, alto: c.alto }))), "0123456789,.");
+        importes = leidos.map((l) => importeDeTexto(l.texto));
+      } catch {
+        /* sin importes: se escriben a mano */
+      }
+    }
     const matriculas: MatriculaLeida[] = [];
     const vistas = new Set<string>();
     for (let i = 0; i < celdas.length; i++) {
@@ -421,7 +480,7 @@ export async function leerMatriculasDeImagen(original: Buffer): Promise<LecturaH
       const confianza = !valida ? 0 : reparada ? 40 : unanimes && validas.length >= 3 ? 98 : unanimes ? 95 : acuerdo >= 2 && acuerdo * 2 > validas.length ? 85 : validas.length === 1 ? 70 : 55;
       if (valida && vistas.has(elegida)) continue;
       if (valida) vistas.add(elegida);
-      if (elegida.length >= 5) matriculas.push({ matricula: elegida, confianza, valida });
+      if (elegida.length >= 5) matriculas.push({ matricula: elegida, confianza, valida, importe: importes[i] });
     }
     if (matriculas.length === 0) continue;
     const validas = matriculas.filter((m) => m.valida);

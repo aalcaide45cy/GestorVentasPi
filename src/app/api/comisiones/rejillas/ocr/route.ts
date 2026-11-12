@@ -26,10 +26,12 @@ export const POST = manejar(async (req: Request) => {
       return NextResponse.json({
         success: true,
         data: {
-          filas: matriculas.map((m) => ({ matricula: m.matricula, cliente: null, financiacion: null, concepto: null, importe: null, textoOriginal: null, confianza: m.valida ? m.confianza : 0 })),
+          filas: matriculas.map((m) => ({ matricula: m.matricula, cliente: null, financiacion: null, concepto: null, importe: m.importe ?? null, textoOriginal: null, confianza: m.valida ? m.confianza : 0 })),
           metodo: "ocr",
           paginas: r.paginas,
-          aviso: "De esta hoja solo se han podido leer las matrículas (las de fondo ámbar, con poca confianza). Compruébalas con la hoja y escribe el importe de cada una antes de guardar.",
+          aviso: matriculas.some((m) => m.importe != null)
+            ? "Hoja escaneada: se han leído las matrículas y el importe de cada fila, celda a celda. Compruébalos con la hoja antes de guardar (fondo ámbar = poca confianza; importe vacío = no se ha podido leer)."
+            : "De esta hoja solo se han podido leer las matrículas (las de fondo ámbar, con poca confianza). Compruébalas con la hoja y escribe el importe de cada una antes de guardar.",
         },
       });
   }
