@@ -1,6 +1,5 @@
 import { ajustarLecturas, sugerirMes, type CocheCotejo } from "@/lib/cotejo-pagos";
 import type { MatriculaLeida } from "@/lib/servicios/ocr-rejilla";
-import { avisarCambioDeDatos } from "@/lib/datos-version";
 import { esperarTarea, refrescarTareas } from "@/lib/tareas-cliente";
 
 /**
@@ -58,8 +57,6 @@ export const SIN_ESTADO: EstadoRejillas = { hojas: [], borradores: [] };
 let estado: EstadoRejillas = SIN_ESTADO;
 let cargado = false;
 let contexto: ContextoRejillas = { coches: [], mes: "" };
-/** Meses cuya rejilla se está guardando sola ahora mismo (una segunda hoja del mismo mes se queda de borrador para decidir). */
-const guardandoMes = new Set<string>();
 const oyentes = new Set<() => void>();
 let contador = 0;
 
@@ -134,43 +131,10 @@ async function leerHoja(id: string): Promise<void> {
     }));
     const total = paginas.reduce((n, p) => n + p.matriculas.length, 0);
     emitir({ hojas: estado.hojas.map((h) => (h.id === id ? { ...h, estado: total > 0 ? "leida" : "error", error: total > 0 ? undefined : "No se ha podido leer ninguna matrícula: puedes escribirlas a mano o releerla con otro motor", matriculas: total } : h)), borradores: [...estado.borradores.filter((b) => b.idHoja !== id), ...nuevos] });
-    // Las hojas cuyo mes se ha adivinado por sus coches se guardan solas (si ese mes aún no tiene rejilla)
-    nuevos.forEach((b, i) => {
-      if (paginas[i].mes || sugerirMes(paginas[i].matriculas.map((m) => m.matricula), contexto.coches)) void guardarSola(b, hoja.idVendedor);
-    });
+    // Nada se guarda solo: lo leído queda como borrador para que el usuario lo compruebe con la hoja, lo corrija y lo guarde él
+    if (total > 0) contexto.avisar?.(`«${hoja.nombre}» leída: ${total} matrícula(s). Revísalas en «Mi mes» y pulsa «Guardar rejilla».`, "aviso");
   } catch (e) {
     if (estado.hojas.some((h) => h.id === id)) cambiarHoja(id, { estado: "error", error: e instanceof Error ? e.message : "No se ha podido leer la hoja" });
-  }
-}
-
-/**
- * Guarda sola la rejilla de un borrador cuyo mes es seguro, siempre que ese mes no tenga ya una rejilla guardada (nunca sustituye una existente:
- * en ese caso se queda como borrador para decidir). Las matrículas dudosas se resuelven después en «Mi mes», con la rejilla ya guardada.
- */
-async function guardarSola(b: BorradorRejilla, idVendedor: number | undefined): Promise<void> {
-  const { avisar } = contexto;
-  const matriculas = b.filas.map((f) => f.matricula.trim()).filter(Boolean);
-  if (!idVendedor || !avisar || matriculas.length === 0 || guardandoMes.has(b.mes)) return;
-  guardandoMes.add(b.mes);
-  try {
-    const lista = await fetch(`/api/cotejo?usuario=${idVendedor}`, { credentials: "same-origin" });
-    const datos = (await lista.json().catch(() => null)) as { data?: { rejillas?: { mes: string }[] } } | null;
-    const rejillas = datos?.data?.rejillas;
-    if (!lista.ok || !rejillas) return;
-    if (rejillas.some((r) => r.mes === b.mes)) {
-      avisar(`«${b.nombreArchivo}» se ha leído, pero ya hay una rejilla guardada de ${b.mes}: revisa la nueva en «Mi mes» y decide si la sustituye.`, "aviso");
-      return;
-    }
-    if (!estado.borradores.some((x) => x.clave === b.clave)) return;
-    const guardar = await fetch(`/api/cotejo/rejillas?usuario=${idVendedor}`, { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mes: b.mes, nombreArchivo: b.nombreArchivo, origen: "pdf", matriculas }) });
-    if (!guardar.ok) throw new Error(`Error ${guardar.status}`);
-    quitarBorrador(b.clave);
-    avisarCambioDeDatos();
-    avisar(`Rejilla de ${b.mes} guardada sola (${matriculas.length} matrículas). Puedes verla y corregirla en «Mis rejillas».`, "exito");
-  } catch {
-    avisar(`«${b.nombreArchivo}» se ha leído pero no se ha podido guardar sola: queda como borrador para guardarla a mano.`, "aviso");
-  } finally {
-    guardandoMes.delete(b.mes);
   }
 }
 

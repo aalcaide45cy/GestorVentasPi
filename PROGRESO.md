@@ -621,6 +621,10 @@ Incluye todo lo de la 1.3.0 y la 1.3.1 (aún sin publicar aparte).
 - **La plantilla lo lleva todo**: asunto, texto, destinatarios, CC, CCO, **cuenta desde la que se envía** (`correo_plantillas.id_cuenta`, migración 0082; si no es del usuario que la usa, se usa su primera cuenta) y firma. Los ajustes del botón ✉️ de las fechas quedan en: activar, plantilla y qué pasa al pulsar.
 - **Sobre verde**: el sobre de una fecha se pone verde (con la fecha y hora del envío al pasar el ratón) cuando el correo de esa fecha se ha enviado (`correo_cola.campo`, migración 0083; `GET /api/correo/enviados`; `lib/correo-enviados.ts` con refresco al volver a la pestaña). Pulsándolo se puede enviar otro.
 
+## Lector de rejillas y corrección de lo leído (12/11/2026, sin cambio de versión)
+
+Lector (`ocr-rejilla.ts`): los escaneos a 600 ppp se reducen al tamaño de un A4 a 300 ppp (con 7.000 px no se encontraba la cuadrícula) y se prueban los giros quedándose con el que da más matrículas válidas (`notaDeLectura`), en vez de con el primero que «lee algo» (salían matrículas inventadas de la hoja tumbada). Cotejo de pagos: nada se guarda solo, la hoja leída queda como borrador para revisarla; `EditorRejillaGuardada` (Mi mes › «Corregir lo leído» e Histórico › botones por mes y ✏️ por fila) cambia, añade y quita matrículas de una rejilla guardada con `PATCH /api/cotejo/rejillas` (`corregirRejillaCotejo`: solo toca las filas que cambian). «¿Cuadran los importes?»: si el OCR general no saca filas de una hoja escaneada, se leen al menos las matrículas con el lector de la cuadrícula.
+
 ## Buscador en la lista de Expedientes (10/11/2026, sin cambio de versión)
 
 Caja «Buscar en la lista» en la barra de filtros de Expedientes (siempre visible, aunque los filtros estén plegados): filtra mientras se escribe por nombre o DNI del cliente, correos y teléfonos del cliente, marca, modelo, matrícula y bastidor, sin acentos ni mayúsculas y con varias palabras; se limpia con ✖, con Esc o con «Limpiar filtros». Usa el estado `busqueda` que ya existía (se suma al resto de filtros y se recuerda con ellos).

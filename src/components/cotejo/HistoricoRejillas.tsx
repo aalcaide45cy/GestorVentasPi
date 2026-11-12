@@ -10,6 +10,7 @@ import { cotejarPagos, mesDeFila, mesesEsperados, type EstadoCotejo, type FilaCo
 import { formatDate } from "@/lib/date-utils";
 import { nombreMes } from "@/lib/formato";
 import type { DatosCotejo } from "@/lib/servicios/cotejo";
+import EditorRejillaGuardada from "./EditorRejillaGuardada";
 
 type Filtro = "todos" | "coinciden" | "no_figuran" | "dudosos" | "sin_rejilla" | "sin_expediente";
 
@@ -32,7 +33,9 @@ const fecha = (v: string | null) => formatDate(v) || "-";
  */
 export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdministrador }: { vendedores: { id: number; nombre: string }[]; idUsuarioActual: number; esAdministrador: boolean }) {
   const [idVendedor, setIdVendedor] = useState(idUsuarioActual);
-  const { datos } = useCarga<DatosCotejo | null>(`/api/cotejo?usuario=${idVendedor}`, null);
+  const { datos, recargar } = useCarga<DatosCotejo | null>(`/api/cotejo?usuario=${idVendedor}`, null);
+  // Mes de la rejilla guardada cuyas matrículas se están corrigiendo a mano
+  const [corrigiendo, setCorrigiendo] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("todos");
 
   const resultado = useMemo(() => (datos ? cotejarPagos(datos.coches, datos.pagos) : null), [datos]);
@@ -72,6 +75,20 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
     ...columnasVehiculo<FilaCotejo>((f) => ({ clase: f.coche ? (f.coche.usado ? "VO" : "VN") : null, marca: f.coche?.marca, modelo: f.coche?.modelo, estado: f.coche?.estado, tipoPago: f.coche?.tipo_pago }), { vacio: <span style={{ color: "var(--text-muted)" }}>—</span> }),
     { clave: "fechaClave", etiqueta: "F. matric. / afect.", valor: (f) => (f.coche?.usado ? f.coche.f_afectacion : f.coche?.f_matriculacion) ?? "", celda: (f) => (f.coche ? fecha((f.coche.usado ? f.coche.f_afectacion : f.coche.f_matriculacion) ?? null) : "-"), ayuda: "Fecha de afectación en los usados y de matriculación en los nuevos" },
     { clave: "mesEsperado", etiqueta: "Mes que le toca", valor: (f) => mesDeFila(f) ?? "", celda: (f) => (f.coche ? mesesEsperados(f.coche).map(nombreMes).join(" / ") || "-" : "-"), ayuda: "Mes en que debería cobrarse el coche" },
+    {
+      clave: "corregir",
+      etiqueta: "Corregir",
+      valor: (f) => (f.mesRejilla ? 1 : 0),
+      ayuda: "Abre las matrículas leídas de la rejilla de ese mes para cambiarlas, añadir o quitar",
+      celda: (f) =>
+        f.mesRejilla ? (
+          <button type="button" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.8rem" }} title={`Ver y corregir las matrículas leídas de la rejilla de ${nombreMes(f.mesRejilla)}`} onClick={() => setCorrigiendo(f.mesRejilla)}>
+            ✏️
+          </button>
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>-</span>
+        ),
+    },
     { clave: "rejilla", etiqueta: "Figura en la rejilla de", valor: (f) => f.mesRejilla ?? "", celda: (f) => (f.mesRejilla ? <b>{nombreMes(f.mesRejilla)}</b> : <span style={{ color: "var(--text-muted)" }}>No figura</span>) },
   ];
 
@@ -117,6 +134,19 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
         <p style={{ margin: 0, color: "var(--text-secondary)" }}>Todavía no hay ninguna rejilla guardada. Súbela en la pestaña «Mi mes» y sus matrículas quedarán aquí, comparadas con tus expedientes.</p>
       )}
 
+      {datos && datos.rejillas.length > 0 && (
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", fontSize: "0.85rem" }}>
+          <span style={{ color: "var(--text-secondary)" }}>✏️ Ver y corregir lo leído de cada rejilla:</span>
+          {[...datos.rejillas]
+            .sort((a, b) => b.mes.localeCompare(a.mes))
+            .map((r) => (
+              <button key={r.id} type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} title={`${r.filas} matrícula(s)${r.nombreArchivo ? ` · ${r.nombreArchivo}` : ""}. Pulsa para comprobarlas, cambiarlas, añadir o quitar`} onClick={() => setCorrigiendo(r.mes)}>
+                {nombreMes(r.mes)} ({r.filas})
+              </button>
+            ))}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <CasillaAnulados activa={mostrarAnulados} alCambiar={fijarMostrarAnulados} anulados={nAnuladas} />
         <CasillaDeshabilitados activa={mostrarDeshabilitados} alCambiar={fijarMostrarDeshabilitados} deshabilitados={nDeshabilitadas} />
@@ -145,6 +175,20 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
         pie={(fs) => ({ resultado: `${fs.length} fila${fs.length === 1 ? "" : "s"}` })}
       />
       {resultado && resultado.sinMatricula.length > 0 && <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.82rem" }}>Hay {resultado.sinMatricula.length} coche(s) sin matrícula que no se pueden comparar (anulados o sin matricular).</p>}
+      {corrigiendo && datos && (
+        <EditorRejillaGuardada
+          key={corrigiendo}
+          idVendedor={idVendedor}
+          mes={corrigiendo}
+          matriculas={datos.pagos.filter((p) => p.mes === corrigiendo).map((p) => p.matricula)}
+          conocidas={datos.coches.map((c) => c.matricula)}
+          alCerrar={() => setCorrigiendo(null)}
+          alGuardar={() => {
+            setCorrigiendo(null);
+            recargar();
+          }}
+        />
+      )}
     </section>
   );
 }

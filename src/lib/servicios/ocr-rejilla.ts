@@ -103,6 +103,8 @@ export async function leerMesDeRejilla(imagen: Buffer, giro: number): Promise<st
 export const CARACTERES = "0123456789BCDFGHJKLMNPRSTVWXYZ";
 const MATRICULA = /^(\d{4})([BCDFGHJKLMNPRSTVWXYZ]{3})$/;
 const UMBRAL_OSCURO = 125;
+/** Lado largo de un A4 a 300 ppp. */
+const LADO_MAXIMO = 3508;
 /** 300 ppp: con menos resolución las cifras 5, 6 y 8 se confunden entre sí. */
 const ESCALA_LECTURA = 300 / 72;
 
@@ -333,12 +335,31 @@ function mayoria(chars: string[]): string {
   return [...cuenta].sort((x, y) => y[1] - x[1])[0][0];
 }
 
+/**
+ * Nota de lo leído con un giro de la hoja, para quedarse con el mejor: manda el número de matrículas válidas (y su confianza), y las lecturas
+ * sin forma de matrícula restan, porque una hoja mal girada da sobre todo lecturas sin sentido.
+ */
+export function notaDeLectura(matriculas: MatriculaLeida[]): number {
+  const validas = matriculas.filter((m) => m.valida);
+  return validas.length * 100 + validas.reduce((n, m) => n + m.confianza, 0) / 100 - (matriculas.length - validas.length) * 30;
+}
+
 /** Lee las matrículas de una imagen de la rejilla (PNG/JPG). Prueba los giros habituales de un escáner. */
-export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoja> {
+export async function leerMatriculasDeImagen(original: Buffer): Promise<LecturaHoja> {
   await cargarAjustesOcr();
+  // Un escaneo a 600 ppp (7.000 píxeles) trae las líneas de la tabla tan gruesas y con tantas roturas que la cuadrícula no se encuentra:
+  // se trabaja siempre al tamaño de un A4 a 300 ppp, que es para el que están ajustadas las medidas
+  const meta = await sharp(original, { failOn: "none" }).metadata();
+  const imagen =
+    Math.max(meta.width ?? 0, meta.height ?? 0) > LADO_MAXIMO
+      ? await sharp(original, { failOn: "none" }).resize({ width: LADO_MAXIMO, height: LADO_MAXIMO, fit: "inside" }).png().toBuffer()
+      : original;
   // Motor de OCR elegido (RapidOCR, Apple Vision…): lee cada celda y su lectura cuenta como un voto más, el primero; con Tesseract
   // solo se usan las lecturas propias de la rejilla
   const motores = cadenaDeMotores(ajustesOcr().motor);
+  // Se prueban los giros de un escáner y se queda la lectura con más matrículas válidas: una hoja del revés también tiene cuadrículas
+  // y, si se aceptara el primer giro que «lee algo», saldrían matrículas inventadas.
+  let mejor: { matriculas: MatriculaLeida[]; giro: number; nota: number } | null = null;
   for (const giro of [270, 90, 0, 180]) {
     const girada = await sharp(imagen, { failOn: "none" }).rotate(giro).png().toBuffer();
     const g = await aGris(girada, 0);
@@ -402,8 +423,14 @@ export async function leerMatriculasDeImagen(imagen: Buffer): Promise<LecturaHoj
       if (valida) vistas.add(elegida);
       if (elegida.length >= 5) matriculas.push({ matricula: elegida, confianza, valida });
     }
-    if (matriculas.length > 0) return { matriculas, giro, mes: await leerMesDeRejilla(imagen, giro) };
+    if (matriculas.length === 0) continue;
+    const validas = matriculas.filter((m) => m.valida);
+    const nota = notaDeLectura(matriculas);
+    if (!mejor || nota > mejor.nota) mejor = { matriculas, giro, nota };
+    // Todas válidas y fiables: es la hoja derecha, no hace falta probar más giros
+    if (validas.length === matriculas.length && validas.every((m) => m.confianza >= 85)) break;
   }
+  if (mejor) return { matriculas: mejor.matriculas, giro: mejor.giro, mes: await leerMesDeRejilla(imagen, mejor.giro) };
   return { matriculas: [], giro: 0, mes: null };
 }
 

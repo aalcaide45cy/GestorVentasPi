@@ -111,3 +111,30 @@ export async function guardarRejillaCotejo(ej: Ejecutor, idUsuario: number, crea
     filas: unicas.map((matricula) => ({ matricula, importe: null })),
   });
 }
+
+export const esquemaCorregirRejilla = z.object({
+  mes: z.string().regex(mesRegex, "Mes no válido (AAAA-MM)"),
+  /** La lista completa de matrículas tal como debe quedar. */
+  matriculas: z.array(z.string().trim().min(1).max(20)).min(1, "La rejilla no puede quedarse sin matrículas: si sobra entera, quítala").max(500),
+});
+
+/**
+ * Corrige a mano las matrículas de una rejilla YA guardada: quita las que sobran y añade las que faltan, dejando intactas las demás filas
+ * (con su importe, cliente o concepto si venían de un Excel). Las añadidas quedan como revisadas (confianza 100). Devuelve cuántas se han
+ * añadido y quitado.
+ */
+export async function corregirRejillaCotejo(ej: Ejecutor, idUsuario: number, entrada: z.infer<typeof esquemaCorregirRejilla>): Promise<{ anadidas: number; quitadas: number }> {
+  return ej.transaction(async (tx) => {
+    const [h] = await tx.select({ id: rejillas.id }).from(rejillas).where(and(eq(rejillas.idUsuario, idUsuario), eq(rejillas.mes, entrada.mes)));
+    if (!h) throw new HttpError(404, "No hay rejilla guardada de ese mes");
+    const quiere = new Set(entrada.matriculas.map(normalizarMatricula).filter(Boolean));
+    if (quiere.size === 0) throw new HttpError(400, "La rejilla no puede quedarse sin matrículas");
+    const filas = await tx.select({ id: rejillaFilas.id, matricula: rejillaFilas.matricula }).from(rejillaFilas).where(eq(rejillaFilas.idRejilla, h.id));
+    const sobran = filas.filter((f) => !quiere.has(normalizarMatricula(f.matricula)));
+    const tiene = new Set(filas.map((f) => normalizarMatricula(f.matricula)));
+    const faltan = [...quiere].filter((m) => !tiene.has(m));
+    if (sobran.length > 0) await tx.delete(rejillaFilas).where(inArray(rejillaFilas.id, sobran.map((f) => f.id)));
+    if (faltan.length > 0) await tx.insert(rejillaFilas).values(faltan.map((matricula) => ({ idRejilla: h.id, matricula, importe: null, confianza: 100 })));
+    return { anadidas: faltan.length, quitadas: sobran.length };
+  });
+}

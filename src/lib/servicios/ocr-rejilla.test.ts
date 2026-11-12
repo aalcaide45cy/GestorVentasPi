@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { aGris, celdaConTinta, matriculaDeTexto, mesDeTexto, mesLegible } from "./ocr-rejilla";
+import { aGris, celdaConTinta, matriculaDeTexto, mesDeTexto, mesLegible, notaDeLectura } from "./ocr-rejilla";
 
 describe("mesDeTexto (fecha de la rejilla, abajo a la izquierda)", () => {
   it("lee «abril-24» y sus variantes con errores típicos del OCR", () => {
@@ -56,5 +56,20 @@ describe("celdaConTinta", () => {
     expect(celdaConTinta(conTexto, celda)).toBe(true);
     expect(celdaConTinta(vacia, celda)).toBe(false);
     expect(celdaConTinta(soloBorde, celda)).toBe(false);
+  });
+});
+
+describe("notaDeLectura (elegir el giro bueno de la hoja)", () => {
+  const m = (matricula: string, confianza: number, valida = true) => ({ matricula, confianza, valida });
+  it("gana el giro con más matrículas válidas, aunque otro giro «lea algo» antes", () => {
+    const derecha = [m("6698NSJ", 85), m("7191NSK", 98), m("7666NSG", 98), m("7243NSH", 98)];
+    const tumbada = [m("6000GDD", 70)];
+    const delReves = [m("ZS161", 0, false), m("2S92S1", 0, false), m("00091", 0, false)];
+    expect(notaDeLectura(derecha)).toBeGreaterThan(notaDeLectura(tumbada));
+    expect(notaDeLectura(tumbada)).toBeGreaterThan(notaDeLectura(delReves));
+  });
+  it("a igual número de válidas, gana la lectura más fiable y la que no trae lecturas sin sentido", () => {
+    expect(notaDeLectura([m("1111BBB", 98)])).toBeGreaterThan(notaDeLectura([m("1111BBB", 70)]));
+    expect(notaDeLectura([m("1111BBB", 98)])).toBeGreaterThan(notaDeLectura([m("1111BBB", 98), m("XX1", 0, false)]));
   });
 });

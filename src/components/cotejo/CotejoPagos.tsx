@@ -20,6 +20,7 @@ import type { ExpedienteDto } from "@/lib/dto";
 import type { DatosCotejo } from "@/lib/servicios/cotejo";
 import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
 import CalendarioCotejo from "./CalendarioCotejo";
+import EditorRejillaGuardada from "./EditorRejillaGuardada";
 import MiMes from "./MiMes";
 
 type Borrador = BorradorRejilla;
@@ -102,6 +103,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   const saltoPendiente = useRef(false);
   const [listados, setListados] = useState<Listado[]>([]);
   const [trabajando, setTrabajando] = useState(false);
+  const [corrigiendo, setCorrigiendo] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
   const [filtro, setFiltro] = useState<"todos" | EstadoCotejo>("todos");
   const [verSinMatricula, setVerSinMatricula] = useState(false);
@@ -452,8 +454,25 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
                 ✅ Guardada: <b>{rejillaMes.filas} matrículas</b>
                 {rejillaMes.nombreArchivo ? ` · ${rejillaMes.nombreArchivo}` : ""}
               </div>
-              <div style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>Para ver o corregir sus filas, usa la pestaña «Mis rejillas». Si subes otra hoja de este mes, sustituirá a esta.</div>
-              <div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }} aria-label="Matrículas guardadas de esta rejilla">
+                {datos.pagos
+                  .filter((p) => p.mes === mes)
+                  .map((p) => p.matricula)
+                  .sort()
+                  .map((m) => {
+                    const c = coincidencia(m);
+                    return (
+                      <span key={m} title={c.ayuda || undefined} style={{ padding: "2px 8px", borderRadius: "999px", border: "1px solid var(--border-light)", fontSize: "0.78rem", fontWeight: 600, color: c.icono === "✔" ? undefined : "var(--warning)" }}>
+                        {c.icono} {m}
+                      </span>
+                    );
+                  })}
+              </div>
+              <div style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>Esto es lo que se leyó de la hoja. Si alguna matrícula está mal, sobra o falta, corrígelo aquí. Si subes otra hoja de este mes, sustituirá a esta.</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-primary" style={{ padding: "4px 10px" }} onClick={() => setCorrigiendo(true)} title="Cambia, añade o quita matrículas de la rejilla guardada">
+                  ✏️ Corregir lo leído
+                </button>
                 <button type="button" className="btn btn-secondary" style={{ padding: "4px 10px" }} onClick={() => void borrar(mes)}>
                   Quitar esta rejilla
                 </button>
@@ -468,7 +487,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
             <input type="file" multiple accept=".pdf,image/*" style={{ display: "none" }} onChange={(e) => { subirRejillas(e.target.files); e.target.value = ""; }} />
           </label>
           <BotonBiblioteca categorias={["rejilla"]} alElegir={(a) => subirRejillas(a)} />
-          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Puedes subir varias a la vez o arrastrarlas aquí: se leen en segundo plano, de una en una (puedes cambiar de pestaña). Si el mes de la hoja se reconoce por sus coches, se guarda sola; si no, revisa las matrículas y pulsa «Guardar rejilla».</div>
+          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Puedes subir varias a la vez o arrastrarlas aquí: se leen en segundo plano, de una en una (puedes cambiar de pestaña). Nada se guarda solo: cuando termina la lectura, revisa las matrículas, corrige lo que haga falta y pulsa «Guardar rejilla».</div>
           <SelectorMotorRelectura etiqueta="Leer con" />
 
           {otrosBorradores.length > 0 && (
@@ -596,6 +615,19 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
             </div>
           )}
         </section>
+      )}
+      {corrigiendo && rejillaMes && (
+        <EditorRejillaGuardada
+          idVendedor={idVendedor}
+          mes={mes}
+          matriculas={datos.pagos.filter((p) => p.mes === mes).map((p) => p.matricula)}
+          conocidas={datos.coches.map((c) => c.matricula)}
+          alCerrar={() => setCorrigiendo(false)}
+          alGuardar={() => {
+            setCorrigiendo(false);
+            recargar();
+          }}
+        />
       )}
     </div>
   );
