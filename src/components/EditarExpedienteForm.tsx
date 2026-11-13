@@ -73,6 +73,60 @@ const textoOVacio = (v: string) => v.trim() || null;
 const cadena = (n: number | null | undefined) => (n ? String(n) : "");
 
 /** «Editar Expediente»: cliente, vehículo, fechas y comisionamiento. */
+/**
+ * Sección de la ficha que se puede plegar y desplegar pulsando su título (se recuerda cómo se dejó cada una). Con `cabecera` pinta su propio
+ * panel; con `titulo` envuelve un bloque que ya trae el suyo. Plegada, el contenido sigue ahí (solo se oculta), así no se pierde nada escrito.
+ */
+function SeccionPlegable({ id, cabecera, titulo, children }: { id: string; cabecera?: React.ReactNode; titulo?: string; children: React.ReactNode }) {
+  const [guardada, fijar] = usePreferencia(`exp-edicion-seccion-${id}`);
+  const abierta = guardada !== "cerrada";
+  const alternar = () => fijar(abierta ? "cerrada" : "abierta");
+  const boton = (contenido: React.ReactNode) => (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={abierta}
+      title={abierta ? "Plegar esta sección" : "Desplegar esta sección"}
+      onClick={alternar}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          alternar();
+        }
+      }}
+      style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer", userSelect: "none" }}
+    >
+      <span aria-hidden style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5rem", width: "14px" }}>
+        {abierta ? "▾" : "▸"}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>{contenido}</div>
+    </div>
+  );
+  if (cabecera)
+    return (
+      <div className="glass-panel" style={{ padding: abierta ? "16px 20px" : "10px 20px 0" }}>
+        {boton(cabecera)}
+        <div style={{ display: abierta ? undefined : "none" }}>{children}</div>
+      </div>
+    );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {abierta ? (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button type="button" className="btn btn-secondary" onClick={alternar} title="Plegar esta sección" style={{ padding: "2px 10px", fontSize: "0.78rem" }}>
+            ▾ Plegar «{titulo}»
+          </button>
+        </div>
+      ) : (
+        <div className="glass-panel" style={{ padding: "10px 20px" }}>
+          {boton(<strong style={{ fontSize: "1.05rem" }}>{titulo}</strong>)}
+        </div>
+      )}
+      <div style={{ display: abierta ? undefined : "none" }}>{children}</div>
+    </div>
+  );
+}
+
 function FormularioEditarExpediente({
   expediente,
   marcas,
@@ -1252,15 +1306,14 @@ function FormularioEditarExpediente({
           style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}
         >
           {/* DATOS DEL CLIENTE */}
-          <div className="glass-panel" style={{ padding: "16px 20px" }}>
-            {titulo(
+          <SeccionPlegable id="cliente" cabecera={titulo(
               "var(--primary)",
               <>
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                 <circle cx="12" cy="7" r="4" />
               </>,
               "Datos del Cliente",
-            )}
+            )}>
 
             {asignado ? (
               <div
@@ -1480,18 +1533,17 @@ function FormularioEditarExpediente({
                 alCambiar={setTelefonos}
               />
             </div>
-          </div>
+          </SeccionPlegable>
 
           {/* DETALLES DEL VEHÍCULO Y EXPEDIENTE */}
-          <div className="glass-panel" style={{ padding: "16px 20px" }}>
-            {titulo(
+          <SeccionPlegable id="venta" cabecera={titulo(
               "var(--secondary)",
               <>
                 <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
                 <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
               </>,
               "Detalles de la Venta y Vehículo",
-            )}
+            )}>
 
             <div
               style={{
@@ -1735,12 +1787,25 @@ function FormularioEditarExpediente({
                 style={{ resize: "vertical", minHeight: "80px" }}
               />
             </div>
-            <ApuntesExpediente idExpediente={expediente.id_expediente} />
-          </div>
+          </SeccionPlegable>
+
+          {/* APUNTES DEL EXPEDIENTE */}
+          <SeccionPlegable
+            id="apuntes"
+            cabecera={titulo(
+              "var(--primary)",
+              <>
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </>,
+              "Apuntes del expediente",
+            )}
+          >
+            <ApuntesExpediente idExpediente={expediente.id_expediente} sinTitulo />
+          </SeccionPlegable>
 
           {/* FECHAS */}
-          <div className="glass-panel" style={{ padding: "16px 20px" }}>
-            {titulo(
+          <SeccionPlegable id="fechas" cabecera={titulo(
               "var(--warning)",
               <>
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -1749,7 +1814,7 @@ function FormularioEditarExpediente({
                 <line x1="3" y1="10" x2="21" y2="10" />
               </>,
               "Fechas",
-            )}
+            )}>
             <div className="rejilla-ficha">
               {campo("Fecha Expediente", fecha(fExp, setFExp))}
               {campo("Fecha Afectación", fecha(fAfect, setFAfect))}
@@ -1917,18 +1982,31 @@ function FormularioEditarExpediente({
                 </div>
               )}
             </div>
-          </div>
+          </SeccionPlegable>
           {/* DOCUMENTOS DEL EXPEDIENTE */}
-          <div className="glass-panel" style={{ padding: "16px 20px" }}>
+          <SeccionPlegable
+            id="documentos"
+            cabecera={titulo(
+              "var(--secondary)",
+              <>
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </>,
+              "Documentos del expediente",
+            )}
+          >
             <VisorAdjuntos
               key={versionAdjuntos}
               idExpediente={expediente.id_expediente}
-              titulo="📎 Documentos del expediente (DNI, pedido, PDF…)"
+              titulo="DNI, pedido, PDF…"
             />
-          </div>
+          </SeccionPlegable>
         </div>
 
-        <ComisionadoExpediente idExpediente={expediente.id_expediente} />
+        <SeccionPlegable id="comisionado" titulo="💰 Comisionado">
+          <ComisionadoExpediente idExpediente={expediente.id_expediente} />
+        </SeccionPlegable>
+
+        <SeccionPlegable id="comisionamiento" titulo="🧮 Comisionamiento">
 
         <BloqueComisionamiento
           valor={com}
@@ -1958,6 +2036,7 @@ function FormularioEditarExpediente({
             cobrado_otra_fecha: cobradoOtraFecha,
           }}
         />
+        </SeccionPlegable>
 
         <div
           style={{

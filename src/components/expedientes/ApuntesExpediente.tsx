@@ -184,8 +184,11 @@ function Campos({
  */
 export default function ApuntesExpediente({
   idExpediente,
+  sinTitulo = false,
 }: {
   idExpediente: number;
+  /** La sección que lo contiene ya pone el título. */
+  sinTitulo?: boolean;
 }) {
   const { mostrar } = useToast();
   const nombreExp = `Expediente #EXP-${String(idExpediente).padStart(4, "0")}`;
@@ -311,9 +314,13 @@ export default function ApuntesExpediente({
           marginBottom: "8px",
         }}
       >
-        <label className="form-label" style={{ marginBottom: 0 }}>
-          📝 Apuntes del expediente
-        </label>
+        {sinTitulo ? (
+          <span />
+        ) : (
+          <label className="form-label" style={{ marginBottom: 0 }}>
+            📝 Apuntes del expediente
+          </label>
+        )}
         <span style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap" }}>
           {predefinidos
             .filter((p) => p.rapido)
