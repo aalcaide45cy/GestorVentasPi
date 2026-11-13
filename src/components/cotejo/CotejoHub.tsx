@@ -5,7 +5,13 @@ import ValidacionRejilla from "@/components/comisiones/ValidacionRejilla";
 import type { CatalogosComisiones } from "@/components/comisiones/tipos";
 import type { ExpedienteDto } from "@/lib/dto";
 import { usePreferencia } from "@/lib/preferencias";
+import { useMemo } from "react";
+import { useCarga } from "@/components/comisiones/useCarga";
+import { esAnulado } from "@/lib/anulados";
+import { resumenCobros } from "@/lib/cotejo-pagos";
+import type { DatosCotejo } from "@/lib/servicios/cotejo";
 import CotejoPagos from "./CotejoPagos";
+import PendientesDeCobro from "./PendientesDeCobro";
 import HistoricoRejillas from "./HistoricoRejillas";
 import MisRejillas from "./MisRejillas";
 
@@ -19,6 +25,7 @@ interface Props {
 }
 
 const PESTANAS = [
+  { id: "pendientes", icono: "🔴", titulo: "Pendientes de cobro", ayuda: "Lo primero: qué coches siguen sin cobrar. Un coche está cobrado cuando su matrícula sale en alguna rejilla guardada. Aquí puedes marcar «No se cobra» los que nunca van a venir." },
   { id: "mes", icono: "📅", titulo: "Mi mes", ayuda: "Elige un mes: ves sus coches, subes la rejilla de la empresa (PDF o foto) y la app te dice cuáles te han pagado, todo en la misma vista. También puedes marcarlos a mano con la hoja delante." },
   { id: "historico", icono: "📚", titulo: "Histórico", ayuda: "Todas las matrículas de tus expedientes frente a todas las leídas de las rejillas guardadas, con un color por fila: lo que coincide, lo que no figura en ninguna rejilla y lo que está en una rejilla sin expediente." },
   { id: "importes", icono: "✅", titulo: "¿Cuadran los importes?", ayuda: "Cruza la hoja de la empresa con tu liquidación de un mes, por matrícula e importe: faltan, sobran, distintos o duplicados." },
@@ -35,10 +42,13 @@ type IdPestana = (typeof PESTANAS)[number]["id"];
 export default function CotejoHub({ expedientes, vendedores, esAdministrador, catalogo, idUsuario }: Props) {
   const [guardada, guardar] = usePreferencia("cotejo-pestana");
   // «pago» era la pestaña de subir la rejilla, que ahora está dentro de «Mi mes»
-  const activa: IdPestana = PESTANAS.some((p) => p.id === guardada) ? (guardada as IdPestana) : "mes";
+  const activa: IdPestana = PESTANAS.some((p) => p.id === guardada) ? (guardada as IdPestana) : "pendientes";
   const pestana = PESTANAS.find((p) => p.id === activa) ?? PESTANAS[0];
   const cat = esAdministrador ? catalogo : { ...catalogo, vendedores: catalogo.vendedores.filter((v) => v.id === idUsuario) };
   const inicial = cat.vendedores[0]?.id ?? idUsuario;
+  // Contador de la pestaña: los coches sin cobrar de quien tiene la sesión abierta
+  const { datos: propios } = useCarga<DatosCotejo>(`/api/cotejo?usuario=${idUsuario}`, { coches: [], pagos: [], rejillas: [] });
+  const nPendientes = useMemo(() => resumenCobros(propios.coches, propios.pagos, esAnulado).pendientes.length, [propios]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -48,12 +58,14 @@ export default function CotejoHub({ expedientes, vendedores, esAdministrador, ca
           return (
             <button key={p.id} type="button" role="tab" aria-selected={seleccionada} className={seleccionada ? "btn btn-primary" : "btn btn-secondary"} onClick={() => guardar(p.id)} title={p.ayuda}>
               {p.icono} {p.titulo}
+              {p.id === "pendientes" && <b style={{ marginLeft: "6px", padding: "0 7px", borderRadius: "999px", background: nPendientes > 0 ? "#ef4444" : "#22c55e", color: "#fff" }}>{nPendientes}</b>}
             </button>
           );
         })}
       </div>
       <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>{pestana.ayuda}</p>
 
+      {activa === "pendientes" && <PendientesDeCobro vendedores={vendedores} idUsuarioActual={idUsuario} esAdministrador={esAdministrador} />}
       {activa === "mes" && <CotejoPagos expedientes={expedientes} vendedores={vendedores} idUsuarioActual={idUsuario} esAdministrador={esAdministrador} />}
       {activa === "historico" && <HistoricoRejillas vendedores={vendedores} idUsuarioActual={idUsuario} esAdministrador={esAdministrador} />}
       {activa === "importes" && <ValidacionRejilla cat={cat} usuarioInicial={inicial} esAdmin={esAdministrador} />}

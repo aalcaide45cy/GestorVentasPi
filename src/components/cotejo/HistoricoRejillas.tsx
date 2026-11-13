@@ -19,6 +19,7 @@ const COLOR: Record<EstadoCotejo, { fondo: string; borde: string; icono: string;
   dudoso: { fondo: "rgba(234, 179, 8, 0.18)", borde: "#eab308", icono: "🟡", texto: "Dudoso" },
   no_pagado: { fondo: "rgba(239, 68, 68, 0.16)", borde: "#ef4444", icono: "🔴", texto: "No figura en la rejilla" },
   sin_rejilla: { fondo: "rgba(148, 163, 184, 0.12)", borde: "#94a3b8", icono: "⚪", texto: "Aún sin rejilla de su mes" },
+  no_se_cobra: { fondo: "rgba(100, 116, 139, 0.14)", borde: "#64748b", icono: "⚫", texto: "No se cobra" },
 };
 const SIN_EXPEDIENTE = { fondo: "rgba(168, 85, 247, 0.14)", borde: "#a855f7", icono: "🟣", texto: "En la rejilla, sin expediente" };
 
@@ -47,7 +48,7 @@ export default function HistoricoRejillas({ vendedores, idUsuarioActual, esAdmin
   // Los deshabilitados no cuentan: también salen ocultos salvo que se active su casilla
   const [mostrarDeshabilitados, fijarMostrarDeshabilitados] = useMostrarDeshabilitados("historico-rejillas");
   const nDeshabilitadas = useMemo(() => todasLasFilas.filter((f) => f.coche?.deshabilitado).length, [todasLasFilas]);
-  const filas = useMemo(() => todasLasFilas.filter((f) => (mostrarAnulados || !(f.coche && esAnulado(f.coche.estado))) && (mostrarDeshabilitados || !f.coche?.deshabilitado)), [todasLasFilas, mostrarAnulados, mostrarDeshabilitados]);
+  const filas = useMemo(() => todasLasFilas.filter((f) => f.estado !== "no_se_cobra" && (mostrarAnulados || !(f.coche && esAnulado(f.coche.estado))) && (mostrarDeshabilitados || !f.coche?.deshabilitado)), [todasLasFilas, mostrarAnulados, mostrarDeshabilitados]);
   const cuentas = useMemo(() => {
     const c: Record<Exclude<Filtro, "todos">, number> = { coinciden: 0, no_figuran: 0, dudosos: 0, sin_rejilla: 0, sin_expediente: 0 };
     for (const f of filas) c[categoria(f)]++;

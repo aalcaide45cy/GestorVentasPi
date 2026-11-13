@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { cotejarPagos } from "@/lib/cotejo-pagos";
+import { eq } from "drizzle-orm";
+import { alertas } from "@/db/schema";
+import { cotejarPagos, resumenCobros } from "@/lib/cotejo-pagos";
+import { fijarNoSeCobra } from "./no-se-cobra";
 import { crearUsuarioPrueba, reiniciarBd } from "../../../tests/ayudas";
 import { corregirRejillaCotejo, datosCotejo, esquemaCorregirRejilla, esquemaGuardarRejillaCotejo, guardarRejillaCotejo } from "./cotejo";
 import { guardarRejilla } from "./rejillas";
@@ -46,13 +49,46 @@ describe("cotejo de pagos (servicio)", () => {
     await crear(v, "Ana Ruiz", "1234BCD");
     await crear(v, "Luis Gil", "5555FGH");
     await crear(otro, "Ajeno", "7777JKL");
-    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-03", matriculas: ["1234BCD"] }));
+    // Matriculado (y facturado) en marzo: viene en la rejilla de abril
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-04", matriculas: ["1234BCD"] }));
 
     const datos = await datosCotejo(db, v.idUsuario);
     expect(datos.coches.map((c) => c.cliente).sort()).toEqual(["Ana Ruiz", "Luis Gil"]);
     const r = cotejarPagos(datos.coches, datos.pagos);
     expect(r.filas.find((f) => f.matricula === "1234BCD")?.estado).toBe("pagado");
     expect(r.filas.find((f) => f.matricula === "5555FGH")?.estado).toBe("no_pagado");
+  });
+
+  it("«no se cobra» saca el coche de los pendientes y al guardar la rejilla avisa en la campana de los que faltan", async () => {
+    const v = await crearUsuarioPrueba("vendedor");
+    const crear = (nombre: string, matricula: string) =>
+      crearExpediente(db, v, esquemaCrearExpediente.parse({ cliente: { nombre }, expediente: { matricula, fecha_facturacion: "2026-08-12", fecha_matriculacion: "2026-08-12" } }));
+    await crear("Ana Ruiz", "1234BCD");
+    const faltante = await crear("Luis Gil", "5555FGH");
+    const interno = await crear("Venta interna", "7777JKL");
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-09", matriculas: ["1234BCD"] }));
+    const avisos = async () => (await db.select().from(alertas).where(eq(alertas.idUsuario, v.idUsuario))).filter((a) => a.estado !== "resuelta");
+    let antes = await avisos();
+    expect(antes).toHaveLength(1);
+    expect(antes[0].mensaje).toContain("faltan 2 coches");
+    expect(antes[0].mensaje).toContain("5555FGH");
+
+    await fijarNoSeCobra(db, v, { idExpediente: (interno as { id_expediente: number }).id_expediente, noSeCobra: true, motivo: "Venta interna" });
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-09", matriculas: ["1234BCD"] }));
+    antes = await avisos();
+    expect(antes).toHaveLength(1);
+    expect(antes[0].mensaje).toContain("faltan 1 coche ");
+
+    const datos = await datosCotejo(db, v.idUsuario);
+    const r = resumenCobros(datos.coches, datos.pagos);
+    expect(r.cobrados).toBe(1);
+    expect(r.noSeCobra).toHaveLength(1);
+    expect(r.pendientes.map((p) => p.matricula)).toEqual(["5555FGH"]);
+
+    // Con la rejilla completa ya no falta ninguno y el aviso se retira
+    void faltante;
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-09", matriculas: ["1234BCD", "5555FGH"] }));
+    expect(await avisos()).toHaveLength(0);
   });
 
   it("rechaza meses y matrículas no válidos", () => {

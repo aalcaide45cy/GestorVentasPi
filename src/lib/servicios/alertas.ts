@@ -401,7 +401,7 @@ const aAlerta = (f: {
   resuelta_en: f.a.resueltaEn?.toISOString() ?? null,
   motivo:
     f.a.motivo === "hecho" || f.a.motivo === "automatica" ? f.a.motivo : null,
-  regla: f.regla ?? "📅 Calendario",
+  regla: f.regla ?? (f.a.idEvento === null && f.a.idExpediente === null ? "💶 Cobros" : "📅 Calendario"),
   cliente: f.cliente,
   matricula: f.matricula,
 });

@@ -624,6 +624,13 @@
       "when": 1793378031877,
       "tag": "0088_correo_firmas",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794563734634,
+      "tag": "0089_no_se_cobra",
+      "breakpoints": true
     }
   ]
 }

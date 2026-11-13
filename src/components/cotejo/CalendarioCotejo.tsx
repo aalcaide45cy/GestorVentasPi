@@ -11,9 +11,10 @@ const COLOR: Record<EstadoCotejo, { punto: string; texto: string }> = {
   no_pagado: { punto: "#ef4444", texto: "Sin pagar" },
   dudoso: { punto: "#eab308", texto: "Dudoso" },
   sin_rejilla: { punto: "#9ca3af", texto: "Sin rejilla" },
-  pagado: { punto: "#22c55e", texto: "Pagado" },
+  pagado: { punto: "#22c55e", texto: "Comisionado" },
+  no_se_cobra: { punto: "#64748b", texto: "No se cobra" },
 };
-const ORDEN: EstadoCotejo[] = ["no_pagado", "dudoso", "sin_rejilla", "pagado"];
+const ORDEN: EstadoCotejo[] = ["no_pagado", "dudoso", "sin_rejilla", "pagado", "no_se_cobra"];
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
@@ -93,7 +94,7 @@ export default function CalendarioCotejo({ filas, mes, dia, resumenes, mesesGuar
           {Array.from({ length: 12 }, (_, i) => `${anio}-${String(i + 1).padStart(2, "0")}`).map((mm) => {
             const r = resumenes.get(mm);
             const actual = mm === mesCal;
-            const urgente: EstadoCotejo | null = !r ? null : r.noPagados ? "no_pagado" : r.dudosos ? "dudoso" : r.sinRejilla ? "sin_rejilla" : r.total > 0 ? "pagado" : null;
+            const urgente: EstadoCotejo | null = !r ? null : r.noPagados ? "no_pagado" : r.dudosos ? "dudoso" : r.sinRejilla ? "sin_rejilla" : r.total > 0 ? "pagado" : r.noSeCobra > 0 ? "no_se_cobra" : null;
             return (
               <button
                 key={mm}

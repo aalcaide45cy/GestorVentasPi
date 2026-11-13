@@ -1,8 +1,10 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Ejecutor } from "@/db";
-import { expedientes, rejillaFilas, rejillas } from "@/db/schema";
-import type { CocheCotejo, PagoRejilla } from "@/lib/cotejo-pagos";
+import { alertas, expedientes, expedientesNoSeCobra, rejillaFilas, rejillas, validacionesComision } from "@/db/schema";
+import { esAnulado } from "@/lib/anulados";
+import { cotejarPagos, mesesEsperados, type CocheCotejo, type PagoRejilla } from "@/lib/cotejo-pagos";
+import { nombreMes } from "@/lib/formato";
 import type { ExpedienteDto } from "@/lib/dto";
 import { normalizarMatricula } from "@/lib/rejilla/analizar";
 import { HttpError } from "@/lib/auth/sesion";
@@ -79,6 +81,9 @@ export function aCocheCotejo(e: ExpedienteDto): CocheCotejo {
     estado: e.estado_intranet ?? e.estadoVehiculo?.nombre_estado_vehiculo ?? "",
     usado: e.estadoVehiculo?.clase === "VO",
     deshabilitado: e.deshabilitado,
+    f_facturacion: e.fecha_facturacion,
+    cobrado_otra_fecha: e.cobrado_otra_fecha,
+    f_cobro: e.fecha_cobrado,
   };
 }
 
@@ -88,7 +93,19 @@ export async function datosCotejo(ej: Ejecutor, idUsuario: number): Promise<Dato
     where: and(eq(expedientes.idUsuario, idUsuario), isNull(expedientes.eliminadoEn)),
     with: relacionesExpediente,
   });
-  const coches: CocheCotejo[] = filas.map(aDto).map(aCocheCotejo);
+  const noSeCobra = new Map((await ej.select({ id: expedientesNoSeCobra.idExpediente, motivo: expedientesNoSeCobra.motivo }).from(expedientesNoSeCobra)).map((x) => [x.id, x.motivo]));
+  const manuales = await ej.select({ id: validacionesComision.idExpediente, estado: validacionesComision.estado }).from(validacionesComision).where(eq(validacionesComision.idUsuario, idUsuario));
+  const coches: CocheCotejo[] = filas.map(aDto).map(aCocheCotejo).map((c) => {
+    const id = c.id_expediente;
+    if (id === null) return c;
+    const mias = manuales.filter((m) => m.id === id);
+    return {
+      ...c,
+      ...(noSeCobra.has(id) ? { no_se_cobra: true, motivo_no_se_cobra: noSeCobra.get(id) ?? null } : {}),
+      ...(mias.some((m) => m.estado === "pagado") ? { cobrado_manual: true } : {}),
+      ...(mias.some((m) => m.estado === "reclamado") ? { reclamado_manual: true } : {}),
+    };
+  });
 
   const hojas = await ej.select().from(rejillas).where(eq(rejillas.idUsuario, idUsuario)).orderBy(desc(rejillas.mes));
   const pagos: PagoRejilla[] = [];
@@ -104,12 +121,37 @@ export async function datosCotejo(ej: Ejecutor, idUsuario: number): Promise<Dato
 /** Guarda (sustituyendo la del mismo mes) las matrículas de una rejilla ya revisadas por el usuario. */
 export async function guardarRejillaCotejo(ej: Ejecutor, idUsuario: number, creadaPor: number, entrada: EntradaGuardarRejillaCotejo): Promise<number> {
   const unicas = [...new Set(entrada.matriculas.map(normalizarMatricula).filter(Boolean))];
-  return guardarRejilla(ej, idUsuario, creadaPor, {
+  const id = await guardarRejilla(ej, idUsuario, creadaPor, {
     mes: entrada.mes,
     origen: entrada.origen,
     nombreArchivo: entrada.nombreArchivo ?? null,
     filas: unicas.map((matricula) => ({ matricula, importe: null })),
   });
+  await avisarCochesQueFaltan(ej, idUsuario, entrada.mes);
+  return id;
+}
+
+const PREFIJO_AVISO = "💶 Cobros · rejilla de ";
+
+/**
+ * Al guardar la rejilla de un mes, mira qué coches debían venir en ella (por su fecha de facturación) y no están en ninguna rejilla guardada:
+ * si faltan, deja un aviso en la campana (sustituye al anterior de ese mes); si ya no falta ninguno, retira el aviso.
+ * Devuelve cuántos coches faltan.
+ */
+export async function avisarCochesQueFaltan(ej: Ejecutor, idUsuario: number, mes: string): Promise<number> {
+  const datos = await datosCotejo(ej, idUsuario);
+  const r = cotejarPagos(datos.coches.filter((c) => !c.deshabilitado && !esAnulado(c.estado)), datos.pagos);
+  const faltan = r.filas.filter((f) => f.coche && f.estado === "no_pagado" && mesesEsperados(f.coche).includes(mes));
+  const prefijo = `${PREFIJO_AVISO}${nombreMes(mes)}:`;
+  await ej
+    .update(alertas)
+    .set({ estado: "resuelta", motivo: "automatica", resueltaEn: new Date(), pospuestaHasta: null })
+    .where(and(eq(alertas.idUsuario, idUsuario), sql`${alertas.mensaje} like ${prefijo + "%"}`, sql`${alertas.estado} <> 'resuelta'`));
+  if (faltan.length === 0) return 0;
+  const lista = faltan.slice(0, 6).map((f) => `${f.matricula}${f.coche?.cliente ? ` (${f.coche.cliente})` : ""}`).join(", ");
+  const mensaje = `${prefijo} faltan ${faltan.length} coche${faltan.length === 1 ? "" : "s"} que debían venir y no están en ninguna rejilla: ${lista}${faltan.length > 6 ? "…" : ""}. Míralos en Cotejo de pagos › Pendientes de cobro.`;
+  await ej.insert(alertas).values({ idUsuario, mensaje });
+  return faltan.length;
 }
 
 export const esquemaCorregirRejilla = z.object({

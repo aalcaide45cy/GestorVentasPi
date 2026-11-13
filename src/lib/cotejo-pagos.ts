@@ -5,9 +5,10 @@ import { normalizarMatricula } from "@/lib/rejilla/analizar";
  * Cotejo de pagos: cruza, por matrícula, los coches vendidos (expedientes de la app y, si se aportan, listados del
  * fabricante) con las rejillas de comisiones donde la empresa indica qué coches paga cada mes. Es una función pura.
  *
- * - verde (pagado): la matrícula está en una rejilla del mes que le corresponde.
- * - amarillo (dudoso): está en una rejilla pero en otro mes, repetida, con una letra de diferencia, o es una matrícula de
- *   la rejilla que no corresponde a ningún coche.
+ * - verde (comisionado): la matrícula está en alguna rejilla guardada. Si es de un mes distinto al que le correspondía, sigue en verde
+ *   pero con un aviso aparte (`aviso`).
+ * - amarillo (dudoso): está repetida, con una letra de diferencia, o es una matrícula de la rejilla que no corresponde a ningún coche.
+ * - gris oscuro (no se cobra): el vendedor ha marcado que ese coche nunca se cobra.
  * - rojo (no pagado): hay rejilla de todos los meses en que debía cobrarse y la matrícula no aparece.
  * - gris (sin rejilla): todavía no se ha subido la rejilla del mes que le corresponde, así que no se puede saber.
  */
@@ -30,6 +31,21 @@ export interface CocheCotejo {
   usado: boolean;
   /** Expediente deshabilitado en la app: no cuenta (ni para comisiones ni en los listados) salvo que se pida. */
   deshabilitado?: boolean;
+  /**
+   * Fecha de facturación del expediente (solo los de la app la traen; `undefined` = coche de un listado, que no la tiene). Con ella el coche
+   * se comisiona en la rejilla del mes SIGUIENTE al de su facturación (facturado en agosto, rejilla de septiembre).
+   */
+  f_facturacion?: string | null;
+  /** Nuevo cobrado en otra fecha: manda `f_cobro` en lugar de la facturación (misma regla que el motor de comisiones). */
+  cobrado_otra_fecha?: boolean;
+  f_cobro?: string | null;
+  /** El vendedor ha marcado que este coche no se cobra nunca (no sale como pendiente). */
+  no_se_cobra?: boolean;
+  motivo_no_se_cobra?: string | null;
+  /** Marcado a mano como cobrado (aunque no salga en ninguna rejilla guardada). */
+  cobrado_manual?: boolean;
+  /** Marcado a mano como «reclamado» a la empresa: sigue pendiente, pero ya se ha pedido. */
+  reclamado_manual?: boolean;
 }
 
 export interface PagoRejilla {
@@ -40,7 +56,7 @@ export interface PagoRejilla {
   confirmada?: boolean;
 }
 
-export type EstadoCotejo = "pagado" | "dudoso" | "no_pagado" | "sin_rejilla";
+export type EstadoCotejo = "pagado" | "dudoso" | "no_pagado" | "sin_rejilla" | "no_se_cobra";
 
 export interface FilaCotejo {
   estado: EstadoCotejo;
@@ -52,6 +68,8 @@ export interface FilaCotejo {
   importe: number | null;
   /** Matrícula tal como la trae la hoja, cuando es una lectura dudosa que se puede corregir o confirmar. */
   matriculaHoja?: string;
+  /** Aviso aparte (no cambia el resultado): p. ej. está comisionado pero en la rejilla de otro mes. */
+  aviso?: string;
 }
 
 export interface ResultadoCotejoPagos {
@@ -59,7 +77,7 @@ export interface ResultadoCotejoPagos {
   /** Coches sin matrícula (anulados, pendientes de matricular…): no se pueden cotejar, pero se muestran. */
   sinMatricula: CocheCotejo[];
   mesesConRejilla: string[];
-  resumen: { pagados: number; dudosos: number; noPagados: number; sinRejilla: number; sinMatricula: number };
+  resumen: { pagados: number; dudosos: number; noPagados: number; sinRejilla: number; noSeCobra: number; sinMatricula: number };
 }
 
 const mes = (f: string | null) => (f && /^\d{4}-\d{2}/.test(f) ? f.slice(0, 7) : null);
@@ -70,8 +88,21 @@ function sumarMes(m: string, n: number): string {
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
 }
 
-/** Meses en que el coche debería cobrarse: un nuevo, el de su matriculación; un usado, del mes de afectación al de entrega. */
+/** Cuántos meses después de su facturación se comisiona un coche: facturado en agosto, rejilla de septiembre. */
+export const MESES_HASTA_REJILLA = 1;
+
+/**
+ * Meses en que el coche debería venir en la rejilla. Un expediente de la app (trae `f_facturacion`) cuenta como en el motor de comisiones:
+ * por su fecha de facturación (o la de matriculación si no hay), o por la de cobro en un nuevo «cobrado en otra fecha»; y se comisiona
+ * en la rejilla del mes siguiente. Un coche de un listado (sin facturación) conserva la regla antigua: un nuevo, el mes de su
+ * matriculación; un usado, del mes de afectación al de entrega.
+ */
 export function mesesEsperados(c: CocheCotejo): string[] {
+  if (c.f_facturacion !== undefined) {
+    const base = !c.usado && c.cobrado_otra_fecha && c.f_cobro ? c.f_cobro : (c.f_facturacion ?? c.f_matriculacion);
+    const m = mes(base);
+    return m ? [sumarMes(m, MESES_HASTA_REJILLA)] : [];
+  }
   if (c.usado) {
     const ini = mes(c.f_afectacion) ?? mes(c.f_expediente) ?? mes(c.f_entrega);
     const fin = mes(c.f_entrega) ?? ini;
@@ -162,14 +193,22 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
   for (const [clave, coche] of conMatricula) {
     const esperados = mesesEsperados(coche);
     const encontrados = porMatricula.get(clave);
+    if (coche.no_se_cobra && !encontrados) {
+      filas.push({ estado: "no_se_cobra", motivo: coche.motivo_no_se_cobra ? `Marcado como «no se cobra»: ${coche.motivo_no_se_cobra}` : "Marcado como «no se cobra»", coche, matricula: clave, mesRejilla: null, importe: null });
+      continue;
+    }
+    if (!encontrados && coche.cobrado_manual) {
+      filas.push({ estado: "pagado", motivo: "Marcado a mano como cobrado", coche, matricula: clave, mesRejilla: null, importe: null });
+      continue;
+    }
     if (encontrados) {
       const p = encontrados[0];
       const motivos: string[] = [];
       if (encontrados.length > 1) motivos.push(`aparece ${encontrados.length} veces en las rejillas (${encontrados.map((x) => nombreMes(x.mes)).join(", ")})`);
       if (repetidas.has(clave)) motivos.push("hay más de un expediente con esta matrícula");
       const dentro = esperados.length === 0 || esperados.includes(p.mes);
-      if (!dentro) motivos.push(`pagado en la rejilla de ${nombreMes(p.mes)} y le correspondía ${esperados.map(nombreMes).join(" / ")}`);
-      filas.push({ estado: motivos.length > 0 ? "dudoso" : "pagado", motivo: motivos.length > 0 ? motivos.join("; ") : `En la rejilla de ${nombreMes(p.mes)}`, coche, matricula: clave, mesRejilla: p.mes, importe: p.importe });
+      const aviso = dentro ? undefined : `Está en la rejilla de ${nombreMes(p.mes)} y le correspondía ${esperados.map(nombreMes).join(" / ")}`;
+      filas.push({ estado: motivos.length > 0 ? "dudoso" : "pagado", motivo: motivos.length > 0 ? motivos.join("; ") : `En la rejilla de ${nombreMes(p.mes)}`, coche, matricula: clave, mesRejilla: p.mes, importe: p.importe, ...(aviso ? { aviso } : {}) });
       continue;
     }
     const casi = parecida.get(clave);
@@ -187,7 +226,7 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
       filas.push({ estado: "sin_rejilla", motivo: `Falta subir la rejilla de ${(faltan.length > 0 ? faltan : esperados).map(nombreMes).join(" / ")}`, coche, matricula: clave, mesRejilla: null, importe: null });
       continue;
     }
-    filas.push({ estado: "no_pagado", motivo: `No aparece en la rejilla de ${esperados.map(nombreMes).join(" / ")}`, coche, matricula: clave, mesRejilla: null, importe: null });
+    filas.push({ estado: "no_pagado", motivo: `No aparece en la rejilla de ${esperados.map(nombreMes).join(" / ")}${coche.reclamado_manual ? " (ya reclamado a la empresa)" : ""}`, coche, matricula: clave, mesRejilla: null, importe: null });
   }
 
   for (const clave of pagosSinCoche) {
@@ -206,7 +245,7 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
     });
   }
 
-  const orden: Record<EstadoCotejo, number> = { no_pagado: 0, dudoso: 1, sin_rejilla: 2, pagado: 3 };
+  const orden: Record<EstadoCotejo, number> = { no_pagado: 0, dudoso: 1, sin_rejilla: 2, pagado: 3, no_se_cobra: 4 };
   const fecha = (f: FilaCotejo) => f.coche?.f_matriculacion ?? f.coche?.f_afectacion ?? f.mesRejilla ?? "";
   filas.sort((a, b) => orden[a.estado] - orden[b.estado] || fecha(b).localeCompare(fecha(a)));
 
@@ -215,7 +254,7 @@ export function cotejarPagos(coches: CocheCotejo[], pagos: PagoRejilla[]): Resul
     filas,
     sinMatricula,
     mesesConRejilla,
-    resumen: { pagados: cuenta("pagado"), dudosos: cuenta("dudoso"), noPagados: cuenta("no_pagado"), sinRejilla: cuenta("sin_rejilla"), sinMatricula: sinMatricula.length },
+    resumen: { pagados: cuenta("pagado"), dudosos: cuenta("dudoso"), noPagados: cuenta("no_pagado"), sinRejilla: cuenta("sin_rejilla"), noSeCobra: cuenta("no_se_cobra"), sinMatricula: sinMatricula.length },
   };
 }
 
@@ -277,9 +316,11 @@ export interface ResumenMes {
   dudosos: number;
   noPagados: number;
   sinRejilla: number;
+  /** Marcados «no se cobra»: no entran en `total`. */
+  noSeCobra: number;
 }
 
-const resumenVacio = (): ResumenMes => ({ total: 0, pagados: 0, dudosos: 0, noPagados: 0, sinRejilla: 0 });
+const resumenVacio = (): ResumenMes => ({ total: 0, pagados: 0, dudosos: 0, noPagados: 0, sinRejilla: 0, noSeCobra: 0 });
 
 /** Recuento de filas por estado, mes a mes (las filas sin mes no cuentan). */
 export function resumenPorMes(filas: FilaCotejo[]): Map<string, ResumenMes> {
@@ -288,6 +329,11 @@ export function resumenPorMes(filas: FilaCotejo[]): Map<string, ResumenMes> {
     const mes = mesDeFila(f);
     if (!mes) continue;
     const r = m.get(mes) ?? resumenVacio();
+    if (f.estado === "no_se_cobra") {
+      r.noSeCobra++;
+      m.set(mes, r);
+      continue;
+    }
     r.total++;
     if (f.estado === "pagado") r.pagados++;
     else if (f.estado === "dudoso") r.dudosos++;
@@ -321,4 +367,67 @@ export function filasPorDia(filas: FilaCotejo[], mes: string): { dias: Map<strin
     dias.set(dia, [...(dias.get(dia) ?? []), f]);
   }
   return { dias, sinDia };
+}
+
+/* ------------------------------------------------------------------ */
+/* Pendientes de cobro                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Por qué un coche sigue sin cobrar: reclamar (hay hoja de su mes y no sale), esperando la hoja, sin matrícula, sin fecha o lectura a revisar. */
+export type SituacionPendiente = "reclamar" | "esperando_hoja" | "sin_matricula" | "sin_fecha" | "revisar";
+
+export interface Pendiente {
+  coche: CocheCotejo;
+  matricula: string;
+  /** Rejilla donde debía venir (la del mes siguiente a su facturación); null si no tiene fecha. */
+  mesEsperado: string | null;
+  situacion: SituacionPendiente;
+  motivo: string;
+  /** Ya se ha reclamado a la empresa (marca manual). */
+  reclamado: boolean;
+}
+
+export interface ResumenCobros {
+  /** Todo lo que sigue sin cobrar: este es el número que importa. */
+  pendientes: Pendiente[];
+  /** Coches marcados «no se cobra». */
+  noSeCobra: CocheCotejo[];
+  /** Coches cobrados: su matrícula está en una rejilla guardada (o marcados a mano). */
+  cobrados: number;
+  /** Coches sin facturar todavía (sin matrícula ni fecha): aún no les toca. */
+  aunSinFacturar: CocheCotejo[];
+}
+
+/**
+ * Lo esencial del cotejo: de los coches que se cobran, cuáles ya están cobrados (su matrícula sale en alguna rejilla guardada, sea del mes que
+ * sea) y cuáles no. `esAnulado` deja fuera los anulados; los deshabilitados tampoco cuentan.
+ */
+export function resumenCobros(coches: CocheCotejo[], pagos: PagoRejilla[], esAnulado: (estado: string) => boolean = () => false): ResumenCobros {
+  const validos = coches.filter((c) => !c.deshabilitado && !esAnulado(c.estado));
+  const r = cotejarPagos(validos, pagos);
+  const pendientes: Pendiente[] = [];
+  const noSeCobra: CocheCotejo[] = r.sinMatricula.filter((c) => c.no_se_cobra);
+  const aunSinFacturar: CocheCotejo[] = [];
+  let cobrados = 0;
+  for (const f of r.filas) {
+    if (!f.coche) continue;
+    if (f.estado === "no_se_cobra") noSeCobra.push(f.coche);
+    else if (f.estado === "pagado" || (f.estado === "dudoso" && !f.matriculaHoja)) cobrados++;
+    else {
+      const esperados = mesesEsperados(f.coche);
+      const mesEsperado = esperados[esperados.length - 1] ?? null;
+      const situacion: SituacionPendiente = f.estado === "dudoso" ? "revisar" : f.estado === "no_pagado" ? "reclamar" : mesEsperado ? "esperando_hoja" : "sin_fecha";
+      pendientes.push({ coche: f.coche, matricula: f.matricula, mesEsperado, situacion, motivo: f.motivo, reclamado: !!f.coche.reclamado_manual });
+    }
+  }
+  for (const c of r.sinMatricula) {
+    if (c.no_se_cobra) continue;
+    const esperados = mesesEsperados(c);
+    if (c.cobrado_manual) cobrados++;
+    else if (esperados.length === 0 && !c.f_facturacion) aunSinFacturar.push(c);
+    else pendientes.push({ coche: c, matricula: "", mesEsperado: esperados[esperados.length - 1] ?? null, situacion: "sin_matricula", motivo: "Sin matrícula: no se puede buscar en la hoja. Ponla en el expediente o márcalo a mano", reclamado: !!c.reclamado_manual });
+  }
+  const ordenSituacion: Record<SituacionPendiente, number> = { reclamar: 0, revisar: 1, sin_matricula: 2, sin_fecha: 3, esperando_hoja: 4 };
+  pendientes.sort((a, b) => ordenSituacion[a.situacion] - ordenSituacion[b.situacion] || (a.mesEsperado ?? "9999").localeCompare(b.mesEsperado ?? "9999"));
+  return { pendientes, noSeCobra, cobrados, aunSinFacturar };
 }

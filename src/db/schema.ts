@@ -942,6 +942,16 @@ export const rejillaFilas = pgTable(
   (t) => [index("rejilla_filas_rejilla_idx").on(t.idRejilla)],
 );
 
+/** Coches que el vendedor ha marcado como «no se cobra» (nunca van a venir en una rejilla): dejan de salir como pendientes de cobro. */
+export const expedientesNoSeCobra = pgTable("expedientes_no_se_cobra", {
+  idExpediente: integer("id_expediente")
+    .primaryKey()
+    .references(() => expedientes.idExpediente, { onDelete: "cascade" }),
+  motivo: text("motivo"),
+  creadoPor: integer("creado_por").references(() => usuarios.idUsuario, { onDelete: "set null" }),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Estado que el vendedor da a cada coche de un mes: pagado, pendiente o reclamado a la empresa. */
 export const validacionesComision = pgTable(
   "validaciones_comision",

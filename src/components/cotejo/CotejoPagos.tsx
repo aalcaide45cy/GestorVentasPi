@@ -21,7 +21,9 @@ import type { DatosCotejo } from "@/lib/servicios/cotejo";
 import BotonBiblioteca from "@/components/biblioteca/BotonBiblioteca";
 import CalendarioCotejo from "./CalendarioCotejo";
 import EditorRejillaGuardada from "./EditorRejillaGuardada";
-import MiMes from "./MiMes";
+import ResumenLiquidacion from "./ResumenLiquidacion";
+import type { ResultadoMes } from "@/lib/comisiones";
+import { MESES_HASTA_REJILLA } from "@/lib/cotejo-pagos";
 
 type Borrador = BorradorRejilla;
 
@@ -38,10 +40,11 @@ interface Props {
 }
 
 const COLORES: Record<EstadoCotejo, { texto: string; fondo: string; borde: string; icono: string }> = {
-  pagado: { texto: "Pagado", fondo: "rgba(34, 197, 94, 0.14)", borde: "#22c55e", icono: "🟢" },
+  pagado: { texto: "Comisionado", fondo: "rgba(34, 197, 94, 0.14)", borde: "#22c55e", icono: "🟢" },
   dudoso: { texto: "Dudoso", fondo: "rgba(234, 179, 8, 0.18)", borde: "#eab308", icono: "🟡" },
-  no_pagado: { texto: "No pagado", fondo: "rgba(239, 68, 68, 0.16)", borde: "#ef4444", icono: "🔴" },
+  no_pagado: { texto: "Sin comisionar", fondo: "rgba(239, 68, 68, 0.16)", borde: "#ef4444", icono: "🔴" },
   sin_rejilla: { texto: "Sin rejilla de ese mes", fondo: "rgba(148, 163, 184, 0.12)", borde: "#94a3b8", icono: "⚪" },
+  no_se_cobra: { texto: "No se cobra", fondo: "rgba(100, 116, 139, 0.12)", borde: "#64748b", icono: "⚫" },
 };
 
 const esImagen = (f: File) => f.type.startsWith("image/") || /\.(png|jpe?g|webp|bmp|tiff?)$/i.test(f.name);
@@ -73,7 +76,7 @@ const esMes = (m: string | null | undefined): m is string => /^\d{4}-(0[1-9]|1[0
  * ese mes (subirla, revisar lo leído y guardarla) y en el centro los coches del mes con su resultado. Mientras la rejilla leída no se guarda, el
  * cotejo ya se calcula con ella (vista previa), así se ve el resultado al instante y se corrige lo mal leído antes de guardar.
  */
-export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, esAdministrador }: Props) {
+export default function CotejoPagos({ vendedores, idUsuarioActual, esAdministrador }: Props) {
   const { mostrar, confirmar } = useToast();
   const [idElegido, setIdVendedor] = useState<number | null>(null);
   const [mesGuardado, guardarMes] = usePreferencia("cotejo-mes");
@@ -97,6 +100,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
   const idVendedor = idElegido ?? idAviso ?? idRecordado ?? idUsuarioActual;
   const { datos, recargar } = useCarga<DatosCotejo>(`/api/cotejo?usuario=${idVendedor}`, { coches: [], pagos: [], rejillas: [] });
   const mes = esMes(mesGuardado) ? mesGuardado : mesActual();
+  // Lo que te corresponde por cada coche: lo calcula el motor de comisiones del mes en que se facturó (el anterior al de la rejilla)
+  const mesLiquidacion = sumarMeses(mes, -MESES_HASTA_REJILLA);
+  const { datos: liquidacion } = useCarga<ResultadoMes | null>(`/api/comisiones/mes?mes=${mesLiquidacion}&usuario=${idVendedor}`, null);
+  const importeEsperado = useMemo(() => new Map((liquidacion?.lineas ?? []).map((l) => [l.idExpediente, l.importe])), [liquidacion]);
   // Las hojas en lectura y los borradores viven fuera del componente: siguen su curso aunque se cambie de pestaña
   const { hojas, borradores } = useSyncExternalStore(suscribirRejillas, leerRejillas, () => SIN_ESTADO);
   const { motor: motorLectura } = useMotorDeRelectura();
@@ -155,7 +162,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
 
   const filasMes = useMemo(() => filasDelMes(filasVisibles, mes), [filasVisibles, mes]);
   const filas = filasMes.filter((f) => (filtro === "todos" || f.estado === filtro) && (!dia || (f.coche && diaClave(f.coche) === dia)));
-  const resumen = resumenes.get(mes) ?? { total: 0, pagados: 0, dudosos: 0, noPagados: 0, sinRejilla: 0 };
+  const resumen = resumenes.get(mes) ?? { total: 0, pagados: 0, dudosos: 0, noPagados: 0, sinRejilla: 0, noSeCobra: 0 };
   const sinFecha = useMemo(() => filasSinMes(filasVisibles), [filasVisibles]);
   const hayRejilla = mesesGuardados.has(mes) || mesesEnBorrador.has(mes);
   const rejillaMes = datos.rejillas.find((r) => r.mes === mes);
@@ -241,6 +248,28 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
     }
   };
 
+  /** Aviso aparte (no cambia el resultado): el importe de la hoja no es el de tu liquidación. */
+  const avisoImporte = (f: FilaCotejo): string | null => {
+    const esperado = f.coche?.id_expediente != null ? importeEsperado.get(f.coche.id_expediente) : undefined;
+    if (f.importe === null || esperado === undefined || f.importe === esperado) return null;
+    return `La hoja trae ${euros(f.importe)} y tu liquidación dice ${euros(esperado)}`;
+  };
+  const noSeCobra = async (f: FilaCotejo, valor: boolean) => {
+    const id = f.coche?.id_expediente;
+    if (id == null) return;
+    if (valor && !await confirmar({ texto: `¿Marco ${f.matricula} como «No se cobra»? Dejará de salir como pendiente de cobro.` })) return;
+    setTrabajando(true);
+    try {
+      await llamar("/api/expedientes/no-se-cobra", { method: "POST", cuerpo: { idExpediente: id, noSeCobra: valor } });
+      mostrar(valor ? "Marcado como «No se cobra»." : "Vuelve a contar como pendiente de cobro.");
+      recargar();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   /* ---------------- Tablas ---------------- */
   const sinCoche = <span style={{ color: "var(--text-muted)" }}>—</span>;
   const columnasResultado: ColumnaTabla<FilaCotejo>[] = [
@@ -254,6 +283,20 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
             {COLORES[f.estado].icono} {COLORES[f.estado].texto}
           </div>
           <div style={{ color: "var(--text-secondary)", fontSize: "0.78rem", marginTop: "2px" }}>{f.motivo}</div>
+          {f.aviso && <div style={{ color: "var(--warning)", fontSize: "0.76rem", marginTop: "2px" }}>⚠️ {f.aviso}</div>}
+          {avisoImporte(f) && <div style={{ color: "var(--warning)", fontSize: "0.76rem", marginTop: "2px" }}>⚠️ {avisoImporte(f)}</div>}
+          {f.estado === "no_se_cobra" && f.coche && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem", marginTop: "6px" }} disabled={trabajando} onClick={() => void noSeCobra(f, false)}>
+              ↩ Volver a contarlo
+            </button>
+          )}
+          {(f.estado === "no_pagado" || f.estado === "sin_rejilla") && f.coche?.id_expediente != null && (
+            <div style={{ marginTop: "6px" }}>
+              <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem" }} disabled={trabajando} onClick={() => void noSeCobra(f, true)} title="Este coche no se cobra nunca: deja de salir como pendiente">
+                🚫 No se cobra
+              </button>
+            </div>
+          )}
           {f.estado === "dudoso" && f.matriculaHoja && f.mesRejilla && mesesGuardados.has(f.mesRejilla) && !mesesEnBorrador.has(f.mesRejilla) && (
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
               {f.coche && (
@@ -272,10 +315,12 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
     { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula, celda: (f) => <b>{f.matricula}</b> },
     { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.coche?.cliente ?? "", celda: (f) => f.coche?.cliente || <span style={{ color: "var(--text-muted)" }}>(sin coche)</span> },
     ...columnasVehiculo<FilaCotejo>((f) => ({ clase: f.coche ? (f.coche.usado ? "VO" : "VN") : null, marca: f.coche?.marca, modelo: f.coche?.modelo, estado: f.coche?.estado, tipoPago: f.coche?.tipo_pago }), { vacio: sinCoche }),
-    { clave: "fechaClave", etiqueta: "F. matric. / afect.", valor: (f) => (f.coche?.usado ? f.coche.f_afectacion : f.coche?.f_matriculacion) ?? "", celda: (f) => (f.coche ? fecha((f.coche.usado ? f.coche.f_afectacion : f.coche.f_matriculacion) ?? null) : "-"), ayuda: "Fecha de afectación en los usados y de matriculación en los nuevos" },
+    { clave: "facturado", etiqueta: "Facturado", valor: (f) => f.coche?.f_facturacion ?? f.coche?.f_matriculacion ?? "", celda: (f) => (f.coche ? fecha(f.coche.f_facturacion ?? f.coche.f_matriculacion) : "-"), ayuda: "Fecha de facturación (si no la tiene, la de matriculación): el coche viene en la rejilla del mes siguiente" },
+    { clave: "fechaClave", etiqueta: "F. matric. / afect.", valor: (f) => (f.coche?.usado ? f.coche.f_afectacion : f.coche?.f_matriculacion) ?? "", celda: (f) => (f.coche ? fecha((f.coche.usado ? f.coche.f_afectacion : f.coche.f_matriculacion) ?? null) : "-"), ayuda: "Fecha de afectación en los usados y de matriculación en los nuevos", oculta: true },
     { clave: "entrega", etiqueta: "F. entrega", valor: (f) => f.coche?.f_entrega ?? "", celda: (f) => (f.coche ? fecha(f.coche.f_entrega) : "-") },
     { clave: "mes", etiqueta: "Rejilla de", valor: (f) => f.mesRejilla ?? "", celda: (f) => (f.mesRejilla ? nombreMes(f.mesRejilla) : "-"), oculta: true },
     { clave: "importe", etiqueta: "Importe en la hoja", valor: (f) => f.importe ?? -1, celda: (f) => (f.importe === null ? "-" : euros(f.importe)), alinear: "right", oculta: true },
+    { clave: "corresponde", etiqueta: "Te corresponde", valor: (f) => (f.coche?.id_expediente != null ? importeEsperado.get(f.coche.id_expediente) : undefined) ?? -1, celda: (f) => { const v = f.coche?.id_expediente != null ? importeEsperado.get(f.coche.id_expediente) : undefined; return v === undefined ? "-" : euros(v); }, alinear: "right", oculta: true, ayuda: `Lo que dice tu liquidación de ${nombreMes(mesLiquidacion)} por este coche` },
   ];
   const columnasSinMatricula: ColumnaTabla<CocheCotejo>[] = [
     { clave: "origen", etiqueta: "Origen", valor: (c) => (c.origen === "app" ? `Expediente #${c.id_expediente}` : "Listado") },
@@ -344,10 +389,10 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
           </button>
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <span>{mesesEnBorrador.has(mes) ? "📝 rejilla leída sin guardar" : mesesGuardados.has(mes) ? "📄 con rejilla guardada" : "▫️ sin rejilla"}</span>
-            {resumen.noPagados > 0 && <span>🔴 {resumen.noPagados} sin pagar</span>}
+            {resumen.noPagados > 0 && <span>🔴 {resumen.noPagados} sin comisionar</span>}
             {resumen.dudosos > 0 && <span>🟡 {resumen.dudosos} dudosos</span>}
             {resumen.sinRejilla > 0 && <span>⚪ {resumen.sinRejilla} sin rejilla</span>}
-            {resumen.pagados > 0 && <span>🟢 {resumen.pagados} pagados</span>}
+            {resumen.pagados > 0 && <span>🟢 {resumen.pagados} comisionados</span>}
           </span>
           {dia && (
             <button type="button" className="btn btn-secondary" style={{ padding: "3px 10px", fontSize: "0.8rem" }} onClick={() => setDia(null)} title="Quitar el filtro de día y ver todo el mes">
@@ -523,7 +568,7 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
           ) : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
-                {([["todos", "Todos", resumen.total, "var(--primary)", "🚗"], ["no_pagado", "No pagados", resumen.noPagados, COLORES.no_pagado.borde, COLORES.no_pagado.icono], ["dudoso", "Dudosos", resumen.dudosos, COLORES.dudoso.borde, COLORES.dudoso.icono], ["pagado", "Pagados", resumen.pagados, COLORES.pagado.borde, COLORES.pagado.icono], ["sin_rejilla", "Sin rejilla", resumen.sinRejilla, COLORES.sin_rejilla.borde, COLORES.sin_rejilla.icono]] as const).map(([id, texto, n, color, icono]) => (
+                {([["todos", "Todos", resumen.total, "var(--primary)", "🚗"], ["no_pagado", "Sin comisionar", resumen.noPagados, COLORES.no_pagado.borde, COLORES.no_pagado.icono], ["dudoso", "Dudosos", resumen.dudosos, COLORES.dudoso.borde, COLORES.dudoso.icono], ["pagado", "Comisionados", resumen.pagados, COLORES.pagado.borde, COLORES.pagado.icono], ["sin_rejilla", "Sin rejilla", resumen.sinRejilla, COLORES.sin_rejilla.borde, COLORES.sin_rejilla.icono], ["no_se_cobra", "No se cobra", resumen.noSeCobra, COLORES.no_se_cobra.borde, COLORES.no_se_cobra.icono]] as const).map(([id, texto, n, color, icono]) => (
                   <button
                     key={id}
                     type="button"
@@ -550,18 +595,18 @@ export default function CotejoPagos({ expedientes, vendedores, idUsuarioActual, 
       {(resumen.total > 0 || filasMes.length > 0) && (
         <section className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px", minWidth: 0 }}>
           <h3 style={{ margin: 0, fontSize: "1.02rem" }}>
-            Coches de {nombreMes(mes)}
+            Coches que deben venir en la rejilla de {nombreMes(mes)} (facturados en {nombreMes(mesLiquidacion)})
             {filtro !== "todos" ? ` · ${COLORES[filtro].texto}` : ""}
           </h3>
           {tablaResultado("cotejo-resultado", filas, "No hay nada en esta categoría.")}
         </section>
       )}
 
-      {/* 3. Con la hoja delante: marcar a mano y ver importes */}
+      {/* 3. Lo que te corresponde */}
       <details className="glass-panel" style={{ padding: "12px 16px" }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600 }}>✔ Con la hoja delante: marcar a mano y ver lo que te corresponde por cada coche</summary>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>💶 Lo que te corresponde: tu liquidación de {nombreMes(mesLiquidacion)} (se cobra con la rejilla y la nómina de {nombreMes(mes)})</summary>
         <div style={{ marginTop: "12px" }}>
-          <MiMes expedientes={expedientes} vendedores={vendedores} idUsuarioActual={idUsuarioActual} esAdministrador={esAdministrador} integrada={{ idVendedor }} />
+          <ResumenLiquidacion usuario={idVendedor} mes={mesLiquidacion} sinCoches />
         </div>
       </details>
 
