@@ -114,6 +114,8 @@ interface Gris {
   datos: Buffer;
   ancho: number;
   alto: number;
+  /** Gris por debajo del cual un píxel cuenta como tinta de la tabla (por defecto `UMBRAL_OSCURO`). */
+  umbral?: number;
 }
 
 export async function aGris(img: Buffer, giro: number): Promise<Gris> {
@@ -132,7 +134,7 @@ export function tramosHorizontales(g: Gris, minimo: number): { y: number; x: num
       ini = -1;
     };
     for (let x = 0; x < g.ancho; x++) {
-      if (g.datos[y * g.ancho + x] < UMBRAL_OSCURO) {
+      if (g.datos[y * g.ancho + x] < (g.umbral ?? UMBRAL_OSCURO)) {
         if (ini < 0) ini = x;
         ultimo = x;
       } else if (ini >= 0 && x - ultimo > 2) {
@@ -176,7 +178,7 @@ export function lineasVerticales(g: Gris, y0: number, y1: number, x0: number, x1
   let ini = 0;
   for (let x = Math.max(0, x0); x < Math.min(g.ancho, x1); x++) {
     let oscuros = 0;
-    for (let y = y0; y < y1; y++) if (g.datos[y * g.ancho + x] < UMBRAL_OSCURO) oscuros++;
+    for (let y = y0; y < y1; y++) if (g.datos[y * g.ancho + x] < (g.umbral ?? UMBRAL_OSCURO)) oscuros++;
     const esLinea = oscuros > alto * 0.5;
     if (esLinea && !enLinea) ini = x;
     if (!esLinea && enLinea) xs.push(Math.round((ini + x - 1) / 2));
@@ -226,7 +228,7 @@ function hayLineaEntre(g: Gris, y: number, x0: number, x1: number): boolean {
     const yy = y + dy;
     if (yy < 0 || yy >= g.alto) continue;
     let oscuros = 0;
-    for (let x = x0 + 3; x < x1 - 3; x++) if (g.datos[yy * g.ancho + x] < UMBRAL_OSCURO) oscuros++;
+    for (let x = x0 + 3; x < x1 - 3; x++) if (g.datos[yy * g.ancho + x] < (g.umbral ?? UMBRAL_OSCURO) + 40) oscuros++;
     mejor = Math.max(mejor, oscuros / (x1 - x0 - 6));
   }
   return mejor > 0.6;
@@ -237,6 +239,19 @@ function hayLineaEntre(g: Gris, y: number, x0: number, x1: number): boolean {
  * derecha de la tabla (separada de ella por un hueco en blanco) con las mismas filas.
  */
 export function cuadricula(g: Gris): { celdas: Celda[]; importe: { x: number; ancho: number } | null } {
+  // Un JPEG comprimido o un escaneo claro dejan las líneas de la tabla más grises y el umbral normal pierde filas o la caja de importes: se
+  // prueban umbrales más permisivos y se queda el que da más filas (y, a igualdad, el que encuentra la columna de importes)
+  let mejor = cuadriculaCon(g);
+  const nota = (r: { celdas: Celda[]; importe: unknown }) => r.celdas.length + (r.importe ? 100 : 0);
+  for (const umbral of [150, 170, 190]) {
+    if (mejor.celdas.length >= 20 && mejor.importe) break;
+    const r = cuadriculaCon({ ...g, umbral });
+    if (nota(r) > nota(mejor)) mejor = r;
+  }
+  return mejor;
+}
+
+function cuadriculaCon(g: Gris): { celdas: Celda[]; importe: { x: number; ancho: number } | null } {
   const nada = { celdas: [] as Celda[], importe: null };
   const tolerancia = Math.round(g.ancho * 0.012);
   const tramos = tramosHorizontales(g, Math.round(g.ancho * 0.1));
@@ -354,6 +369,13 @@ function repararMatricula(texto: string): string | null {
   return MATRICULA.test(r) ? r : null;
 }
 
+/** La celda sin sus bordes: con escaneos grandes o comprimidos las líneas de la tabla salen gruesas y, si entran en el recorte, el OCR solo ve una raya. */
+function dentroDe(c: Celda): Celda {
+  const mx = Math.round(c.ancho * 0.07);
+  const my = Math.round(c.alto * 0.14);
+  return { x: c.x + mx, y: c.y + my, ancho: c.ancho - 2 * mx, alto: c.alto - 2 * my };
+}
+
 /** Importe en céntimos de lo leído en una celda («60,00», «1.576,57»); null si no tiene forma de importe con dos decimales. */
 export function importeDeTexto(texto: string): number | null {
   const t = texto.replace(/\s/g, "");
@@ -364,10 +386,10 @@ export function importeDeTexto(texto: string): number | null {
 }
 
 /** Recorte de la celda en grises, listo para leer la línea entera. */
-async function recorteLinea(img: Buffer, c: Celda): Promise<Buffer> {
+async function recorteLinea(img: Buffer, c: Celda, altura = 90): Promise<Buffer> {
   return sharp(img, { failOn: "none" })
     .extract({ left: c.x, top: c.y, width: c.ancho, height: c.alto })
-    .resize({ height: 90 })
+    .resize({ height: altura })
     .grayscale()
     .normalise()
     .extend({ top: 12, bottom: 12, left: 12, right: 12, background: "#ffffff" })
@@ -455,8 +477,15 @@ export async function leerMatriculasDeImagen(original: Buffer): Promise<LecturaH
     if (rejilla.importe) {
       const col = rejilla.importe;
       try {
-        const leidos = await ocrCeldas(await Promise.all(celdas.map((c) => recorteLinea(girada, { x: col.x, y: c.y, ancho: col.ancho, alto: c.alto }))), "0123456789,.");
-        importes = leidos.map((l) => importeDeTexto(l.texto));
+        // Cada celda se lee a varios tamaños (los números pequeños y azules se leen mejor ampliados, cada escáner pide uno) y se queda la primera lectura con forma de importe
+        for (const altura of [90, 140, 200, 60]) {
+          if (importes.every((x) => x !== null)) break;
+          const pendientes = celdas.map((_, k) => k).filter((k) => importes[k] === null);
+          const leidos = await ocrCeldas(await Promise.all(pendientes.map((k) => recorteLinea(girada, dentroDe({ x: col.x, y: celdas[k].y, ancho: col.ancho, alto: celdas[k].alto }), altura))), "0123456789,.");
+          leidos.forEach((l, n) => {
+            importes[pendientes[n]] = importeDeTexto(l.texto);
+          });
+        }
       } catch {
         /* sin importes: se escriben a mano */
       }
