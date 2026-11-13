@@ -14,6 +14,10 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | 🟨 preparada; faltan las pruebas en la Pi (rama `fase/F7-rendimiento`) | Ver detalle abajo |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
+## Completar datos: pedido anulado y vuelto a hacer en el mismo listado (13/11/2026, sin cambio de versión)
+
+Si el Excel de la intranet trae dos filas del mismo pedido (una «Anulado» y otra viva) y las dos caen en el mismo expediente de la app, manda la fila viva: la anulada queda como «pedido anterior», sin propuestas y sin expediente asociado (`previsualizarCompletado`). Antes las dos proponían cambios sobre el mismo expediente (estado, bastidor, fecha) y, según el orden del Excel, un expediente vivo podía quedar como «Anulado» y desaparecer de las listas y del cotejo.
+
 ## v1.0.17 — copias de seguridad robustas, datos por secciones y mejoras de uso (17/10/2026)
 
 **Copias de seguridad y datos**

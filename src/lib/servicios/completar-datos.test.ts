@@ -88,6 +88,44 @@ describe("completar datos desde un listado", () => {
     expect(await db.select().from(expedientes)).toHaveLength(1);
   });
 
+  it("si el listado trae el mismo pedido dos veces (uno anulado y otro vivo) y los dos caen en el mismo expediente, manda el vivo y el anulado no toca nada", async () => {
+    const { admin, exp } = await escenario();
+    const viva = {
+      cliente: "FRANCISCO MAYOR CASADO",
+      bastidor: "UU1DJF00477657076",
+      estado: "Distribución",
+    };
+    const anulada = {
+      cliente: "FRANCISCO MAYOR CASADO",
+      bastidor: "VF1OTROBASTIDOR001",
+      estado: "Anulado",
+      fCreado: "2026-08-20",
+    };
+    // En los dos órdenes posibles del Excel
+    for (const filas of [
+      [fila({ ...anulada, fila: 2 }), fila({ ...viva, fila: 3 })],
+      [fila({ ...viva, fila: 2 }), fila({ ...anulada, fila: 3 })],
+    ]) {
+      const r = await previsualizarCompletado(db, admin, filas);
+      const fa = r.filas.find((f) => f.estadoListado === "Anulado")!;
+      const fv = r.filas.find((f) => f.estadoListado === "Distribución")!;
+      expect(fv.idExpediente).toBe(exp.idExpediente);
+      expect(fv.propuestas.find((p) => p.campo === "estado_intranet")?.nuevo).toBe("Distribución");
+      expect(fv.motivo).toMatch(/pedido anterior anulado/);
+      // La fila anulada ya no apunta al expediente ni propone nada (ni cambiarle el bastidor, ni dejarlo «Anulado», ni deshabilitarlo)
+      expect(fa.estado).toBe("anulado");
+      expect(fa.idExpediente).toBeNull();
+      expect(fa.propuestas).toEqual([]);
+      expect(fa.motivo).toMatch(/el que vale es el de la fila/);
+    }
+    // Un pedido que SOLO viene anulado sigue proponiendo marcarlo como anulado
+    const solo = await previsualizarCompletado(db, admin, [
+      fila({ cliente: "FRANCISCO MAYOR CASADO", estado: "Anulado" }),
+    ]);
+    expect(solo.filas[0].idExpediente).toBe(exp.idExpediente);
+    expect(solo.filas[0].propuestas.find((p) => p.campo === "estado_intranet")?.nuevo).toBe("Anulado");
+  });
+
   it("solo localiza por las referencias que se elijan", async () => {
     const { admin, exp } = await escenario();
     const f = fila({

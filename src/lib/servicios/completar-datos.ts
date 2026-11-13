@@ -963,6 +963,35 @@ export async function previsualizarCompletado(
       candidatos: [],
     });
   }
+  // Un mismo pedido puede venir dos veces en el listado: el primero, que se anuló, y el que se volvió a hacer (por un cambio de color, de
+  // financiación…). Si las dos filas caen en el MISMO expediente de la app, manda la fila viva: la anulada es el pedido anterior y no toca
+  // nada (si se aplicara, podría dejar como «Anulado» un expediente que sigue en marcha, y desaparecería de las listas y del cotejo).
+  const porExpediente = new Map<number, FilaPrevisualizada[]>();
+  for (const s of salida)
+    if (s.idExpediente !== null)
+      porExpediente.set(s.idExpediente, [
+        ...(porExpediente.get(s.idExpediente) ?? []),
+        s,
+      ]);
+  for (const grupo of porExpediente.values()) {
+    const vivas = grupo.filter((s) => s.estado !== "anulado");
+    if (vivas.length === 0 || vivas.length === grupo.length) continue;
+    const viva = vivas[0];
+    for (const s of grupo) {
+      if (s.estado !== "anulado") continue;
+      s.motivo = `Pedido anterior de este mismo cliente, anulado en el listado: el que vale es el de la fila ${viva.fila} («${viva.estadoListado || "sin estado"}»). No se toca el expediente.`;
+      s.propuestas = [];
+      s.idExpediente = null;
+      s.coincide = null;
+      s.candidatos = [];
+    }
+    viva.motivo = [
+      viva.motivo,
+      `El listado trae también un pedido anterior anulado de este cliente (fila ${grupo.find((s) => s.estado === "anulado")?.fila}): se ignora`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
   const cuenta = (e: FilaPrevisualizada["estado"]) =>
     salida.filter((s) => s.estado === e).length;
   const encontrados = new Set(
