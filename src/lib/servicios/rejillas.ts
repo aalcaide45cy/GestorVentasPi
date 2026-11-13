@@ -242,8 +242,10 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
   const huerfanas = [...grupos.keys()].filter((k) => !usadas.has(k));
   const enBd = huerfanas.length
     ? await ej
-        .select({ id: expedientes.idExpediente, matricula: expedientes.matricula, idUsuario: expedientes.idUsuario, fechaMat: expedientes.fechaMatriculacion, clave: SQL_MATRICULA_NORMALIZADA })
+        .select({ id: expedientes.idExpediente, matricula: expedientes.matricula, idUsuario: expedientes.idUsuario, fechaMat: expedientes.fechaMatriculacion, fechaFac: expedientes.fechaFacturacion, cliente: clientes.nombre, tipo: tipoDeVenta.nombreTipoVenta, clave: SQL_MATRICULA_NORMALIZADA })
         .from(expedientes)
+        .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+        .leftJoin(tipoDeVenta, eq(tipoDeVenta.idTipoDeVenta, expedientes.idTipoDeVenta))
         .where(and(isNull(expedientes.eliminadoEn), inArray(SQL_MATRICULA_NORMALIZADA, huerfanas)))
     : [];
   for (const clave of huerfanas) {
@@ -253,8 +255,10 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
     let estado: EstadoComprobacion = "no_en_app";
     let nota: string | null = "No hay ningún expediente con esta matrícula.";
     if (propio) {
-      estado = "otro_mes";
-      nota = `El expediente existe (matriculado ${propio.fechaMat ?? "sin fecha"}) pero no genera comisión en ${mes}. Revisa la fecha de facturación (en un VN es la que cuenta) o la casilla «contabiliza en otro mes».`;
+      // Manda la rejilla: si la matrícula está en la hoja y es un expediente tuyo, el coche está cobrado aunque el motor no tenga liquidación de este mes
+      estado = "ok";
+      const mesFac = (propio.fechaFac ?? propio.fechaMat)?.slice(0, 7) ?? null;
+      nota = mesFac && mesFac !== mes ? `Está en la hoja de ${mes}, pero su facturación es de ${mesFac}: revisa la fecha de facturación del expediente.` : "Está en la hoja y es un expediente tuyo. Sin liquidación de este mes no se pueden comparar los importes.";
     } else if (ajeno) nota = "La matrícula pertenece a un expediente de otro vendedor.";
     filas.push(
       construir({
@@ -262,8 +266,8 @@ export async function comprobarRejilla(ej: Ejecutor, idUsuario: number, mes: str
         estado,
         idExpediente: propio?.id ?? null,
         matricula: g.matricula,
-        cliente: g.cliente,
-        financiacion: g.financiacion,
+        cliente: propio?.cliente ?? g.cliente,
+        financiacion: g.financiacion ?? propio?.tipo ?? null,
         importeApp: 0,
         importeHoja: g.importe,
         conceptosHoja: g.conceptos,

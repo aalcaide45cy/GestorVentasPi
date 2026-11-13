@@ -58,11 +58,13 @@ describe("validación de comisiones con la rejilla", () => {
     expect(por("1234BCD")).toMatchObject({ estado: "ok", importeApp: 10000, importeHoja: 10000, validacion: "pagado" });
     expect(por("5678 FGH")).toMatchObject({ estado: "distinto", diferencia: -1000, validacion: "pendiente" });
     expect(por("9999JKL")).toMatchObject({ estado: "falta_en_hoja", importeHoja: null, diferencia: -10000 });
-    expect(por("1111 AAA")).toMatchObject({ estado: "otro_mes", idExpediente: e.agosto.idExpediente });
+    // Manda la rejilla: un expediente tuyo que sale en la hoja está cobrado aunque el motor no lo cuente en este mes (solo se avisa en la nota)
+    expect(por("1111 AAA")).toMatchObject({ estado: "ok", idExpediente: e.agosto.idExpediente });
+    expect(por("1111 AAA")?.nota).toContain("facturación es de");
     expect(por("2222BBB")?.estado).toBe("no_en_app");
     expect(por("2222BBB")?.nota).toContain("otro vendedor");
     expect(por("0000XXX")?.estado).toBe("no_en_app");
-    expect(r.resumen).toMatchObject({ cuadran: 1, distintos: 1, faltan: 1, sobran: 2, otroMes: 1, importeApp: 30000, importeHoja: 44000 });
+    expect(r.resumen).toMatchObject({ cuadran: 2, distintos: 1, faltan: 1, sobran: 2, otroMes: 0, importeApp: 30000, importeHoja: 44000 });
     // los problemas salen primero
     expect(r.filas[r.filas.length - 1].estado).toBe("ok");
   });

@@ -127,6 +127,19 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
     }
   };
 
+  const quitarDeLaRejilla = async (matricula: string) => {
+    if (!datos) return;
+    const resto = datos.filas.filter((x) => x.estado !== "falta_en_hoja" && x.matricula !== matricula).map((x) => x.matricula);
+    if (!await confirmar({ texto: `¿Quito ${matricula} de la rejilla guardada de ${nombreMes(mes)}? Las demás matrículas no se tocan.` })) return;
+    try {
+      await llamar(`/api/cotejo/rejillas?usuario=${usuario}`, { method: "PATCH", cuerpo: { mes, matriculas: resto } });
+      mostrar(`${matricula} quitada de la rejilla.`);
+      recargar();
+    } catch (e) {
+      mostrar(textoError(e), "error");
+    }
+  };
+
   const editarFila = (i: number, cambio: Partial<FilaRejilla>) => {
     if (!borrador) return;
     setBorrador({ ...borrador, filas: borrador.filas.map((f, j) => (j === i ? { ...f, ...cambio } : f)) });
@@ -157,8 +170,8 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
       ),
     },
     { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.cliente ?? "", celda: (f) => f.cliente ?? "—" },
-    ...columnasVehiculo<FilaComprobacion>((f) => ({ clase: f.clase, marca: f.marca, modelo: f.modelo, estado: f.estadoVehiculo })),
-    { clave: "financiacion", etiqueta: "Financiación", valor: (f) => f.financiacion ?? "", celda: (f) => f.financiacion ?? "—" },
+    ...columnasVehiculo<FilaComprobacion>((f) => ({ clase: f.clase, marca: f.marca, modelo: f.modelo, estado: f.estadoVehiculo, tipoPago: f.financiacion })),
+    { clave: "financiacion", etiqueta: "Financiación (según la hoja)", valor: (f) => f.financiacion ?? "", celda: (f) => f.financiacion ?? "—", oculta: true },
     {
       clave: "resultado",
       etiqueta: "Resultado",
@@ -167,6 +180,11 @@ export default function ValidacionRejilla({ cat, usuarioInicial, esAdmin }: { ca
         <div style={{ whiteSpace: "normal" }}>
           <span style={{ color: ETIQUETA[f.estado].color, fontWeight: 600 }}>{ETIQUETA[f.estado].texto}</span>
           {f.nota && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", maxWidth: "260px" }}>{f.nota}</div>}
+          {f.estado === "no_en_app" && r?.rejilla && (
+            <button type="button" className="btn btn-secondary" style={{ padding: "3px 8px", fontSize: "0.75rem", marginTop: "6px" }} onClick={() => void quitarDeLaRejilla(f.matricula)} title="Quita esta matrícula de la rejilla guardada (no es tuya o no debía estar)">
+              🗑 Quitar de esta rejilla
+            </button>
+          )}
         </div>
       ),
     },
