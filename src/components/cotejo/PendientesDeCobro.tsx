@@ -91,7 +91,7 @@ export default function PendientesDeCobro({ vendedores, idUsuarioActual, esAdmin
     { clave: "matricula", etiqueta: "Matrícula", valor: (p) => p.matricula, celda: (p) => (p.matricula ? <b>{p.matricula}</b> : <span style={{ color: "var(--warning)" }}>⚠️ falta</span>) },
     ...columnasVehiculo<Pendiente>((p) => ({ clase: p.coche.usado ? "VO" : "VN", marca: p.coche.marca, modelo: p.coche.modelo, estado: p.coche.estado || undefined, tipoPago: p.coche.tipo_pago || null })),
     { clave: "facturado", etiqueta: "Facturado", valor: (p) => p.coche.f_facturacion ?? p.coche.f_matriculacion ?? "", celda: (p) => fecha(p.coche.f_facturacion ?? p.coche.f_matriculacion), ayuda: "Fecha de facturación (si no la tiene, la de matriculación)" },
-    { clave: "mes", etiqueta: "Debe venir en la rejilla de", valor: (p) => p.mesEsperado ?? "", celda: (p) => (p.mesEsperado ? nombreMes(p.mesEsperado) : "—"), ayuda: "Facturado en agosto, rejilla de septiembre" },
+    { clave: "mes", etiqueta: "Debe venir en la rejilla de", valor: (p) => p.mesEsperado ?? "", celda: (p) => (p.mesEsperado ? nombreMes(p.mesEsperado) : "—"), ayuda: "Cada coche viene en la rejilla del mes en que se factura" },
     {
       clave: "acciones",
       etiqueta: "Acciones",
@@ -151,7 +151,7 @@ export default function PendientesDeCobro({ vendedores, idUsuarioActual, esAdmin
           )}
         </div>
         <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>
-          Un coche cuenta como <b>cobrado</b> en cuanto su matrícula sale en alguna rejilla guardada. Cada coche debe venir en la rejilla del mes <b>siguiente</b> al de su facturación (facturado en agosto, rejilla de septiembre). Si una matrícula sale en otro mes distinto, sigue siendo cobrada y solo se avisa en «Mi mes».
+          Un coche cuenta como <b>cobrado</b> en cuanto su matrícula sale en alguna rejilla guardada. Cada coche debe venir en la rejilla del mes en que se factura (facturado en septiembre, rejilla de septiembre, que se cobra en la nómina de octubre). Si una matrícula sale en otro mes distinto, sigue siendo cobrada y solo se avisa en «Mi mes».
         </p>
         {r.pendientes.length === 0 && total > 0 && <div style={{ color: "var(--success)", fontWeight: 600 }}>✅ Todos los coches que se cobran están cobrados.</div>}
       </section>

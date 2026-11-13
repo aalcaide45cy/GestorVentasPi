@@ -49,8 +49,7 @@ describe("cotejo de pagos (servicio)", () => {
     await crear(v, "Ana Ruiz", "1234BCD");
     await crear(v, "Luis Gil", "5555FGH");
     await crear(otro, "Ajeno", "7777JKL");
-    // Matriculado (y facturado) en marzo: viene en la rejilla de abril
-    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-04", matriculas: ["1234BCD"] }));
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-03", matriculas: ["1234BCD"] }));
 
     const datos = await datosCotejo(db, v.idUsuario);
     expect(datos.coches.map((c) => c.cliente).sort()).toEqual(["Ana Ruiz", "Luis Gil"]);
@@ -66,7 +65,7 @@ describe("cotejo de pagos (servicio)", () => {
     await crear("Ana Ruiz", "1234BCD");
     const faltante = await crear("Luis Gil", "5555FGH");
     const interno = await crear("Venta interna", "7777JKL");
-    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-09", matriculas: ["1234BCD"] }));
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-08", matriculas: ["1234BCD"] }));
     const avisos = async () => (await db.select().from(alertas).where(eq(alertas.idUsuario, v.idUsuario))).filter((a) => a.estado !== "resuelta");
     let antes = await avisos();
     expect(antes).toHaveLength(1);
@@ -74,7 +73,7 @@ describe("cotejo de pagos (servicio)", () => {
     expect(antes[0].mensaje).toContain("5555FGH");
 
     await fijarNoSeCobra(db, v, { idExpediente: (interno as { id_expediente: number }).id_expediente, noSeCobra: true, motivo: "Venta interna" });
-    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-09", matriculas: ["1234BCD"] }));
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-08", matriculas: ["1234BCD"] }));
     antes = await avisos();
     expect(antes).toHaveLength(1);
     expect(antes[0].mensaje).toContain("faltan 1 coche ");
@@ -87,7 +86,7 @@ describe("cotejo de pagos (servicio)", () => {
 
     // Con la rejilla completa ya no falta ninguno y el aviso se retira
     void faltante;
-    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-09", matriculas: ["1234BCD", "5555FGH"] }));
+    await guardarRejillaCotejo(db, v.idUsuario, v.idUsuario, esquemaGuardarRejillaCotejo.parse({ mes: "2026-08", matriculas: ["1234BCD", "5555FGH"] }));
     expect(await avisos()).toHaveLength(0);
   });
 

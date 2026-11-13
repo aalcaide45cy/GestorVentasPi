@@ -33,7 +33,7 @@ export interface CocheCotejo {
   deshabilitado?: boolean;
   /**
    * Fecha de facturación del expediente (solo los de la app la traen; `undefined` = coche de un listado, que no la tiene). Con ella el coche
-   * se comisiona en la rejilla del mes SIGUIENTE al de su facturación (facturado en agosto, rejilla de septiembre).
+   * se comisiona en la rejilla del mismo mes de su facturación (la hoja de septiembre trae los facturados en septiembre; se cobran en la nómina de octubre).
    */
   f_facturacion?: string | null;
   /** Nuevo cobrado en otra fecha: manda `f_cobro` en lugar de la facturación (misma regla que el motor de comisiones). */
@@ -88,13 +88,16 @@ function sumarMes(m: string, n: number): string {
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
 }
 
-/** Cuántos meses después de su facturación se comisiona un coche: facturado en agosto, rejilla de septiembre. */
-export const MESES_HASTA_REJILLA = 1;
+/**
+ * Cuántos meses después de su facturación viene un coche en la rejilla. 0 = en la del mismo mes (comprobado con la hoja real de septiembre de 2026, que
+ * trae coches facturados en septiembre); si resultara que la hoja es la del mes de cobro, basta poner 1.
+ */
+export const MESES_HASTA_REJILLA = 0;
 
 /**
  * Meses en que el coche debería venir en la rejilla. Un expediente de la app (trae `f_facturacion`) cuenta como en el motor de comisiones:
  * por su fecha de facturación (o la de matriculación si no hay), o por la de cobro en un nuevo «cobrado en otra fecha»; y se comisiona
- * en la rejilla del mes siguiente. Un coche de un listado (sin facturación) conserva la regla antigua: un nuevo, el mes de su
+ * en la rejilla de ese mes (más `MESES_HASTA_REJILLA`). Un coche de un listado (sin facturación) conserva la regla antigua: un nuevo, el mes de su
  * matriculación; un usado, del mes de afectación al de entrega.
  */
 export function mesesEsperados(c: CocheCotejo): string[] {
@@ -379,7 +382,7 @@ export type SituacionPendiente = "reclamar" | "esperando_hoja" | "sin_matricula"
 export interface Pendiente {
   coche: CocheCotejo;
   matricula: string;
-  /** Rejilla donde debía venir (la del mes siguiente a su facturación); null si no tiene fecha. */
+  /** Rejilla donde debía venir (la del mes de su facturación); null si no tiene fecha. */
   mesEsperado: string | null;
   situacion: SituacionPendiente;
   motivo: string;

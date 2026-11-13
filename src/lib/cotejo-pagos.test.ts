@@ -142,18 +142,18 @@ describe("calendario del cotejo", () => {
   });
 });
 
-describe("regla de la facturación: se comisiona en la rejilla del mes siguiente", () => {
+describe("regla de la facturación: viene en la rejilla del mes de su facturación", () => {
   const app = (o: Partial<CocheCotejo>): CocheCotejo => coche({ f_facturacion: "2026-08-17", f_matriculacion: "2026-08-17", ...o });
-  it("facturado en agosto se espera en la rejilla de septiembre", () => {
-    expect(mesesEsperados(app({}))).toEqual(["2026-09"]);
+  it("facturado en agosto se espera en la rejilla de agosto", () => {
+    expect(mesesEsperados(app({}))).toEqual(["2026-08"]);
   });
   it("sin facturación vale la matriculación; un nuevo cobrado en otra fecha cuenta por su cobro", () => {
-    expect(mesesEsperados(app({ f_facturacion: null, f_matriculacion: "2026-10-03" }))).toEqual(["2026-11"]);
-    expect(mesesEsperados(app({ cobrado_otra_fecha: true, f_cobro: "2026-12-30" }))).toEqual(["2027-01"]);
+    expect(mesesEsperados(app({ f_facturacion: null, f_matriculacion: "2026-10-03" }))).toEqual(["2026-10"]);
+    expect(mesesEsperados(app({ cobrado_otra_fecha: true, f_cobro: "2026-12-30" }))).toEqual(["2026-12"]);
     expect(mesesEsperados(app({ f_facturacion: null, f_matriculacion: null }))).toEqual([]);
   });
   it("un coche en cualquier rejilla guardada sale como comisionado; si es de otro mes, con aviso aparte", () => {
-    const igual = cotejarPagos([app({})], [pago({ mes: "2026-09" })]);
+    const igual = cotejarPagos([app({})], [pago({ mes: "2026-08" })]);
     expect(igual.filas[0].estado).toBe("pagado");
     expect(igual.filas[0].aviso).toBeUndefined();
     const otro = cotejarPagos([app({})], [pago({ mes: "2026-10" })]);
@@ -170,7 +170,7 @@ describe("regla de la facturación: se comisiona en la rejilla del mes siguiente
       app({ id_expediente: 6, matricula: "6666FFF", deshabilitado: true }),
       app({ id_expediente: 7, matricula: "7777GGG", cobrado_manual: true }),
     ];
-    const r = resumenCobros(coches, [pago({ mes: "2026-09", matricula: "1111AAA" }), pago({ mes: "2026-09", matricula: "9999ZZZ" })]);
+    const r = resumenCobros(coches, [pago({ mes: "2026-08", matricula: "1111AAA" }), pago({ mes: "2026-08", matricula: "9999ZZZ" })]);
     expect(r.cobrados).toBe(2);
     expect(r.noSeCobra).toHaveLength(1);
     expect(r.aunSinFacturar).toHaveLength(1);
@@ -179,6 +179,6 @@ describe("regla de la facturación: se comisiona en la rejilla del mes siguiente
   it("sin hoja del mes esperado queda «esperando la hoja»", () => {
     const r = resumenCobros([app({ f_facturacion: "2026-11-02" })], [pago({ mes: "2026-09", matricula: "9999ZZZ" })]);
     expect(r.pendientes[0].situacion).toBe("esperando_hoja");
-    expect(r.pendientes[0].mesEsperado).toBe("2026-12");
+    expect(r.pendientes[0].mesEsperado).toBe("2026-11");
   });
 });

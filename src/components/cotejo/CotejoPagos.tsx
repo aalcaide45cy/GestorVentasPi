@@ -315,7 +315,7 @@ export default function CotejoPagos({ vendedores, idUsuarioActual, esAdministrad
     { clave: "matricula", etiqueta: "Matrícula", valor: (f) => f.matricula, celda: (f) => <b>{f.matricula}</b> },
     { clave: "cliente", etiqueta: "Cliente", valor: (f) => f.coche?.cliente ?? "", celda: (f) => f.coche?.cliente || <span style={{ color: "var(--text-muted)" }}>(sin coche)</span> },
     ...columnasVehiculo<FilaCotejo>((f) => ({ clase: f.coche ? (f.coche.usado ? "VO" : "VN") : null, marca: f.coche?.marca, modelo: f.coche?.modelo, estado: f.coche?.estado, tipoPago: f.coche?.tipo_pago }), { vacio: sinCoche }),
-    { clave: "facturado", etiqueta: "Facturado", valor: (f) => f.coche?.f_facturacion ?? f.coche?.f_matriculacion ?? "", celda: (f) => (f.coche ? fecha(f.coche.f_facturacion ?? f.coche.f_matriculacion) : "-"), ayuda: "Fecha de facturación (si no la tiene, la de matriculación): el coche viene en la rejilla del mes siguiente" },
+    { clave: "facturado", etiqueta: "Facturado", valor: (f) => f.coche?.f_facturacion ?? f.coche?.f_matriculacion ?? "", celda: (f) => (f.coche ? fecha(f.coche.f_facturacion ?? f.coche.f_matriculacion) : "-"), ayuda: "Fecha de facturación (si no la tiene, la de matriculación): el coche viene en la rejilla de ese mes" },
     { clave: "fechaClave", etiqueta: "F. matric. / afect.", valor: (f) => (f.coche?.usado ? f.coche.f_afectacion : f.coche?.f_matriculacion) ?? "", celda: (f) => (f.coche ? fecha((f.coche.usado ? f.coche.f_afectacion : f.coche.f_matriculacion) ?? null) : "-"), ayuda: "Fecha de afectación en los usados y de matriculación en los nuevos", oculta: true },
     { clave: "entrega", etiqueta: "F. entrega", valor: (f) => f.coche?.f_entrega ?? "", celda: (f) => (f.coche ? fecha(f.coche.f_entrega) : "-") },
     { clave: "mes", etiqueta: "Rejilla de", valor: (f) => f.mesRejilla ?? "", celda: (f) => (f.mesRejilla ? nombreMes(f.mesRejilla) : "-"), oculta: true },
@@ -595,7 +595,7 @@ export default function CotejoPagos({ vendedores, idUsuarioActual, esAdministrad
       {(resumen.total > 0 || filasMes.length > 0) && (
         <section className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px", minWidth: 0 }}>
           <h3 style={{ margin: 0, fontSize: "1.02rem" }}>
-            Coches que deben venir en la rejilla de {nombreMes(mes)} (facturados en {nombreMes(mesLiquidacion)})
+            Coches que deben venir en la rejilla de {nombreMes(mes)} 
             {filtro !== "todos" ? ` · ${COLORES[filtro].texto}` : ""}
           </h3>
           {tablaResultado("cotejo-resultado", filas, "No hay nada en esta categoría.")}
@@ -604,7 +604,7 @@ export default function CotejoPagos({ vendedores, idUsuarioActual, esAdministrad
 
       {/* 3. Lo que te corresponde */}
       <details className="glass-panel" style={{ padding: "12px 16px" }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600 }}>💶 Lo que te corresponde: tu liquidación de {nombreMes(mesLiquidacion)} (se cobra con la rejilla y la nómina de {nombreMes(mes)})</summary>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>💶 Lo que te corresponde: tu liquidación de {nombreMes(mesLiquidacion)} (se cobra en la nómina de {nombreMes(sumarMeses(mes, 1))})</summary>
         <div style={{ marginTop: "12px" }}>
           <ResumenLiquidacion usuario={idVendedor} mes={mesLiquidacion} sinCoches />
         </div>
