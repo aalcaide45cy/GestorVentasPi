@@ -427,3 +427,8 @@ Petición del propietario: prioridad absoluta saber qué expedientes están cobr
 - **[D] «No se cobra»**: tabla propia `expedientes_no_se_cobra` (migración 0089), botón en Pendientes de cobro y en Mi mes; se puede deshacer. Los coches sin matrícula ni fecha de facturación («aún sin facturar») no cuentan como pendientes; sin matrícula pero con fecha sí.
 - **[D] Aviso en la campana** al guardar una rejilla: lista los coches que debían venir en ella y no están en ninguna rejilla guardada (un aviso por mes; se sustituye al volver a guardar y se retira si ya no falta ninguno).
 - **[D] «¿Cuadran los importes?» (13/11/2026): manda la rejilla.** Una matrícula de la hoja que es de un expediente del propio vendedor sale «Cuadra» (con cliente, marca, modelo y tipo de pago) aunque el motor no tenga liquidación de ese mes; si su facturación es de otro mes, solo se avisa en la nota. Se acaba el estado «Está en otro mes». Una matrícula sin expediente se puede quitar de la rejilla guardada con «Quitar de esta rejilla».
+
+## Repositorio privado: llave de solo lectura (2026-11-23)
+- La Raspberry (`sudo gv llave`, opción 12 del asistente) guarda una llave fine-grained de GitHub (solo lectura de Contents, limitada a este repo) en `/etc/gestorventas/github-token` (600). `gv` la usa en todas las consultas a la API y descarga los instaladores por `api.github.com/.../releases/assets/<id>`. Sin llave se comporta como antes (repo público).
+- El Mac usa `~/.gestorventas-github-token` (o `GV_GITHUB_TOKEN`) en `scripts/actualizar-mac.sh` con cabecera Basic `x-access-token`.
+- La imagen Docker sale de GHCR; su visibilidad es independiente de la del repo (comprobar que sigue pública tras poner el repo en privado).

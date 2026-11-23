@@ -10,6 +10,8 @@ set -u
 REPO="aalcaide45cy/GestorVentasPi"
 API="https://api.github.com/repos/$REPO"
 DIR="${GV_DIR:-/opt/gestorventas}"
+# Llave de GitHub de solo lectura (para cuando el repositorio es privado). Se guarda solo para el administrador del sistema.
+LLAVE_ARCHIVO="${GV_LLAVE_ARCHIVO:-/etc/gestorventas/github-token}"
 ORIGEN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------------------------------------------------------------- utilidades
@@ -34,8 +36,22 @@ version_instalada() {
 }
 dc() { (cd "$DIR" && docker compose "$@"); }
 
+# curl hacia GitHub: si hay llave guardada, la usa (necesario con el repositorio privado); si no, va sin llave (repositorio público).
+llave_leer() {
+  # También acepta una llave dejada en la carpeta compartida de la aplicación: se guarda bien y se borra de allí.
+  if [ ! -s "$LLAVE_ARCHIVO" ] && [ -s "$DIR/control/github-token" ]; then
+    mkdir -p "$(dirname "$LLAVE_ARCHIVO")"
+    tr -d ' \r\n' < "$DIR/control/github-token" > "$LLAVE_ARCHIVO" && chmod 600 "$LLAVE_ARCHIVO" && rm -f "$DIR/control/github-token"
+  fi
+  [ -s "$LLAVE_ARCHIVO" ] && tr -d ' \r\n' < "$LLAVE_ARCHIVO"
+}
+gh_curl() {
+  local k; k="$(llave_leer 2>/dev/null || true)"
+  if [ -n "$k" ]; then curl -H "Authorization: Bearer $k" -H "X-GitHub-Api-Version: 2022-11-28" "$@"; else curl "$@"; fi
+}
+
 necesita_internet() {
-  curl -fsS --max-time 10 -o /dev/null "$API" 2>/dev/null || { rojo "No hay conexión con GitHub. Comprueba que la Raspberry tiene internet."; return 1; }
+  gh_curl -fsS --max-time 10 -o /dev/null "$API" 2>/dev/null || { rojo "No hay conexión con GitHub. Comprueba que la Raspberry tiene internet."; return 1; }
 }
 
 instalar_jq() {
@@ -66,12 +82,12 @@ apagar_raspberry() {
 # ---------------------------------------------------------------- GitHub: versiones y progreso
 # Última etiqueta vX.Y.Z publicada en el repositorio (aunque su instalador aún se esté construyendo).
 ultima_etiqueta() {
-  curl -fsS --max-time 25 "$API/git/matching-refs/tags/v" 2>/dev/null | jq -r '.[].ref' 2>/dev/null | sed 's#refs/tags/v##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
+  gh_curl -fsS --max-time 25 "$API/git/matching-refs/tags/v" 2>/dev/null | jq -r '.[].ref' 2>/dev/null | sed 's#refs/tags/v##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
 }
 
 release_lista() { # ¿ya están publicados los archivos de esa versión?
   local j
-  j="$(curl -fsS --max-time 25 "$API/releases/tags/v$1" 2>/dev/null)" || return 1
+  j="$(gh_curl -fsS --max-time 25 "$API/releases/tags/v$1" 2>/dev/null)" || return 1
   [ -n "$j" ] || return 1
   jq -e --arg n "gestorventas-$1-pi-instalador.run" '[.assets[].name] | index($n) != null' <<<"$j" >/dev/null 2>&1
 }
@@ -82,7 +98,7 @@ esperar_construccion() {
   inicio="$(date +%s)"
   azul "GitHub está construyendo la versión $v. Espero aquí y se instalará sola al terminar (Ctrl+C para cancelar)."
   while ! release_lista "$v"; do
-    run="$(curl -fsS --max-time 25 "$API/actions/runs?event=push&per_page=20" 2>/dev/null | jq -c --arg v "v$v" '[.workflow_runs[] | select(.head_branch == $v and .name == "Publicar versión")][0] // empty' 2>/dev/null)"
+    run="$(gh_curl -fsS --max-time 25 "$API/actions/runs?event=push&per_page=20" 2>/dev/null | jq -c --arg v "v$v" '[.workflow_runs[] | select(.head_branch == $v and .name == "Publicar versión")][0] // empty' 2>/dev/null)"
     if [ -n "$run" ]; then
       id="$(jq -r '.id' <<<"$run")"; estado="$(jq -r '.status' <<<"$run")"; concl="$(jq -r '.conclusion // ""' <<<"$run")"
       if [ "$estado" = "completed" ] && [ "$concl" != "success" ]; then
@@ -90,7 +106,7 @@ esperar_construccion() {
         echo "Detalles: https://github.com/$REPO/actions/runs/$id"
         return 1
       fi
-      jobs="$(curl -fsS --max-time 25 "$API/actions/runs/$id/jobs" 2>/dev/null)"
+      jobs="$(gh_curl -fsS --max-time 25 "$API/actions/runs/$id/jobs" 2>/dev/null)"
       total="$(jq '[.jobs[].steps[]] | length' <<<"$jobs" 2>/dev/null || echo 0)"
       hechos="$(jq '[.jobs[].steps[] | select(.status == "completed")] | length' <<<"$jobs" 2>/dev/null || echo 0)"
       paso="$(jq -r '[.jobs[].steps[] | select(.status == "in_progress")][0].name // "preparando"' <<<"$jobs" 2>/dev/null)"
@@ -107,15 +123,50 @@ esperar_construccion() {
 }
 
 # Descarga el instalador de una versión a una carpeta y comprueba su huella.
+# Con llave guardada se descarga por la API de GitHub (repositorio privado); sin llave, por la dirección pública.
+descargar_archivo() { # $1=versión $2=nombre $3=destino $4=opciones extra de curl
+  local v="$1" n="$2" d="$3" extra="${4:-}" k id
+  k="$(llave_leer 2>/dev/null || true)"
+  if [ -n "$k" ]; then
+    id="$(gh_curl -fsS --max-time 25 "$API/releases/tags/v$v" 2>/dev/null | jq -r --arg n "$n" '.assets[] | select(.name == $n) | .id' 2>/dev/null | head -1)"
+    [ -n "$id" ] || return 1
+    # shellcheck disable=SC2086
+    gh_curl -fL $extra -H "Accept: application/octet-stream" -o "$d/$n" "$API/releases/assets/$id"
+  else
+    # shellcheck disable=SC2086
+    curl -fL $extra -o "$d/$n" "https://github.com/$REPO/releases/download/v$v/$n"
+  fi
+}
+
 descargar_instalador() {
-  local v="$1" destino="$2" nombre="gestorventas-$1-pi-instalador.run" base="https://github.com/$REPO/releases/download/v$1"
+  local v="$1" destino="$2" nombre="gestorventas-$1-pi-instalador.run"
   azul "Descargando $nombre (unos 150 MB)..."
-  curl -fL --connect-timeout 20 --speed-limit 2000 --speed-time 90 --retry 2 --progress-bar -o "$destino/$nombre" "$base/$nombre" || { rojo "No se pudo descargar."; return 1; }
-  if curl -fsSL --max-time 30 -o "$destino/$nombre.sha256" "$base/$nombre.sha256" 2>/dev/null; then
+  descargar_archivo "$v" "$nombre" "$destino" "--connect-timeout 20 --speed-limit 2000 --speed-time 90 --retry 2 --progress-bar" || { rojo "No se pudo descargar."; return 1; }
+  if descargar_archivo "$v" "$nombre.sha256" "$destino" "-sS --max-time 30" 2>/dev/null; then
     (cd "$destino" && sha256sum -c "$nombre.sha256" >/dev/null 2>&1) || { rojo "La descarga está dañada (la huella no coincide). Vuelve a intentarlo."; return 1; }
     verde "Descarga comprobada."
   fi
   RUN_DESCARGADO="$destino/$nombre"
+}
+
+# Guardar y probar la llave de solo lectura de GitHub (sudo gv llave)
+accion_llave() {
+  if [ -n "$(llave_leer 2>/dev/null || true)" ]; then echo "Ya hay una llave guardada en $LLAVE_ARCHIVO."; si "¿Cambiarla por otra?" || { probar_llave; return; }; fi
+  echo "Pega la llave de GitHub (empieza por github_pat_...) y pulsa Enter. No se verá mientras la pegas."
+  local k; read -rsp "Llave: " k; echo
+  k="$(printf '%s' "$k" | tr -d ' \r\n')"
+  [ -n "$k" ] || { rojo "No has pegado nada."; return 1; }
+  mkdir -p "$(dirname "$LLAVE_ARCHIVO")"; umask 077
+  printf '%s' "$k" > "$LLAVE_ARCHIVO"; chmod 600 "$LLAVE_ARCHIVO"
+  probar_llave
+}
+probar_llave() {
+  instalar_jq || return 1
+  if gh_curl -fsS --max-time 20 -o /dev/null "$API"; then
+    if [ -n "$(ultima_etiqueta)" ]; then verde "La llave funciona: GitHub responde y se ven las versiones."; else aviso "GitHub responde pero no veo versiones. Revisa que la llave tenga permiso de lectura de «Contents»."; fi
+  else
+    rojo "GitHub no acepta la llave (o no hay internet). Revisa que la copiaste entera y que no ha caducado."; return 1
+  fi
 }
 
 # ---------------------------------------------------------------- acciones
@@ -328,6 +379,7 @@ menu() {
     echo "   9) Reiniciar la Raspberry"
     echo "  10) Apagar la Raspberry"
     echo "  11) Actualización automática (activar / desactivar)"
+    echo "  12) Llave de GitHub (para repositorio privado)"
     echo "   0) Salir"
     echo
     local op; read -rp "Elige una opción: " op
@@ -343,6 +395,7 @@ menu() {
       9) si "¿Reiniciar la Raspberry ahora?" && reiniciar_raspberry ;;
       10) si "¿Apagar la Raspberry ahora?" && apagar_raspberry ;;
       11) accion_auto; pausa ;;
+      12) accion_llave; pausa ;;
       0|q|Q) exit 0 ;;
       *) ;;
     esac
@@ -351,6 +404,7 @@ menu() {
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
 case "${1:-menu}" in
+  llave) accion_llave ;;
   instalar) accion_instalar ;;
   actualizar) accion_actualizar ;;
   estado) accion_estado ;;

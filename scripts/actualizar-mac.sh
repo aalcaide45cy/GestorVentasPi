@@ -2,7 +2,16 @@
 # Descarga la última versión de GitHub, la construye aquí y reinicia el servicio.
 set -e
 cd "$(dirname "$0")/.."
-git pull --ff-only
+# Si el repositorio es privado hace falta la llave de solo lectura de GitHub: se guarda una vez en ~/.gestorventas-github-token
+# (o en la variable GV_GITHUB_TOKEN). Sin llave se intenta como siempre (repositorio público).
+LLAVE="${GV_GITHUB_TOKEN:-}"
+[ -z "$LLAVE" ] && [ -s "$HOME/.gestorventas-github-token" ] && LLAVE="$(tr -d ' \r\n' < "$HOME/.gestorventas-github-token")"
+if [ -n "$LLAVE" ]; then
+  CABECERA="Authorization: Basic $(printf 'x-access-token:%s' "$LLAVE" | base64 | tr -d '\n')"
+  git -c "http.https://github.com/.extraheader=$CABECERA" pull --ff-only
+else
+  git pull --ff-only
+fi
 npm ci --onnxruntime-node-install=skip
 npm run db:migrate
 npm run build
