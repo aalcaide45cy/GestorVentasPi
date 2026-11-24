@@ -8,7 +8,7 @@ export const limpiarNif = (t: string | null | undefined): string => (t ?? "").to
 
 /**
  * Clave para decidir si dos documentos son el mismo: sin ceros a la izquierda del número, porque unas veces vienen con ellos
- * («03217951K») y otras sin («3217951K»). Los NIE (X, Y, Z) y los CIF (letra delante) conservan su letra inicial.
+ * («02111122K») y otras sin («2111122K»). Los NIE (X, Y, Z) y los CIF (letra delante) conservan su letra inicial.
  */
 export function claveNif(t: string | null | undefined): string {
   const n = limpiarNif(t);
@@ -30,7 +30,7 @@ export function nifParecido(a: string | null | undefined, b: string | null | und
 }
 
 /**
- * Matrícula en el formato 1234ABC: sin la fecha que el listado del fabricante pone entre paréntesis («9109KFP(28-11-2017)»), sin
+ * Matrícula en el formato 1234ABC: sin la fecha que el listado del fabricante pone entre paréntesis («2222CCC(28-11-2017)»), sin
  * espacios ni guiones y sin una «E» delante (que algunos sistemas añaden a la matrícula española).
  */
 export function normalizarMatricula(t: string | null | undefined): string {

@@ -128,7 +128,7 @@ describe("recoger lo leído sin perder los repetidos", () => {
       resultado: { datos: { numeroPedido: null, vin: null, matricula: null, dni, cliente: "Natalia", fechaExpediente: null, idModelo, avisos: [] }, similares: [], adjunto: { id }, metodo: "ocr" },
     });
     // Misma persona y modelo (copias); otra persona; y la misma persona con otro modelo (otro coche: no es repetido)
-    const lecturas = [dato(1, "p1.pdf", "50877768C", 5), dato(2, "p1 (2).pdf", "50877768C", 5), dato(3, "otra.pdf", "11111111H", 5), dato(4, "otro-coche.pdf", "50877768C", 9)];
+    const lecturas = [dato(1, "p1.pdf", "41234517C", 5), dato(2, "p1 (2).pdf", "41234517C", 5), dato(3, "otra.pdf", "11111111H", 5), dato(4, "otro-coche.pdf", "41234517C", 9)];
     const enviados: { accion: string; ids?: number[]; repetidos?: { id: number; motivo: string }[] }[] = [];
     vi.stubGlobal(
       "fetch",

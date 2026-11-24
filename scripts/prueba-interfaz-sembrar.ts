@@ -37,11 +37,11 @@ async function main() {
     const nuevo = estados.find((e) => e.clase === "VN") ?? estados[0];
     const usado = estados.find((e) => e.clase === "VO") ?? estados[0];
     const datos: [string, string, string, number, string | null][] = [
-      ["Francisco Mayor Casado", "51701814E", "c1", nuevo.idEstadoVehiculo, null],
-      ["Jesus Jara Rodriguez", "2247312M", "c2", usado.idEstadoVehiculo, "3881LYM"],
+      ["Fernando Prado Soler", "36914792E", "c1", nuevo.idEstadoVehiculo, null],
+      ["Julian Lara Ramos", "1987665M", "c2", usado.idEstadoVehiculo, "1111BBB"],
       ["Delia Kosset Gonzalez Garcia", "Y8252910H", "c3", usado.idEstadoVehiculo, null],
-      ["Natalia Martinez Muñoz", "50877768C", "c4", nuevo.idEstadoVehiculo, null],
-      ["Isabel Bravo Moreno", "11791376N", "c5", usado.idEstadoVehiculo, null],
+      ["Nuria Marcos Molina", "41234517C", "c4", nuevo.idEstadoVehiculo, null],
+      ["Irene Blanco Mora", "11223322N", "c5", usado.idEstadoVehiculo, null],
     ];
     for (const [nombre, dni, id, estado, matricula] of datos) {
       const [c] = await db.insert(clientes).values({ clienteId: id, nombre, dni }).returning();

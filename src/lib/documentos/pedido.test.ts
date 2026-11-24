@@ -218,7 +218,7 @@ describe("pedido de vehículo usado con retoma", () => {
   const texto = [
     "PEDIDO DE VEHÍCULO USADO",
     "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
-    "Sr. D. Francisco Javier Remedios Garcia  AUTOCARPE CONCESIONARIO, S.L.",
+    "Sr. D. Felipe Javier Robles Gil  AUTOCARPE CONCESIONARIO, S.L.",
     "DATOS DEL VEHÍCULO",
     "Matrícula  1504JPN  Bastidor  VF12RA11A55506090",
     "Valoración VO:  RENAULT Mégane 1.6 Confort Dynamique - Matrícula 9835DNC  -0,00 €",
@@ -231,8 +231,8 @@ describe("pedido de vehículo usado con retoma", () => {
     expect(d.retoma?.matricula).toBe("9835DNC");
   });
   it("un pedido escaneado sin el rótulo «USADO» se reconoce por «Renew» o por el régimen R.E.B.U.", () => {
-    expect(parsearPedido("PEDIDO DE VEHÍCULO  renew\nCLIENTE\nSr. D. Jesus Jara Rodriguez\nMatrícula  3881LYM", catalogo).tipoPedido).toBe("usado");
-    expect(parsearPedido("PEDIDO DE VEHÍCULO\nUso Anterior  Particular\nMatrícula  3881LYM", catalogo).tipoPedido).toBe("usado");
+    expect(parsearPedido("PEDIDO DE VEHÍCULO  renew\nCLIENTE\nSr. D. Julian Lara Ramos\nMatrícula  1111BBB", catalogo).tipoPedido).toBe("usado");
+    expect(parsearPedido("PEDIDO DE VEHÍCULO\nUso Anterior  Particular\nMatrícula  1111BBB", catalogo).tipoPedido).toBe("usado");
   });
 });
 
@@ -242,24 +242,24 @@ describe("pedidos escaneados con ruido de OCR", () => {
     "Emitido: Sábado, 05 Sep 2026 11:31 hs.",
     "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
     "rr roo iovmicicco o rP|f[f[táTZZzZzT7rnvYÁcioóo>e?oe>r£..£xY  —",
-    "Sra. Doña Maria Jose Acuña Abadia  AUTOCARPE CONCESIONARIO, S.L.",
-    "00687749A  B83747626",
+    "Sra. Doña Marta Jose Acosta Abad  AUTOCARPE CONCESIONARIO, S.L.",
+    "05566785A  B83747626",
     "Avenida Moratalaz, 135, 5, A  CLAVO, 22-26",
     "Madrid, Madrid (28030)  Rivas - Vaciamadrid, Madrid (28522)",
     "600345731  Tel.: 916665058",
-    "mjacunEhotmail.com  LaV:09:30a 13:30",
-    "Alfonso Alcaide Cornejo",
-    "alfonso.alcaideQautocarpe.es / 655455421",
+    "mlopezEhotmail.com  LaV:09:30a 13:30",
+    "Antonio Alvarez Cortes",
+    "vendedor.ejemploQautocarpe.es / 600000001",
     "RESUMEN",
   ].join("\n");
   it("salta la línea de basura de encima del nombre y recompone el correo", () => {
     const d = parsearPedido(texto, catalogo);
-    expect(d.cliente).toBe("Maria Jose Acuña Abadia");
-    expect(d.email).toBe("mjacun@hotmail.com");
+    expect(d.cliente).toBe("Marta Jose Acosta Abad");
+    expect(d.email).toBe("mlopez@hotmail.com");
   });
   it("recompone correos con «G» en vez de «@» y dominios deformados", () => {
-    const t = texto.replace("mjacunEhotmail.com", "f.mayor.casadoGhoimail.com");
-    expect(parsearPedido(t, catalogo).email).toBe("f.mayor.casado@hotmail.com");
+    const t = texto.replace("mlopezEhotmail.com", "f.prado.solerGhoimail.com");
+    expect(parsearPedido(t, catalogo).email).toBe("f.prado.soler@hotmail.com");
   });
   it("sin rótulo de tipo, la hoja de «Modelo / Tapicería» es de un coche nuevo", () => {
     const t = ["Número Pedido 14216411", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Sra. Doña Luisa Rodriguez", "RESUMEN", "Modelo:  DACIA NUEVO SANDERO Expression  16.138,02 €", "Color:  Blanco  0,00 €", "Tapicería:  Tela  0,00 €"].join("\n");
@@ -300,9 +300,9 @@ describe("documentos que no son pedidos", () => {
   });
 
   it("calcula la letra del DNI cuando el OCR la lee como un simbolo", () => {
-    const texto = ["PEDIDO DE VEH\u00cdCULO NUEVO", "N\u00famero Pedido 13958497 - 7441-00", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Sr. Don Miguel Angel Brito Canache  AUTOCARPE CONCESIONARIO, S.L.", "51266944)  B83747626", "Plaza Blimea, 5, 4, C  CLAVO, 22-26", "Rivas - Vaciamadrid, Madrid (28523)  Rivas - Vaciamadrid, Madrid (28522)", "638874946  Tel.: 916665058", "RESUMEN", "Modelo:  RENAULT ESPACE FULL HYBRID E-TECH  40.263,55 \u20ac"].join("\n");
+    const texto = ["PEDIDO DE VEH\u00cdCULO NUEVO", "N\u00famero Pedido 13958497 - 7441-00", "CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT", "Sr. Don Manuel Angel Bravo Cano  AUTOCARPE CONCESIONARIO, S.L.", "62334475)  B83747626", "Plaza Blimea, 5, 4, C  CLAVO, 22-26", "Rivas - Vaciamadrid, Madrid (28523)  Rivas - Vaciamadrid, Madrid (28522)", "638874946  Tel.: 916665058", "RESUMEN", "Modelo:  RENAULT ESPACE FULL HYBRID E-TECH  40.263,55 \u20ac"].join("\n");
     const d = parsearPedido(texto, catalogo);
-    expect(d.dni).toBe("51266944J");
+    expect(d.dni).toBe("62334475J");
     expect(d.avisos.some((a) => a.includes("letra del DNI"))).toBe(true);
   });
 
@@ -312,9 +312,9 @@ describe("documentos que no son pedidos", () => {
   });
 
   it("repara un DNI mal leido solo si hay una unica posibilidad que cuadre", () => {
-    expect(repararNif("47232126Q")).toBe("47232126Q");
+    expect(repararNif("63445585Q")).toBe("63445585Q");
     expect(repararNif("C3217051K")).toBeNull(); // varias cifras posibles: no se adivina
-    expect(repararNif("C0546931Z")).toBe("00546931Z");
+    expect(repararNif("C4455689Z")).toBe("04455689Z");
     expect(repararNif("B88499868")).toBeNull(); // un CIF no es un DNI
   });
 
@@ -324,20 +324,20 @@ describe("documentos que no son pedidos", () => {
       "N\u00daMERO PEDIDO 18762",
       "Emitido: Martes, 23 Julio 2024 / 16:16 hs",
       "| CLIENTE  ESTABLECIMIENTO DE LA RED RENAULT",
-      "Sr. E. Roberto Martin Iglesias  AUTOCARPE CONCESIONARIO, S.L.",
-      "50874078X  B83747626",
+      "Sr. E. Rafael Mena Ibarra  AUTOCARPE CONCESIONARIO, S.L.",
+      "64556686X  B83747626",
       "Calle Menorca, 16  CLAVO,",
       "Arganda, Madrid (28500)  Rivas - Vaciamadrid, Madrid (28522)",
       "635589621 / 635589621  Tel.: 916665058",
-      "milrob_85E hotmail.com  LavV: 10:00 a 15:00",
+      "rafamena_90E hotmail.com  LavV: 10:00 a 15:00",
       "RESUMEN",
       "\u201cMarca / Modelo / Versi\u00f3n:  DACIA DACIA Sandero Stepway TCe Extreme CVT 67kW  15.640,50 \u20ac",
     ].join("\n");
     const d = parsearPedido(texto, catalogo);
-    expect(d.cliente).toBe("Roberto Martin Iglesias");
-    expect(d.dni).toBe("50874078X");
+    expect(d.cliente).toBe("Rafael Mena Ibarra");
+    expect(d.dni).toBe("64556686X");
     expect(d.telefono).toBe("635589621");
-    expect(d.email).toBe("milrob_85@hotmail.com");
+    expect(d.email).toBe("rafamena_90@hotmail.com");
     expect(d.modeloTexto).toMatch(/Sandero/);
   });
 });
@@ -361,7 +361,7 @@ describe("cliente con varios tratamientos y modelo pegado a la versión", () => 
 
   it("quita «Sra. Doña.», «Sr. Don», «Sra. Dña.» y «D.» del nombre del cliente", () => {
     expect(parsearPedido(base("Sra. Doña. Delia Kosset Gonzalez Garcia", "DACIA SANDERO expression"), catalogo).cliente).toBe("Delia Kosset Gonzalez Garcia");
-    expect(parsearPedido(base("Sra. Doña Natalia Martinez Muñoz", "DACIA SANDERO expression"), catalogo).cliente).toBe("Natalia Martinez Muñoz");
+    expect(parsearPedido(base("Sra. Doña Nuria Marcos Molina", "DACIA SANDERO expression"), catalogo).cliente).toBe("Nuria Marcos Molina");
     expect(parsearPedido(base("Sr. Don Pedro De Prueba", "DACIA SANDERO expression"), catalogo).cliente).toBe("Pedro De Prueba");
     expect(parsearPedido(base("Sra. Dña. Ana Ruiz", "DACIA SANDERO expression"), catalogo).cliente).toBe("Ana Ruiz");
     expect(parsearPedido(base("Sr. D. Roberto Martin", "DACIA SANDERO expression"), catalogo).cliente).toBe("Roberto Martin");

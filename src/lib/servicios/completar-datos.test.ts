@@ -30,7 +30,7 @@ async function escenario(clase: "VN" | "VO" = "VN") {
   const admin = await crearUsuarioPrueba("administrador");
   const [cli] = await db
     .insert(clientes)
-    .values({ clienteId: "c1", nombre: "Francisco Mayor Casado" })
+    .values({ clienteId: "c1", nombre: "Fernando Prado Soler" })
     .returning();
   const [est] = await db
     .insert(estadoVehiculo)
@@ -42,7 +42,7 @@ async function escenario(clase: "VN" | "VO" = "VN") {
       idUsuario: admin.idUsuario,
       idCliente: cli.id,
       idEstadoVehiculo: est.idEstadoVehiculo,
-      vin: "UU1DJF00477657076",
+      vin: "UU1DJF00000000001",
       matricula: "5913NPZ",
       fechaExpediente: "2026-09-02",
     })
@@ -55,16 +55,16 @@ describe("completar datos desde un listado", () => {
     const { admin, exp } = await escenario();
     const r = await previsualizarCompletado(db, admin, [
       fila({
-        cliente: "FRANCISCO MAYOR CASADO",
-        nif: "51701814E",
-        bastidor: "UU1DJF00477657076",
+        cliente: "FERNANDO PRADO SOLER",
+        nif: "36914792E",
+        bastidor: "UU1DJF00000000001",
         matricula: "7226NTG",
         marca: "DACIA",
         modelo: "Nueva Sandero",
         fFactura: null,
         fMatriculacion: "2026-10-14",
         fEntrega: "2026-10-15",
-        email: "f.mayor@hotmail.com",
+        email: "f.prado@hotmail.com",
         telefono: "606184618",
       }),
       fila({ fila: 3, cliente: "NADIE QUE EXISTA", bastidor: "ZZZ" }),
@@ -91,12 +91,12 @@ describe("completar datos desde un listado", () => {
   it("si el listado trae el mismo pedido dos veces (uno anulado y otro vivo) y los dos caen en el mismo expediente, manda el vivo y el anulado no toca nada", async () => {
     const { admin, exp } = await escenario();
     const viva = {
-      cliente: "FRANCISCO MAYOR CASADO",
-      bastidor: "UU1DJF00477657076",
+      cliente: "FERNANDO PRADO SOLER",
+      bastidor: "UU1DJF00000000001",
       estado: "Distribución",
     };
     const anulada = {
-      cliente: "FRANCISCO MAYOR CASADO",
+      cliente: "FERNANDO PRADO SOLER",
       bastidor: "VF1OTROBASTIDOR001",
       estado: "Anulado",
       fCreado: "2026-08-20",
@@ -120,7 +120,7 @@ describe("completar datos desde un listado", () => {
     }
     // Un pedido que SOLO viene anulado sigue proponiendo marcarlo como anulado
     const solo = await previsualizarCompletado(db, admin, [
-      fila({ cliente: "FRANCISCO MAYOR CASADO", estado: "Anulado" }),
+      fila({ cliente: "FERNANDO PRADO SOLER", estado: "Anulado" }),
     ]);
     expect(solo.filas[0].idExpediente).toBe(exp.idExpediente);
     expect(solo.filas[0].propuestas.find((p) => p.campo === "estado_intranet")?.nuevo).toBe("Anulado");
@@ -129,8 +129,8 @@ describe("completar datos desde un listado", () => {
   it("solo localiza por las referencias que se elijan", async () => {
     const { admin, exp } = await escenario();
     const f = fila({
-      cliente: "Francisco Mayor Casado",
-      bastidor: "UU1DJF00477657076",
+      cliente: "Fernando Prado Soler",
+      bastidor: "UU1DJF00000000001",
     });
     expect(
       (await previsualizarCompletado(db, admin, [f], ["matricula", "nif"]))
@@ -145,7 +145,7 @@ describe("completar datos desde un listado", () => {
     const { admin } = await escenario("VO");
     const r = await previsualizarCompletado(db, admin, [
       fila({
-        bastidor: "UU1DJF00477657076",
+        bastidor: "UU1DJF00000000001",
         fMatriculacion: "2017-11-28",
         fEntrega: "2026-10-15",
       }),
@@ -159,7 +159,7 @@ describe("completar datos desde un listado", () => {
   it("en un usado la fecha de facturación sale de la «Fra. prevista» del listado", async () => {
     const { admin } = await escenario("VO");
     const r = await previsualizarCompletado(db, admin, [
-      fila({ bastidor: "UU1DJF00477657076", fFactura: "2026-10-31" }),
+      fila({ bastidor: "UU1DJF00000000001", fFactura: "2026-10-31" }),
     ]);
     expect(
       r.filas[0].propuestas.find((p) => p.campo === "fecha_facturacion"),
@@ -170,14 +170,14 @@ describe("completar datos desde un listado", () => {
     const { admin, exp, cli } = await escenario();
     await db
       .update(clientes)
-      .set({ dni: "03217951K" })
+      .set({ dni: "02111122K" })
       .where(eq(clientes.id, cli.id));
     await db
       .update(expedientes)
       .set({ vin: null, matricula: null })
       .where(eq(expedientes.idExpediente, exp.idExpediente));
     const r = await previsualizarCompletado(db, admin, [
-      fila({ nif: "3217951K", matricula: "E1234ABC(28-11-2017)" }),
+      fila({ nif: "2111122K", matricula: "E1234ABC(28-11-2017)" }),
     ]);
     expect(r.filas[0].idExpediente).toBe(exp.idExpediente);
     expect(r.filas[0].coincide).toBe("nif");
@@ -185,7 +185,7 @@ describe("completar datos desde un listado", () => {
       r.filas[0].propuestas.map((p) => [p.campo, p]),
     );
     expect(campos.matricula.nuevo).toBe("1234ABC");
-    // 03217951K y 3217951K son el mismo documento: no se propone corregirlo
+    // 02111122K y 2111122K son el mismo documento: no se propone corregirlo
     expect(campos.dni).toBeUndefined();
   });
 
@@ -193,9 +193,9 @@ describe("completar datos desde un listado", () => {
     const { admin, exp, cli } = await escenario();
     await db
       .update(clientes)
-      .set({ dni: "51701814E" })
+      .set({ dni: "36914792E" })
       .where(eq(clientes.id, cli.id));
-    const dudosa = fila({ nif: "51701814F", fEntrega: "2026-10-15" });
+    const dudosa = fila({ nif: "36914792F", fEntrega: "2026-10-15" });
     const r = await previsualizarCompletado(db, admin, [dudosa]);
     expect(r.filas[0].estado).toBe("sin_coincidencia");
     expect(r.filas[0].candidatos.map((c) => c.id)).toEqual([exp.idExpediente]);
@@ -217,7 +217,7 @@ describe("completar datos desde un listado", () => {
     const { admin, exp, cli } = await escenario();
     await db
       .update(clientes)
-      .set({ dni: "51701814E" })
+      .set({ dni: "36914792E" })
       .where(eq(clientes.id, cli.id));
     await db
       .update(expedientes)
@@ -232,7 +232,7 @@ describe("completar datos desde un listado", () => {
       })
       .returning();
     const duda = await previsualizarCompletado(db, admin, [
-      fila({ nif: "51701814E" }),
+      fila({ nif: "36914792E" }),
     ]);
     expect(duda.filas[0].estado).toBe("ambiguo");
     expect(duda.filas[0].candidatos.map((c) => c.id).sort()).toEqual(
@@ -240,10 +240,10 @@ describe("completar datos desde un listado", () => {
     );
     await db
       .update(expedientes)
-      .set({ vin: "UU1DJF00477657076" })
+      .set({ vin: "UU1DJF00000000001" })
       .where(eq(expedientes.idExpediente, otro.idExpediente));
     const porBastidor = await previsualizarCompletado(db, admin, [
-      fila({ nif: "51701814E", bastidor: "UU1DJF00477657076" }),
+      fila({ nif: "36914792E", bastidor: "UU1DJF00000000001" }),
     ]);
     expect(porBastidor.filas[0].idExpediente).toBe(otro.idExpediente);
   });
@@ -252,7 +252,7 @@ describe("completar datos desde un listado", () => {
     const { admin, exp } = await escenario();
     const r = await previsualizarCompletado(db, admin, [
       fila({
-        bastidor: "UU1DJF00477657076",
+        bastidor: "UU1DJF00000000001",
         estado: "Anulado",
         fEntrega: "2026-10-15",
       }),
@@ -301,7 +301,7 @@ describe("completar datos desde un listado", () => {
       )[0];
     const r = await previsualizarCompletado(db, admin, [
       fila({
-        bastidor: "UU1DJF00477657076",
+        bastidor: "UU1DJF00000000001",
         fEntrega: "2026-11-12",
         hEntrega: "10:30",
       }),
@@ -337,7 +337,7 @@ describe("completar datos desde un listado", () => {
     // Mismo día y misma hora: no hay nada que proponer
     const igual = await previsualizarCompletado(db, admin, [
       fila({
-        bastidor: "UU1DJF00477657076",
+        bastidor: "UU1DJF00000000001",
         fEntrega: "2026-11-12",
         hEntrega: "10:30",
       }),
@@ -389,7 +389,7 @@ describe("completar datos desde un listado", () => {
       .where(eq(expedientes.idExpediente, exp.idExpediente));
     const r = await previsualizarCompletado(db, admin, [
       fila({
-        bastidor: "UU1DJF00477657076",
+        bastidor: "UU1DJF00000000001",
         fEntrega: "2026-11-12",
         hEntrega: "16:00",
       }),
@@ -419,7 +419,7 @@ describe("completar datos desde un listado", () => {
   it("guarda el estado de la intranet (Archivado, Anulado…) para poder filtrar y revisar a mano, y se deshace", async () => {
     const { admin, exp } = await escenario();
     const r = await previsualizarCompletado(db, admin, [
-      fila({ bastidor: "UU1DJF00477657076", estado: "Archivado" }),
+      fila({ bastidor: "UU1DJF00000000001", estado: "Archivado" }),
     ]);
     expect(
       r.filas[0].propuestas.find((p) => p.campo === "estado_intranet"),
@@ -446,7 +446,7 @@ describe("completar datos desde un listado", () => {
     expect(
       (
         await previsualizarCompletado(db, admin, [
-          fila({ bastidor: "UU1DJF00477657076", estado: "archivado" }),
+          fila({ bastidor: "UU1DJF00000000001", estado: "archivado" }),
         ])
       ).filas[0].propuestas.filter((p) => p.campo === "estado_intranet"),
     ).toHaveLength(0);
@@ -466,7 +466,7 @@ describe("completar datos desde un listado", () => {
     const { admin } = await escenario();
     const propuesta = (estado: string) =>
       previsualizarCompletado(db, admin, [
-        fila({ bastidor: "UU1DJF00477657076", estado }),
+        fila({ bastidor: "UU1DJF00000000001", estado }),
       ]).then((r) =>
         r.filas[0].propuestas.find((p) => p.campo === "fecha_facturacion"),
       );
@@ -509,7 +509,7 @@ describe("completar datos desde un listado", () => {
           id_expediente: exp.idExpediente,
           campos: [
             { campo: "matricula", valor: "7226NTG" },
-            { campo: "dni", valor: "51701814E" },
+            { campo: "dni", valor: "36914792E" },
             { campo: "email", valor: "f@x.com" },
           ],
         },
@@ -525,7 +525,7 @@ describe("completar datos desde un listado", () => {
     expect(e1.fechaEntrega).toBeNull();
     expect(
       (await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0].dni,
-    ).toBe("51701814E");
+    ).toBe("36914792E");
     const [bloque] = await db.select().from(importacionesBloques);
     expect(bloque.modificados).toBe(1);
     // Nunca se crea ni se cambia una marca, un modelo, un tipo de venta ni un estado
@@ -608,8 +608,8 @@ describe("completar datos desde un listado", () => {
       .insert(clientes)
       .values({
         clienteId: "h1",
-        nombre: "Daniel Frade Hernandez",
-        dni: "02325318H",
+        nombre: "Diego Fuentes Herrera",
+        dni: "01234589H",
       })
       .returning();
     const [exp] = await db
@@ -644,15 +644,15 @@ describe("completar datos desde un listado", () => {
       "DETALLE DE LA LIQUIDACIÓN DE PAGO",
       "RCI Banque S.A.",
       "NÚMERO DE OPERACIÓN  FECHA DE PAGO  PUNTO DE RED",
-      "202600024258  09/04/2026  5081",
+      "202600000010  09/04/2026  5081",
       "DATOS VEHÍCULO",
       "Marca  Modelo  Matrícula  Fecha Matriculación  Número de Chasis",
       "DACIA  SANDERO  UU1DJF00X76729081",
       "DATOS ADQUIRIENTE",
-      "Nombre y Apellidos/Razón Social:  Ana Isabel HERNANDEZ MARIN  N.I.F.:  50449427P",
+      "Nombre y Apellidos/Razón Social:  Ana Isabel HERRERA MARIN  N.I.F.:  65667791P",
       "Domicilio:  CALLE X  Código postal: 28522",
       "DATOS DE LA PERSONA QUE REPRESENTA A RCI BANQUE S.A.",
-      "Nombre y Apellidos/Razón Social:  OTRA PERSONA  N.I.F.:  50826230W",
+      "Nombre y Apellidos/Razón Social:  OTRA PERSONA  N.I.F.:  61223357W",
     ].join("\n");
     const pago = await procesarPago(
       db,
@@ -666,13 +666,13 @@ describe("completar datos desde un listado", () => {
     expect(sugeridos.motivo).toContain("podrían ser el suyo");
     expect(sugeridos.candidatos[0]).toMatchObject({ id: exp.idExpediente });
     expect(sugeridos.candidatos[0].motivo).toContain(
-      "apellido en común (Hernandez)",
+      "apellido en común (Herrera)",
     );
 
     // El listado trae a la madre: ningún dato exacto coincide, pero las pistas señalan el expediente del hijo
     const excel = fila({
-      cliente: "Ana Isabel HERNANDEZ MARIN",
-      nif: "50449427P",
+      cliente: "Ana Isabel HERRERA MARIN",
+      nif: "65667791P",
       bastidor: "UU1DJF00X76729081",
       marca: "DACIA",
       modelo: "Sandero Stepway",
@@ -688,7 +688,7 @@ describe("completar datos desde un listado", () => {
       probable: true,
     });
     expect(r.filas[0].candidatos[0].motivo).toContain(
-      "apellido en común (Hernandez)",
+      "apellido en común (Herrera)",
     );
     expect(r.filas[0].candidatos.map((c) => c.id)).not.toContain(
       otro.idExpediente,
@@ -706,10 +706,10 @@ describe("completar datos desde un listado", () => {
       manual.filas[0].propuestas.map((p) => [p.campo, p]),
     );
     expect(campos.cliente_nombre).toMatchObject({
-      actual: "Daniel Frade Hernandez",
-      nuevo: "Ana Isabel HERNANDEZ MARIN",
+      actual: "Diego Fuentes Herrera",
+      nuevo: "Ana Isabel HERRERA MARIN",
     });
-    expect(campos.dni.nuevo).toBe("50449427P");
+    expect(campos.dni.nuevo).toBe("65667791P");
     expect(campos.vin.nuevo).toBe("UU1DJF00X76729081");
 
     const a = await aplicarCompletado(db, admin, {
@@ -734,10 +734,10 @@ describe("completar datos desde un listado", () => {
       .from(clientes)
       .where(eq(clientes.id, hijo.id));
     expect(c1).toMatchObject({
-      nombre: "Ana Isabel HERNANDEZ MARIN",
-      dni: "50449427P",
+      nombre: "Ana Isabel HERRERA MARIN",
+      dni: "65667791P",
     });
-    expect(c1.comentarios).toContain("Daniel Frade Hernandez (02325318H)");
+    expect(c1.comentarios).toContain("Diego Fuentes Herrera (01234589H)");
     expect(e1.comentarios).toContain("Cambio de titular");
     expect(e1.fechaRci).toBe("2026-04-09");
     expect(
@@ -752,8 +752,8 @@ describe("completar datos desde un listado", () => {
       .from(clientes)
       .where(eq(clientes.id, hijo.id));
     expect(c2).toMatchObject({
-      nombre: "Daniel Frade Hernandez",
-      dni: "02325318H",
+      nombre: "Diego Fuentes Herrera",
+      dni: "01234589H",
       comentarios: null,
     });
     expect(

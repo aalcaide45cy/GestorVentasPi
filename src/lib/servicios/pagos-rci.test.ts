@@ -8,25 +8,25 @@ import { aplicarPago, buscarExpedienteDePago, deshacerPago, editarPago, ignorarP
 beforeEach(reiniciarBd);
 
 const PDF = Buffer.from("%PDF-1.4\n%prueba\n");
-const pagoTexto = (o: { op?: string; fecha?: string; nif?: string; vin?: string; mat?: string } = {}) => `Nº: ${o.op ?? "202600072629"}
+const pagoTexto = (o: { op?: string; fecha?: string; nif?: string; vin?: string; mat?: string } = {}) => `Nº: ${o.op ?? "202600000001"}
 DETALLE DE LA LIQUIDACIÓN DE PAGO
 RCI Banque S.A., Sucursal en España
 NÚMERO DE OPERACIÓN  FECHA DE PAGO  PUNTO DE RED
-${o.op ?? "202600072629"}  ${o.fecha ?? "10/10/2026"}  5081
+${o.op ?? "202600000001"}  ${o.fecha ?? "10/10/2026"}  5081
 DATOS VEHÍCULO
 Marca  Modelo  Matrícula  Fecha Matriculación  Número de Chasis
-DACIA  SANDERO STEPWAY  ${o.mat ?? ""}  ${o.vin ?? "UU1DJF00477657076"}
+DACIA  SANDERO STEPWAY  ${o.mat ?? ""}  ${o.vin ?? "UU1DJF00000000001"}
 DATOS ADQUIRIENTE
-Nombre y Apellidos/Razón Social:  Francisco MAYOR CASADO  N.I.F.:  ${o.nif ?? "51701814E"}
-Domicilio:  CALLE de la cijara,14  Código postal:  28522
+Nombre y Apellidos/Razón Social:  Fernando PRADO SOLER  N.I.F.:  ${o.nif ?? "36914792E"}
+Domicilio:  CALLE de la ejemplo,14  Código postal:  28522
 DATOS DE LA PERSONA QUE REPRESENTA A RCI BANQUE S.A., Sucursal en España
-Nombre y Apellidos/Razón Social:  VAZQUEZ AGUILERA, ANA BELEN  N.I.F.:  50826230W
+Nombre y Apellidos/Razón Social:  VEGA ARIAS, ELENA MARIA  N.I.F.:  61223357W
 IMPORTE NOMINAL DEL PRÉSTAMO  5.757,67  euros`;
 
-async function escenario(dni = "51701814E") {
+async function escenario(dni = "36914792E") {
   const admin = await crearUsuarioPrueba("administrador");
   const [tipo] = await db.insert(tipoDeVenta).values({ nombreTipoVenta: "Financiado", categoria: "financiado", requiereRciAlMatricular: true }).returning();
-  const [cli] = await db.insert(clientes).values({ clienteId: "c1", nombre: "Francisco Mayor Casado", dni }).returning();
+  const [cli] = await db.insert(clientes).values({ clienteId: "c1", nombre: "Fernando Prado Soler", dni }).returning();
   const [exp] = await db.insert(expedientes).values({ idUsuario: admin.idUsuario, idCliente: cli.id, idTipoDeVenta: tipo.idTipoDeVenta }).returning();
   return { admin, cli, exp, tipo };
 }
@@ -34,8 +34,8 @@ const rci = async (id: number) => (await db.select().from(expedientes).where(eq(
 
 describe("pagos de la financiera", () => {
   it("encuentra el expediente por el documento del cliente (con o sin ceros) y fija la fecha RCI con la fecha de pago", async () => {
-    const { admin, exp, cli } = await escenario("051701814E");
-    await db.update(clientes).set({ dni: "0051701814E" }).where(eq(clientes.id, cli.id));
+    const { admin, exp, cli } = await escenario("036914792E");
+    await db.update(clientes).set({ dni: "0036914792E" }).where(eq(clientes.id, cli.id));
     const p = await procesarPago(db, admin, { datos: PDF, nombre: "pago_rci.pdf" }, pagoTexto());
     expect(p.estado).toBe("aplicado");
     expect(p.idExpediente).toBe(exp.idExpediente);
@@ -47,8 +47,8 @@ describe("pagos de la financiera", () => {
 
   it("por bastidor basta, salvo que el documento lo contradiga", async () => {
     const { admin, exp } = await escenario();
-    await db.update(expedientes).set({ vin: "UU1DJF00477657076" }).where(eq(expedientes.idExpediente, exp.idExpediente));
-    const bien = await buscarExpedienteDePago(db, admin, { nif: "", bastidor: "UU1DJF00477657076", matricula: "", fechaPago: "2026-10-10" });
+    await db.update(expedientes).set({ vin: "UU1DJF00000000001" }).where(eq(expedientes.idExpediente, exp.idExpediente));
+    const bien = await buscarExpedienteDePago(db, admin, { nif: "", bastidor: "UU1DJF00000000001", matricula: "", fechaPago: "2026-10-10" });
     expect(bien.exp?.id).toBe(exp.idExpediente);
     expect(bien.como).toBe("bastidor");
     const mal = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto({ nif: "11111111H" }));
@@ -59,8 +59,8 @@ describe("pagos de la financiera", () => {
 
   it("en un usado busca por matrícula", async () => {
     const { admin, exp } = await escenario();
-    await db.update(expedientes).set({ matricula: "3881LYM" }).where(eq(expedientes.idExpediente, exp.idExpediente));
-    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto({ mat: "3881LYM", vin: "UU1DJF00868900901" }));
+    await db.update(expedientes).set({ matricula: "1111BBB" }).where(eq(expedientes.idExpediente, exp.idExpediente));
+    const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto({ mat: "1111BBB", vin: "UU1DJF00000000002" }));
     expect(p.estado).toBe("aplicado");
     expect(p.motivo).toContain("matricula");
   });
@@ -137,27 +137,27 @@ describe("pagos de la financiera", () => {
   });
   it("si el pago es de otra persona, al aplicarlo el expediente pasa a su nombre con nota en los comentarios, y al deshacer vuelve el titular anterior", async () => {
     const { admin, exp, cli } = await escenario();
-    await db.update(clientes).set({ nombre: "Daniel Hijo Mayor", dni: "02325318H", domicilio: "Calle Vieja 1", codigoPostal: "28001" }).where(eq(clientes.id, cli.id));
+    await db.update(clientes).set({ nombre: "Diego Hijo Soler", dni: "01234589H", domicilio: "Calle Vieja 1", codigoPostal: "28001" }).where(eq(clientes.id, cli.id));
     const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto());
     expect(p.estado).toBe("pendiente");
     const hecho = await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente, cambiarTitular: true });
     expect(hecho.estado).toBe("aplicado");
     const leerCli = async () => (await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0];
-    expect(await leerCli()).toMatchObject({ nombre: "Francisco MAYOR CASADO", dni: "51701814E", domicilio: "CALLE de la cijara,14", codigoPostal: "28522" });
-    expect((await leerCli()).comentarios).toContain("Daniel Hijo Mayor (02325318H)");
+    expect(await leerCli()).toMatchObject({ nombre: "Fernando PRADO SOLER", dni: "36914792E", domicilio: "CALLE de la ejemplo,14", codigoPostal: "28522" });
+    expect((await leerCli()).comentarios).toContain("Diego Hijo Soler (01234589H)");
     expect((await leerCli()).comentarios).toContain("Domicilio anterior: Calle Vieja 1 (28001)");
     expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].comentarios).toContain("Cambio de titular");
     await deshacerPago(db, admin, p.id);
-    expect(await leerCli()).toMatchObject({ nombre: "Daniel Hijo Mayor", dni: "02325318H", domicilio: "Calle Vieja 1", codigoPostal: "28001", comentarios: null });
+    expect(await leerCli()).toMatchObject({ nombre: "Diego Hijo Soler", dni: "01234589H", domicilio: "Calle Vieja 1", codigoPostal: "28001", comentarios: null });
     expect((await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].comentarios).toBeNull();
   });
 
   it("si el pago es de la misma persona (aunque el documento lleve ceros) no se cambia el titular", async () => {
-    const { admin, exp, cli } = await escenario("051701814E");
+    const { admin, exp, cli } = await escenario("036914792E");
     const p = await procesarPago(db, admin, { datos: PDF, nombre: "a.pdf" }, pagoTexto({ vin: "" }));
     const hecho = p.estado === "aplicado" ? p : await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente, cambiarTitular: true });
     expect(hecho.estado).toBe("aplicado");
-    expect((await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0]).toMatchObject({ nombre: "Francisco Mayor Casado", comentarios: null });
+    expect((await db.select().from(clientes).where(eq(clientes.id, cli.id)))[0]).toMatchObject({ nombre: "Fernando Prado Soler", comentarios: null });
   });
 
   it("al aplicar un pago a un expediente sin bastidor se anota el bastidor del pago (para que el listado lo encuentre) y al deshacer se quita", async () => {
@@ -168,7 +168,7 @@ describe("pagos de la financiera", () => {
     const hecho = await aplicarPago(db, admin, p.id, { idExpediente: exp.idExpediente });
     expect(hecho.estado).toBe("aplicado");
     const vin = async () => (await db.select().from(expedientes).where(eq(expedientes.idExpediente, exp.idExpediente)))[0].vin;
-    expect(await vin()).toBe("UU1DJF00477657076");
+    expect(await vin()).toBe("UU1DJF00000000001");
     await deshacerPago(db, admin, p.id);
     expect(await vin()).toBeNull();
   });

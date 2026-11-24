@@ -857,7 +857,7 @@ export async function previsualizarCompletado(
         facturacionCobrado,
         "El listado lo deja cobrado (Matriculación o posterior): cuenta para las comisiones desde esta fecha de facturación",
       );
-    // El documento solo se corrige si de verdad es otro: «03217951K» y «3217951K» son el mismo
+    // El documento solo se corrige si de verdad es otro: «02111122K» y «2111122K» son el mismo
     // El estado del listado queda guardado para poder filtrar y revisar a mano (anulados, archivados…)
     const estadoListado = f.estado.trim().slice(0, 40);
     if (

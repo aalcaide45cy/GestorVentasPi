@@ -36,7 +36,7 @@ describe("matriculaDeTexto (lectura de un motor de OCR de una celda)", () => {
 
   it("devuelve null si no hay nada parecido a una matrícula", () => {
     expect(matriculaDeTexto("")).toBeNull();
-    expect(matriculaDeTexto("Alfonso ALCAIDE")).toBeNull();
+    expect(matriculaDeTexto("Antonio ALVAREZ")).toBeNull();
   });
 });
 

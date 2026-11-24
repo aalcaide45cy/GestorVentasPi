@@ -71,7 +71,7 @@ export function parsearPagoRci(texto: string): PagoRciLeido | null {
   const trasRotulos = (vehiculoUna.split(/N[úu]mero de Chasis/i)[1] ?? "").trim();
   const matriculaCruda = trasRotulos.match(/\bE?\d{4}\s?[BCDFGHJKLMNPRSTVWXYZ]{3}\b/i)?.[0] ?? "";
   const matricula = normalizarMatricula(matriculaCruda);
-  // Dos disposiciones: «Marca DACIA Modelo X Matrícula…» o los rótulos juntos y los valores debajo («Marca Modelo Matrícula … DACIA X 3881LYM …»)
+  // Dos disposiciones: «Marca DACIA Modelo X Matrícula…» o los rótulos juntos y los valores debajo («Marca Modelo Matrícula … DACIA X 1111BBB …»)
   let marca = "";
   let modelo = "";
   const intercalado = vehiculoUna.match(/Marca\s+(\S+)\s+Modelo\s+(.+?)\s+Matr[íi]cula/i);

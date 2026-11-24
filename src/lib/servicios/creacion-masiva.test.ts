@@ -29,9 +29,9 @@ describe("crear expedientes de varios pedidos a la vez (en el servidor)", () => 
       items: [
         item("a", "Ana Ruiz Gil", "11111111H", idModelo, idTipo, { fechaExpediente: "2026-04-21" }),
         // Tres copias del mismo pedido (el OCR no leyó el número ni la fecha): solo una se crea
-        item("n1", "Natalia Martinez Muñoz", "50877768C", idModelo, idTipo),
-        item("n2", "Natalia Martinez Muñoz", "50877768C", idModelo, idTipo),
-        item("n3", "Natalia Martinez Muñoz", "50877768C", idModelo, idTipo),
+        item("n1", "Nuria Marcos Molina", "41234517C", idModelo, idTipo),
+        item("n2", "Nuria Marcos Molina", "41234517C", idModelo, idTipo),
+        item("n3", "Nuria Marcos Molina", "41234517C", idModelo, idTipo),
         // Sin modelo en los catálogos y sin forma de pago
         item("m", "Luis Gil", "22222222J", null, idTipo),
         item("p", "Eva Mora", "33333333P", idModelo, null),

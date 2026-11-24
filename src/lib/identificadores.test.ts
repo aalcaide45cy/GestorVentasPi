@@ -3,10 +3,10 @@ import { claveNif, limpiarNif, nifParecido, normalizarMatricula } from "./identi
 
 describe("documento del cliente", () => {
   it("limpia espacios, guiones y minúsculas", () => {
-    expect(limpiarNif(" 03.217.951-k ")).toBe("03217951K");
+    expect(limpiarNif(" 02.111.122-k ")).toBe("02111122K");
   });
   it("compara sin ceros a la izquierda", () => {
-    expect(claveNif("03217951K")).toBe(claveNif("3217951K"));
+    expect(claveNif("02111122K")).toBe(claveNif("2111122K"));
     expect(claveNif("00123456A")).toBe("123456A");
   });
   it("respeta la letra inicial de un NIE y de un CIF", () => {
@@ -15,16 +15,16 @@ describe("documento del cliente", () => {
     expect(claveNif("X1234567L")).not.toBe(claveNif("Y1234567L"));
   });
   it("detecta un documento casi igual (un carácter distinto, de más o de menos)", () => {
-    expect(nifParecido("51701814E", "51701814F")).toBe(true);
-    expect(nifParecido("51701814E", "5170814E")).toBe(true);
-    expect(nifParecido("51701814E", "51701814E")).toBe(false);
-    expect(nifParecido("51701814E", "52801814E")).toBe(false);
+    expect(nifParecido("36914792E", "36914792F")).toBe(true);
+    expect(nifParecido("36914792E", "3694792E")).toBe(true);
+    expect(nifParecido("36914792E", "36914792E")).toBe(false);
+    expect(nifParecido("36914792E", "35814792E")).toBe(false);
   });
 });
 
 describe("matrícula", () => {
   it("quita la fecha entre paréntesis del listado", () => {
-    expect(normalizarMatricula("9109KFP(28-11-2017)")).toBe("9109KFP");
+    expect(normalizarMatricula("2222CCC(28-11-2017)")).toBe("2222CCC");
   });
   it("quita una E inicial solo si lo que queda tiene formato 1234ABC", () => {
     expect(normalizarMatricula("E1234ABC")).toBe("1234ABC");
