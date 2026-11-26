@@ -42,6 +42,14 @@ export function ponerParteActual(valor: string, parte: "dia" | "mes" | "anio", h
   return `${a}-${dosDigitos(m)}-${dosDigitos(d)}`;
 }
 
+const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+/** Día de la semana de una fecha ISO (AAAA-MM-DD); vacío si no hay fecha. */
+export function diaDeLaSemana(valor: string): string {
+  const x = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+  return x ? DIAS_SEMANA[new Date(Number(x[1]), Number(x[2]) - 1, Number(x[3])).getDay()] : "";
+}
+
 const estiloBoton = { padding: "0 6px", minHeight: "34px", fontSize: "0.82rem", lineHeight: 1.2, justifyContent: "center", whiteSpace: "nowrap" } as const;
 
 /** Campo de fecha con tres grupos iguales en una fila: Día, Mes y Año, cada uno con [←] [Actual] [→]. Se puede escribir o usar el selector normal. */
@@ -65,7 +73,13 @@ export default function FechaRapida({ valor, alCambiar, nombre }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       <div style={{ display: "flex", gap: "8px" }}>
-        <input type="date" className="form-input" name={nombre} value={valor} onChange={(e) => alCambiar(e.target.value)} style={{ flex: 1 }} />
+        <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex" }}>
+          <input type="date" className="form-input" name={nombre} value={valor} onChange={(e) => alCambiar(e.target.value)} style={{ flex: 1 }} />
+          {/* Va encima del campo, entre la fecha y el icono del calendario, sin estorbar a los clics */}
+          <span aria-live="polite" style={{ position: "absolute", right: "48px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontWeight: 700, fontSize: "0.9rem", color: "var(--primary)" }}>
+            {diaDeLaSemana(valor)}
+          </span>
+        </div>
         <button type="button" className="btn btn-secondary" style={{ ...estiloBoton, flex: "0 0 auto", padding: "0 16px" }} onClick={() => alCambiar(hoyIsoCliente())} title="Poner la fecha de hoy completa">
           Hoy
         </button>
