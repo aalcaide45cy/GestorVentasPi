@@ -14,7 +14,7 @@ import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import { contarPedidos, type PedidosDelMes } from "@/lib/pedidos-mes";
 import { usePreferencia } from "@/lib/preferencias";
 import TablaDatos, { type ColumnaTabla } from "@/components/TablaDatos";
-import AvisoComision from "./AvisoComision";
+import AvisoComision, { type InfoExpedienteAviso } from "./AvisoComision";
 import { datosVehiculoDeExpediente } from "./comun";
 import {
   columnaClienteExpediente,
@@ -1570,7 +1570,7 @@ function TarjetaComision({
                   <AvisoComision
                     key={a}
                     texto={a}
-                    expedientes={Object.fromEntries(
+                    expedientes={{ ...(resultado as { expedientes?: Record<string, InfoExpedienteAviso> }).expedientes, ...Object.fromEntries(
                       [...porId.entries()].map(([id, e]) => [
                         String(id),
                         {
@@ -1582,7 +1582,7 @@ function TarjetaComision({
                           matricula: e.matricula,
                         },
                       ]),
-                    )}
+                    ) }}
                   />
                 ))}
               </div>

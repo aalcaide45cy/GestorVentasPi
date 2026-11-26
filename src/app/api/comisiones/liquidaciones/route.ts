@@ -5,6 +5,7 @@ import { auditar } from "@/lib/auditoria";
 import { esAdministrador } from "@/lib/auth/permisos";
 import { requireSession } from "@/lib/auth/sesion";
 import { errorJson, leerIdQuery, leerJson, manejar } from "@/lib/http";
+import { avisosConCliente } from "@/lib/servicios/escenario";
 import { cambiarEstadoLiquidacion, ESTADOS_LIQUIDACION, leerLiquidacion, leerVersion, listarLiquidaciones } from "@/lib/servicios/comisiones-gestion";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export const GET = manejar(async (req: Request) => {
     const d = await leerLiquidacion(db, id);
     if (!d) return errorJson(404, "Liquidación no encontrada");
     if (!admin && d.liquidacion.idUsuario !== u.idUsuario) return errorJson(403, "No tienes permiso");
-    return NextResponse.json({ success: true, data: d });
+    return NextResponse.json({ success: true, data: { ...d, liquidacion: { ...d.liquidacion, avisos: await avisosConCliente(db, d.liquidacion.avisos ?? []) } } });
   }
   const q = new URL(req.url).searchParams;
   const idPlan = leerIdQuery(req, "plan") ?? undefined;

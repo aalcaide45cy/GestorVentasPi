@@ -8,6 +8,7 @@ import type { ExpedienteDto } from "@/lib/dto";
 import { efectoPuntos, efectoTramo } from "@/lib/efectos-tramo";
 import { etiquetaTramo, euros, puntos } from "@/lib/formato";
 import type { ResultadoMes } from "@/lib/comisiones";
+import AvisoComision, { type InfoExpedienteAviso } from "./AvisoComision";
 import {
   columnaClienteExpediente,
   columnaMatricula,
@@ -240,7 +241,7 @@ export default function ResumenMensual({
   const firma = useMemo(() => firmaExpedientes(expedientes), [expedientes]);
 
   const mesIso = `${anio}-${String(mes).padStart(2, "0")}`;
-  const { datos: motor } = useCarga<ResultadoMes | null>(
+  const { datos: motor } = useCarga<(ResultadoMes & { expedientes?: Record<string, InfoExpedienteAviso> }) | null>(
     `/api/comisiones/mes?mes=${mesIso}${usuarioQ}&v=${firma}`,
     null,
   );
@@ -809,8 +810,8 @@ export default function ResumenMensual({
                   Expedientes que cuentan: <strong>{m.lineas.length}</strong>
                 </div>
                 {m.avisos.map((a) => (
-                  <div key={a} style={{ color: "var(--warning)" }}>
-                    ⚠ {a}
+                  <div key={a}>
+                    <AvisoComision texto={a} expedientes={m.expedientes} />
                   </div>
                 ))}
               </>

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Ejecutor } from "@/db";
 import { estadoVehiculo, expedientes, marcas, modelos, tipoDeVenta, usuarios } from "@/db/schema";
 import type { Centimos, Centesimas } from "@/lib/comisiones";
+import { avisosConCliente } from "./escenario";
 import { calcularVendedorMes, cargarExpedientesMotor } from "./liquidaciones";
 
 export const esquemaInforme = z.object({
@@ -154,7 +155,7 @@ export async function generarInforme(ej: Ejecutor, filtro: FiltroInforme, soloVe
       n += r.neto;
       tramos += r.tramo;
       nMeses += 1;
-      avisos.push(...r.avisos.map((a) => `${u?.nombre ?? id} · ${mes}: ${a}`));
+      avisos.push(...(await avisosConCliente(ej, r.avisos)).map((a) => `${u?.nombre ?? id} · ${mes}: ${a}`));
     }
     const mat = matriculadosFilas.filter((x) => x.e.idUsuario === id).length;
     if (nMeses === 0 && mat === 0) continue;

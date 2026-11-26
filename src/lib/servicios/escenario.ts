@@ -73,6 +73,20 @@ export async function describirExpedientes(ej: Ejecutor, ids: number[]): Promise
   );
 }
 
+/** Expedientes a los que se refieren unos avisos del motor («Expediente N: …»). */
+export const idsEnAvisos = (avisos: string[]): number[] => avisos.flatMap((a) => [...a.matchAll(/Expediente (\d+)/g)].map((m) => Number(m[1])));
+
+/** Los mismos avisos con el nombre del cliente (y la matrícula) en lugar del número de expediente. */
+export async function avisosConCliente(ej: Ejecutor, avisos: string[]): Promise<string[]> {
+  const info = await describirExpedientes(ej, idsEnAvisos(avisos));
+  return avisos.map((a) =>
+    a.replace(/Expediente (\d+)/g, (texto, id: string) => {
+      const e = info[id];
+      return e ? `${e.cliente}${e.matricula ? ` (${e.matricula})` : ""}` : texto;
+    }),
+  );
+}
+
 /** Calcula un mes con el plan real y con los cambios hipotéticos, sin guardar nada. */
 export async function calcularEscenario(ej: Ejecutor, idVendedor: number, mes: string, cambios: CambiosEscenario): Promise<RespuestaEscenario> {
   const vendedor = await cargarVendedor(ej, idVendedor);
@@ -106,6 +120,6 @@ export async function calcularEscenario(ej: Ejecutor, idVendedor: number, mes: s
       })),
     ),
   };
-  const ids = [...escenario.lineas.map((l) => l.idExpediente), ...escenario.avisos.flatMap((a) => [...a.matchAll(/Expediente (\d+)/g)].map((m) => Number(m[1])))];
+  const ids = [...idsEnAvisos(escenario.avisos), ...escenario.lineas.map((l) => l.idExpediente)];
   return { hayPlan: true, plan: descripcion, base, escenario, cambios: contarCambios(cambios), expedientes: await describirExpedientes(ej, ids) };
 }
