@@ -27,6 +27,8 @@ export default function ModalCorreo({
   inicial?: {
     id_expediente: number;
     clave: string;
+    /** Expediente de coche usado: los VO casi nunca llevan correo, así que se ofrece «Pasar a verde». */
+    es_vo?: boolean;
     predefinido?: {
       plantilla: number | null;
       cuenta: number | null;
@@ -193,6 +195,21 @@ export default function ModalCorreo({
       ancho="min(calc(96 * var(--uvw)), 820px)"
       pie={
         <>
+          {!soloLectura && !correo && inicial?.es_vo && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginRight: "auto" }}
+              onClick={() => {
+                marcarCorreoEnviado(inicial.clave, inicial.id_expediente);
+                alCerrar();
+              }}
+              disabled={ocupado}
+              title="Pone el sobre en verde sin enviar ningún correo"
+            >
+              ✅ Pasar a verde
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-secondary"

@@ -578,6 +578,7 @@ export function CeldaFecha({
           inicial={{
             id_expediente: exp.id_expediente,
             clave: campo,
+            es_vo: exp.estadoVehiculo?.clase === "VO",
             predefinido: cfg
               ? {
                   plantilla: plantillaModal,

@@ -645,6 +645,10 @@ Interfaz: revisadas todas las pantallas en móvil (390 px) y las pestañas de Co
 
 Copia previa «Antes de Fable» (datos en `~/copias-previas` y rama `copia/antes-de-fable`). Títulos de Potenciales, Correo, Notas y Calendario con el mismo estilo que el resto de pantallas. Potenciales: la lista se ordena por columna, se filtra por columna, se eligen las columnas visibles (preferencia `exp-potenciales-columnas`) y las cabeceras tienen ayuda al pasar el ratón. Clientes y Expedientes: ayuda en las cabeceras que no la tenían.
 
+## Versión 1.66.10 (26/11/2026)
+
+Sobre ✉️ de un expediente VO: en el cuadro «Nuevo correo» sale a la izquierda de Cancelar el botón «✅ Pasar a verde», que pone el sobre en verde (como enviado) sin mandar correo y cierra el cuadro.
+
 ## Versión 1.66.9 (26/11/2026)
 
 Sobre ✉️ de las fechas de Expedientes: si ya se envió un correo de esa fecha, al volver a pulsar sale la plantilla de reenvío. En Correo › Ajustes (botón ✉️ de cada fecha) hay ahora «Primer envío, plantilla» y «Si ya se envió, usar»; sin elegir, en F. Entrega se usa «Cambiar Fecha Entrega» (por nombre) y en las demás fechas la misma de siempre. Preferencia `exp-correo-botones` (campo nuevo `id_plantilla_reenvio`, sin migración).
