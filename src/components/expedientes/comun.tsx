@@ -10,7 +10,7 @@ import {
   type PlantillaDto,
 } from "@/lib/correo";
 import { marcarCorreoEnviado, useCorreoEnviado } from "@/lib/correo-enviados";
-import { usePreferencia } from "@/lib/preferencias";
+import { usePreferencia, CLAVE_TELEFONO_DOBLE_CLIC } from "@/lib/preferencias";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { IconoCliente } from "../Enlaces";
@@ -150,6 +150,30 @@ export function TextoCopiable({
       }}
     >
       {children ?? texto}
+    </span>
+  );
+}
+
+/** El teléfono de la lista: según Ajustes, el doble clic selecciona el número entero (por defecto) o lo copia. */
+export function TextoTelefono({ texto }: { texto: string }) {
+  const [modo] = usePreferencia(CLAVE_TELEFONO_DOBLE_CLIC);
+  if (modo === "copiar") return <TextoCopiable texto={texto} />;
+  return (
+    <span
+      className="texto-copiable"
+      style={{ userSelect: "text", WebkitUserSelect: "text", cursor: "text" }}
+      title={`${texto}\n(doble clic para seleccionarlo entero)`}
+      onDoubleClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rango = document.createRange();
+        rango.selectNodeContents(e.currentTarget);
+        const seleccion = window.getSelection();
+        seleccion?.removeAllRanges();
+        seleccion?.addRange(rango);
+      }}
+    >
+      {texto}
     </span>
   );
 }

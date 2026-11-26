@@ -100,6 +100,7 @@ import {
   FONDO_FECHA_A,
   FONDO_FECHA_B,
   TextoCopiable,
+  TextoTelefono,
   mensajeDeError,
   type CampoFecha,
 } from "./expedientes/comun";
@@ -2854,7 +2855,7 @@ export default function ExpedientesList({
                         telefono: mostrarCol("telefono") && (
                           <td>
                             {exp.cliente?.telefonos[0]?.telefono ? (
-                              <TextoCopiable
+                              <TextoTelefono
                                 texto={exp.cliente.telefonos[0].telefono}
                               />
                             ) : (

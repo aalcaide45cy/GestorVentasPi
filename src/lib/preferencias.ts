@@ -25,6 +25,9 @@ function suscribir(avisar: () => void): () => void {
 /** Preferencia del navegador: permitir expedientes duplicados (para probar rápido). Por defecto, desactivada. */
 export const CLAVE_PERMITIR_DUPLICADOS = "expedientes-permitir-duplicados";
 
+/** Qué hace el doble clic en la columna Teléfono: «seleccionar» el número entero (por defecto) o «copiar»lo. Viaja entre equipos (prefijo «exp-»). */
+export const CLAVE_TELEFONO_DOBLE_CLIC = "exp-telefono-doble-clic";
+
 /** Preferencia del navegador: escribir la etiqueta «COPIA» en los duplicados. Por defecto, activada (vale «false» si se desactiva). */
 export const CLAVE_ETIQUETA_COPIA = "expedientes-etiqueta-copia";
 

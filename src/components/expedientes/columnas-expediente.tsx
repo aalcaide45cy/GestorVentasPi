@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { columnasVehiculo, type DatosVehiculo } from "@/components/etiquetas";
 import type { ColumnaTabla } from "@/components/TablaDatos";
 import type { ExpedienteDto } from "@/lib/dto";
-import { TextoCopiable, datosVehiculoDeExpediente } from "./comun";
+import { TextoCopiable, TextoTelefono, datosVehiculoDeExpediente } from "./comun";
 
 const fechaCorta = (f: string | null | undefined) =>
   f ? f.split("-").reverse().join("/") : "—";
@@ -93,7 +93,7 @@ export function columnasExpediente<T>(
       valor: (f) => exp(f)?.cliente?.telefonos[0]?.telefono ?? "",
       celda: (f) =>
         exp(f)?.cliente?.telefonos[0]?.telefono ? (
-          <TextoCopiable
+          <TextoTelefono
             texto={exp(f)?.cliente?.telefonos[0]?.telefono ?? ""}
           />
         ) : (

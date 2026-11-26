@@ -7,7 +7,7 @@ import {
   CLAVE_RECORDAR_FILTROS,
   leerPredefinidos,
 } from "@/lib/filtros-expedientes";
-import { CLAVE_RETRASO_FOTO, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
+import { CLAVE_RETRASO_FOTO, CLAVE_TELEFONO_DOBLE_CLIC, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
 import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
 import GestorReglasColor, { type SugerenciasReglas } from "./GestorReglasColor";
 import PanelApuntesPredefinidos from "./PanelApuntesPredefinidos";
@@ -79,6 +79,8 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
   const segundosFoto = retrasoFoto !== null && Number(retrasoFoto) >= 0 ? Number(retrasoFoto) : RETRASO_FOTO_POR_DEFECTO;
   const [guardado, guardar] = usePreferencia("exp-default-page-size");
   const tamano = Number(guardado) > 0 ? Number(guardado) : 20;
+
+  const [dobleClicTelefono, guardarDobleClicTelefono] = usePreferencia(CLAVE_TELEFONO_DOBLE_CLIC);
 
   const elegir = (t: number) => {
     guardar(String(t));
@@ -173,6 +175,31 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
           <span>
             Actualmente configurado en <strong style={{ color: "var(--primary)" }}>{tamano}</strong> expedientes por página. Este valor se aplica al cargar la pestaña de expedientes por primera vez.
           </span>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderLeft: "3px solid var(--primary)" }}>
+        <div>
+          <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>📞 Doble clic en el teléfono</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>Qué pasa al hacer doble clic en un número de la columna Teléfono. Se guarda sola.</p>
+        </div>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {[
+            { valor: "seleccionar", texto: "Seleccionar el número entero" },
+            { valor: "copiar", texto: "Copiar al portapapeles" },
+          ].map((o) => (
+            <button
+              key={o.valor}
+              type="button"
+              style={estiloOpcion((dobleClicTelefono === "copiar" ? "copiar" : "seleccionar") === o.valor)}
+              onClick={() => {
+                guardarDobleClicTelefono(o.valor);
+                mostrar("Guardado.");
+              }}
+            >
+              {o.texto}
+            </button>
+          ))}
         </div>
       </div>
 
