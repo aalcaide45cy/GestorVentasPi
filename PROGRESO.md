@@ -645,6 +645,10 @@ Interfaz: revisadas todas las pantallas en móvil (390 px) y las pestañas de Co
 
 Copia previa «Antes de Fable» (datos en `~/copias-previas` y rama `copia/antes-de-fable`). Títulos de Potenciales, Correo, Notas y Calendario con el mismo estilo que el resto de pantallas. Potenciales: la lista se ordena por columna, se filtra por columna, se eligen las columnas visibles (preferencia `exp-potenciales-columnas`) y las cabeceras tienen ayuda al pasar el ratón. Clientes y Expedientes: ayuda en las cabeceras que no la tenían.
 
+## Versión 1.66.9 (26/11/2026)
+
+Sobre ✉️ de las fechas de Expedientes: si ya se envió un correo de esa fecha, al volver a pulsar sale la plantilla de reenvío. En Correo › Ajustes (botón ✉️ de cada fecha) hay ahora «Primer envío, plantilla» y «Si ya se envió, usar»; sin elegir, en F. Entrega se usa «Cambiar Fecha Entrega» (por nombre) y en las demás fechas la misma de siempre. Preferencia `exp-correo-botones` (campo nuevo `id_plantilla_reenvio`, sin migración).
+
 ## Versión 1.66.8 (07/11/2026)
 
 Gestor de firmas (Correo › ✍️ Firmas, migración 0088): se crean una vez, con formato e imágenes, y cada plantilla elige cuál usar; un cambio en la firma llega a todas las plantillas que la usan; sin elegir (o si se quita la firma), sale la de la cuenta. Sustituye a la firma suelta de la 1.66.6 (si alguna plantilla la tenía, se pasa al gestor).

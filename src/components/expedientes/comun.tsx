@@ -3,7 +3,12 @@
 import { aspectoVehiculo } from "@/lib/aspecto";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { CLAVE_CORREO_BOTONES, leerBotonesFecha } from "@/lib/correo";
+import {
+  CLAVE_CORREO_BOTONES,
+  NOMBRE_PLANTILLA_REENVIO_ENTREGA,
+  leerBotonesFecha,
+  type PlantillaDto,
+} from "@/lib/correo";
 import { marcarCorreoEnviado, useCorreoEnviado } from "@/lib/correo-enviados";
 import { usePreferencia } from "@/lib/preferencias";
 import { useState, type CSSProperties, type ReactNode } from "react";
@@ -329,6 +334,27 @@ const estiloIcono = (fondo: string): CSSProperties => ({
   transition: "all 0.2s",
 });
 
+/** Plantilla para un reenvío: la elegida en Ajustes; si no hay, en la fecha de entrega «Cambiar Fecha Entrega» (si existe) y, si no, la de siempre. */
+async function plantillaDeReenvio(
+  reenvio: number | null,
+  primera: number | null,
+  campo: string,
+): Promise<number | null> {
+  if (reenvio) return reenvio;
+  if (campo !== "fecha_entrega") return primera;
+  try {
+    const r = await fetch("/api/correo/plantillas");
+    const j = (await r.json()) as { data?: PlantillaDto[] };
+    const buscada = NOMBRE_PLANTILLA_REENVIO_ENTREGA.toLowerCase();
+    return (
+      j.data?.find((p) => p.nombre.trim().toLowerCase() === buscada)?.id ??
+      primera
+    );
+  } catch {
+    return primera;
+  }
+}
+
 /** Fecha centrada con lápiz (editar) y papelera (borrar, solo si hay fecha). */
 export function CeldaFecha({
   exp,
@@ -343,6 +369,7 @@ export function CeldaFecha({
 }: CeldaFechaProps) {
   const valor = exp[campo];
   const [escribiendo, setEscribiendo] = useState(false);
+  const [plantillaModal, setPlantillaModal] = useState<number | null>(null);
   const { mostrar: mostrarAviso } = useToast();
   const [botones] = usePreferencia(CLAVE_CORREO_BOTONES);
   const cfg = leerBotonesFecha(botones)[campo];
@@ -353,15 +380,32 @@ export function CeldaFecha({
     conSobre && !!valor,
   );
   const pulsarSobre = async () => {
-    if (!cfg || cfg.modo === "revisar" || !cfg.id_plantilla)
+    if (!cfg || cfg.modo === "revisar" || !cfg.id_plantilla) {
+      setPlantillaModal(
+        cfg && enviadoEn
+          ? await plantillaDeReenvio(
+              cfg.id_plantilla_reenvio,
+              cfg.id_plantilla,
+              campo,
+            )
+          : (cfg?.id_plantilla ?? null),
+      );
       return setEscribiendo(true);
+    }
     const cabecera = { "Content-Type": "application/json" };
     try {
+      const idPlantilla = enviadoEn
+        ? await plantillaDeReenvio(
+            cfg.id_plantilla_reenvio,
+            cfg.id_plantilla,
+            campo,
+          )
+        : cfg.id_plantilla;
       const r = await fetch("/api/correo/cola", {
         method: "POST",
         headers: cabecera,
         body: JSON.stringify({
-          id_plantilla: cfg.id_plantilla,
+          id_plantilla: idPlantilla,
           id_expediente: exp.id_expediente,
           campo,
         }),
@@ -494,7 +538,7 @@ export function CeldaFecha({
               )}
               title={
                 enviadoEn
-                  ? `Correo enviado el ${new Date(enviadoEn).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}. Pulsa para enviar otro.`
+                  ? `Correo enviado el ${new Date(enviadoEn).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}. Pulsa para enviar el de reenvío (cambio de fecha).`
                   : `Enviar un correo con la fecha de ${nombre}`
               }
               className="glass-panel-interactive"
@@ -536,7 +580,7 @@ export function CeldaFecha({
             clave: campo,
             predefinido: cfg
               ? {
-                  plantilla: cfg.id_plantilla,
+                  plantilla: plantillaModal,
                   cuenta: null,
                   para: "",
                 }

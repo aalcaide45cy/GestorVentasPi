@@ -365,6 +365,8 @@ export interface BotonFecha {
   /** Si la fecha lleva el botón ✉️. */
   activo: boolean;
   id_plantilla: number | null;
+  /** Plantilla que se usa cuando ya se envió un correo de esta fecha (reenvío). Sin elegir: en la fecha de entrega, «Cambiar Fecha Entrega»; en las demás, la misma de siempre. */
+  id_plantilla_reenvio: number | null;
   id_cuenta: number | null;
   para: "cliente" | "fijo";
   para_fijo: string;
@@ -374,11 +376,15 @@ export interface BotonFecha {
 export const botonNuevo = (activo: boolean): BotonFecha => ({
   activo,
   id_plantilla: null,
+  id_plantilla_reenvio: null,
   id_cuenta: null,
   para: "cliente",
   para_fijo: "",
   modo: "revisar",
 });
+
+/** Nombre de la plantilla que se busca para reenviar la fecha de entrega si no se ha elegido otra en Ajustes. */
+export const NOMBRE_PLANTILLA_REENVIO_ENTREGA = "Cambiar Fecha Entrega";
 
 /** Lee la configuración guardada; también entiende el formato antiguo (ids separados por comas). Sin nada guardado, solo la fecha de entrega lleva el botón. */
 export function leerBotonesFecha(

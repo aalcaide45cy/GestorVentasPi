@@ -6,6 +6,7 @@ import {
   CLAVE_CORREO_BOTONES,
   FECHAS_CON_SOBRE,
   leerBotonesFecha,
+  NOMBRE_PLANTILLA_REENVIO_ENTREGA,
   type BotonFecha,
   type CuentaDto,
   type PlantillaDto,
@@ -72,7 +73,7 @@ export default function BotonesDeFechas() {
                   fontSize: "0.86rem",
                 }}
               >
-                Plantilla
+                Primer envío, plantilla
                 <select
                   className="form-input"
                   value={b.id_plantilla ?? ""}
@@ -86,6 +87,30 @@ export default function BotonesDeFechas() {
                   style={{ width: "auto" }}
                 >
                   <option value="">— Elegir al pulsar —</option>
+                  {plantillas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+                Si ya se envió, usar
+                <select
+                  className="form-input"
+                  value={b.id_plantilla_reenvio ?? ""}
+                  onChange={(e) =>
+                    cambiar(f.id, {
+                      id_plantilla_reenvio: e.target.value
+                        ? Number(e.target.value)
+                        : null,
+                    })
+                  }
+                  style={{ width: "auto" }}
+                >
+                  <option value="">
+                    {f.id === "fecha_entrega"
+                      ? `— «${NOMBRE_PLANTILLA_REENVIO_ENTREGA}» —`
+                      : "— La misma de arriba —"}
+                  </option>
                   {plantillas.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.nombre}
