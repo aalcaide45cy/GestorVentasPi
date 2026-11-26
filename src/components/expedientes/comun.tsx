@@ -11,6 +11,8 @@ import {
 } from "@/lib/correo";
 import { marcarCorreoEnviado, useCorreoEnviado } from "@/lib/correo-enviados";
 import { usePreferencia, CLAVE_TELEFONO_DOBLE_CLIC } from "@/lib/preferencias";
+import { CAMPO_WHATSAPP } from "@/lib/whatsapp";
+import ModalWhatsapp from "./ModalWhatsapp";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { IconoCliente } from "../Enlaces";
@@ -403,6 +405,9 @@ export function CeldaFecha({
     exp.id_expediente,
     conSobre && !!valor,
   );
+  const conWhatsapp = campo === "fecha_matriculacion" && !!valor && !soloSobre;
+  const whatsappEn = useCorreoEnviado(CAMPO_WHATSAPP, exp.id_expediente, conWhatsapp);
+  const [verWhatsapp, setVerWhatsapp] = useState(false);
   const pulsarSobre = async () => {
     if (!cfg || cfg.modo === "revisar" || !cfg.id_plantilla) {
       setPlantillaModal(
@@ -583,6 +588,25 @@ export function CeldaFecha({
               </svg>
             </button>
           )}
+          {conWhatsapp && (
+            <button
+              type="button"
+              onClick={() => setVerWhatsapp(true)}
+              style={estiloIcono(whatsappEn ? "rgba(34, 197, 94, 0.2)" : "rgba(59, 130, 246, 0.08)")}
+              title={
+                whatsappEn
+                  ? `WhatsApp preparado el ${new Date(whatsappEn).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}. Pulsa para volver a abrirlo o ponerlo en azul.`
+                  : "Enviar un WhatsApp al cliente con los datos del vehículo y la entrega"
+              }
+              aria-label="WhatsApp al cliente"
+              className="glass-panel-interactive"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={whatsappEn ? "#16a34a" : "#3b82f6"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 21l1.7-5.1A8.5 8.5 0 1 1 8 19.3L3 21z" />
+                <path d="M9 8.5c-.3 3 3.5 6.8 6.5 6.5l.8-1.4-2-1-1 .9c-1-.4-2.4-1.8-2.8-2.8l.9-1-1-2L9 8.5z" />
+              </svg>
+            </button>
+          )}
           {valor && !soloSobre && campo !== "fecha_expediente" && (
             <button
               type="button"
@@ -596,6 +620,7 @@ export function CeldaFecha({
           )}
         </div>
       </div>
+      {verWhatsapp && <ModalWhatsapp exp={exp} alCerrar={() => setVerWhatsapp(false)} />}
       {escribiendo && (
         <ModalCorreo
           correo={null}

@@ -9,6 +9,7 @@ import {
 } from "@/lib/filtros-expedientes";
 import { CLAVE_RETRASO_FOTO, CLAVE_TELEFONO_DOBLE_CLIC, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
 import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
+import PlantillaWhatsapp from "./PlantillaWhatsapp";
 import GestorReglasColor, { type SugerenciasReglas } from "./GestorReglasColor";
 import PanelApuntesPredefinidos from "./PanelApuntesPredefinidos";
 import GestorAlertas from "./GestorAlertas";
@@ -118,11 +119,13 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
           { clave: "apuntes", etiqueta: "🚦 Semáforo", ayuda: "El semáforo del Seguro y los demás apuntes predefinidos de los expedientes (VO de retoma…): estados con su color y significado, estado inicial, etiqueta junto al icono del cliente y botón rápido" },
           { clave: "alertas", etiqueta: "❗ Alertas", ayuda: "Avisos que saltan cuando un expediente pasa a cumplir unas condiciones (por ejemplo, tiene matrícula y el seguro sigue sin contratar), y el aspecto del botón ❗ de la barra superior" },
           { clave: "modos", etiqueta: "🔓 Selección y eliminación", ayuda: "Cuánto tiempo se quedan activos los modos de selección y de eliminación de la lista" },
+          { clave: "whatsapp", etiqueta: "💬 WhatsApp", ayuda: "El texto del mensaje que prepara el botón de WhatsApp de la fecha de matrícula" },
           { clave: "foto", etiqueta: "🖼️ Foto del cliente", ayuda: "Cuántos segundos hay que esperar con el ratón encima del cliente para ver su foto" },
         ]}
       >
         {(pestana) => (
           <>
+            {pestana === "whatsapp" && <PlantillaWhatsapp />}
             {pestana === "reglas" && <GestorReglasColor sugerencias={sugerencias} />}
             {pestana === "alertas" && <GestorAlertas sugerencias={sugerencias} />}
             {pestana === "apuntes" && <PanelApuntesPredefinidos sugerencias={sugerencias} />}
