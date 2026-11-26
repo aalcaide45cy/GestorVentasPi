@@ -7,14 +7,18 @@ import {
   alertas,
   correoCola,
   correoCuentas,
+  clientes,
   correoRespuestas,
+  expedientes,
   potenciales,
 } from "@/db/schema";
 import { descifrar } from "@/lib/auth/cifrado";
-import { extracto, pideLaBaja } from "@/lib/respuestas-correo";
+import { asuntoBase, extracto, pideLaBaja } from "@/lib/respuestas-correo";
 
 /**
- * Lee, solo en modo lectura, las respuestas que llegan al buzón de una cuenta de envío y que contestan a correos a clientes potenciales. Solo se
+ * Lee, solo en modo lectura, las respuestas que llegan al buzón de una cuenta de envío y que contestan a correos enviados desde la app. Cada
+ * respuesta se empareja con el correo enviado por su ASUNTO (sin «Re:»/«Fwd:»), no solo por quién escribe: un compañero puede recibir correos de
+ * muchos clientes. Si el asunto no coincide con ninguno, solo cuenta cuando escribe un cliente potencial desde su propia dirección. Solo se
  * miran los mensajes de las direcciones de personas a las que la app ha escrito; el resto del buzón ni se abre. Quien pide la baja (BAJA) queda
  * dado de baja y sus correos pendientes se cancelan; cualquier otra respuesta se guarda en su ficha y avisa.
  */
@@ -201,11 +205,13 @@ export async function revisarRespuestas(
       ),
     );
   for (const c of cuentas) {
-    // Personas a las que esta cuenta ha escrito hace poco (correo enviado a un cliente potencial)
+    // Lo que esta cuenta ha enviado hace poco a un cliente potencial o desde un expediente
     const hace120 = new Date(Date.now() - 120 * 86_400_000);
     const enviados = await ej
       .select({
         idPotencial: correoCola.idPotencial,
+        idExpediente: correoCola.idExpediente,
+        asunto: correoCola.asunto,
         para: correoCola.para,
         enviadoEn: correoCola.enviadoEn,
       })
@@ -215,23 +221,19 @@ export async function revisarRespuestas(
           eq(correoCola.idCuenta, c.id),
           eq(correoCola.estado, "enviado"),
           gte(correoCola.enviadoEn, hace120),
-          sql`${correoCola.idPotencial} is not null`,
+          sql`(${correoCola.idPotencial} is not null or ${correoCola.idExpediente} is not null)`,
         ),
-      );
+      )
+      .orderBy(desc(correoCola.enviadoEn));
     if (enviados.length === 0) continue;
-    // Dirección → potenciales a los que se escribió y desde cuándo: solo cuenta lo que llega DESPUÉS de nuestro primer correo
-    const porDireccion = new Map<string, Map<number, Date>>();
+    // Dirección → correos que se le han enviado (del más reciente al más antiguo)
+    const porDireccion = new Map<string, typeof enviados>();
     for (const x of enviados) {
-      if (x.idPotencial === null) continue;
       for (const d of x.para
         .split(/[,;\s]+/)
         .map((v) => v.trim().toLowerCase())
         .filter(Boolean)) {
-        const mapa = porDireccion.get(d) ?? new Map<number, Date>();
-        const desdeEnvio = x.enviadoEn ?? new Date(0);
-        const previo = mapa.get(x.idPotencial);
-        if (!previo || desdeEnvio < previo) mapa.set(x.idPotencial, desdeEnvio);
-        porDireccion.set(d, mapa);
+        porDireccion.set(d, [...(porDireccion.get(d) ?? []), x]);
       }
     }
     r.cuentas++;
@@ -261,14 +263,60 @@ export async function revisarRespuestas(
           continue;
         r.mensajes++;
         const baja = pideLaBaja(m.texto);
-        for (const [idPot, desdeEnvio] of porDireccion.get(m.de) ?? []) {
-          // Un correo anterior a nuestro envío no puede ser su respuesta
-          if (!m.fecha || m.fecha < desdeEnvio) continue;
+        // Un correo anterior a nuestro envío no puede ser su respuesta
+        const previos = (porDireccion.get(m.de) ?? []).filter(
+          (x) => m.fecha && m.fecha >= (x.enviadoEn ?? new Date(0)),
+        );
+        const mismoAsunto = previos.find(
+          (x) => asuntoBase(x.asunto) === asuntoBase(m.asunto),
+        );
+        // El correo desde un expediente (p. ej. agendar una entrega a un compañero): se avisa con el nombre de ese cliente
+        if (mismoAsunto && mismoAsunto.idPotencial === null) {
+          const [e] = await ej
+            .select({
+              id: expedientes.idExpediente,
+              idUsuario: expedientes.idUsuario,
+              cliente: clientes.nombre,
+            })
+            .from(expedientes)
+            .leftJoin(clientes, eq(clientes.id, expedientes.idCliente))
+            .where(eq(expedientes.idExpediente, mismoAsunto.idExpediente!));
+          const destinatario = e?.idUsuario ?? c.idUsuario;
+          if (!e) continue;
+          const insertado = await ej
+            .insert(correoRespuestas)
+            .values({
+              idPotencial: null,
+              idCuenta: c.id,
+              messageId: m.messageId,
+              de: m.de,
+              asunto: m.asunto,
+              fecha: m.fecha,
+              extracto: extracto(m.texto),
+              tipo: "otra",
+            })
+            .onConflictDoNothing()
+            .returning({ id: correoRespuestas.id });
+          if (insertado.length === 0) continue;
+          await ej.insert(alertas).values({
+            idUsuario: destinatario,
+            idExpediente: e.id,
+            mensaje: `💬 ${m.de} ha respondido a tu correo sobre ${e.cliente ?? "un cliente sin nombre"}: «${extracto(m.texto, 160) || "(sin texto)"}».`,
+          });
+          r.respuestas++;
+          continue;
+        }
+        // Clientes potenciales: el del correo con ese asunto o, si no coincide ninguno, quien escribe desde su propia dirección
+        const candidatos = mismoAsunto
+          ? [mismoAsunto.idPotencial!]
+          : [...new Set(previos.flatMap((x) => (x.idPotencial === null ? [] : [x.idPotencial])))];
+        for (const idPot of candidatos) {
           const [p] = await ej
             .select()
             .from(potenciales)
             .where(eq(potenciales.id, idPot));
           if (!p) continue;
+          if (!mismoAsunto && p.email.trim().toLowerCase() !== m.de) continue;
           const insertado = await ej
             .insert(correoRespuestas)
             .values({

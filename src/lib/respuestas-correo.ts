@@ -83,3 +83,11 @@ export const extracto = (texto: string, max = 400): string => {
   const t = textoNuevo(texto).replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max)}…` : t;
 };
+
+/** Asunto sin los «Re:», «RV:», «Fwd:»… del principio, para saber a qué correo enviado contesta una respuesta. */
+export const asuntoBase = (asunto: string): string =>
+  sinAcentos(asunto)
+    .toLowerCase()
+    .replace(/^(\s*(re|rv|res|fw|fwd|enc|reenviado)\s*(\[\d+\])?\s*:)+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();

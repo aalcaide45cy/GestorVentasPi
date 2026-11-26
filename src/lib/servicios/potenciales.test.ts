@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import {
   clientes,
+  correoCola,
+  correoCuentas,
   emailsClientes,
   expedientes,
   potenciales,
@@ -657,6 +659,21 @@ describe("clientes potenciales", () => {
       tipo: "otra",
       extracto: "Me interesa, llámame mañana por favor",
     });
+    // Un compañero al que se escribió una vez desde la ficha de un potencial contesta a OTRO correo: no se le apunta a ese potencial
+    const [expediente] = await db.insert(expedientes).values({ idUsuario: ana.idUsuario }).returning({ id: expedientes.idExpediente });
+    const [cuentaFila] = await db.select().from(correoCuentas);
+    await db.insert(correoCola).values([
+      { idUsuario: ana.idUsuario, idCuenta: cuentaFila.id, idPotencial: b.potencial.id, para: "companero@ejemplo.test", asunto: "Prueba antigua", estado: "enviado", enviadoEn: new Date(Date.now() - 86_400_000) },
+      { idUsuario: ana.idUsuario, idCuenta: cuentaFila.id, idExpediente: expediente.id, para: "companero@ejemplo.test", asunto: "Agendar entrega Manuel", estado: "enviado", enviadoEn: new Date() },
+    ]);
+    mensajes.push(
+      { messageId: "<4@x>", de: "companero@ejemplo.test", asunto: "Fwd: Agendar entrega Manuel", fecha: new Date(Date.now() + 3_600_000), texto: "ya tengo una entrega a esa hora" },
+      { messageId: "<5@x>", de: "companero@ejemplo.test", asunto: "Comida del viernes", fecha: new Date(Date.now() + 3_600_000), texto: "¿vienes?" },
+    );
+    const antes = (await respuestasDe(db, b.potencial.id)).length;
+    expect(await revisarRespuestas(db, { fabrica })).toMatchObject({ respuestas: 1 });
+    expect(await respuestasDe(db, b.potencial.id)).toHaveLength(antes);
+    expect((await misAlertas(db, ana)).pendientes.find((x) => x.id_expediente === expediente.id)).toMatchObject({ regla: "✉️ Correo" });
     // Un fallo del buzón se anota sin romper nada
     const caido: FabricaBuzon = async () => {
       throw new Error("Invalid credentials");

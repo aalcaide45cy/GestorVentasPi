@@ -383,6 +383,10 @@ export async function reevaluarTodas(
 
 const ESTADOS_ALERTA = ["pendiente", "pospuesta", "resuelta"] as const;
 
+/** Título de un aviso que no viene de una regla: respuestas y bajas por correo, cobros o recordatorios del calendario. */
+const origenSinRegla = (mensaje: string): string =>
+  mensaje.startsWith("💬") || mensaje.startsWith("🚫") ? "✉️ Correo" : mensaje.startsWith("💶 Cobros") ? "💶 Cobros" : "📅 Calendario";
+
 const aAlerta = (f: {
   a: typeof alertas.$inferSelect;
   regla: string | null;
@@ -401,7 +405,7 @@ const aAlerta = (f: {
   resuelta_en: f.a.resueltaEn?.toISOString() ?? null,
   motivo:
     f.a.motivo === "hecho" || f.a.motivo === "automatica" ? f.a.motivo : null,
-  regla: f.regla ?? (f.a.idEvento === null && f.a.idExpediente === null ? "💶 Cobros" : "📅 Calendario"),
+  regla: f.regla ?? origenSinRegla(f.a.mensaje),
   cliente: f.cliente,
   matricula: f.matricula,
 });
