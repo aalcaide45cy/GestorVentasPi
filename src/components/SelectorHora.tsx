@@ -7,16 +7,10 @@ interface Props {
 }
 
 const dosDigitos = (n: number) => String(n).padStart(2, "0");
-/** Las horas habituales de entrega, a un solo clic. */
-const HORAS_RAPIDAS = [
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "13:00",
-  "16:00",
-  "17:00",
-  "18:00",
+/** Las horas habituales de entrega, a un solo clic, agrupadas por turno. */
+const TURNOS = [
+  { nombre: "Mañana", horas: ["09:00", "10:00", "11:00", "12:00", "13:00"] },
+  { nombre: "Tarde", horas: ["16:00", "17:00", "18:00", "19:00"] },
 ];
 
 function partes(valor: string): { h: number; m: number } | null {
@@ -47,7 +41,7 @@ const estiloBoton = {
   whiteSpace: "nowrap",
 } as const;
 
-/** Hora con botones rápidos de las horas habituales, flechas para subir o bajar la hora y los minutos, y «Sin hora». También se puede escribir. */
+/** Hora con botones rápidos de las horas habituales (mañana y tarde), flechas para subir o bajar la hora y los minutos, y «Sin hora». También se puede escribir. */
 export default function SelectorHora({ valor, alCambiar }: Props) {
   const p = partes(valor);
   const grupo = (etiqueta: string, parte: "hora" | "min", texto: string) => (
@@ -108,22 +102,37 @@ export default function SelectorHora({ valor, alCambiar }: Props) {
   );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-        {HORAS_RAPIDAS.map((h) => (
-          <button
-            key={h}
-            type="button"
-            className={valor === h ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ ...estiloBoton, padding: "0 12px" }}
-            onClick={() => alCambiar(h)}
-          >
-            {h}
-          </button>
+      {/* Cinco columnas iguales para que las horas de mañana y de tarde queden alineadas */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "64px repeat(5, minmax(0, 1fr))",
+          gap: "6px",
+          alignItems: "center",
+        }}
+      >
+        {TURNOS.map((t) => (
+          <div key={t.nombre} role="group" aria-label={t.nombre} style={{ display: "contents" }}>
+            <span style={{ gridColumnStart: 1, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+              {t.nombre}
+            </span>
+            {t.horas.map((h) => (
+              <button
+                key={h}
+                type="button"
+                className={valor === h ? "btn btn-primary" : "btn btn-secondary"}
+                style={estiloBoton}
+                onClick={() => alCambiar(h)}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
         ))}
         <button
           type="button"
           className={!valor ? "btn btn-primary" : "btn btn-secondary"}
-          style={{ ...estiloBoton, padding: "0 12px" }}
+          style={{ ...estiloBoton, gridColumn: "2 / -1" }}
           onClick={() => alCambiar("")}
           title="Quitar la hora: la entrega queda solo con fecha"
         >
@@ -133,7 +142,7 @@ export default function SelectorHora({ valor, alCambiar }: Props) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr)) auto",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gap: "8px",
           alignItems: "end",
         }}
@@ -147,7 +156,7 @@ export default function SelectorHora({ valor, alCambiar }: Props) {
           onChange={(e) => alCambiar(e.target.value)}
           aria-label="Escribir la hora"
           title="Escribir la hora"
-          style={{ width: "130px" }}
+          style={{ width: "100%", minWidth: 0, height: "34px", paddingTop: 0, paddingBottom: 0 }}
         />
       </div>
     </div>
