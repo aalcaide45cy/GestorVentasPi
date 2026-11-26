@@ -199,7 +199,6 @@ export default function ModalCorreo({
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ marginRight: "auto" }}
               onClick={() => {
                 marcarCorreoEnviado(inicial.clave, inicial.id_expediente);
                 alCerrar();
