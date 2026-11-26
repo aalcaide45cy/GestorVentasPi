@@ -942,6 +942,20 @@ export const rejillaFilas = pgTable(
   (t) => [index("rejilla_filas_rejilla_idx").on(t.idRejilla)],
 );
 
+/** Sobres ✉️ de las fechas cambiados a mano (verde sin enviar nada, o de vuelta a azul). Un correo enviado DESPUÉS del cambio vuelve a mandar. */
+export const correoSobres = pgTable(
+  "correo_sobres",
+  {
+    idExpediente: integer("id_expediente")
+      .notNull()
+      .references(() => expedientes.idExpediente, { onDelete: "cascade" }),
+    campo: varchar("campo", { length: 24 }).notNull(),
+    verde: boolean("verde").notNull(),
+    cambiadoEn: timestamp("cambiado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.idExpediente, t.campo] })],
+);
+
 /** Coches que el vendedor ha marcado como «no se cobra» (nunca van a venir en una rejilla): dejan de salir como pendientes de cobro. */
 export const expedientesNoSeCobra = pgTable("expedientes_no_se_cobra", {
   idExpediente: integer("id_expediente")

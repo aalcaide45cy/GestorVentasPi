@@ -29,7 +29,7 @@ import {
   type FabricaBuzon,
   type MensajeEntrante,
 } from "./correo-respuestas";
-import { enviarCorreo } from "./correo";
+import { enviarCorreo, expedientesConCorreoEnviado, fijarSobre } from "./correo";
 import { misAlertas } from "./alertas";
 import {
   cambiarPotencial,
@@ -680,5 +680,20 @@ describe("clientes potenciales", () => {
     };
     const r4 = await revisarRespuestas(db, { fabrica: caido });
     expect(r4.errores[0]).toMatch(/usuario o la contraseña/);
+  });
+});
+
+describe("sobre de las fechas puesto a mano", () => {
+  it("se pone verde y vuelve a azul, se guarda, y solo lo cambia el vendedor del expediente o el administrador", async () => {
+    await reiniciarBd();
+    const ana = await crearUsuarioPrueba("vendedor");
+    const otro = await crearUsuarioPrueba("vendedor");
+    const [e] = await db.insert(expedientes).values({ idUsuario: ana.idUsuario }).returning({ id: expedientes.idExpediente });
+    const verdes = async () => (await expedientesConCorreoEnviado(db, "fecha_expediente")).map((x) => x.id);
+    await fijarSobre(db, ana, { idExpediente: e.id, campo: "fecha_expediente", verde: true });
+    expect(await verdes()).toEqual([e.id]);
+    await fijarSobre(db, ana, { idExpediente: e.id, campo: "fecha_expediente", verde: false });
+    expect(await verdes()).toEqual([]);
+    await expect(fijarSobre(db, otro, { idExpediente: e.id, campo: "fecha_expediente", verde: true })).rejects.toThrow(/Solo el administrador/);
   });
 });

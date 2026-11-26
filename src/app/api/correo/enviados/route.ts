@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
-import { manejar } from "@/lib/http";
-import { expedientesConCorreoEnviado } from "@/lib/servicios/correo";
+import { leerJson, manejar } from "@/lib/http";
+import { expedientesConCorreoEnviado, fijarSobre } from "@/lib/servicios/correo";
 
 export const dynamic = "force-dynamic";
 
@@ -24,4 +25,17 @@ export const GET = manejar(async (req: Request) => {
     success: true,
     data: await expedientesConCorreoEnviado(db, campo),
   });
+});
+
+const esquema = z.object({
+  idExpediente: z.number().int().positive(),
+  campo: z.string().refine((c) => CAMPOS.includes(c), "Fecha no válida"),
+  verde: z.boolean(),
+});
+
+/** Pone a mano un sobre en verde o lo devuelve a azul. */
+export const POST = manejar(async (req: Request) => {
+  const u = await requireSession("no_invitado");
+  await fijarSobre(db, u, await leerJson(req, esquema));
+  return NextResponse.json({ success: true });
 });

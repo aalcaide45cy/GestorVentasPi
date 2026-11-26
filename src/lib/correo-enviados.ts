@@ -58,6 +58,22 @@ export function marcarCorreoEnviado(campo: string, idExpediente: number): void {
   avisar();
 }
 
+/** Pone a mano el sobre en verde o lo devuelve a azul, y lo guarda. */
+export async function cambiarSobre(campo: string, idExpediente: number, verde: boolean): Promise<void> {
+  const r = await fetch("/api/correo/enviados", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ campo, idExpediente, verde }),
+  });
+  if (!r.ok) {
+    const j = (await r.json().catch(() => ({}))) as { message?: string };
+    throw new Error(j.message ?? "No se pudo cambiar el sobre");
+  }
+  if (verde) return marcarCorreoEnviado(campo, idExpediente);
+  datos.get(campo)?.delete(idExpediente);
+  avisar();
+}
+
 /** Vuelve a pedir lo enviado (por ejemplo, tras quitar un informe): los sobres recuperan su color. */
 export function refrescarCorreosEnviados(): void {
   pedidas.forEach((c) => void pedir(c));

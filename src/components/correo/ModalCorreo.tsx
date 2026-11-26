@@ -5,7 +5,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { llamar, textoError } from "@/components/comisiones/api";
 import type { CorreoDto, CuentaDto, PlantillaDto } from "@/lib/correo";
-import { marcarCorreoEnviado } from "@/lib/correo-enviados";
+import { cambiarSobre, marcarCorreoEnviado, useCorreoEnviado } from "@/lib/correo-enviados";
 import { guardarPreferencia, usePreferencia } from "@/lib/preferencias";
 import EditorHtml from "./EditorHtml";
 
@@ -27,7 +27,7 @@ export default function ModalCorreo({
   inicial?: {
     id_expediente: number;
     clave: string;
-    /** Expediente de coche usado: los VO casi nunca llevan correo, así que se ofrece «Pasar a verde». */
+    /** Expediente de coche usado: los VO casi nunca llevan correo, así que en todas sus fechas se ofrece cambiar el sobre a mano. */
     es_vo?: boolean;
     predefinido?: {
       plantilla: number | null;
@@ -39,6 +39,9 @@ export default function ModalCorreo({
   alGuardar: () => void;
 }) {
   const { mostrar } = useToast();
+  // El sobre se puede cambiar a mano (verde/azul) en la fecha de expediente de cualquier coche y en todas las de un usado
+  const conmutable = !!inicial && (!!inicial.es_vo || inicial.clave === "fecha_expediente");
+  const enVerde = !!useCorreoEnviado(inicial?.clave ?? "fecha_expediente", inicial?.id_expediente ?? 0, conmutable);
   const [guardado] = usePreferencia(
     `correo-fecha-${inicial?.clave ?? "ninguna"}`,
   );
@@ -195,18 +198,24 @@ export default function ModalCorreo({
       ancho="min(calc(96 * var(--uvw)), 820px)"
       pie={
         <>
-          {!soloLectura && !correo && inicial?.es_vo && (
+          {!soloLectura && !correo && inicial && conmutable && (
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => {
-                marcarCorreoEnviado(inicial.clave, inicial.id_expediente);
-                alCerrar();
+              onClick={async () => {
+                setOcupado(true);
+                try {
+                  await cambiarSobre(inicial.clave, inicial.id_expediente, !enVerde);
+                  alCerrar();
+                } catch (e) {
+                  mostrar(textoError(e), "error");
+                  setOcupado(false);
+                }
               }}
               disabled={ocupado}
-              title="Pone el sobre en verde sin enviar ningún correo"
+              title={enVerde ? "Devuelve el sobre a azul (como si no se hubiera enviado)" : "Pone el sobre en verde sin enviar ningún correo"}
             >
-              ✅ Pasar a verde
+              {enVerde ? "🔵 Volver a azul" : "✅ Pasar a verde"}
             </button>
           )}
           <button

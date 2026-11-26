@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import type { Ejecutor } from "@/db";
@@ -7,6 +7,7 @@ import {
   alertas,
   clientes,
   correoCola,
+  correoSobres,
   correoCuentas,
   correoFirmas,
   correoPlantillas,
@@ -15,6 +16,7 @@ import {
   potenciales,
 } from "@/db/schema";
 import { cifrar, descifrar } from "@/lib/auth/cifrado";
+import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
 import {
   direccionValida,
@@ -1285,7 +1287,7 @@ export async function fijarNoEnviar(
     .where(eq(clientes.id, idCliente));
 }
 
-/** Los expedientes con un correo enviado desde el botón ✉️ de una fecha (para pintar ese sobre en verde). */
+/** Los expedientes con el sobre ✉️ de una fecha en verde: correo enviado desde ese botón o puesto en verde a mano (lo último manda). */
 export async function expedientesConCorreoEnviado(
   ej: Ejecutor,
   campo: string,
@@ -1304,7 +1306,33 @@ export async function expedientesConCorreoEnviado(
       ),
     )
     .groupBy(correoCola.idExpediente);
-  return filas
-    .filter((f): f is { id: number; en: Date } => f.id !== null)
-    .map((f) => ({ id: f.id, enviado_en: new Date(f.en).toISOString() }));
+  const verdes = new Map<number, Date>();
+  for (const f of filas) if (f.id !== null) verdes.set(f.id, new Date(f.en));
+  for (const m of await ej.select().from(correoSobres).where(eq(correoSobres.campo, campo))) {
+    const enviado = verdes.get(m.idExpediente);
+    if (enviado && enviado > m.cambiadoEn) continue;
+    if (m.verde) verdes.set(m.idExpediente, m.cambiadoEn);
+    else verdes.delete(m.idExpediente);
+  }
+  return [...verdes].map(([id, en]) => ({ id, enviado_en: en.toISOString() }));
+}
+
+/** Pone a mano el sobre ✉️ de una fecha en verde o lo devuelve a azul, sin enviar nada. */
+export async function fijarSobre(
+  ej: Ejecutor,
+  u: UsuarioActual,
+  e: { idExpediente: number; campo: string; verde: boolean },
+): Promise<void> {
+  const [x] = await ej
+    .select({ idUsuario: expedientes.idUsuario })
+    .from(expedientes)
+    .where(and(eq(expedientes.idExpediente, e.idExpediente), isNull(expedientes.eliminadoEn)));
+  if (!x) throw new HttpError(404, "Expediente no encontrado");
+  if (!esAdministrador(u.rol) && x.idUsuario !== u.idUsuario)
+    throw new HttpError(403, "Solo el administrador o el vendedor del expediente pueden cambiar el sobre");
+  const cambiadoEn = new Date();
+  await ej
+    .insert(correoSobres)
+    .values({ ...e, cambiadoEn })
+    .onConflictDoUpdate({ target: [correoSobres.idExpediente, correoSobres.campo], set: { verde: e.verde, cambiadoEn } });
 }
