@@ -11,7 +11,8 @@ import {
 } from "@/lib/correo";
 import { marcarCorreoEnviado, useCorreoEnviado } from "@/lib/correo-enviados";
 import { usePreferencia, CLAVE_TELEFONO_DOBLE_CLIC } from "@/lib/preferencias";
-import { CAMPO_WHATSAPP } from "@/lib/whatsapp";
+import { CAMPO_WHATSAPP, CAMPO_WHATSAPP_SEGURO } from "@/lib/whatsapp";
+import ModalWhatsappSeguro from "./ModalWhatsappSeguro";
 import ModalWhatsapp from "./ModalWhatsapp";
 import { llamar } from "@/components/comisiones/api";
 import { VistaPrevia } from "@/components/documentos/VisorAdjuntos";
@@ -424,6 +425,10 @@ export function CeldaFecha({
   const conWhatsapp = campo === "fecha_matriculacion" && !soloSobre && (!!valor || exp.estadoVehiculo?.clase === "VO");
   const whatsappEn = useCorreoEnviado(CAMPO_WHATSAPP, exp.id_expediente, conWhatsapp);
   const [verWhatsapp, setVerWhatsapp] = useState(false);
+  // El aviso al compañero del seguro está siempre (suele pedirse antes de matricular)
+  const conSeguro = campo === "fecha_matriculacion" && !soloSobre;
+  const seguroEn = useCorreoEnviado(CAMPO_WHATSAPP_SEGURO, exp.id_expediente, conSeguro);
+  const [verSeguro, setVerSeguro] = useState(false);
   const pulsarSobre = async () => {
     if (!cfg || cfg.modo === "revisar" || !cfg.id_plantilla) {
       setPlantillaModal(
@@ -558,6 +563,7 @@ export function CeldaFecha({
             display: "flex",
             gap: "3px",
             justifyContent: "center",
+            flexWrap: campo === "fecha_matriculacion" ? "nowrap" : undefined,
             marginTop: "1px",
           }}
         >
@@ -628,6 +634,25 @@ export function CeldaFecha({
               </svg>
             </button>
           )}
+          {conSeguro && (
+            <button
+              type="button"
+              onClick={() => setVerSeguro(true)}
+              style={estiloIcono(seguroEn ? "rgba(34, 197, 94, 0.2)" : "rgba(59, 130, 246, 0.08)")}
+              title={
+                seguroEn
+                  ? `Aviso del seguro preparado el ${new Date(seguroEn).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}. Pulsa para volver a abrirlo o ponerlo en azul.`
+                  : "Enviar un WhatsApp al compañero de los seguros con los datos del cliente"
+              }
+              aria-label="WhatsApp para el seguro"
+              className="glass-panel-interactive"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={seguroEn ? "#16a34a" : "#3b82f6"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+            </button>
+          )}
           {valor && !soloSobre && campo !== "fecha_expediente" && (
             <button
               type="button"
@@ -642,6 +667,7 @@ export function CeldaFecha({
         </div>
       </div>
       {pagoRci && <VistaPrevia adjunto={pagoRci} alCerrar={() => setPagoRci(null)} />}
+      {verSeguro && <ModalWhatsappSeguro exp={exp} alCerrar={() => setVerSeguro(false)} />}
       {verWhatsapp && <ModalWhatsapp exp={exp} alCerrar={() => setVerWhatsapp(false)} />}
       {escribiendo && (
         <ModalCorreo

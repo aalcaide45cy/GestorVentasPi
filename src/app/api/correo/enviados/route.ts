@@ -16,6 +16,7 @@ const CAMPOS = [
   "fecha_entrega",
   // El botón de WhatsApp de la fecha de matrícula
   "whatsapp",
+  "whatsapp_seguro",
 ];
 
 /** `?campo=fecha_entrega`: los expedientes a los que ya se ha enviado el correo de esa fecha (con el botón ✉️), con cuándo. */

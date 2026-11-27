@@ -9,6 +9,7 @@ import {
 } from "@/lib/filtros-expedientes";
 import { CLAVE_RETRASO_FOTO, CLAVE_TELEFONO_DOBLE_CLIC, RETRASO_FOTO_POR_DEFECTO, usePreferencia } from "@/lib/preferencias";
 import { CLAVE_BORRADO_MINUTOS, CLAVE_SELECCION_MINUTOS, leerMinutos } from "@/lib/modo-temporal";
+import AjustesSeguroWhatsapp from "./AjustesSeguroWhatsapp";
 import PlantillaWhatsapp from "./PlantillaWhatsapp";
 import GestorReglasColor, { type SugerenciasReglas } from "./GestorReglasColor";
 import PanelApuntesPredefinidos from "./PanelApuntesPredefinidos";
@@ -125,7 +126,12 @@ export default function PestanaExpedientes({ sugerencias }: { sugerencias: Suger
       >
         {(pestana) => (
           <>
-            {pestana === "whatsapp" && <PlantillaWhatsapp />}
+            {pestana === "whatsapp" && (
+              <>
+                <PlantillaWhatsapp />
+                <AjustesSeguroWhatsapp />
+              </>
+            )}
             {pestana === "reglas" && <GestorReglasColor sugerencias={sugerencias} />}
             {pestana === "alertas" && <GestorAlertas sugerencias={sugerencias} />}
             {pestana === "apuntes" && <PanelApuntesPredefinidos sugerencias={sugerencias} />}

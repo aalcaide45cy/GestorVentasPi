@@ -46,26 +46,81 @@ const NOMBRES: Record<keyof DatosWhatsapp, string> = {
 };
 
 /**
- * Rellena la plantilla. La línea de un dato que falta se quita (y se devuelve en `faltan`), y lo que va entre [retoma] y [/retoma]
- * solo sale si el cliente entrega un vehículo.
+ * Rellena una plantilla. La línea de un dato que falta se quita (y se devuelve en `faltan`, salvo los opcionales), y lo que va entre
+ * [retoma] y [/retoma] solo sale si el cliente entrega un vehículo.
  */
-export function redactarWhatsapp(plantilla: string, datos: DatosWhatsapp, conRetoma: boolean): { texto: string; faltan: string[] } {
+function rellenar(plantilla: string, datos: Record<string, string>, nombres: Record<string, string>, opcionales: string[], conRetoma: boolean): { texto: string; faltan: string[] } {
   const faltan = new Set<string>();
   const base = plantilla.replace(/\r/g, "").replace(/\[retoma\]\n?([\s\S]*?)\[\/retoma\]\n?/g, (_t, dentro: string) => (conRetoma ? dentro : ""));
   const lineas = base.split("\n").flatMap((linea) => {
     let vacia = false;
     const nueva = linea.replace(/\{(\w+)\}/g, (texto, clave: string) => {
-      if (!(clave in NOMBRES)) return texto;
-      const valor = datos[clave as keyof DatosWhatsapp].trim();
+      if (!(clave in nombres)) return texto;
+      const valor = (datos[clave] ?? "").trim();
       if (!valor) {
         vacia = true;
-        faltan.add(NOMBRES[clave as keyof DatosWhatsapp]);
+        if (!opcionales.includes(clave)) faltan.add(nombres[clave]);
       }
       return valor;
     });
     return vacia ? [] : [nueva];
   });
   return { texto: lineas.join("\n").trim(), faltan: [...faltan] };
+}
+
+export const redactarWhatsapp = (plantilla: string, datos: DatosWhatsapp, conRetoma: boolean) => rellenar(plantilla, { ...datos }, NOMBRES, [], conRetoma);
+
+/* ---------------- Aviso al compañero que lleva los seguros ---------------- */
+
+export const CLAVE_SEGURO_NOMBRE = "exp-whatsapp-seguro-nombre";
+export const CLAVE_SEGURO_TELEFONO = "exp-whatsapp-seguro-telefono";
+export const CLAVE_SEGURO_PLANTILLA = "exp-whatsapp-seguro-plantilla";
+export const CAMPO_WHATSAPP_SEGURO = "whatsapp_seguro";
+
+export const PLANTILLA_SEGURO = `Buenas {companero},
+Necesito que contactes con este cliente.
+
+*Cliente*
+• Nombre: {nombre}
+• Teléfono: {telefono}
+• Email: {email}
+
+*Vehículo*
+• Marca y modelo: {vehiculo}
+• Matrícula: {matricula}
+• Bastidor: {bastidor}
+• Entrega prevista: {entrega}
+
+Llámale para mirarle el seguro.
+
+Gracias.`;
+
+export interface DatosSeguro {
+  companero: string;
+  nombre: string;
+  telefono: string;
+  email: string;
+  vehiculo: string;
+  matricula: string;
+  bastidor: string;
+  entrega: string;
+}
+
+const NOMBRES_SEGURO: Record<keyof DatosSeguro, string> = {
+  companero: "nombre del compañero",
+  nombre: "nombre del cliente",
+  telefono: "teléfono del cliente",
+  email: "email del cliente",
+  vehiculo: "marca y modelo",
+  matricula: "matrícula",
+  bastidor: "bastidor",
+  entrega: "fecha de entrega",
+};
+
+export function redactarSeguro(plantilla: string, datos: DatosSeguro) {
+  // Sin nombre del compañero se saluda igualmente («Buenas,»)
+  const base = datos.companero.trim() ? plantilla : plantilla.replace(/ \{companero\}/g, "");
+  return rellenar(base, { ...datos }, NOMBRES_SEGURO, ["entrega"], false);
 }
 
 /** Número tal como lo pide WhatsApp (solo cifras y con prefijo; un número español de 9 cifras recibe el 34). Vacío si no es un móvil utilizable. */
