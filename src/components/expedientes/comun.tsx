@@ -13,6 +13,9 @@ import { marcarCorreoEnviado, useCorreoEnviado } from "@/lib/correo-enviados";
 import { usePreferencia, CLAVE_TELEFONO_DOBLE_CLIC } from "@/lib/preferencias";
 import { CAMPO_WHATSAPP } from "@/lib/whatsapp";
 import ModalWhatsapp from "./ModalWhatsapp";
+import { llamar } from "@/components/comisiones/api";
+import { VistaPrevia } from "@/components/documentos/VisorAdjuntos";
+import type { AdjuntoDto } from "@/lib/servicios/adjuntos";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import NombreConFoto from "../documentos/FotoCliente";
 import { IconoCliente } from "../Enlaces";
@@ -405,6 +408,18 @@ export function CeldaFecha({
     exp.id_expediente,
     conSobre && !!valor,
   );
+  const [pagoRci, setPagoRci] = useState<AdjuntoDto | null>(null);
+  const verPagoRci = async () => {
+    try {
+      const r = await llamar<AdjuntoDto[]>(`/api/adjuntos?idExpediente=${exp.id_expediente}`);
+      // El más reciente de los documentos de pago del expediente
+      const pago = r.data.filter((a) => a.tipo === "pago_rci").sort((a, b) => b.id - a.id)[0];
+      if (pago) setPagoRci(pago);
+      else mostrarAviso("Este expediente no tiene ningún documento de pago RCI.", "aviso");
+    } catch (e) {
+      mostrarAviso(e instanceof Error ? e.message : "No se pudo abrir el documento", "error");
+    }
+  };
   const conWhatsapp = campo === "fecha_matriculacion" && !!valor && !soloSobre;
   const whatsappEn = useCorreoEnviado(CAMPO_WHATSAPP, exp.id_expediente, conWhatsapp);
   const [verWhatsapp, setVerWhatsapp] = useState(false);
@@ -588,6 +603,11 @@ export function CeldaFecha({
               </svg>
             </button>
           )}
+          {campo === "fecha_rci" && !soloSobre && (
+            <button type="button" onClick={() => void verPagoRci()} style={estiloIcono("rgba(59, 130, 246, 0.08)")} title="Ver el documento de pago RCI" aria-label="Ver el documento de pago RCI" className="glass-panel-interactive">
+              👁️
+            </button>
+          )}
           {conWhatsapp && (
             <button
               type="button"
@@ -620,6 +640,7 @@ export function CeldaFecha({
           )}
         </div>
       </div>
+      {pagoRci && <VistaPrevia adjunto={pagoRci} alCerrar={() => setPagoRci(null)} />}
       {verWhatsapp && <ModalWhatsapp exp={exp} alCerrar={() => setVerWhatsapp(false)} />}
       {escribiendo && (
         <ModalCorreo

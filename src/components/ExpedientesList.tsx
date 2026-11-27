@@ -105,6 +105,7 @@ import {
   type CampoFecha,
 } from "./expedientes/comun";
 import BarraPaginacion from "./expedientes/BarraPaginacion";
+import BotonesOcr, { type DatosOcr } from "./expedientes/BotonesOcr";
 import ModalAsignarCliente from "./expedientes/ModalAsignarCliente";
 import ModalDuplicados from "./expedientes/ModalDuplicados";
 import ModalCompletarDatos from "./expedientes/ModalCompletarDatos";
@@ -156,6 +157,8 @@ interface Props {
   tiendaPredeterminadaId: number | null;
   currentUserName: string | null;
   mostrarBotonesCsv: boolean;
+  /** Con estos datos, la barra muestra «Pedido OCR» y «Pago RCI - OCR». */
+  ocr?: DatosOcr;
   /**
    * Recordar los filtros de esta lista entre visitas y recargas (por defecto sí). La página de resultados de búsqueda no los recuerda ni los aplica:
    * sus resultados salen sin filtros, aunque en la lista de Expedientes hubiera alguno puesto.
@@ -327,6 +330,7 @@ export default function ExpedientesList({
   vendedores,
   tiendaPredeterminadaId,
   currentUserName,
+  ocr,
   mostrarBotonesCsv,
   recordarFiltros: recordarEnEstaPantalla = true,
 }: Props) {
@@ -1690,6 +1694,12 @@ export default function ExpedientesList({
               )}
             </button>
           </GrupoAcciones>
+
+          {ocr && puedeCrearExpedientes(userRole) && (
+            <GrupoAcciones titulo="Leer documentos" ayuda="Carga un pedido o un pago de RCI: se reconoce solo y se lee">
+              <BotonesOcr {...ocr} />
+            </GrupoAcciones>
+          )}
 
           {(puedeCrearExpedientes(userRole) || esAdministrador) && (
             <div

@@ -40,6 +40,11 @@ export default async function ExpedientesPage() {
         tiendaPredeterminadaId={user.tiendaPredeterminadaId}
         currentUserName={user.nombre}
         mostrarBotonesCsv={ajustes.mostrar_botones_csv !== "false"}
+        ocr={{
+          marcas: catalogos.marcas.map((m) => ({ ...m, modelos: catalogos.modelos.filter((x) => x.marca_id === m.id_marca) })),
+          tiposVenta: catalogos.tiposVenta,
+          idUsuario: user.idUsuario,
+        }}
       />
     </div>
   );

@@ -22,13 +22,15 @@ interface Props {
   marcas: (MarcaDto & { modelos: ModeloDto[] })[];
   tiposVenta: TipoVentaDto[];
   vendedorId: number;
+  /** Solo las ventanas de los pedidos (sin la tabla de la cola ni el estado de las lecturas). */
+  soloVentana?: boolean;
 }
 
 /**
  * Cola de pedidos leídos: todos los que se han soltado y aún no se han aplicado (se conservan aunque se cierre la ventana de un
  * pedido o se recargue la página). Desde aquí se abre cada uno para elegir qué datos se aplican, o se descarta.
  */
-export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
+export default function ColaPedidos({ marcas, tiposVenta, vendedorId, soloVentana }: Props) {
   const router = useRouter();
   const { mostrar, confirmar } = useToast();
   const [marcados, setMarcados] = useState<string[]>([]);
@@ -92,7 +94,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     vistos.current = filas.map((f) => f.id);
   }, []);
 
-  if (items.length === 0) return <EstadoLecturas />;
+  if (items.length === 0) return soloVentana ? null : <EstadoLecturas />;
 
   const elegidos = marcados.filter((id) => items.some((i) => i.id === id));
   const alternarMarca = (id: string, v: boolean, conMayus = false) => {
@@ -230,6 +232,39 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
     },
   ];
 
+  const ventanas = (
+    <>
+      {actual && !actual.idExpediente && (
+        <PedidoRapidoModal
+          key={`${actual.id}-${actual.version ?? 0}`}
+          item={actual}
+          marcas={marcas}
+          tiposVenta={tiposVenta}
+          vendedorId={vendedorId}
+          posicion={indice + 1}
+          total={items.length}
+          alIr={ir}
+          alCerrar={() => abrirDeCola(null)}
+          alTerminar={terminado}
+          alDescartar={() => terminado("Pedido descartado.")}
+        />
+      )}
+      {actual && actual.idExpediente && expediente?.idItem === actual.id && (
+        <RellenarDesdePedidoModal
+          key={actual.id}
+          expediente={expediente.datos}
+          pedido={actual.pedido}
+          posicion={indice + 1}
+          total={items.length}
+          alIr={ir}
+          alCerrar={() => abrirDeCola(null)}
+          alTerminar={(_cambios, mensaje) => terminado(mensaje)}
+        />
+      )}
+    </>
+  );
+  if (soloVentana) return ventanas;
+
   return (
     <>
     <EstadoLecturas />
@@ -285,33 +320,7 @@ export default function ColaPedidos({ marcas, tiposVenta, vendedorId }: Props) {
         vacio="La cola está vacía."
       />
 
-      {actual && !actual.idExpediente && (
-        <PedidoRapidoModal
-          key={`${actual.id}-${actual.version ?? 0}`}
-          item={actual}
-          marcas={marcas}
-          tiposVenta={tiposVenta}
-          vendedorId={vendedorId}
-          posicion={indice + 1}
-          total={items.length}
-          alIr={ir}
-          alCerrar={() => abrirDeCola(null)}
-          alTerminar={terminado}
-          alDescartar={() => terminado("Pedido descartado.")}
-        />
-      )}
-      {actual && actual.idExpediente && expediente?.idItem === actual.id && (
-        <RellenarDesdePedidoModal
-          key={actual.id}
-          expediente={expediente.datos}
-          pedido={actual.pedido}
-          posicion={indice + 1}
-          total={items.length}
-          alIr={ir}
-          alCerrar={() => abrirDeCola(null)}
-          alTerminar={(_cambios, mensaje) => terminado(mensaje)}
-        />
-      )}
+      {ventanas}
     </div>
     </>
   );

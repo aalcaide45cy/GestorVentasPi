@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { HttpError, requireSession } from "@/lib/auth/sesion";
 import { manejar } from "@/lib/http";
 import { MAX_BYTES_ADJUNTO } from "@/lib/servicios/adjuntos";
+import { esDocumentoDePago } from "@/lib/servicios/pagos-rci";
 import { clasificarDocumento, leerDni, leerDocumentoAutomatico, leerPedido, type TipoDocumento } from "@/lib/servicios/documentos";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +17,12 @@ export const POST = manejar(async (req: Request) => {
   const u = await requireSession("no_invitado");
   const q = new URL(req.url).searchParams;
   const tipo = q.get("tipo");
-  if (tipo !== "dni" && tipo !== "pedido" && tipo !== "auto" && tipo !== "clasificar") throw new HttpError(400, "Tipo de documento no válido");
+  if (tipo !== "dni" && tipo !== "pedido" && tipo !== "auto" && tipo !== "clasificar" && tipo !== "es-pago") throw new HttpError(400, "Tipo de documento no válido");
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BYTES_ADJUNTO) throw new HttpError(413, "El fichero es demasiado grande (máximo 500 MB).");
   const datos = Buffer.from(await req.arrayBuffer());
   const nombre = q.get("nombre") ?? "documento";
+  // «es-pago» solo dice si es un pago de la financiera (RCI)
+  if (tipo === "es-pago") return NextResponse.json({ success: true, data: { esPago: await esDocumentoDePago(datos) } });
   // «clasificar» solo dice qué es (pedido, DNI u otro); «auto» lo reconoce y lo lee como corresponda (`aceptar=dni,pedido`)
   if (tipo === "clasificar") return NextResponse.json({ success: true, data: { tipo: await clasificarDocumento(datos) } });
   if (tipo === "auto") {

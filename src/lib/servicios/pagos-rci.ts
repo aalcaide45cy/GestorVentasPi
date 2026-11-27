@@ -4,7 +4,7 @@ import type { Ejecutor } from "@/db";
 import { adjuntos, clientes, expedientes, marcas, modelos, pagosRci, tipoDeVenta } from "@/db/schema";
 import { esAdministrador } from "@/lib/auth/permisos";
 import { HttpError, type UsuarioActual } from "@/lib/auth/sesion";
-import { parsearPagoRci, type PagoRciLeido } from "@/lib/documentos/pago-rci";
+import { parsearPagoRci, type PagoRciLeido, esPagoRci } from "@/lib/documentos/pago-rci";
 import { claveNif, limpiarNif, nifParecido, normalizarMatricula } from "@/lib/identificadores";
 import { guardarAdjunto, leerAdjunto } from "./adjuntos";
 import { guardarCopiaAutomatica } from "./biblioteca";
@@ -257,6 +257,11 @@ async function textoDelPago(datos: Buffer): Promise<string> {
   if (!m.primera) return "";
   const lineas = await ocrImagenes([m.primera], { psm: "automatico", columnas: true, motorElegido: true });
   return lineas.map((l) => l.texto).join("\n");
+}
+
+/** ¿El documento es un pago de la financiera? (para repartir entre el lector de pedidos y el de pagos). */
+export async function esDocumentoDePago(datos: Buffer): Promise<boolean> {
+  return esPagoRci(await textoDelPago(datos));
 }
 
 /** Solo el cliente y la fecha de un pago (para poner nombre a un archivo de la biblioteca); null si el documento no es un pago de la financiera. */
