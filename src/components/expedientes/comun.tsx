@@ -420,7 +420,8 @@ export function CeldaFecha({
       mostrarAviso(e instanceof Error ? e.message : "No se pudo abrir el documento", "error");
     }
   };
-  const conWhatsapp = campo === "fecha_matriculacion" && !!valor && !soloSobre;
+  // En un usado el botón de WhatsApp está siempre; en un nuevo, cuando ya hay fecha de matrícula
+  const conWhatsapp = campo === "fecha_matriculacion" && !soloSobre && (!!valor || exp.estadoVehiculo?.clase === "VO");
   const whatsappEn = useCorreoEnviado(CAMPO_WHATSAPP, exp.id_expediente, conWhatsapp);
   const [verWhatsapp, setVerWhatsapp] = useState(false);
   const pulsarSobre = async () => {
