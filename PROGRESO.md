@@ -14,6 +14,13 @@ Actualízalo al terminar cada fase. Para cada una: estado, qué se hizo, qué fa
 | F7 Raspberry real y rendimiento | 🟨 preparada; faltan las pruebas en la Pi (rama `fase/F7-rendimiento`) | Ver detalle abajo |
 | F8 Datos reales (JSON antiguo y comparación) | ⬜ pendiente | |
 
+## Versión 1.66.11 (27/11/2026)
+
+- Expedientes: ojo en F. RCI para ver el documento de pago; botones «Pedido OCR» y «Pago RCI - OCR» (los dos admiten cualquiera de los dos documentos).
+- F. Matriculación: WhatsApp al cliente (siempre visible en VO) y WhatsApp al compañero de los seguros, con textos y teléfono en Configuración › Expedientes › WhatsApp.
+- Sobres: verde/azul a mano (migración 0090). Hora de entrega agrupada en mañana y tarde (con 19:00) y día de la semana en los campos de fecha. Doble clic en el teléfono selecciona el número (configurable).
+- Avisos de comisiones con el nombre del cliente; respuestas de correo emparejadas por asunto. Next.js 16.4.6.
+
 ## Completar datos: pedido anulado y vuelto a hacer en el mismo listado (13/11/2026, sin cambio de versión)
 
 Si el Excel de la intranet trae dos filas del mismo pedido (una «Anulado» y otra viva) y las dos caen en el mismo expediente de la app, manda la fila viva: la anulada queda como «pedido anterior», sin propuestas y sin expediente asociado (`previsualizarCompletado`). Antes las dos proponían cambios sobre el mismo expediente (estado, bastidor, fecha) y, según el orden del Excel, un expediente vivo podía quedar como «Anulado» y desaparecer de las listas y del cotejo.
